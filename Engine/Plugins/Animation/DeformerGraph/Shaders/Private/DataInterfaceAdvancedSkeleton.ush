@@ -68,7 +68,7 @@ float3x4 ReadWeightedBoneMatrix_{DataInterfaceName}(uint VertexIndex)
 		{DataInterfaceName}_InputWeightStream,
 		{DataInterfaceName}_InputWeightStart,
 		{DataInterfaceName}_InputWeightStride,
-		{DataInterfaceName}_NumBoneInfluences
+		{DataInterfaceName}_NumBoneInfluences,
 		{DataInterfaceName}_BoneMatrices,
 		VertexIndex
 		);
