@@ -337,6 +337,7 @@ namespace HordeServer.Jobs.Schedules
 		/// <param name="schedule"></param>
 		/// <param name="numActiveJobs"></param>
 		/// <param name="utcNow">The current time</param>
+		/// <param name="scheduleLogger"></param>
 		/// <param name="cancellationToken"></param>
 		/// <returns>Async task</returns>
 		private async Task TriggerAsync(IStream stream, TemplateId templateId, ITemplateRef templateRef, ITemplateSchedule schedule, int numActiveJobs, DateTime utcNow, ILogger scheduleLogger, CancellationToken cancellationToken)
