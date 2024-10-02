@@ -2588,7 +2588,3 @@ void FChooserTableEditor::RegisterWidgets()
 
 #undef LOCTEXT_NAMESPACE
 
-void UChooserColumnDetails::BeginDestroy()
-{
-	UObject::BeginDestroy();
-}
