@@ -817,7 +817,13 @@ void UMaterialGraphNode::CreateOutputPins()
 
 void UMaterialGraphNode::PropagatePropertyChange()
 {
-	MaterialExpression->bNeedToUpdatePreview = 1;
+	// If we've already propagated an update to this node return
+	if (MaterialExpression->bNeedToUpdatePreview)
+	{
+		return;
+	}
+
+	MaterialExpression->bNeedToUpdatePreview = true;
 
 	// Loop through all the output pins.
 	for (UEdGraphPin* Pin : Pins)
