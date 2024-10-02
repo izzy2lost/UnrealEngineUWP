@@ -261,12 +261,12 @@ static FRenderBounds PadLocalRenderBounds(const FRenderBounds& InBounds, const F
 FPrimitiveSceneProxyDesc::FPrimitiveSceneProxyDesc(const UPrimitiveComponent* InComponent)
 	: FPrimitiveSceneProxyDesc()
 {
-	InitializeFrom(InComponent);
+	InitializeFromPrimitiveComponent(InComponent);
 }
 
 FPrimitiveSceneProxy::FPrimitiveSceneProxy(FPrimitiveSceneProxy const&) = default;
 
-void FPrimitiveSceneProxyDesc::InitializeFrom(const UPrimitiveComponent* InComponent)
+void FPrimitiveSceneProxyDesc::InitializeFromPrimitiveComponent(const UPrimitiveComponent* InComponent)
 {
 	CastShadow = InComponent->CastShadow;
 	bReceivesDecals = InComponent->bReceivesDecals;

@@ -42,11 +42,6 @@ public:
 
 	inline const FInstanceSceneDataBuffers& GetData() const { return InstanceSceneDataBuffers; }
 
-	/**
-	 * Get the legacy instance data (which is available on legacy platforms).
-	 */
-	virtual ENGINE_API FStaticMeshInstanceBuffer* GetLegacyInstanceBuffer() { return nullptr; }
-
 	//void BuildLegacyData();
 
 	/**

@@ -44,7 +44,11 @@ struct FStaticMeshSceneProxyDesc : public FPrimitiveSceneProxyDesc
 	}
 	
 	ENGINE_API FStaticMeshSceneProxyDesc(const UStaticMeshComponent*);
-	void InitializeFrom(const UStaticMeshComponent*);
+
+	ENGINE_API void InitializeFromStaticMeshComponent(const UStaticMeshComponent*);
+
+	UE_DEPRECATED(5.5, "Use InitializeFromStaticMeshComponent instead.")
+	void InitializeFrom(const UStaticMeshComponent* InComponent) { InitializeFromStaticMeshComponent(InComponent); }
 
 	UStaticMesh* StaticMesh = nullptr;
 	TArrayView<TObjectPtr<UMaterialInterface>>	OverrideMaterials;

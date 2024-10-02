@@ -77,8 +77,11 @@ struct FPrimitiveSceneProxyDesc
 
 	ENGINE_API FPrimitiveSceneProxyDesc(const UPrimitiveComponent*);
 
-	void InitializeFrom(const UPrimitiveComponent*);
+	void InitializeFromPrimitiveComponent(const UPrimitiveComponent*);
 	
+	UE_DEPRECATED(5.5, "Use InitializeFromPrimitiveComponent instead.")
+	void InitializeFrom(const UPrimitiveComponent* InComponent) { InitializeFromPrimitiveComponent(InComponent); }
+
 	virtual ~FPrimitiveSceneProxyDesc() = default;
 
 	uint32 CastShadow : 1;

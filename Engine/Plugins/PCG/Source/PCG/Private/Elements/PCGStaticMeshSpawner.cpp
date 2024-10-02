@@ -66,17 +66,9 @@ bool UPCGStaticMeshSpawnerSettings::IsKernelValid(FPCGContext* InContext, bool b
 
 		for (const FPCGMeshSelectorWeightedEntry& Entry : SelectorWeighted->MeshEntries)
 		{
-			UStaticMesh* StaticMesh = Entry.Descriptor.StaticMesh.LoadSynchronous();
-
-			if (!StaticMesh)
+			if (Entry.Descriptor.StaticMesh.IsNull())
 			{
 				PCG_KERNEL_VALIDATION_ERR(InContext, this, bQuiet, LOCTEXT("UnassignedMesh", "Unassigned mesh."));
-				return false;
-			}
-
-			if (!StaticMesh->HasValidNaniteData())
-			{
-				PCG_KERNEL_VALIDATION_ERR(InContext, this, bQuiet, LOCTEXT("NonNaniteMesh", "Only Nanite meshes are currently supported by the GPU Static Mesh Spawner path."));
 				return false;
 			}
 		}
@@ -593,18 +585,7 @@ bool FPCGStaticMeshSpawnerElement::CanExecuteOnlyOnMainThread(FPCGContext* Conte
 	// PrepareData can call UPCGManagedComponent::MarkAsReused which registers the ISMC, which can go into Chaos code that asserts if not on main thread.
 	// TODO: We can likely re-enable multi-threading for PrepareData if we move the call to MarkAsReused to Execute. There should hopefully not be
 	// wider contention on resources resources are not shared across nodes and are also per-component.
-	bool bRequiresMainThread = !Context || Context->CurrentPhase == EPCGExecutionPhase::Execute || Context->CurrentPhase == EPCGExecutionPhase::PrepareData;
-
-	if (!bRequiresMainThread && Context->GetInputSettings<UPCGStaticMeshSpawnerSettings>())
-	{
-		// TODO: Unfortunate result of convoluted logic. If the spawner is set to GPU, but the validation failed (e.g. static mesh is not compatible),
-		// then the compute graph is not compiled and the CPU spawner task is left in the graph, and the spawner validation will be executed from the element
-		// so that graph warnings and errors can be logged. This validation loads the static mesh to check its settings and this must be done on the main
-		// thread. In the future we may want to invite nodes to log warnings/errors at graph schedule time, and always remove CPU tasks for GPU nodes.
-		bRequiresMainThread |= Context->GetInputSettings<UPCGStaticMeshSpawnerSettings>()->ShouldExecuteOnGPU();
-	}
-
-	return bRequiresMainThread;
+	return !Context || Context->CurrentPhase == EPCGExecutionPhase::Execute || Context->CurrentPhase == EPCGExecutionPhase::PrepareData;
 }
 
 void FPCGStaticMeshSpawnerElement::SpawnStaticMeshInstances(FPCGStaticMeshSpawnerContext* Context, const FPCGMeshInstanceList& InstanceList, AActor* TargetActor, const FPCGPackedCustomData* InPackedCustomData) const
