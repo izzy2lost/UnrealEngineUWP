@@ -70,14 +70,17 @@ IMPLEMENT_STATIC_UNIFORM_BUFFER_STRUCT(FDecalPassUniformParameters, "DecalPass",
 
 FDeferredDecalPassTextures GetDeferredDecalPassTextures(
 	FRDGBuilder& GraphBuilder, 
-	const FSceneView& View,
+	const FViewInfo& View,
+	const FSubstrateSceneData& SubstrateSceneData,
 	const FSceneTextures& SceneTextures, 
-	FDBufferTextures* DBufferTextures)
+	FDBufferTextures* DBufferTextures,
+	EDecalRenderStage DecalRenderStage)
 {
 	FDeferredDecalPassTextures PassTextures;
 
-	auto* Parameters = GraphBuilder.AllocParameters<FDecalPassUniformParameters>();
-	
+	auto* Parameters = GraphBuilder.AllocParameters<FDecalPassUniformParameters>(); //
+
+
 	const bool bIsMobile = (View.GetFeatureLevel() == ERHIFeatureLevel::ES3_1);
 	ESceneTextureSetupMode TextureReadAccess = ESceneTextureSetupMode::None;
 	EMobileSceneTextureSetupMode MobileTextureReadAccess = EMobileSceneTextureSetupMode::None;
@@ -93,6 +96,14 @@ FDeferredDecalPassTextures GetDeferredDecalPassTextures(
 	SetupSceneTextureUniformParameters(GraphBuilder, &SceneTextures, View.FeatureLevel, TextureReadAccess, Parameters->SceneTextures);
 	SetupMobileSceneTextureUniformParameters(GraphBuilder, &SceneTextures, MobileTextureReadAccess, Parameters->MobileSceneTextures);
 	Parameters->EyeAdaptationBuffer = GraphBuilder.CreateSRV(GetEyeAdaptationBuffer(GraphBuilder, View));
+	if (DecalRenderStage == EDecalRenderStage::Emissive)
+	{
+		 Substrate::BindSubstratePublicGlobalUniformParameters(GraphBuilder, &SubstrateSceneData, Parameters->SubstratePublic);
+	}
+	else
+	{
+		Substrate::BindSubstratePublicGlobalUniformParameters(GraphBuilder, nullptr, Parameters->SubstratePublic); // nullptr for default
+	}
 	PassTextures.DecalPassUniformBuffer = GraphBuilder.CreateUniformBuffer(Parameters);
 
 	PassTextures.Depth = SceneTextures.Depth;
@@ -186,6 +197,7 @@ void GetDeferredDecalPassParameters(
 	FRDGBuilder &GraphBuilder,
 	const FViewInfo& View,
 	const FDeferredDecalPassTextures& Textures,
+	EDecalRenderStage DecalRenderStage,
 	EDecalRenderTargetMode RenderTargetMode,
 	FDeferredDecalPassParameters& PassParameters)
 {
@@ -681,7 +693,7 @@ void AddDeferredDecalPass(
 		}
 
 		auto* PassParameters = GraphBuilder.AllocParameters<FDeferredDecalPassParameters>();
-		GetDeferredDecalPassParameters(GraphBuilder, View, PassTextures, RenderTargetMode, *PassParameters);
+		GetDeferredDecalPassParameters(GraphBuilder, View, PassTextures, DecalRenderStage, RenderTargetMode, *PassParameters);
 
 		GraphBuilder.AddPass(
 			RDG_EVENT_NAME("Batch [%d, %d]", DecalIndexBegin, DecalIndexEnd - 1),

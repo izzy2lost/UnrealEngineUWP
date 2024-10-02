@@ -705,26 +705,6 @@ TRDGUniformBufferRef<FSubstrateGlobalUniformParameters> BindSubstrateGlobalUnifo
 	return View.SubstrateViewData.SubstrateGlobalUniformParameters;
 }
 
-static void BindSubstratePublicGlobalUniformParameters(FRDGBuilder& GraphBuilder, FSubstrateSceneData* SubstrateSceneData, FSubstratePublicGlobalUniformParameters& OutSubstrateUniformParameters)
-{
-	if (SubstrateSceneData && SubstrateSceneData->TopLayerTexture)
-	{
-		OutSubstrateUniformParameters.Common = GetSubstrateCommonParameter(*SubstrateSceneData);
-		OutSubstrateUniformParameters.FirstSliceStoringSubstrateSSSData = SubstrateSceneData->FirstSliceStoringSubstrateSSSData;
-		OutSubstrateUniformParameters.MaterialTextureArray = SubstrateSceneData->MaterialTextureArray;
-		OutSubstrateUniformParameters.TopLayerTexture = SubstrateSceneData->TopLayerTexture;
-	}
-	else
-	{
-		const FRDGSystemTextures& SystemTextures = FRDGSystemTextures::Get(GraphBuilder);
-		OutSubstrateUniformParameters.Common = GetSubstrateCommonParameter();
-		OutSubstrateUniformParameters.FirstSliceStoringSubstrateSSSData = -1;
-		OutSubstrateUniformParameters.MaterialTextureArray = GetDefaultSubstrateMaterialTextureArray(GraphBuilder);
-		OutSubstrateUniformParameters.TopLayerTexture = SystemTextures.Black;
-	}
-
-}
-
 static ERHIFeatureSupport SubstrateSupportsWaveOps(EShaderPlatform Platform)
 {
 	// D3D11 / SM5 or preview do not support, or work well with, wave-ops by default (or SM5 preview has issues with wave intrinsics too), that fixes classification and black/wrong tiling.
@@ -736,11 +716,30 @@ static ERHIFeatureSupport SubstrateSupportsWaveOps(EShaderPlatform Platform)
 	return FDataDrivenShaderPlatformInfo::GetSupportsWaveOperations(Platform);
 }
 
+void BindSubstratePublicGlobalUniformParameters(FRDGBuilder& GraphBuilder, const FSubstrateSceneData* SubstrateSceneData, FSubstratePublicParameters& OutSubstrateParameters)
+{
+	if (SubstrateSceneData && SubstrateSceneData->TopLayerTexture)
+	{
+		OutSubstrateParameters.Common = GetSubstrateCommonParameter(*SubstrateSceneData);
+		OutSubstrateParameters.FirstSliceStoringSubstrateSSSData = SubstrateSceneData->FirstSliceStoringSubstrateSSSData;
+		OutSubstrateParameters.MaterialTextureArray = SubstrateSceneData->MaterialTextureArray;
+		OutSubstrateParameters.TopLayerTexture = SubstrateSceneData->TopLayerTexture;
+	}
+	else
+	{
+		const FRDGSystemTextures& SystemTextures = FRDGSystemTextures::Get(GraphBuilder);
+		OutSubstrateParameters.Common = GetSubstrateCommonParameter();
+		OutSubstrateParameters.FirstSliceStoringSubstrateSSSData = -1;
+		OutSubstrateParameters.MaterialTextureArray = GetDefaultSubstrateMaterialTextureArray(GraphBuilder);
+		OutSubstrateParameters.TopLayerTexture = SystemTextures.Black;
+	}
+}
+
 TRDGUniformBufferRef<FSubstratePublicGlobalUniformParameters> CreatePublicGlobalUniformBuffer(FRDGBuilder& GraphBuilder, FSubstrateSceneData* SubstrateScene)
 {
 	FSubstratePublicGlobalUniformParameters* SubstratePublicUniformParameters = GraphBuilder.AllocParameters<FSubstratePublicGlobalUniformParameters>();
 	check(SubstratePublicUniformParameters);
-	BindSubstratePublicGlobalUniformParameters(GraphBuilder, SubstrateScene, *SubstratePublicUniformParameters);
+	BindSubstratePublicGlobalUniformParameters(GraphBuilder, SubstrateScene, SubstratePublicUniformParameters->Public);
 	return GraphBuilder.CreateUniformBuffer(SubstratePublicUniformParameters);
 }
 

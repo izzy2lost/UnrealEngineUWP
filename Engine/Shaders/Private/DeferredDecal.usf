@@ -10,14 +10,17 @@
 #if DECAL_RENDERTARGETMODE == DECAL_RENDERTARGETMODE_DBUFFER
 	#define MobileSceneTextures DecalPass.MobileSceneTextures
 	#define EyeAdaptationStruct DecalPass
+	#define SubstrateStruct DecalPass.SubstratePublic
 #else
 	// Reroute MobileSceneTextures uniform buffer references to the base pass uniform buffer
 	#define MobileSceneTextures MobileBasePass.SceneTextures
 	#define EyeAdaptationStruct MobileBasePass
+	#define SubstrateStruct MobileBasePass.SubstratePublic
 #endif
 #else
 #define SceneTexturesStruct DecalPass.SceneTextures
 #define EyeAdaptationStruct DecalPass
+#define SubstrateStruct DecalPass.SubstratePublic
 #endif
 
 #if PIXELSHADER
