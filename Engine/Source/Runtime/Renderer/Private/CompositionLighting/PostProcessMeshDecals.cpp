@@ -510,7 +510,7 @@ void DrawDecalMeshCommands(
 	EDecalRenderTargetMode RenderTargetMode)
 {
 	auto* PassParameters = GraphBuilder.AllocParameters<FDeferredDecalPassParameters>();
-	GetDeferredDecalPassParameters(GraphBuilder, View, DecalPassTextures, RenderTargetMode, *PassParameters);
+	GetDeferredDecalPassParameters(GraphBuilder, View, DecalPassTextures, DecalRenderStage, RenderTargetMode, *PassParameters);
 
 	EMeshPass::Type DecalMeshPassType = DecalRendering::GetMeshPassType(RenderTargetMode);
 	if (View.ParallelMeshDrawCommandPasses[DecalMeshPassType].HasAnyDraw())

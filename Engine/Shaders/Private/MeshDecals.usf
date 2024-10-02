@@ -10,9 +10,11 @@
 	// Reroute MobileSceneTextures uniform buffer references to the base pass uniform buffer 
 	#define MobileSceneTextures MobileBasePass.SceneTextures
 	#define EyeAdaptationStruct MobileBasePass
+	#define SubstrateStruct MobileBasePass.SubstratePublic
 #else
 	#define SceneTexturesStruct DecalPass.SceneTextures
 	#define EyeAdaptationStruct DecalPass
+	#define SubstrateStruct DecalPass.SubstratePublic
 #endif
 
 #include "Substrate/Substrate.ush"
