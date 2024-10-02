@@ -662,17 +662,16 @@ bool FSlateInvalidationRoot::PaintFastPath_UpdateNextWidget(const FSlateInvalida
 	const FSlateInvalidationWidgetIndex MyIndex = FinalUpdateList.Pop(EAllowShrinking::No).GetWidgetIndex();
 
 	FSlateInvalidationWidgetList::InvalidationWidgetType& InvalidationWidget = (*FastWidgetPathList)[MyIndex];
-	SWidget* WidgetPtr = InvalidationWidget.GetWidget();
 
 #if UE_SLATE_WITH_INVALIDATIONWIDGETLIST_DEBUGGING
 	if (GSlateInvalidationRootVerifyWidgetsAreUpdatedOnce)
 	{
-		ensureAlwaysMsgf(!InvalidationWidget.bDebug_Updated, TEXT("VerifyWidgetsAreUpdatedOnce failed. Widget '%s' is going to be updated more than once"), *FReflectionMetaData::GetWidgetDebugInfo(WidgetPtr));
+		ensureAlwaysMsgf(!InvalidationWidget.bDebug_Updated, TEXT("VerifyWidgetsAreUpdatedOnce failed. Widget '%s' is going to be updated more than once"), *FReflectionMetaData::GetWidgetDebugInfo(InvalidationWidget.GetWidget()));
 	}
 #endif
 
 	// Check visibility, it was tested before adding it to the list but another widget may have change while updating.
-	if (InvalidationWidget.Visibility.IsVisible() && WidgetPtr)
+	if (InvalidationWidget.Visibility.IsVisible() && InvalidationWidget.GetWidget())
 	{
 		const FWidgetProxy::FUpdateResult UpdateResult = InvalidationWidget.Update(*Context.PaintArgs, *Context.WindowElementList);
 
@@ -702,7 +701,7 @@ bool FSlateInvalidationRoot::PaintFastPath_UpdateNextWidget(const FSlateInvalida
 			// Did it painted more elements than it previously had
 			if (UpdateResult.NewOutgoingLayerId > UpdateResult.PreviousOutgoingLayerId && GSlateInvalidationEnableReindexLayerId)
 			{
-				if (InvalidationWidget.Visibility.IsVisible() && WidgetPtr)
+				if (InvalidationWidget.Visibility.IsVisible() && InvalidationWidget.GetWidget())
 				{
 					PaintFastPath_FixupLayerId(FastPaintContext, InvalidationWidget, UpdateResult.NewOutgoingLayerId);
 				}
