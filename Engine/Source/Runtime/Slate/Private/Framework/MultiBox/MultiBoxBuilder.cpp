@@ -701,7 +701,10 @@ void FToolBarBuilder::AddWidget(
 )
 {
 	FMenuEntryStyleParams StyleParams = InStyleParams;
-	StyleParams.VerticalAlignment = VAlign_Center; // Default to centered, versions prior to 5.5 decide alignment based on label presence
+	if (!StyleParams.VerticalAlignment.IsSet())
+	{
+		StyleParams.VerticalAlignment = VAlign_Center; // Default to centered, versions prior to 5.5 decide alignment based on label presence
+	}
 
 	AddWidgetInternal(InWidget, StyleParams, InTutorialHighlightName, bInSearchable, InCustomMenuDelegate, InVisibilityOverride);
 }
