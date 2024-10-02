@@ -45,6 +45,7 @@ public:
 
 	virtual FOnLaunchReferenceViewer& OnLaunchReferenceViewerDelegate() override { return LaunchReferenceViewerDelegate; }
 	virtual FOnPluginDirectoriesChanged& OnPluginDirectoriesChanged() override { return OnPluginDirectoriesChangedDelegate; }
+	virtual FSimpleDelegate& OnRestartClicked() override { return OnRestartClickedDelegate; }
 
 	/**
 	 * Sets whether a plugin is pending enable/disable
@@ -116,6 +117,9 @@ private:
 
 	/** Register menu extensions for the content browser */
 	void AddContentBrowserMenuExtensions();
+
+	/** Delegate to call when the restart button in the pending restart notice is clicked. */
+	FSimpleDelegate OnRestartClickedDelegate;
 
 	/** List of added plugin templates */
 	TArray<TSharedRef<FPluginTemplateDescription>> AddedPluginTemplates;

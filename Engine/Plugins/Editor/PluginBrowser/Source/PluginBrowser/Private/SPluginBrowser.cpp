@@ -8,7 +8,6 @@
 #include "SPluginTileList.h"
 #include "Widgets/SToolTip.h"
 #include "Framework/Docking/TabManager.h"
-#include "UnrealEdMisc.h"
 #include "Interfaces/IPluginManager.h"
 #include "PluginStyle.h"
 #include "Widgets/Navigation/SBreadcrumbTrail.h"
@@ -40,6 +39,8 @@ SPluginBrowser::~SPluginBrowser()
 
 void SPluginBrowser::Construct( const FArguments& Args )
 {
+	OnRestartClicked = Args._OnRestartClicked;
+
 	// Get the root directories which contain plugins
 	TArray<FString> WatchDirectoryNames;
 	WatchDirectoryNames.Add(FPaths::EnginePluginsDir());
@@ -319,12 +320,12 @@ void SPluginBrowser::Construct( const FArguments& Args )
 				.Padding(FMargin(18.0f, 20.0f, 18.0f, 16.0f))
 				[
 					SNew(SWarningOrErrorBox)
-					.Visibility(this, &SPluginBrowser::HandleRestartEditorNoticeVisibility)
+					.Visibility(this, &SPluginBrowser::HandleRestartNoticeVisibility)
 					.MessageStyle(EMessageStyle::Warning)
 					.Message(LOCTEXT("PluginSettingsRestartNotice", "You must restart Unreal Editor for your changes to take effect."))
 					[
 						SNew(SButton)
-						.OnClicked(this, &SPluginBrowser::HandleRestartEditorButtonClicked)
+						.OnClicked(this, &SPluginBrowser::HandleRestartButtonClicked)
 						.TextStyle(FAppStyle::Get(), "NormalText")
 						.Text(LOCTEXT("PluginSettingsRestartEditor", "Restart Now"))
 					]
@@ -350,16 +351,19 @@ void SPluginBrowser::Tick(const FGeometry& AllottedGeometry, const double InCurr
 	}
 }
 
-EVisibility SPluginBrowser::HandleRestartEditorNoticeVisibility() const
+EVisibility SPluginBrowser::HandleRestartNoticeVisibility() const
 {
 	return FPluginBrowserModule::Get().ShowPendingRestart() ? EVisibility::Visible : EVisibility::Collapsed;
 }
 
-FReply SPluginBrowser::HandleRestartEditorButtonClicked() const
+FReply SPluginBrowser::HandleRestartButtonClicked() const
 {
-	const bool bWarn = false;
-	FUnrealEdMisc::Get().RestartEditor(bWarn);
-	return FReply::Handled();
+	if (ensure(OnRestartClicked.IsBound()))
+	{
+		return OnRestartClicked.Execute();
+	}
+
+	return FReply::Unhandled();
 }
 
 void SPluginBrowser::SearchBox_OnPluginSearchTextChanged( const FText& NewText )
