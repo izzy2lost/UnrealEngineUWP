@@ -466,7 +466,7 @@ namespace mu
 				Ptr<NodeImageConstant> pNode = new NodeImageConstant();
 				pNode->SetValue(PatchMask.get());
 
-				FImageGenerationOptions ConstantOptions(-1);
+				FImageGenerationOptions ConstantOptions;
 				FImageGenerationResult ConstantResult;
 				GenerateImage(ConstantOptions, ConstantResult, pNode);
 				RectConstantOp = ConstantResult.op;
@@ -906,8 +906,7 @@ namespace mu
 
 		// Store the data necessary to apply modifiers for the pre-normal operations stage.
 		// TODO: Should we merge with currently active tags from the InOptions?
-		int32 ComponentId = Options.Component ? Options.Component->Id : -1;
-		GetModifiersFor(ComponentId, SurfaceNode->Tags, bModifiersForBeforeOperations, Modifiers);
+		GetModifiersFor(SurfaceNode->Tags, bModifiersForBeforeOperations, Modifiers);
 
 		// This pass on the modifiers is only to detect errors that cannot be detected at the point they are applied.
 		CheckModifiersForSurface(*SurfaceNode, Modifiers);
@@ -920,7 +919,7 @@ namespace mu
             Ptr<ASTOp> LastMeshOp;
 
             // Generate the mesh
-			FMeshGenerationOptions MeshOptions(ComponentId);
+			FMeshGenerationOptions MeshOptions;
 			MeshOptions.bLayouts = true;
 			MeshOptions.State = Options.State;
 			MeshOptions.ActiveTags = SurfaceNode->Tags;
@@ -1196,7 +1195,7 @@ namespace mu
 					if (ImageLayoutStrategy == CompilerOptions::TextureLayoutStrategy::None)
 					{
 						// Generate the image
-						FImageGenerationOptions ImageOptions(ComponentId);
+						FImageGenerationOptions ImageOptions;
 						ImageOptions.State = Options.State;
 						ImageOptions.ImageLayoutStrategy = ImageLayoutStrategy;
 						ImageOptions.ActiveTags = SurfaceNode->Tags;
@@ -1319,7 +1318,7 @@ namespace mu
 								for (int32 BlockIndex = 0; BlockIndex < pLayout->GetBlockCount(); ++BlockIndex)
 								{
 									// Generate the image
-									FImageGenerationOptions ImageOptions(ComponentId);
+									FImageGenerationOptions ImageOptions;
 									ImageOptions.State = Options.State;
 									ImageOptions.ImageLayoutStrategy = ImageLayoutStrategy;
 									ImageOptions.RectSize = { 0,0 };
@@ -1379,10 +1378,10 @@ namespace mu
 							}
 							check(imageAd);
 
-							FMeshGenerationOptions ModifierOptions(ComponentId);
+							FMeshGenerationOptions ModifierOptions;
 							ModifierOptions.State = Options.State;
 							ModifierOptions.ActiveTags = SurfaceNode->Tags;
-							imageAd = ApplyImageExtendModifiers( Modifiers, ModifierOptions, ComponentId, MeshResults, imageAd, ImageLayoutStrategy, 
+							imageAd = ApplyImageExtendModifiers( Modifiers, ModifierOptions, MeshResults, imageAd, ImageLayoutStrategy, 
 								LayoutIndex, ImageData, GridSize, LayoutBlockDesc, 
 								SurfaceNode->GetMessageContext());
 
@@ -1924,7 +1923,6 @@ namespace mu
 
 	//---------------------------------------------------------------------------------------------
 	void CodeGenerator::GetModifiersFor(
-		int32 ComponentId,
 		const TArray<FString>& SurfaceTags,
 		bool bModifiersForBeforeOperations,
 		TArray<FirstPassGenerator::FModifier>& OutModifiers)
@@ -1938,19 +1936,8 @@ namespace mu
 
 		for (const FirstPassGenerator::FModifier& m: FirstPass.Modifiers)
 		{
-			if (!m.Node)
-			{
-				continue;
-			}
-
 			// Correct stage?
 			if (m.Node->bApplyBeforeNormalOperations != bModifiersForBeforeOperations)
-			{
-				continue;
-			}
-
-			// Correct component?
-			if (m.Node->RequiredComponentId>=0 && m.Node->RequiredComponentId!=ComponentId)
 			{
 				continue;
 			}
@@ -2060,7 +2047,7 @@ namespace mu
 
 					TArray<FirstPassGenerator::FModifier> ChildModifiers;
 					constexpr bool bModifiersForBeforeOperations = false;
-					GetModifiersFor(Options.ComponentId, ModifierOptions.ActiveTags, bModifiersForBeforeOperations, ChildModifiers);
+					GetModifiersFor(ModifierOptions.ActiveTags, bModifiersForBeforeOperations, ChildModifiers);
 
 					ModifiersToIgnore.Push(m);
 					Ptr<ASTOp> AddedMeshOp = ApplyMeshModifiers(ChildModifiers, ModifierOptions, AddResults, SharedMeshResults, ErrorContext, nullptr);
@@ -2121,7 +2108,7 @@ namespace mu
 					Ptr<NodeMesh> pRemove = Edit->LODs[CurrentLOD].MeshRemove;
 
 					FMeshGenerationResult removeResults;
-					FMeshGenerationOptions RemoveMeshOptions(Options.ComponentId);
+					FMeshGenerationOptions RemoveMeshOptions;
 					RemoveMeshOptions.bLayouts = false;
 					RemoveMeshOptions.State = Options.State;
 					RemoveMeshOptions.ActiveTags = Edit->EnableTags;
@@ -2252,7 +2239,7 @@ namespace mu
 				op->source = PreModifiersMesh;
 
 				// Parameters
-				FMeshGenerationOptions ClipOptions( Options.ComponentId );
+				FMeshGenerationOptions ClipOptions;
 				ClipOptions.bLayouts = false;
 				ClipOptions.State = Options.State;
 
@@ -2310,7 +2297,7 @@ namespace mu
 				if (TypedClipNode->ClipMask)
 				{
 					// Parameters to generate the mask image
-					FImageGenerationOptions ClipOptions(Options.ComponentId);
+					FImageGenerationOptions ClipOptions;
 					ClipOptions.ImageLayoutStrategy = CompilerOptions::TextureLayoutStrategy::None;
 					ClipOptions.LayoutBlockId = FLayoutBlock::InvalidBlockId;
 					ClipOptions.State = Options.State;
@@ -2443,7 +2430,7 @@ namespace mu
 
 				ClipOp->FaceCullStrategy = TypedClipNode->FaceCullStrategy;
 
-				FMeshGenerationOptions ClipOptions(Options.ComponentId);
+				FMeshGenerationOptions ClipOptions;
 				ClipOptions.bLayouts = false;
 				ClipOptions.State = Options.State;				
 
@@ -2505,7 +2492,7 @@ namespace mu
 					if (TypedTransformNode->BoundingMesh)
 					{
 						// Parameters
-						FMeshGenerationOptions MeshOptions(Options.ComponentId);
+						FMeshGenerationOptions MeshOptions;
 						MeshOptions.bLayouts = false;
 						MeshOptions.State = Options.State;
 
@@ -2622,8 +2609,7 @@ namespace mu
 
 	Ptr<ASTOp> CodeGenerator::ApplyImageExtendModifiers(
 		const TArray<FirstPassGenerator::FModifier>& Modifiers,
-		const FGenericGenerationOptions& Options,
-		int32 ComponentId,
+		const FGenericGenerationOptions& Options, 
 		const FMeshGenerationResult& BaseMeshResults,
 		Ptr<ASTOp> BaseImageOp, 
 		CompilerOptions::TextureLayoutStrategy ImageLayoutStrategy,
@@ -2688,7 +2674,7 @@ namespace mu
 					for (int32 b = 0; b < pExtendLayout->GetBlockCount(); ++b)
 					{
 						// Generate the image block
-						FImageGenerationOptions ImageOptions(ComponentId);
+						FImageGenerationOptions ImageOptions;
 						ImageOptions.State = Options.State;
 						ImageOptions.ImageLayoutStrategy = ImageLayoutStrategy;
 						ImageOptions.ActiveTags = Edit->EnableTags; // TODO: Merge with current tags?

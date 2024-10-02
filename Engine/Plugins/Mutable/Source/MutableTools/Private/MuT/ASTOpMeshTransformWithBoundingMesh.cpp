@@ -78,12 +78,8 @@ void mu::ASTOpMeshTransformWithBoundingMesh::Link(FProgram& program, FLinkerOpti
 	}
 }
 
-mu::FSourceDataDescriptor mu::ASTOpMeshTransformWithBoundingMesh::GetSourceDataDescriptor(FGetSourceDataDescriptorContext* Context) const
+mu::FSourceDataDescriptor mu::ASTOpMeshTransformWithBoundingMesh::GetSourceDataDescriptor(
+	FGetSourceDataDescriptorContext* GetSourceDataDescriptorContext) const
 {
-	if (source)
-	{
-		return source->GetSourceDataDescriptor(Context);
-	}
-
-	return {};
+	return source->GetSourceDataDescriptor(GetSourceDataDescriptorContext);
 }
