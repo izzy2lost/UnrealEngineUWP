@@ -71,14 +71,14 @@ void UMVVMK2Node_LoadSoftResource::ExpandNode(FKismetCompilerContext& CompilerCo
 	// move this.then to CallLoadAssetNode.then
 	CompilerContext.MovePinLinksToIntermediate(*GetThenPin(), *CallLoadAssetNode->GetThenPin());
 	// CallLoadAssetNode.completed to CastNode.exec
-	check(Schema->TryCreateConnection(CallLoadAssetNode->FindPinChecked(UEdGraphSchema_K2::PN_Completed), CastNode->GetExecPin()));
+	ensure(Schema->TryCreateConnection(CallLoadAssetNode->FindPinChecked(UEdGraphSchema_K2::PN_Completed), CastNode->GetExecPin()));
 	// move this.completed to CastNode.then
 	CompilerContext.MovePinLinksToIntermediate(*GetCompletedPin(), *CastNode->GetThenPin());
 
 	// move this.resource to CallLoadAssetNode.arg
 	CompilerContext.MovePinLinksToIntermediate(*FindPinChecked(GetInputPinName()), *LoadAssetInput);
 	// CallLoadAssetNode.result to CastNode.Input
-	check(Schema->TryCreateConnection(LoadAssetOutput, CastInput));
+	ensure(Schema->TryCreateConnection(LoadAssetOutput, CastInput));
 	// move this.result to CastNode.Output
 	CompilerContext.MovePinLinksToIntermediate(*FindPinChecked(GetOutputPinName()), *CastOutput);
 

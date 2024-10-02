@@ -93,7 +93,7 @@ void UMVVMK2Node_MakeBrushFromSoftResource::ExpandNode(FKismetCompilerContext& C
 	// move this.then to CallLoadAssetNode.then
 	CompilerContext.MovePinLinksToIntermediate(*GetThenPin(), *CallLoadAssetNode->GetThenPin());
 	// CallLoadAssetNode.completed to CastNode.exec
-	check(Schema->TryCreateConnection(CallLoadAssetNode->FindPinChecked(UEdGraphSchema_K2::PN_Completed), CastNode->GetExecPin()));
+	ensure(Schema->TryCreateConnection(CallLoadAssetNode->FindPinChecked(UEdGraphSchema_K2::PN_Completed), CastNode->GetExecPin()));
 	// move this.completed to CastNode.then
 	CompilerContext.MovePinLinksToIntermediate(*GetCompletedPin(), *CastNode->GetThenPin());
 
@@ -104,9 +104,9 @@ void UMVVMK2Node_MakeBrushFromSoftResource::ExpandNode(FKismetCompilerContext& C
 	// move this.height to CallMakeBrushFrom.height
 	CompilerContext.MovePinLinksToIntermediate(*FindPinChecked(UE::MVVM::Private::PinNames::Height), *CallMakeBrushFromHeightPin);
 	// CallLoadAssetNode.result to CastNode.Input
-	check(Schema->TryCreateConnection(LoadAssetOutput, CastInput));
+	ensure(Schema->TryCreateConnection(LoadAssetOutput, CastInput));
 	// CastNode.Output to CallMakeBrushFrom.Resource
-	check(Schema->TryCreateConnection(CastOutput, CallMakeBrushFromResourcePin));
+	ensure(Schema->TryCreateConnection(CastOutput, CallMakeBrushFromResourcePin));
 	// move this.result to CallLoadAssetNode.result
 	CompilerContext.MovePinLinksToIntermediate(*FindPinChecked(GetOutputPinName()), *CallMakeBrushFromResultPin);
 

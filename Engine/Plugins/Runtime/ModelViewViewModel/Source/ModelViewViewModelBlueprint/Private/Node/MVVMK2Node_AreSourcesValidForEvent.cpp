@@ -85,13 +85,13 @@ void UMVVMK2Node_AreSourcesValidForEvent::ExpandNode(FKismetCompilerContext& Com
 	// Casting subsytem.result into MVVMSubsystem
 	CallGetSubsystemNode->GetReturnValuePin()->PinType = CallGetViewNode->FindPinChecked(UEdGraphSchema_K2::PN_Self)->PinType;
 	// subsystem.result to GetViewFromUserWidget.target
-	check(Schema->TryCreateConnection(CallGetSubsystemNode->GetReturnValuePin(), CallGetViewNode->FindPinChecked(UEdGraphSchema_K2::PN_Self)));
+	ensure(Schema->TryCreateConnection(CallGetSubsystemNode->GetReturnValuePin(), CallGetViewNode->FindPinChecked(UEdGraphSchema_K2::PN_Self)));
 	// self to GetViewFromUserWidget.UserWidget
-	check(Schema->TryCreateConnection(SelfNode->FindPinChecked(UEdGraphSchema_K2::PN_Self), CallGetViewNode->FindPinChecked(FName("UserWidget"))));
+	ensure(Schema->TryCreateConnection(SelfNode->FindPinChecked(UEdGraphSchema_K2::PN_Self), CallGetViewNode->FindPinChecked(FName("UserWidget"))));
 	// GetViewFromUserWidget.Result to AreSourcesValidForEvent.target
-	check(Schema->TryCreateConnection(CallGetViewNode->FindPinChecked(UEdGraphSchema_K2::PN_ReturnValue), CallAreSourcesValidForEventNode->FindPinChecked(UEdGraphSchema_K2::PN_Self)));
+	ensure(Schema->TryCreateConnection(CallGetViewNode->FindPinChecked(UEdGraphSchema_K2::PN_ReturnValue), CallAreSourcesValidForEventNode->FindPinChecked(UEdGraphSchema_K2::PN_Self)));
 	// AreSourcesValidForEvent.result to branch.condition
-	check(Schema->TryCreateConnection(CallAreSourcesValidForEventNode->FindPinChecked(UEdGraphSchema_K2::PN_ReturnValue), BranchNode->GetConditionPin()));
+	ensure(Schema->TryCreateConnection(CallAreSourcesValidForEventNode->FindPinChecked(UEdGraphSchema_K2::PN_ReturnValue), BranchNode->GetConditionPin()));
 	// move this.exec to branch.exec
 	CompilerContext.MovePinLinksToIntermediate(*GetExecPin(), *BranchNode->GetExecPin());
 	// move this.then to branch.then
