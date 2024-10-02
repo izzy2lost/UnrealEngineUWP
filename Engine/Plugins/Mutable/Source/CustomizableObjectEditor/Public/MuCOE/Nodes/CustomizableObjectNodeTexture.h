@@ -58,20 +58,20 @@ public:
 };
 
 
-UCLASS()
+UCLASS(Abstract)
 class CUSTOMIZABLEOBJECTEDITOR_API UCustomizableObjectNodeTextureBase : public UCustomizableObjectNode
 {
 public:
 	GENERATED_BODY()
-
-	UPROPERTY(EditAnywhere, Category = Texture2D)
-	TObjectPtr<UTexture2D> Texture = nullptr;
 
 	// Determines if the Node is collapsed or not
 	bool bCollapsed = true;
 
 	// Creates the SGraph Node widget for the thumbnail
 	TSharedPtr<SGraphNode> CreateVisualWidget() override;
+
+	/** */
+	virtual TObjectPtr<UTexture> GetTexture() PURE_VIRTUAL(UCustomizableObjectNodeTextureBase::GetTexture, return {};);
 };
 
 
@@ -81,9 +81,15 @@ class CUSTOMIZABLEOBJECTEDITOR_API UCustomizableObjectNodeTexture : public UCust
 public:
 	GENERATED_BODY()
 
+	UPROPERTY(EditAnywhere, Category = Texture2D)
+	TObjectPtr<UTexture2D> Texture = nullptr;
+
 	// UCustomizableObjectNode interface
 	virtual void AllocateDefaultPins(UCustomizableObjectNodeRemapPins* RemapPins) override;
 	virtual void BackwardsCompatibleFixup(int32 CustomizableObjectCustomVersion) override;
+
+	// UCustomizableObjectNodeTextureBase interface
+	virtual TObjectPtr<UTexture> GetTexture() override;
 
 	// Begin EdGraphNode interface
 	FText GetNodeTitle(ENodeTitleType::Type TitleType) const override;
