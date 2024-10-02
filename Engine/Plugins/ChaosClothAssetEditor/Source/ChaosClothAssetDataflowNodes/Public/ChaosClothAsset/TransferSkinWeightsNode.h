@@ -7,6 +7,12 @@
 #include "ChaosClothAsset/WeightedValue.h"
 #include "TransferSkinWeightsNode.generated.h"
 
+#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
+namespace Dataflow = UE::Dataflow;
+#else
+namespace UE_DEPRECATED(5.5, "Use UE::Dafaflow instead.") Dataflow {}
+#endif
+
 class USkeletalMesh;
 
 UENUM(BlueprintType)

@@ -6,6 +6,12 @@
 #include "GeometryCollection/ManagedArrayCollection.h"
 #include "BindToRootBoneNode.generated.h"
 
+#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
+namespace Dataflow = UE::Dataflow;
+#else
+namespace UE_DEPRECATED(5.5, "Use UE::Dafaflow instead.") Dataflow {}
+#endif
+
 /** Bind an entire mesh to the single root bone of the current skeleton set on the cloth collection. */
 USTRUCT(Meta = (DataflowCloth))
 struct FChaosClothAssetBindToRootBoneNode : public FDataflowNode

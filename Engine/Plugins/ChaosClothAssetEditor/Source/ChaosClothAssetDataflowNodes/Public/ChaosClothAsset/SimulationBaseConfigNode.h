@@ -12,6 +12,12 @@
 #include "GeometryCollection/ManagedArrayCollection.h"
 #include "SimulationBaseConfigNode.generated.h"
 
+#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
+namespace Dataflow = UE::Dataflow;
+#else
+namespace UE_DEPRECATED(5.5, "Use UE::Dafaflow instead.") Dataflow {}
+#endif
+
 /**
  * Base abstract class for all cloth asset config nodes.
  * Inherited class must call RegisterCollectionConnections() in constructor to use this base class Collection.
