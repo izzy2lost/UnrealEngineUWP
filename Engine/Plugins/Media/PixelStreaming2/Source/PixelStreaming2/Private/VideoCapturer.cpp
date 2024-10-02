@@ -8,6 +8,7 @@
 #include "PixelCaptureCapturerI420.h"
 #include "PixelCaptureCapturerI420ToRHI.h"
 #include "PixelCaptureCapturerNV12ToRHI.h"
+#include "PixelCaptureCapturerRHI.h"
 #include "PixelCaptureCapturerRHIRDG.h"
 #include "PixelCaptureCapturerRHIToI420CPU.h"
 #include "PixelStreaming2PluginSettings.h"
@@ -29,6 +30,7 @@ namespace UE::PixelStreaming2
 		if (UPixelStreaming2PluginSettings::FDelegates* Delegates = UPixelStreaming2PluginSettings::Delegates())
 		{
 			VideoCapturer->SimulcastEnabledChangedHandle = Delegates->OnSimulcastEnabledChanged.AddSP(VideoCapturer.ToSharedRef(), &FVideoCapturer::OnSimulcastEnabledChanged);
+			VideoCapturer->CaptureUseFenceChangedHandle = Delegates->OnCaptureUseFenceChanged.AddSP(VideoCapturer.ToSharedRef(), &FVideoCapturer::OnCaptureUseFenceChanged);
 		}
 		return VideoCapturer;
 	}
@@ -106,6 +108,11 @@ namespace UE::PixelStreaming2
 		CreateFrameCapturer();
 	}
 
+	void FVideoCapturer::OnCaptureUseFenceChanged(IConsoleVariable* Var)
+	{
+		CreateFrameCapturer();
+	}
+
 	void FVideoCapturer::CreateFrameCapturer()
 	{
 		if (FrameCapturer != nullptr)
@@ -138,7 +145,14 @@ namespace UE::PixelStreaming2
 			switch (FinalFormat)
 			{
 				case PixelCaptureBufferFormat::FORMAT_RHI:
-					return FPixelCaptureCapturerRHIRDG::Create(FinalScale);
+					if(UPixelStreaming2PluginSettings::CVarCaptureUseFence.GetValueOnAnyThread())
+					{
+						return FPixelCaptureCapturerRHI::Create(FinalScale);
+					}
+					else 
+					{
+						return FPixelCaptureCapturerRHIRDG::Create(FinalScale);
+					}
 				case PixelCaptureBufferFormat::FORMAT_I420:
 					return FPixelCaptureCapturerRHIToI420CPU::Create(FinalScale);
 				default:

@@ -202,6 +202,13 @@ TAutoConsoleVariable<FString> UPixelStreaming2PluginSettings::CVarSignallingURL(
 	TEXT("Default URL to connect to for signalling."),
 	ECVF_Default);
 
+TAutoConsoleVariable<bool> UPixelStreaming2PluginSettings::CVarCaptureUseFence(
+	TEXT("PixelStreaming2.CaptureUseFence"),
+	false,
+	TEXT("Whether the texture copy we do during image capture should use a fence or not (non-fenced is faster but less safe)."),
+	FConsoleVariableDelegate::CreateLambda([](IConsoleVariable* Var) { Delegates()->OnCaptureUseFenceChanged.Broadcast(Var); }),
+	ECVF_Default);
+
 TAutoConsoleVariable<bool> UPixelStreaming2PluginSettings::CVarDebugDumpAudio(
 	TEXT("PixelStreaming2.DumpDebugAudio"),
 	false,
@@ -911,6 +918,7 @@ static const TMap<FString, FString> GetCmdArg = {
 	{ "UseMediaCapture", "PixelStreaming2.UseMediaCapture" },
 	{ "DefaultStreamerID", "PixelStreaming2.ID" },
 	{ "SignallingURL", "PixelStreaming2.SignallingURL" },
+	{ "CaptureUseFence", "PixelStreaming2.CaptureUseFence" },
 	{ "Codec", "PixelStreaming2.Encoder.Codec" },
 	{ "EncoderTargetBitrate", "PixelStreaming2.Encoder.TargetBitrate" },
 	{ "EncoderMinQuality", "PixelStreaming2.Encoder.MinQuality" },

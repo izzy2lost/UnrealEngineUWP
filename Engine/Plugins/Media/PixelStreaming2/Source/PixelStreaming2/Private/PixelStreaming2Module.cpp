@@ -161,6 +161,19 @@ namespace UE::PixelStreaming2
 			// Ensure we have ImageWrapper loaded, used in Freezeframes
 			verify(FModuleManager::Get().LoadModule(FName("ImageWrapper")));
 
+			// HACK (Eden.Harris): Until or if we ever find a workaround for fencing, we need to ensure capture always uses a fence.
+			// If we don't then we get frequent and intermittent stuttering as textures are rendered to while being encoded.
+			// From testing NVENC + CUDA pathway seems acceptable without a fence in most cases so we use the faster, unsafer path there.
+			if (IsRHIDeviceAMD())
+			{
+				if (!UPixelStreaming2PluginSettings::CVarCaptureUseFence.GetValueOnAnyThread())
+				{
+					UE_LOGFMT(LogPixelStreaming2, Warning, "AMD GPU Device detected, setting PixelStreaming2.CaptureUseFence to true to avoid screen tearing in stream.");
+				}
+
+				UPixelStreaming2PluginSettings::CVarCaptureUseFence.AsVariable()->Set(true);
+			}
+
 			// We don't want to start immediately streaming in editor
 			if (!GIsEditor)
 			{
