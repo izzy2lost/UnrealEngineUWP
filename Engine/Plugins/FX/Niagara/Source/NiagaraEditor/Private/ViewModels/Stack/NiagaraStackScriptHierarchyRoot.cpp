@@ -132,20 +132,27 @@ void UNiagaraStackScriptHierarchyRoot::RefreshInstanceData()
 	UNiagaraGraph* NiagaraGraph = OwningFunctionCallNode->GetFunctionScriptSource()->NodeGraph;
 	const TMap<FNiagaraVariable, TObjectPtr<UNiagaraScriptVariable>>& ScriptVariableMap = NiagaraGraph->GetAllMetaData();
 
+	auto IsInputValid = [&ScriptVariableMap](const FNiagaraVariable& InputVariable) -> bool
+	{
+		if (InputVariable.GetType().IsValid() == false)
+		{
+			return false;
+		}
+
+		if (const UNiagaraScriptVariable* MatchingScriptVariable = ScriptVariableMap.FindRef(InputVariable))
+		{
+			return MatchingScriptVariable->Metadata.bInlineEditConditionToggle == false;
+		}
+
+		return false;
+	};
+
 	for(auto It(UsedInputs.CreateIterator()); It; ++It)
 	{
-		UNiagaraScriptVariable* ScriptVariable = ScriptVariableMap[*It];
-		
-		if(It->GetType().IsValid() == false)
+		if (!IsInputValid(*It))
 		{
 			It.RemoveCurrent();
 		}
-
-		if(ScriptVariable->Metadata.bInlineEditConditionToggle)
-		{
-			It.RemoveCurrent();
-		}
-
 	}
 	
 	for(const FNiagaraVariable& InputVariable : UsedInputs)
