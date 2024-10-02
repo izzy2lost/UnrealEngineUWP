@@ -28,5 +28,8 @@ public:
 	uint32 bLoadAssetsWhenValidatingChangelists : 1 = true;
 
 	UPROPERTY(EditAnywhere, Config, Category="Data Validation")
+	bool bEnableMaterialValidation = true;
+
+	UPROPERTY(EditAnywhere, Config, Category="Data Validation", meta=(EditCondition="bEnableMaterialValidation"))
 	TArray<FMaterialEditorValidationPlatform> MaterialValidationPlatforms;
 };
