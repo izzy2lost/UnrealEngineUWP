@@ -27,6 +27,7 @@
 #include "Subsystems/ActorModifierCoreSubsystem.h"
 
 #if WITH_EDITOR
+#include "DMObjectMaterialProperty.h"
 #include "Editor.h"
 #include "Elements/Actor/ActorElementEditorViewportInteractionCustomization.h"
 #include "IDynamicMaterialEditorModule.h"
@@ -1197,8 +1198,10 @@ void UAvaShapeDynamicMeshBase::OnMaterialTypeChanged(int32 MaterialIndex)
 					SetMaterial(MaterialIndex, NewInstance);
 
 #if WITH_EDITOR
+					const FDMObjectMaterialProperty ObjectMaterialProperty = FDMObjectMaterialProperty(GetShapeMeshComponent(), MaterialIndex);
+
 					const IDynamicMaterialEditorModule& MaterialDesignerModule = IDynamicMaterialEditorModule::Get();
-					MaterialDesignerModule.OpenMaterial(NewInstance, GetWorld(), /* Invoke Tab */ true);
+					MaterialDesignerModule.OpenMaterialObjectProperty(ObjectMaterialProperty, GetWorld(), /* Invoke Tab */ true);
 #endif
 				}
 				break;
