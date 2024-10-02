@@ -41,10 +41,8 @@ public:
 	UPCGCustomHLSLSettings();
 
 	//~Begin UObject interface
-#if WITH_EDITOR
 	virtual void PostLoad() override;
 	virtual void PostInitProperties() override;
-#endif
 	//~End UObject interface
 
 	//~Begin UPCGSettings interface
@@ -68,7 +66,7 @@ public:
 
 	virtual bool IsKernelValid(FPCGContext* InContext = nullptr, bool bQuiet = true) const override;
 	virtual FString GetCookedKernelSource(const TMap<FName, FPCGKernelAttributeIDAndType>& GlobalAttributeLookupTable) const override;
-	virtual const TArray<FPCGKernelAttributeKey> GetKernelAttributeKeys() const { return KernelAttributeKeys; }
+	virtual const TArray<FPCGKernelAttributeKey> GetKernelAttributeKeys() const override { return KernelAttributeKeys; }
 	virtual int ComputeKernelThreadCount(const UPCGDataBinding* Binding) const override;
 	virtual FPCGDataCollectionDesc ComputeOutputPinDataDesc(const UPCGPin* OutputPin, const UPCGDataBinding* Binding) const override;
 
@@ -96,13 +94,17 @@ protected:
 	/** Gets the GPU pin properties for the output pin with the given label. */
 	const FPCGPinPropertiesGPU* GetOutputPinPropertiesGPU(const FName& InPinLabel) const;
 
+	/** Enforce required pin settings and set display toggles to drive UI. */
+	void UpdatePinSettings();
+
+	/** Update the kernel keys read/written/created by this node. */
+	void UpdateAttributeKeys();
+
 #if WITH_EDITOR
 	void UpdateDeclarations();
 	void UpdateInputDeclarations();
 	void UpdateOutputDeclarations();
 	void UpdateHelperDeclarations();
-	void UpdatePinSettings();
-	void UpdateAttributeKeys();
 
 	/** List of all non-advanced input pin names. */
 	UFUNCTION()
