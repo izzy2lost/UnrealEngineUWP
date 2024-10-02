@@ -111,22 +111,25 @@ public:
 	// NP Driver
 	// --------------------------------------------------------------------------------
 
-	// Get latest local input prior to simulation step. Called by Network Prediction system on owner's instance (autonomous or authority).
+	// Get latest local input prior to simulation step. Called by backend system on owner's instance (autonomous or authority).
 	void ProduceInput(const int32 DeltaTimeMS, FMoverInputCmdContext* Cmd);
 
-	// Restore a previous frame prior to resimulating. Called by Network Prediction system.
+	// Restore a previous frame prior to resimulating. Called by backend system.
 	void RestoreFrame(const FMoverSyncState* SyncState, const FMoverAuxStateContext* AuxState);
 
-	// Take output for simulation. Called by Network Prediction system.
+	// Take output for simulation. Called by backend system.
 	void FinalizeFrame(const FMoverSyncState* SyncState, const FMoverAuxStateContext* AuxState);
+
+	// Take smoothed simulation state. Called by backend system, if supported.
+	void FinalizeSmoothingFrame(const FMoverSyncState* SyncState, const FMoverAuxStateContext* AuxState);
 
 	// This is an opportunity to run code on the code on the simproxy in interpolated mode - currently used to help activate and deactivate modifiers on the simproxy in interpolated mode
 	void TickInterpolatedSimProxy(const FMoverTimeStep& TimeStep, const FMoverInputCmdContext& InputCmd, UMoverComponent* MoverComp, const FMoverSyncState& CachedSyncState, const FMoverSyncState& SyncState, const FMoverAuxStateContext& AuxState);
 	
-	// Seed initial values based on component's state. Called by Network Prediction system.
+	// Seed initial values based on component's state. Called by backend system.
 	void InitializeSimulationState(FMoverSyncState* OutSync, FMoverAuxStateContext* OutAux);
 
-	// Primary movement simulation update. Given an starting state and timestep, produce a new state. Called by Network Prediction system.
+	// Primary movement simulation update. Given an starting state and timestep, produce a new state. Called by backend system.
 	void SimulationTick(const FMoverTimeStep& InTimeStep, const FMoverTickStartData& SimInput, OUT FMoverTickEndData& SimOutput);
 
 	// Specifies which supporting back end class should drive this Mover actor
@@ -232,6 +235,10 @@ public:
 	// Sets planar constraint that can limit movement direction
 	UFUNCTION(BlueprintCallable, Category = Mover)
 	void SetPlanarConstraint(const FPlanarConstraint& InConstraint);
+	
+	// If enabled, the movement of the primary visual component will be smoothed via an offset from the root moving component. This is useful in fixed-tick simulations with variable rendering rates.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mover")
+	EMoverSmoothingMode SmoothingMode = EMoverSmoothingMode::VisualComponentOffset;
 
 public:
 
@@ -501,6 +508,9 @@ protected:
 	/** The main visual component associated with this Mover actor, typically a mesh and typically parented to the UpdatedComponent. */
 	UPROPERTY(Transient)
 	TObjectPtr<USceneComponent> PrimaryVisualComponent;
+
+	/** Cached original offset from the visual component, used for cases where we want to move the visual component away from the root component (for smoothing, corrections, etc.) */
+	FTransform BaseVisualComponentTransform = FTransform::Identity;
 
 	bool bHasValidLastProducedInput = false;
 	FMoverInputCmdContext CachedLastProducedInputCmd;

@@ -29,8 +29,17 @@ public:
 	virtual float GetCurrentSimTimeMs() = 0;
 	virtual int32 GetCurrentSimFrame() = 0;
 
+	// Pending State: the simulation state currently being authored
 	virtual bool ReadPendingSyncState(OUT FMoverSyncState& OutSyncState) { return false; }
 	virtual bool WritePendingSyncState(const FMoverSyncState& SyncStateToWrite) { return false; }
+	
+	// Presentation State: the most recent presentation state, possibly the result of interpolation or smoothing. Writing to it does not affect the official simulation record.
+	virtual bool ReadPresentationSyncState(OUT FMoverSyncState& OutSyncState) { return false; }
+	virtual bool WritePresentationSyncState(const FMoverSyncState& SyncStateToWrite) { return false; }
+
+	// Previous Presentation State: the state that our optional smoothing process is moving away from, towards a more recent state. Writing to it does not affect the official simulation record.
+	virtual bool ReadPrevPresentationSyncState(OUT FMoverSyncState& OutSyncState) { return false; }
+	virtual bool WritePrevPresentationSyncState(const FMoverSyncState& SyncStateToWrite) { return false; }
 
 #if WITH_EDITOR
 	virtual EDataValidationResult ValidateData(FDataValidationContext& Context, const UMoverComponent& ValidationMoverComp) const { return EDataValidationResult::Valid; }

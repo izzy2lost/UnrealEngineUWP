@@ -375,6 +375,21 @@ FRotator FMoverDefaultSyncState::GetOrientation_BaseSpace() const
 	return Orientation;
 }
 
+FTransform FMoverDefaultSyncState::GetTransform_WorldSpace() const
+{
+	if (MovementBase)
+	{
+		return FTransform(Orientation, Location) * FTransform(MovementBaseQuat, MovementBasePos);
+	}
+
+	return FTransform(Orientation, Location);
+}
+
+FTransform FMoverDefaultSyncState::GetTransform_BaseSpace() const
+{
+	return FTransform(Orientation, Location);
+}
+
 
 // UMoverDataModelBlueprintLibrary ///////////////////////////////////////////////////
 

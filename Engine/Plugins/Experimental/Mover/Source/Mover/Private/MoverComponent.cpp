@@ -171,6 +171,11 @@ void UMoverComponent::BeginPlay()
 
 		ensureMsgf(UpdatedComponent && (PrimaryVisualComponent != UpdatedComponent), TEXT("A Mover actor (%s) must have an UpdatedComponent and cannot have a PrimaryVisualComponent that is the same as UpdatedComponent"), *GetNameSafe(MyActor));
 
+		if (PrimaryVisualComponent)
+		{
+			BaseVisualComponentTransform = PrimaryVisualComponent->GetRelativeTransform();
+		}
+
 		// Optional motion warping support
 		if (UMotionWarpingComponent* WarpingComp = MyActor->FindComponentByClass<UMotionWarpingComponent>())
 		{
@@ -260,6 +265,29 @@ void UMoverComponent::FinalizeFrame(const FMoverSyncState* SyncState, const FMov
 		CachedLastSimTickTimeStep.BaseSimTimeMs = BackendLiaisonComp->GetCurrentSimTimeMs();
 		CachedLastSimTickTimeStep.ServerFrame = BackendLiaisonComp->GetCurrentSimFrame();
 		bHasValidCachedState = true;
+	}
+}
+
+void UMoverComponent::FinalizeSmoothingFrame(const FMoverSyncState* SyncState, const FMoverAuxStateContext* AuxState)
+{
+	if (PrimaryVisualComponent)
+	{
+		if (SmoothingMode == EMoverSmoothingMode::VisualComponentOffset)
+		{
+			// Offset the visual component so it aligns with the smoothed state transform, while leaving the actual root component in place
+			if (const FMoverDefaultSyncState* MoverState = SyncState->SyncStateCollection.FindDataByType<FMoverDefaultSyncState>())
+			{
+				FTransform ActorTransform = FTransform(MoverState->GetOrientation_WorldSpace(), MoverState->GetLocation_WorldSpace(), FVector::OneVector);
+				PrimaryVisualComponent->SetWorldTransform(BaseVisualComponentTransform * ActorTransform);	// smoothed location with base offset applied
+			}
+		}
+		else
+		{
+			if (!PrimaryVisualComponent->GetRelativeTransform().Equals(BaseVisualComponentTransform))
+			{
+				PrimaryVisualComponent->SetRelativeTransform(BaseVisualComponentTransform);
+			}
+		}
 	}
 }
 

@@ -18,6 +18,19 @@ MOVER_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Mover_IsFlying);
 MOVER_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Mover_IsSwimming);
 MOVER_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Mover_IsCrouching);
 
+
+/** Options for how to handle smoothing frame data from the backend. Typically this is for advancing the simulation at a lower or fixed rate versus the game thread/render rate. */
+UENUM(BlueprintType)
+enum class EMoverSmoothingMode : uint8
+{
+	/** Smoothed frames will be ignored */
+	None,
+
+	/** Use the smoothed state data to offset the visual root component only, without smoothing the root moving component or any other state data */
+	VisualComponentOffset,
+};
+
+
 // Struct to hold params for when an impact happens. This contains all of the data for impacts including what gets passed to the FMover_OnImpact delegate
 USTRUCT(BlueprintType, meta = (DisplayName = "Impact Data"))
 struct MOVER_API FMoverOnImpactParams

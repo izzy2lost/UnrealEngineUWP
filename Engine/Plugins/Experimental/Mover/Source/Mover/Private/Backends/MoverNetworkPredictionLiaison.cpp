@@ -72,6 +72,12 @@ void UMoverNetworkPredictionLiaisonComponent::FinalizeFrame(const FMoverSyncStat
 	MoverComp->FinalizeFrame(SyncState, AuxState);
 }
 
+void UMoverNetworkPredictionLiaisonComponent::FinalizeSmoothingFrame(const FMoverSyncState* SyncState, const FMoverAuxStateContext* AuxState)
+{
+	check(MoverComp);
+	MoverComp->FinalizeSmoothingFrame(SyncState, AuxState);
+}
+
 void UMoverNetworkPredictionLiaisonComponent::InitializeSimulationState(FMoverSyncState* OutSync, FMoverAuxStateContext* OutAux)
 {
 	check(MoverComp);
@@ -111,7 +117,7 @@ int32 UMoverNetworkPredictionLiaisonComponent::GetCurrentSimFrame()
 
 bool UMoverNetworkPredictionLiaisonComponent::ReadPendingSyncState(OUT FMoverSyncState& OutSyncState)
 {
-	if (const FMoverSyncState* PendingSyncState = NetworkPredictionProxy.ReadSyncState<FMoverSyncState>())
+	if (const FMoverSyncState* PendingSyncState = NetworkPredictionProxy.ReadSyncState<FMoverSyncState>(ENetworkPredictionStateRead::Simulation))
 	{
 		OutSyncState = *PendingSyncState;
 		return true;
@@ -122,13 +128,60 @@ bool UMoverNetworkPredictionLiaisonComponent::ReadPendingSyncState(OUT FMoverSyn
 
 bool UMoverNetworkPredictionLiaisonComponent::WritePendingSyncState(const FMoverSyncState& SyncStateToWrite)
 {
-	NetworkPredictionProxy.WriteSyncState<FMoverSyncState>([&SyncStateToWrite](FMoverSyncState& PendingSyncStateRef)
+	bool bDidWriteSucceed = NetworkPredictionProxy.WriteSyncState<FMoverSyncState>([&SyncStateToWrite](FMoverSyncState& PendingSyncStateRef)
 		{
 			PendingSyncStateRef = SyncStateToWrite;
-		});
+		}) != nullptr;
 
-	return true;
+	return bDidWriteSucceed;
 }
+
+
+bool UMoverNetworkPredictionLiaisonComponent::ReadPresentationSyncState(OUT FMoverSyncState& OutSyncState)
+{
+	if (const FMoverSyncState* PendingSyncState = NetworkPredictionProxy.ReadSyncState<FMoverSyncState>(ENetworkPredictionStateRead::Presentation))
+	{
+		OutSyncState = *PendingSyncState;
+		return true;
+	}
+
+	return false;
+}
+
+
+bool UMoverNetworkPredictionLiaisonComponent::WritePresentationSyncState(const FMoverSyncState& SyncStateToWrite)
+{
+	bool bDidWriteSucceed = NetworkPredictionProxy.WritePresentationSyncState<FMoverSyncState>([&SyncStateToWrite](FMoverSyncState& PresentationSyncStateRef)
+		{
+			PresentationSyncStateRef = SyncStateToWrite;
+		}) != nullptr;
+
+	return bDidWriteSucceed;
+}
+
+
+bool UMoverNetworkPredictionLiaisonComponent::ReadPrevPresentationSyncState(FMoverSyncState& OutSyncState)
+{
+	if (const FMoverSyncState* PrevPresentationSyncState = NetworkPredictionProxy.ReadPrevPresentationSyncState<FMoverSyncState>())
+	{
+		OutSyncState = *PrevPresentationSyncState;
+		return true;
+	}
+
+	return false;
+}
+
+
+bool UMoverNetworkPredictionLiaisonComponent::WritePrevPresentationSyncState(const FMoverSyncState& SyncStateToWrite)
+{
+	bool bDidWriteSucceed = NetworkPredictionProxy.WritePrevPresentationSyncState<FMoverSyncState>([&SyncStateToWrite](FMoverSyncState& PresentationSyncStateRef)
+		{
+			PresentationSyncStateRef = SyncStateToWrite;
+		}) != nullptr;
+
+	return bDidWriteSucceed;
+}
+
 
 #if WITH_EDITOR
 EDataValidationResult UMoverNetworkPredictionLiaisonComponent::ValidateData(FDataValidationContext& Context, const UMoverComponent& ValidationMoverComp) const
