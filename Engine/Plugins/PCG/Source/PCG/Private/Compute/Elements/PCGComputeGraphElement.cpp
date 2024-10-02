@@ -43,6 +43,8 @@ bool FPCGComputeGraphElement::ExecuteInternal(FPCGContext* InContext) const
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGComputeGraphElement::ExecuteInternal);
 	check(InContext);
+	check(InContext->SourceComponent.IsValid());
+
 	FPCGComputeGraphContext* Context = static_cast<FPCGComputeGraphContext*>(InContext);
 
 	if (!Context->ComputeGraph)
@@ -150,6 +152,11 @@ bool FPCGComputeGraphElement::ExecuteInternal(FPCGContext* InContext) const
 		}
 
 		const bool bAnyComponentsSetup = SetupProceduralISMComponents(Context, DataBinding);
+
+		if (bAnyComponentsSetup)
+		{
+			Context->SourceComponent->NotifyProceduralInstancesInUse();
+		}
 
 		{
 			TRACE_CPUPROFILER_EVENT_SCOPE(ComputeGraphInstance.CreateDataProviders);
