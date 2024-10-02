@@ -48,6 +48,217 @@ namespace UE::Zen
 
 DEFINE_LOG_CATEGORY_STATIC(LogZenServiceInstance, Log, All);
 
+struct FZenServiceLink
+{
+	FString ServicePath;
+	FString UtilityPath;
+	FZenVersion Version;
+
+	operator bool() const
+	{
+		return !ServicePath.IsEmpty() && !UtilityPath.IsEmpty() && Version;
+	}
+
+	static FZenServiceLink Read(const FString& Filename)
+	{
+		FString JsonText;
+		if (FFileHelper::LoadFileToString(JsonText, *Filename))
+		{
+			TSharedPtr<FJsonObject> JsonObject;
+			TSharedRef<TJsonReader<TCHAR>> Reader = TJsonReaderFactory<TCHAR>::Create(JsonText);
+			if (FJsonSerializer::Deserialize(Reader, JsonObject) && JsonObject.IsValid())
+			{
+				FString ServicePath = JsonObject->Values.FindRef(TEXT("ServicePath"))->AsString();
+				FString UtilityPath = JsonObject->Values.FindRef(TEXT("UtilityPath"))->AsString();
+				auto VersionObject = JsonObject->Values.FindRef(TEXT("Version"))->AsObject();
+				if (VersionObject)
+				{
+					uint32_t MajorVersion = static_cast<uint32_t>(VersionObject->TryGetField(TEXT("Major"))->AsNumber());
+					uint32_t MinorVersion = static_cast<uint32_t>(VersionObject->TryGetField(TEXT("Minor"))->AsNumber());
+					uint32_t PatchVersion = static_cast<uint32_t>(VersionObject->TryGetField(TEXT("Patch"))->AsNumber());
+					FString Details = VersionObject->TryGetField(TEXT("Details"))->AsString();
+					return FZenServiceLink{
+						.ServicePath = ServicePath,
+						.UtilityPath = UtilityPath,
+						.Version = FZenVersion{
+							.MajorVersion = MajorVersion,
+							.MinorVersion = MinorVersion,
+							.PatchVersion = PatchVersion,
+							.Details = Details}
+					};
+				}
+			}
+		}
+		return {};
+	}
+
+	static bool Write(const FZenServiceLink& Link, const FString& Filename)
+	{
+		FString JsonTcharText;
+		TSharedRef<TJsonWriter<TCHAR, TPrettyJsonPrintPolicy<TCHAR>>> Writer = TJsonWriterFactory<TCHAR, TPrettyJsonPrintPolicy<TCHAR>>::Create(&JsonTcharText);
+		Writer->WriteObjectStart();
+
+		Writer->WriteValue(TEXT("ServicePath"), Link.ServicePath);
+		Writer->WriteValue(TEXT("UtilityPath"), Link.UtilityPath);
+
+		Writer->WriteObjectStart(TEXT("Version"));
+		Writer->WriteValue(TEXT("Major"), Link.Version.MajorVersion);
+		Writer->WriteValue(TEXT("Minor"), Link.Version.MinorVersion);
+		Writer->WriteValue(TEXT("Patch"), Link.Version.PatchVersion);
+		Writer->WriteValue(TEXT("Details"), Link.Version.Details);
+		Writer->WriteObjectEnd();
+
+		Writer->WriteObjectEnd();
+		Writer->Close();
+
+		if (!FFileHelper::SaveStringToFile(JsonTcharText, *Filename))
+		{
+			return false;
+		}
+
+		return true;
+	}
+};
+
+static FString
+GetLocalZenRootPath()
+{
+	return FPaths::ConvertRelativePathToFull(FPaths::Combine(FPlatformProcess::UserSettingsDir(), *FApp::GetEpicProductIdentifier(), TEXT("Common")) + TEXT("/"));
+}
+
+static FString
+GetServiceExecutableName()
+{
+	return
+#if PLATFORM_WINDOWS
+		TEXT("zenserver.exe")
+#else
+		TEXT("zenserver")
+#endif
+		;
+}
+
+static FString
+GetUtilityExecutableName()
+{
+	return
+#if PLATFORM_WINDOWS
+		TEXT("zen.exe")
+#else
+		TEXT("zen")
+#endif
+		;
+}
+
+static FString
+GetLocalInstallPath()
+{
+	return FPaths::ConvertRelativePathToFull(FPaths::Combine(GetLocalZenRootPath(), TEXT("Zen\\Install")));
+}
+
+static FString
+GetServiceLinkPath()
+{
+	return FPaths::Combine(GetLocalInstallPath(), TEXT("zen.link"));
+}
+
+static FString
+GetServiceCopyInstallPath()
+{
+	return FPaths::ConvertRelativePathToFull(FPaths::Combine(GetLocalInstallPath(), GetServiceExecutableName()));
+}
+
+static FString
+GetUtilityCopyInstallPath()
+{
+	return FPaths::ConvertRelativePathToFull(FPaths::Combine(GetLocalInstallPath(), GetUtilityExecutableName()));
+}
+
+static FString
+GetInstallVersionCachePath()
+{
+	FString InstallUtilityPath = GetUtilityCopyInstallPath();
+	FString InstallVersionCache = FPaths::SetExtension(InstallUtilityPath, TEXT("version"));
+	return InstallVersionCache;
+}
+
+static FString
+GetInTreeVersionCache()
+{
+	return FPaths::ConvertRelativePathToFull(FPaths::Combine(FPaths::EngineSavedDir(), TEXT("Zen"), TEXT("zen.version")));
+}
+
+static FString
+GetServiceRunContextPath()
+{
+	return FPaths::SetExtension(GetServiceCopyInstallPath(), TEXT(".runcontext"));
+}
+
+static FString
+GetInTreeUtilityPath()
+{
+	return FPaths::ConvertRelativePathToFull(FPlatformProcess::GenerateApplicationPath(TEXT("zen"), EBuildConfiguration::Development));
+}
+
+static FString
+GetInTreeServicePath()
+{
+	return FPaths::ConvertRelativePathToFull(FPlatformProcess::GenerateApplicationPath(TEXT("zenserver"), EBuildConfiguration::Development));
+}
+
+static FString
+GetInTreeCrashpadHandlerFilePath()
+{
+	return FPaths::ConvertRelativePathToFull(FPlatformProcess::GenerateApplicationPath(TEXT("crashpad_handler"), EBuildConfiguration::Development));
+}
+
+static FString
+GetInstallCrashpadHandlerFilePath(const FString& InTreePath)
+{
+	return FPaths::ConvertRelativePathToFull(FPaths::Combine(GetLocalInstallPath(), FString(FPathViews::GetCleanFilename(InTreePath))));
+}
+
+
+static bool GetZenVersion(const FString& UtilityPath, const FString& ServicePath, FZenVersion& OutVersion)
+{
+	FString AbsoluteUtilityPath = FPaths::ConvertRelativePathToFull(UtilityPath);
+	FMonitoredProcess MonitoredUtilityProcess(AbsoluteUtilityPath, TEXT("version --detailed"), FPaths::GetPath(UtilityPath), true);
+
+	bool bLaunched = MonitoredUtilityProcess.Launch();
+	if (!bLaunched)
+	{
+		UE_LOG(LogZenServiceInstance, Warning, TEXT("Failed to launch zen utility to gather version data: '%s'."), *UtilityPath);
+		return false;
+	}
+
+	while (MonitoredUtilityProcess.Update())
+	{
+		FPlatformProcess::Sleep(0.1f);
+		if (MonitoredUtilityProcess.GetDuration().GetTotalSeconds() > 10)
+		{
+			MonitoredUtilityProcess.Cancel(true);
+			UE_LOG(LogZenServiceInstance, Warning, TEXT("Cancelled launch of zen utility for gathering version data: '%s'."), *UtilityPath);
+			return false;
+		}
+	}
+
+	FString OutputString = MonitoredUtilityProcess.GetFullOutputWithoutDelegate();
+	if (MonitoredUtilityProcess.GetReturnCode() != 0)
+	{
+		UE_LOG(LogZenServiceInstance, Warning, TEXT("Unexpected return code after launch of zen utility for gathering version data: '%s' (%d). Output: '%s'"), *UtilityPath, MonitoredUtilityProcess.GetReturnCode(), *OutputString);
+		return false;
+	}
+
+	FString VersionOutputString = OutputString.TrimStartAndEnd();
+
+	if (!OutVersion.TryParse(*VersionOutputString))
+	{
+		UE_LOG(LogZenServiceInstance, Warning, TEXT("Invalid version information after launch of zen utility for gathering version data: '%s' (`%s`)"), *UtilityPath, *VersionOutputString);
+		return false;
+	}
+	return true;
+}
+
 static FZenVersion
 GetZenVersion(const FString& UtilityPath, const FString& ServicePath, const FString& VersionCachePath)
 {
@@ -55,67 +266,43 @@ GetZenVersion(const FString& UtilityPath, const FString& ServicePath, const FStr
 	FDateTime UtilityExecutableModificationTime = FileManager.GetTimeStamp(*UtilityPath);
 	FDateTime ServiceExecutableModificationTime = FileManager.GetTimeStamp(*ServicePath);
 
-	auto GetFallbackVersion = [&UtilityExecutableModificationTime, &ServiceExecutableModificationTime]()
-	{
-		FZenVersion FallbackVersion;
-		if (UtilityExecutableModificationTime > ServiceExecutableModificationTime)
-		{
-			FallbackVersion.Details = UtilityExecutableModificationTime.ToString();
-			return FallbackVersion;
-		}
-		FallbackVersion.Details = ServiceExecutableModificationTime.ToString();
-		return FallbackVersion;
-	};
-
 	FDateTime VersionCacheModificationTime = FileManager.GetTimeStamp(*VersionCachePath);
 	bool VersionCacheIsOlderThanUtilityExecutable = VersionCacheModificationTime < UtilityExecutableModificationTime;
 	bool VersionCacheIsOlderThanServerExecutable = VersionCacheModificationTime < ServiceExecutableModificationTime;
-	bool VersionCacheIsOutOfDate = VersionCacheIsOlderThanUtilityExecutable || VersionCacheIsOlderThanServerExecutable;
-	FString VersionFileContents;
-	FZenVersion ComparableVersion;
-	if (VersionCacheIsOutOfDate ||
-		!FFileHelper::LoadFileToString(VersionFileContents, *VersionCachePath) ||
-		!ComparableVersion.TryParse(*VersionFileContents))
+	bool VersionCacheIsUpToDate = (!VersionCacheIsOlderThanUtilityExecutable) && (!VersionCacheIsOlderThanServerExecutable);
+	if (VersionCacheIsUpToDate)
 	{
-		FString AbsoluteUtilityPath = FPaths::ConvertRelativePathToFull(UtilityPath);
-		FMonitoredProcess MonitoredUtilityProcess(AbsoluteUtilityPath, TEXT("version --detailed"), FPaths::GetPath(UtilityPath), true);
-
-		bool bLaunched = MonitoredUtilityProcess.Launch();
-		checkf(bLaunched, TEXT("Failed to launch zen utility to gather version data: '%s'."), *UtilityPath);
-		if (!bLaunched)
+		FString VersionFileContents;
+		if (FFileHelper::LoadFileToString(VersionFileContents, *VersionCachePath))
 		{
-			return GetFallbackVersion();
-		}
-
-		while (MonitoredUtilityProcess.Update())
-		{
-			FPlatformProcess::Sleep(0.1f);
-			if (MonitoredUtilityProcess.GetDuration().GetTotalSeconds() > 10)
+			FZenVersion CachedVersion;
+			if (CachedVersion.TryParse(*VersionFileContents))
 			{
-				MonitoredUtilityProcess.Cancel(true);
-				checkf(false, TEXT("Cancelled launch of zen utility for gathering version data: '%s'."), *UtilityPath);
-				return GetFallbackVersion();
+				return CachedVersion;
 			}
 		}
-
-		FString OutputString = MonitoredUtilityProcess.GetFullOutputWithoutDelegate();
-		if (MonitoredUtilityProcess.GetReturnCode() != 0)
-		{
-			checkf(false, TEXT("Unexpected return code after launch of zen utility for gathering version data: '%s' (%d). Output: '%s'"), *UtilityPath, MonitoredUtilityProcess.GetReturnCode(), *OutputString);
-			return GetFallbackVersion();
-		}
-
-		FString VersionOutputString = OutputString.TrimStartAndEnd();
-		if (!ComparableVersion.TryParse(*VersionOutputString))
-		{
-			checkf(false, TEXT("Invalid version information after launch of zen utility for gathering version data: '%s' (`%s`)"), *UtilityPath, *VersionOutputString);
-			return GetFallbackVersion();
-		}
-
-		FFileHelper::SaveStringToFile(ComparableVersion.ToString(), *VersionCachePath);
 	}
+	auto GetFallbackVersion = [UtilityExecutableModificationTime, ServiceExecutableModificationTime]()
+		{
+			FZenVersion FallbackVersion;
+			if (UtilityExecutableModificationTime > ServiceExecutableModificationTime)
+			{
+				FallbackVersion.Details = UtilityExecutableModificationTime.ToString();
+				return FallbackVersion;
+			}
+			FallbackVersion.Details = ServiceExecutableModificationTime.ToString();
+			return FallbackVersion;
+		};
 
-	return ComparableVersion;
+
+	FZenVersion Version;
+	if (!GetZenVersion(UtilityPath, ServicePath, Version))
+	{
+		checkf(false, TEXT("Unable to determine version using zen utility executable path: '%s'."), *UtilityPath);
+		Version = GetFallbackVersion();
+	}
+	FFileHelper::SaveStringToFile(Version.ToString(), *VersionCachePath);
+	return Version;
 }
 
 static void
@@ -137,11 +324,8 @@ PromptUserToSyncInTreeVersion(const FString& ServerFilePath)
 }
 
 static bool
-IsInstallVersionOutOfDate(const FString& InTreeUtilityPath, const FString& InstallUtilityPath, const FString& InTreeServicePath, const FString& InstallServicePath, FString& OutInTreeVersionCache, FString& OutInstallVersionCache)
+IsInstallVersionOutOfDate(const FString& InTreeUtilityPath, const FString& InstallUtilityPath, const FString& InTreeServicePath, const FString& InstallServicePath, const FString& InTreeVersionCache, const FString& InstallVersionCache)
 {
-	OutInTreeVersionCache = FPaths::Combine(FPaths::EngineSavedDir(), TEXT("Zen"), TEXT("zen.version"));
-	OutInstallVersionCache = FPaths::SetExtension(InstallUtilityPath, TEXT("version"));
-
 	IFileManager& FileManager = IFileManager::Get();
 	if (!FileManager.FileExists(*InTreeUtilityPath) || !FileManager.FileExists(*InTreeServicePath))
 	{
@@ -151,7 +335,7 @@ IsInstallVersionOutOfDate(const FString& InTreeUtilityPath, const FString& Insta
 	}
 
 	// Always get the InTree utility path so cached version information is up to date
-	FZenVersion InTreeVersion = GetZenVersion(InTreeUtilityPath, InTreeServicePath, OutInTreeVersionCache);
+	FZenVersion InTreeVersion = GetZenVersion(InTreeUtilityPath, InTreeServicePath, InTreeVersionCache);
 	UE_LOG(LogZenServiceInstance, Log, TEXT("InTree version at '%s' is '%s'"), *InTreeServicePath, *InTreeVersion.ToString());
 
 	if (!FileManager.FileExists(*InstallUtilityPath) || !FileManager.FileExists(*InstallServicePath))
@@ -159,7 +343,7 @@ IsInstallVersionOutOfDate(const FString& InTreeUtilityPath, const FString& Insta
 		UE_LOG(LogZenServiceInstance, Log, TEXT("No installation found at '%s'"), *InstallServicePath);
 		return true;
 	}
-	FZenVersion InstallVersion = GetZenVersion(InstallUtilityPath, InstallServicePath, OutInstallVersionCache);
+	FZenVersion InstallVersion = GetZenVersion(InstallUtilityPath, InstallServicePath, InstallVersionCache);
 	UE_LOG(LogZenServiceInstance, Log, TEXT("Installed version at '%s' is '%s'"), *InstallServicePath, *InstallVersion.ToString());
 
 	if (InstallVersion < InTreeVersion)
@@ -178,7 +362,8 @@ IsInstallVersionOutOfDate(const FString& InTreeUtilityPath, const FString& Insta
 static bool
 AttemptFileCopyWithRetries(const TCHAR* Dst, const TCHAR* Src, double RetryDurationSeconds)
 {
-	uint32 CopyResult = IFileManager::Get().Copy(Dst, Src, true, true, false);
+	IFileManager& FileManager = IFileManager::Get();
+	uint32 CopyResult = FileManager.Copy(Dst, Src, true, true, false);
 	uint64 CopyWaitStartTime = FPlatformTime::Cycles64();
 	while (CopyResult != COPY_OK)
 	{
@@ -191,13 +376,39 @@ AttemptFileCopyWithRetries(const TCHAR* Dst, const TCHAR* Src, double RetryDurat
 		{
 			break;
 		}
-		CopyResult = IFileManager::Get().Copy(Dst, Src, true, true, false);
+		CopyResult = FileManager.Copy(Dst, Src, true, true, false);
 	}
 	if (CopyResult == COPY_OK)
 	{
 		return true;
 	}
 	UE_LOG(LogZenServiceInstance, Warning, TEXT("copy from '%s' to '%s', '%s'"), Src, Dst, CopyResult == COPY_Fail ? TEXT("Failed to copy file") : TEXT("Cancelled file copy"));
+	return false;
+}
+
+static bool
+AttemptFileDeleteWithRetries(const TCHAR* Path, double RetryDurationSeconds)
+{
+	IFileManager& FileManager = IFileManager::Get();
+	bool DeleteResult = FileManager.Delete(Path, false, false, true);
+	uint64 DeleteWaitStartTime = FPlatformTime::Cycles64();
+	while (!DeleteResult)
+	{
+		double DeleteWaitDuration = FPlatformTime::ToSeconds64(FPlatformTime::Cycles64() - DeleteWaitStartTime);
+		if (DeleteWaitDuration < RetryDurationSeconds)
+		{
+			FPlatformProcess::Sleep(0.01f);
+		}
+		else
+		{
+			break;
+		}
+		DeleteResult = FileManager.Delete(Path, false, false, true);
+	}
+	if (DeleteResult)
+	{
+		return true;
+	}
 	return false;
 }
 
@@ -273,12 +484,6 @@ DetermineLocalDataCachePath(const TCHAR* ConfigSection, FString& DataPath)
 			}
 		}
 	}
-}
-
-static FString
-GetLocalZenRootPath()
-{
-	return FPaths::ConvertRelativePathToFull(FPaths::Combine(FPlatformProcess::UserSettingsDir(), *FApp::GetEpicProductIdentifier(), TEXT("Common")) + TEXT("/"));
 }
 
 static bool
@@ -524,6 +729,40 @@ static void ReadCbField(FCbFieldView Field, UE::Zen::FZenCIDStats& OutValue)
 	ReadCbField(ObjectView["size"], OutValue.Size);
 }
 
+static FServiceAutoLaunchSettings::EInstallMode ZenGetInstallModeFromString(const FString& InstallMode)
+{
+	if (InstallMode.IsEmpty() || FCString::Stricmp(*InstallMode, TEXT("auto")) == 0)
+	{
+		return FApp::IsEngineInstalled() ? FServiceAutoLaunchSettings::EInstallMode::Link : FServiceAutoLaunchSettings::EInstallMode::Copy;
+	}
+	else if (FCString::Stricmp(*InstallMode, TEXT("copy")) == 0)
+	{
+		return FServiceAutoLaunchSettings::EInstallMode::Copy;
+	}
+	else if (FCString::Stricmp(*InstallMode, TEXT("link")) == 0)
+	{
+		return FServiceAutoLaunchSettings::EInstallMode::Link;
+	}
+	else
+	{
+		checkf(false, TEXT("Invalid zenserver install mode: {InstallMode}"), *InstallMode);
+		return FServiceAutoLaunchSettings::EInstallMode::Copy;
+	}
+}
+
+static FString ZenGetInstallModeToString(FServiceAutoLaunchSettings::EInstallMode InstallMode)
+{
+	switch (InstallMode)
+	{
+	case FServiceAutoLaunchSettings::EInstallMode::Copy:
+		return TEXT("copy");
+	case FServiceAutoLaunchSettings::EInstallMode::Link:
+		return TEXT("link");
+	}
+	checkf(false, TEXT("Invalid zenserver install mode: {%d}"), static_cast<int>(InstallMode));
+	return "";
+}
+
 bool
 FServiceSettings::ReadFromConfig()
 {
@@ -589,6 +828,11 @@ FServiceSettings::ReadFromConfig()
 			GConfig->GetBool(AutoLaunchConfigSection, TEXT("LimitProcessLifetime"), AutoLaunchSettings.bLimitProcessLifetime, GEngineIni);
 			ApplyProcessLifetimeOverride(AutoLaunchSettings.bLimitProcessLifetime);
 			GConfig->GetBool(AutoLaunchConfigSection, TEXT("AllowRemoteNetworkService"), AutoLaunchSettings.bAllowRemoteNetworkService, GEngineIni);
+			FString InstallMode;
+			if (GConfig->GetString(AutoLaunchConfigSection, TEXT("InstallMode"), InstallMode, GEngineIni))
+			{
+				AutoLaunchSettings.InstallMode = ZenGetInstallModeFromString(InstallMode);
+			}
 			EnsureEditorSettingsConfigLoaded();
 			GConfig->GetBool(TEXT("/Script/UnrealEd.CrashReportsPrivacySettings"), TEXT("bSendUnattendedBugReports"), AutoLaunchSettings.bSendUnattendedBugReports, GEditorSettingsIni);
 		}
@@ -628,6 +872,7 @@ FServiceSettings::ReadFromCompactBinary(FCbFieldView Field)
 				AutoLaunchSettings.bAllowRemoteNetworkService = AutoLaunchSettingsObject["AllowRemoteNetworkService"].AsBool();
 				AutoLaunchSettings.bSendUnattendedBugReports = AutoLaunchSettingsObject["SendUnattendedBugReports"].AsBool();
 				AutoLaunchSettings.bIsDefaultSharedRunContext = AutoLaunchSettingsObject["IsDefaultSharedRunContext"].AsBool(AutoLaunchSettings.bIsDefaultSharedRunContext);
+				AutoLaunchSettings.InstallMode = ZenGetInstallModeFromString(FString(AutoLaunchSettingsObject["InstallMode"].AsString()));
 			}
 		}
 	}
@@ -689,6 +934,7 @@ FServiceSettings::WriteToCompactBinary(FCbWriter& Writer) const
 		Writer << "AllowRemoteNetworkService" << AutoLaunchSettings.bAllowRemoteNetworkService;
 		Writer << "SendUnattendedBugReports" << AutoLaunchSettings.bSendUnattendedBugReports;
 		Writer << "IsDefaultSharedRunContext" << AutoLaunchSettings.bIsDefaultSharedRunContext;
+		Writer << "InstallMode" << ZenGetInstallModeToString(AutoLaunchSettings.InstallMode);
 		Writer.EndObject();
 	}
 	else
@@ -742,41 +988,6 @@ FServiceSettings::TryApplyAutoLaunchOverride()
 
 uint16 FZenServiceInstance::AutoLaunchedPort = 0;
 uint32 FZenServiceInstance::AutoLaunchedPid = 0;
-
-FString GetLocalServiceExecutableName()
-{
-	return
-#if PLATFORM_WINDOWS
-		TEXT("zenserver.exe")
-#else
-		TEXT("zenserver")
-#endif
-		;
-}
-
-FString
-GetLocalInstallPath()
-{
-	return FPaths::ConvertRelativePathToFull(FPaths::Combine(GetLocalZenRootPath(), TEXT("Zen\\Install")));
-}
-
-FString
-GetLocalServiceInstallPath()
-{
-	return FPaths::ConvertRelativePathToFull(FPaths::Combine(GetLocalInstallPath(), GetLocalServiceExecutableName()));
-}
-
-FString
-GetLocalInstallUtilityPath()
-{
-	return FPaths::ConvertRelativePathToFull(FPaths::Combine(GetLocalInstallPath(),
-#if PLATFORM_WINDOWS
-		TEXT("zen.exe")
-#else
-		TEXT("zen")
-#endif
-	));
-}
 
 static bool
 IsZenProcessUsingEffectivePort(uint16 EffectiveListenPort)
@@ -850,7 +1061,7 @@ static bool ShutDownZenServerProcessExecutable(const FString& ExecutablePath, do
 	{
 		UE_LOG(LogZenServiceInstance, Display, TEXT("Attempting to shut down of zenserver executable '%s' process with pid %d"), *ExecutablePath, Pid);
 		double ZenShutdownWaitDuration = FPlatformTime::ToSeconds64(FPlatformTime::Cycles64() - ZenShutdownWaitStartTime);
-		if (ShutdownZenServerProcess(Pid, ZenShutdownWaitDuration))
+		if (ShutdownZenServerProcess(Pid, MaximumWaitDurationSeconds - ZenShutdownWaitDuration))
 		{
 			return true;
 		}
@@ -883,7 +1094,7 @@ static bool ShutDownZenServerProcessLockingDataDir(const FString& DataPath, doub
 				return true;
 			}
 			uint32_t Pid = 0;
-			if (!ZenServerState::FindRunningProcessId(*GetLocalServiceExecutableName(), & Pid))
+			if (!ZenServerState::FindRunningProcessId(*GetServiceExecutableName(), &Pid))
 			{
 				if (!ZenLockFileData::IsLockFileLocked(*LockFilePath, true))
 				{
@@ -895,7 +1106,7 @@ static bool ShutDownZenServerProcessLockingDataDir(const FString& DataPath, doub
 			}
 			UE_LOG(LogZenServiceInstance, Warning, TEXT("Found locked but invalid lock file at '%s', attempting shut down of zenserver process with pid %d"), *LockFilePath, Pid);
 			double ZenShutdownWaitDuration = FPlatformTime::ToSeconds64(FPlatformTime::Cycles64() - ZenShutdownWaitStartTime);
-			if (!ShutdownZenServerProcess(Pid, ZenShutdownWaitDuration))
+			if (!ShutdownZenServerProcess(Pid, MaximumWaitDurationSeconds - ZenShutdownWaitDuration))
 			{
 				break;
 			}
@@ -946,7 +1157,7 @@ static bool ShutDownZenServerProcessLockingDataDir(const FString& DataPath, doub
 			return true;
 		}
 		uint32_t Pid = 0;
-		if (!ZenServerState::FindRunningProcessId(*GetLocalServiceExecutableName(), &Pid))
+		if (!ZenServerState::FindRunningProcessId(*GetServiceExecutableName(), &Pid))
 		{
 			if (!ZenLockFileData::IsLockFileLocked(*LockFilePath, true))
 			{
@@ -958,7 +1169,7 @@ static bool ShutDownZenServerProcessLockingDataDir(const FString& DataPath, doub
 		}
 		UE_LOG(LogZenServiceInstance, Warning, TEXT("Found locked but invalid lock file at '%s', attempting shut down of zenserver process with pid %d"), *LockFilePath, Pid);
 		double ZenShutdownWaitDuration = FPlatformTime::ToSeconds64(FPlatformTime::Cycles64() - ZenShutdownWaitStartTime);
-		if (!ShutdownZenServerProcess(Pid, ZenShutdownWaitDuration))
+		if (!ShutdownZenServerProcess(Pid, MaximumWaitDurationSeconds - ZenShutdownWaitDuration))
 		{
 			break;
 		}
@@ -1066,8 +1277,7 @@ Private::GetLocalDataCachePathOverride(FString& OutDataPath)
 bool
 TryGetLocalServiceRunContext(FZenLocalServiceRunContext& OutContext)
 {
-	FString LocalServiceRunContextPath = FPaths::SetExtension(GetLocalServiceInstallPath(), TEXT(".runcontext"));
-	return OutContext.ReadFromJsonFile(*LocalServiceRunContextPath);
+	return OutContext.ReadFromJsonFile(*GetServiceRunContextPath());
 }
 
 bool
@@ -1240,20 +1450,55 @@ StopLocalService(const TCHAR* DataPath, double MaximumWaitDurationSeconds)
 }
 
 FString
+GetLocalServiceInstallPath()
+{
+	if (FZenServiceLink Link = FZenServiceLink::Read(GetServiceLinkPath()); Link)
+	{
+		return Link.ServicePath;
+	}
+	else
+	{
+		return GetServiceCopyInstallPath();
+	}
+}
+
+FString
+GetLocalInstallUtilityPath()
+{
+	if (FZenServiceLink Link = FZenServiceLink::Read(GetServiceLinkPath()); Link)
+	{
+		return Link.UtilityPath;
+	}
+	else
+	{
+		return GetUtilityCopyInstallPath();
+	}
+}
+
+FString
 GetLocalServiceInstallVersion(bool bDetailed)
 {
-	FString InstallUtilityPath = GetLocalInstallUtilityPath();
-	FString InstallVersionCache = FPaths::SetExtension(InstallUtilityPath, TEXT("version"));
-
 	IFileManager& FileManager = IFileManager::Get();
-	if (!FileManager.FileExists(*InstallUtilityPath))
+	if (FZenServiceLink Link = FZenServiceLink::Read(GetServiceLinkPath()); Link)
 	{
-		return FZenVersion().ToString(bDetailed);
+		if (!FileManager.FileExists(*Link.ServicePath))
+		{
+			return FZenVersion().ToString(bDetailed);
+		}
+		return Link.Version.ToString(bDetailed);
 	}
+	else
+	{
+		const FString ServicePath = GetServiceCopyInstallPath();
 
-	FZenVersion InstallVersion = GetZenVersion(InstallUtilityPath, GetLocalServiceInstallPath(), InstallVersionCache);
+		if (!FileManager.FileExists(*ServicePath))
+		{
+			return FZenVersion().ToString(bDetailed);
+		}
 
-	return InstallVersion.ToString(bDetailed);
+		FZenVersion InstallVersion = GetZenVersion(GetUtilityCopyInstallPath(), ServicePath, GetInstallVersionCachePath());
+		return InstallVersion.ToString(bDetailed);
+	}
 }
 
 static bool GIsDefaultServicePresent = false;
@@ -1389,6 +1634,9 @@ FZenServiceInstance::TryRecovery()
 		return false;
 	}
 
+	const FString ExecutablePath = GetLocalServiceInstallPath();
+	const FString ExecutionContextFilePath = GetServiceRunContextPath();
+
 	static std::atomic<int64> LastRecoveryTicks;
 	static bool bLastRecoveryResult = false;
 	const FTimespan MaximumWaitForHealth = FTimespan::FromSeconds(30);
@@ -1398,7 +1646,7 @@ FZenServiceInstance::TryRecovery()
 
 	if (TimespanSinceLastRecovery > MinimumDurationSinceLastRecovery)
 	{
-		static FSystemWideCriticalSection RecoveryCriticalSection(TEXT("ZenServerRecovery"), MaximumWaitForHealth);
+		FSystemWideCriticalSection RecoveryCriticalSection(TEXT("ZenServerLaunch"), MaximumWaitForHealth);
 		if (!RecoveryCriticalSection.IsValid())
 		{
 			// A recovery is already in progress but did not complete in time, we assume we failed and let recovery continue on a different thread
@@ -1437,7 +1685,8 @@ FZenServiceInstance::TryRecovery()
 					return false;
 				}
 
-				AutoLaunch(Settings.SettingsVariant.Get<FServiceAutoLaunchSettings>(), *GetLocalServiceInstallPath(), HostName, Port);
+				AutoLaunch(Settings.SettingsVariant.Get<FServiceAutoLaunchSettings>(), ExecutablePath, ExecutionContextFilePath, HostName, Port);
+
 				FDateTime StartedWaitingForHealth = FDateTime::UtcNow();
 				bLastRecoveryResult = IsServiceReady();
 				while (!bLastRecoveryResult)
@@ -1452,7 +1701,7 @@ FZenServiceInstance::TryRecovery()
 					FPlatformProcess::Sleep(0.5f);
 					if (!IsZenProcessUsingEffectivePort(Port))
 					{
-						AutoLaunch(Settings.SettingsVariant.Get<FServiceAutoLaunchSettings>(), *GetLocalServiceInstallPath(), HostName, Port);
+						AutoLaunch(Settings.SettingsVariant.Get<FServiceAutoLaunchSettings>(), ExecutablePath, ExecutionContextFilePath, HostName, Port);
 					}
 					bLastRecoveryResult = IsServiceReady();
 				}
@@ -1504,32 +1753,47 @@ FZenServiceInstance::Initialize()
 {
 	if (Settings.IsAutoLaunch())
 	{
-		FString ExecutableInstallPath = ConditionalUpdateLocalInstall();
-		if (!ExecutableInstallPath.IsEmpty())
+		uint64 ZenAutoLaunchStartTime = FPlatformTime::Cycles64();
+		const FServiceAutoLaunchSettings& AutoLaunchSettings = Settings.SettingsVariant.Get<FServiceAutoLaunchSettings>();
+		bool ServiceIsInstalled = ConditionalUpdateLocalInstall(AutoLaunchSettings.InstallMode);
+		if (ServiceIsInstalled)
 		{
+			const FString ExecutablePath = GetLocalServiceInstallPath();
+			const FString ExecutionContextFilePath = GetServiceRunContextPath();
+
 			int LaunchAttempts = 0;
 			const FTimespan MaximumWaitForHealth = FTimespan::FromSeconds(20);
 			FDateTime StartedWaitingForHealth = FDateTime::UtcNow();
 			while (true)
 			{
-				++LaunchAttempts;
-				bHasLaunchedLocal = AutoLaunch(Settings.SettingsVariant.Get<FServiceAutoLaunchSettings>(), *ExecutableInstallPath, HostName, Port);
-				if (bHasLaunchedLocal)
 				{
-					const ZenServerState State(/*ReadOnly*/true);
-					const ZenServerState::ZenServerEntry* RunningEntry = State.LookupByEffectiveListenPort(Port);
-					if (RunningEntry != nullptr)
+					FSystemWideCriticalSection RecoveryCriticalSection(TEXT("ZenServerLaunch"), FTimespan::FromSeconds(5));
+					if (!RecoveryCriticalSection.IsValid())
 					{
-						AutoLaunchedPid = RunningEntry->Pid.load(std::memory_order_relaxed);
+						UE_LOG(LogZenServiceInstance, Warning, TEXT("Local ZenServer AutoLaunch initialization timed out waiting for other process to complete startup/recovery"));
 					}
-					AutoLaunchedPort = Port;
-					bIsRunningLocally = true;
-					if (IsServiceReady())
+					else
 					{
-						break;
+						bHasLaunchedLocal = AutoLaunch(AutoLaunchSettings, ExecutablePath, ExecutionContextFilePath, HostName, Port);
+						if (bHasLaunchedLocal)
+						{
+							const ZenServerState State(/*ReadOnly*/true);
+							const ZenServerState::ZenServerEntry* RunningEntry = State.LookupByEffectiveListenPort(Port);
+							if (RunningEntry != nullptr)
+							{
+								AutoLaunchedPid = RunningEntry->Pid.load(std::memory_order_relaxed);
+							}
+							AutoLaunchedPort = Port;
+							bIsRunningLocally = true;
+							if (IsServiceReady())
+							{
+								break;
+							}
+						}
 					}
 				}
 
+				++LaunchAttempts;
 				FTimespan WaitForHealth = FDateTime::UtcNow() - StartedWaitingForHealth;
 				if ((WaitForHealth > MaximumWaitForHealth) && (LaunchAttempts > 1))
 				{
@@ -1542,6 +1806,8 @@ FZenServiceInstance::Initialize()
 				FPlatformProcess::Sleep(0.5f);
 			}
 		}
+		double ZenAutoLaunchDuration = FPlatformTime::ToSeconds64(FPlatformTime::Cycles64() - ZenAutoLaunchStartTime);
+		UE_LOG(LogZenServiceInstance, Log, TEXT("Local ZenServer AutoLaunch initialization completed in %.3lf seconds"), ZenAutoLaunchDuration);
 	}
 	else
 	{
@@ -1607,87 +1873,215 @@ PromptUserOfFailedShutDownOfExistingProcess(uint16 Port)
 	}
 }
 
-FString
-FZenServiceInstance::ConditionalUpdateLocalInstall()
+bool
+FZenServiceInstance::ConditionalUpdateLocalInstall(FServiceAutoLaunchSettings::EInstallMode InstallMode)
 {
-	FString InTreeUtilityPath = FPaths::ConvertRelativePathToFull(FPlatformProcess::GenerateApplicationPath(TEXT("zen"), EBuildConfiguration::Development));
-	FString InstallUtilityPath = GetLocalInstallUtilityPath();
-
-	FString InTreeServicePath = FPaths::ConvertRelativePathToFull(FPlatformProcess::GenerateApplicationPath(TEXT("zenserver"), EBuildConfiguration::Development));
-	FString InstallServicePath = GetLocalServiceInstallPath();
-
-	IFileManager& FileManager = IFileManager::Get();
-
-	bool bMainExecutablesUpdated = false;
-	FString InTreeVersionCache, InstallVersionCache;
-	if (IsInstallVersionOutOfDate(InTreeUtilityPath, InstallUtilityPath, InTreeServicePath, InstallServicePath, InTreeVersionCache, InstallVersionCache))
+	if (InstallMode == FServiceAutoLaunchSettings::EInstallMode::Link)
 	{
-		UE_LOG(LogZenServiceInstance, Display, TEXT("Installing service from '%s' to '%s'"), *InTreeServicePath, *InstallServicePath);
-		if (!ShutDownZenServerProcessExecutable(InstallServicePath))
+		const FString LinkPath = GetServiceLinkPath();
+		IFileManager& FileManager = IFileManager::Get();
+
+		bool LinkIsValid = false;
+		const FZenServiceLink Link = FZenServiceLink::Read(LinkPath);
+		if (Link)
 		{
-			PromptUserToStopRunningServerInstanceForUpdate(InstallServicePath);
-			return FString();
+			if (!FileManager.FileExists(*Link.ServicePath))
+			{
+				UE_LOG(LogZenServiceInstance, Warning, TEXT("Found service link file '%s' pointing to unreachable service executable '%s'"), *LinkPath, *Link.ServicePath);
+			}
+			else if (!FileManager.FileExists(*Link.UtilityPath))
+			{
+				UE_LOG(LogZenServiceInstance, Warning, TEXT("Found service link file '%s' pointing to unreachable utility executable '%s'"), *LinkPath, *Link.UtilityPath);
+			}
+			else
+			{
+				LinkIsValid = true;
+			}
+		}
+		else if (FileManager.FileExists(*LinkPath))
+		{
+			UE_LOG(LogZenServiceInstance, Warning, TEXT("Found invalid service link file '%s', ignoring it"), *LinkPath);
+		}
+		
+		FString InTreeServicePath = GetInTreeServicePath();
+		if (LinkIsValid && InTreeServicePath == Link.ServicePath)
+		{
+			// If the running process already points to our executable and we have a valid link file we are good to go
+			uint32_t Pid = 0;
+			if (ZenServerState::FindRunningProcessId(*InTreeServicePath, &Pid))
+			{
+				UE_LOG(LogZenServiceInstance, Log, TEXT("Service link '%s' pointing to '%s', version %s is up and running"), *LinkPath, *Link.ServicePath, *Link.Version.ToString(false));
+				return true;
+			}
 		}
 
-		// Even after waiting for the process to shut down we have a tolerance for failure when overwriting the target files
-		if (!AttemptFileCopyWithRetries(*InstallServicePath, *InTreeServicePath, 5.0))
+		FString InTreeUtilityPath = GetInTreeUtilityPath();
+		FZenVersion InTreeVersion;
+		if (!GetZenVersion(InTreeUtilityPath, InTreeServicePath, InTreeVersion))
 		{
-			PromptUserToStopRunningServerInstanceForUpdate(InstallServicePath);
-			return FString();
+			checkf(false, TEXT("Unable to determine version using zen utility executable path: '%s'."), *InTreeUtilityPath);
+			return false;
+		}
+		if (LinkIsValid)
+		{
+			if (Link.Version < InTreeVersion)
+			{
+				UE_LOG(LogZenServiceInstance, Display, TEXT("Installing service link '%s' to '%s', version %s"), *LinkPath, *InTreeServicePath, *InTreeVersion.ToString(false));
+			}
+			else
+			{
+				// If the instance is running, assume it is valid and up to date
+				uint32_t Pid = 0;
+				if (ZenServerState::FindRunningProcessId(*Link.ServicePath, &Pid))
+				{
+					UE_LOG(LogZenServiceInstance, Display, TEXT("Service link '%s' pointing to '%s', version %s is up to date and running"), *LinkPath, *Link.ServicePath, *Link.Version.ToString(false));
+					return true;
+				}
+
+				// Verify that the executable pointed at is runnable and is of matching version
+				FZenVersion LinkedVersion;
+				if (GetZenVersion(Link.UtilityPath, Link.ServicePath, LinkedVersion))
+				{
+					if (LinkedVersion == Link.Version)
+					{
+						UE_LOG(LogZenServiceInstance, Display, TEXT("Service link '%s' pointing to '%s', version %s is up to date"), *LinkPath, *Link.ServicePath, *Link.Version.ToString(false));
+						return true;
+					}
+					else
+					{
+						UE_LOG(LogZenServiceInstance, Display, TEXT("Updating service link '%s' to '%s', version %s (link '%s', version %s does not match executable version %s)"), *LinkPath, *InTreeServicePath, *InTreeVersion.ToString(false), *Link.ServicePath, *Link.Version.ToString(false), *LinkedVersion.ToString(false));
+					}
+				}
+				else
+				{
+					UE_LOG(LogZenServiceInstance, Display, TEXT("Updating service link '%s' to '%s', version %s (link '%s', version %s pointing to invalid executable)"), *LinkPath, *InTreeServicePath, *InTreeVersion.ToString(false), *Link.ServicePath, *Link.Version.ToString(false));
+				}
+			}
 		}
 
-		if (!AttemptFileCopyWithRetries(*InstallUtilityPath, *InTreeUtilityPath, 5.0))
+		FZenServiceLink NewLink{ .ServicePath = InTreeServicePath, .UtilityPath = InTreeUtilityPath, .Version = InTreeVersion };
+		if (!FZenServiceLink::Write(NewLink, LinkPath))
 		{
-			PromptUserToStopRunningServerInstanceForUpdate(InstallServicePath);
-			return FString();
+			UE_LOG(LogZenServiceInstance, Warning, TEXT("Failed to update service link file '%s'"), *LinkPath);
+			return false;
 		}
 
-		AttemptFileCopyWithRetries(*InstallVersionCache, *InTreeVersionCache, 1.0);
+		FString ServiceCopyInstallPath = GetServiceCopyInstallPath();
+		if (FileManager.FileExists(*ServiceCopyInstallPath))
+		{
+			ShutDownZenServerProcessExecutable(ServiceCopyInstallPath);
+		}
 
-		bMainExecutablesUpdated = true;
+		TArray<FString> FilesToCleanUp{ GetUtilityCopyInstallPath(), ServiceCopyInstallPath, GetInstallVersionCachePath(), GetInstallVersionCachePath() };
+#if PLATFORM_WINDOWS
+		FilesToCleanUp.Add(FPaths::SetExtension(FilesToCleanUp[0], TEXT("pdb")));
+		FilesToCleanUp.Add(FPaths::SetExtension(FilesToCleanUp[1], TEXT("pdb")));
+#endif // PLATFORM_WINDOWS
+		for (const FString& FileToCleanUp : FilesToCleanUp)
+		{
+			// If zenserver is still running we may fail to clean up a file. Not critical, just try again next startup
+			if (!AttemptFileDeleteWithRetries(*FileToCleanUp, 1.0))
+			{
+				UE_LOG(LogZenServiceInstance, Log, TEXT("Failed cleaning up file {%s} (not critical)"), *FileToCleanUp);
+			}
+		}
+		return true;
 	}
+	else if (InstallMode == FServiceAutoLaunchSettings::EInstallMode::Copy)
+	{
+		FString InTreeUtilityPath = GetInTreeUtilityPath();
+		FString InstallUtilityPath = GetUtilityCopyInstallPath();
+		FString InTreeVersionCache = GetInTreeVersionCache();
+
+		FString InTreeServicePath = GetInTreeServicePath();
+		FString InstallServicePath = GetServiceCopyInstallPath();
+		FString InstallVersionCache = GetInstallVersionCachePath();
+
+		IFileManager& FileManager = IFileManager::Get();
+
+		bool bMainExecutablesUpdated = false;
+		if (IsInstallVersionOutOfDate(InTreeUtilityPath, InstallUtilityPath, InTreeServicePath, InstallServicePath, InTreeVersionCache, InstallVersionCache))
+		{
+			UE_LOG(LogZenServiceInstance, Display, TEXT("Installing service from '%s' to '%s'"), *InTreeServicePath, *InstallServicePath);
+			if (!ShutDownZenServerProcessExecutable(InstallServicePath))
+			{
+				PromptUserToStopRunningServerInstanceForUpdate(InstallServicePath);
+				return false;
+			}
+
+			// Even after waiting for the process to shut down we have a tolerance for failure when overwriting the target files
+			if (!AttemptFileCopyWithRetries(*InstallServicePath, *InTreeServicePath, 5.0))
+			{
+				PromptUserToStopRunningServerInstanceForUpdate(InstallServicePath);
+				return false;
+			}
+
+			if (!AttemptFileCopyWithRetries(*InstallUtilityPath, *InTreeUtilityPath, 5.0))
+			{
+				PromptUserToStopRunningServerInstanceForUpdate(InstallServicePath);
+				return false;
+			}
+
+			AttemptFileCopyWithRetries(*InstallVersionCache, *InTreeVersionCache, 1.0);
+
+			bMainExecutablesUpdated = true;
+		}
 
 #if PLATFORM_WINDOWS
-	struct FZenExecutable
-	{
-		FString& InTreeFilePath;
-		FString& InstallFilePath;
-	};
-	const FZenExecutable ZenExecutables[] = {
-		// Service executable (zenserver.exe)
-		{InTreeServicePath, InstallServicePath},
-		// Utility executable (zen.exe)
-		{InTreeUtilityPath, InstallUtilityPath},
-	};
-	for (const FZenExecutable& Executable : ZenExecutables)
-	{
-		FString InTreeSymbolFilePath = FPaths::SetExtension(Executable.InTreeFilePath, TEXT("pdb"));
-		FString InstallSymbolFilePath = FPaths::SetExtension(Executable.InstallFilePath, TEXT("pdb"));
-
-		if (FileManager.FileExists(*InTreeSymbolFilePath) && (bMainExecutablesUpdated || !FileManager.FileExists(*InstallSymbolFilePath)))
+		struct FZenExecutable
 		{
-			AttemptFileCopyWithRetries(*InstallSymbolFilePath, *InTreeSymbolFilePath, 1.0);
+			FString& InTreeFilePath;
+			FString& InstallFilePath;
+		};
+		const FZenExecutable ZenExecutables[] = {
+			// Service executable (zenserver.exe)
+			{InTreeServicePath, InstallServicePath},
+			// Utility executable (zen.exe)
+			{InTreeUtilityPath, InstallUtilityPath},
+		};
+		for (const FZenExecutable& Executable : ZenExecutables)
+		{
+			FString InTreeSymbolFilePath = FPaths::SetExtension(Executable.InTreeFilePath, TEXT("pdb"));
+			FString InstallSymbolFilePath = FPaths::SetExtension(Executable.InstallFilePath, TEXT("pdb"));
+
+			if (FileManager.FileExists(*InTreeSymbolFilePath) && (bMainExecutablesUpdated || !FileManager.FileExists(*InstallSymbolFilePath)))
+			{
+				AttemptFileCopyWithRetries(*InstallSymbolFilePath, *InTreeSymbolFilePath, 1.0);
+			}
 		}
-	}
 #endif
 
-	FString InTreeCrashpadHandlerFilePath = FPaths::ConvertRelativePathToFull(FPlatformProcess::GenerateApplicationPath(TEXT("crashpad_handler"), EBuildConfiguration::Development));
-	FString InstallCrashpadHandlerFilePath = FPaths::ConvertRelativePathToFull(FPaths::Combine(GetLocalInstallPath(), FString(FPathViews::GetCleanFilename(InTreeCrashpadHandlerFilePath))));
+		FString InTreeCrashpadHandlerFilePath = GetInTreeCrashpadHandlerFilePath();
+		FString InstallCrashpadHandlerFilePath = GetInstallCrashpadHandlerFilePath(InTreeCrashpadHandlerFilePath);
 
-	if (FileManager.FileExists(*InTreeCrashpadHandlerFilePath) && (bMainExecutablesUpdated || !FileManager.FileExists(*InstallCrashpadHandlerFilePath)))
-	{
-		AttemptFileCopyWithRetries(*InstallCrashpadHandlerFilePath, *InTreeCrashpadHandlerFilePath, 1.0);
+		if (FileManager.FileExists(*InTreeCrashpadHandlerFilePath) && (bMainExecutablesUpdated || !FileManager.FileExists(*InstallCrashpadHandlerFilePath)))
+		{
+			AttemptFileCopyWithRetries(*InstallCrashpadHandlerFilePath, *InTreeCrashpadHandlerFilePath, 1.0);
+		}
+
+		const FString LinkPath = GetServiceLinkPath();
+		if (FZenServiceLink Link = FZenServiceLink::Read(LinkPath); Link)
+		{
+			ShutDownZenServerProcessExecutable(Link.ServicePath);
+			if (!AttemptFileDeleteWithRetries(*LinkPath, 1.0))
+			{
+				UE_LOG(LogZenServiceInstance, Log, TEXT("Failed cleaning up file {%s} (not critical)"), *LinkPath);
+			}
+		}
+
+		return true;
 	}
-
-	return InstallServicePath;
+	else
+	{
+		return false;
+	}
 }
 
 bool
-FZenServiceInstance::AutoLaunch(const FServiceAutoLaunchSettings& InSettings, FString&& ExecutablePath, FString& OutHostName, uint16& OutPort)
+FZenServiceInstance::AutoLaunch(const FServiceAutoLaunchSettings& InSettings, const FString& ExecutablePath, const FString& ExecutionContextFilePath, FString& OutHostName, uint16& OutPort)
 {
 	IFileManager& FileManager = IFileManager::Get();
 	const FString LockFilePath = FPaths::Combine(InSettings.DataPath, TEXT(".lock"));
-	const FString ExecutionContextFilePath = FPaths::SetExtension(ExecutablePath, TEXT(".runcontext"));
 
 	FString WorkingDirectory = FPaths::GetPath(ExecutablePath);
 
