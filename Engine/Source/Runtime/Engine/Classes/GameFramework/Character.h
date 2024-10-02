@@ -48,12 +48,6 @@ struct FRepRootMotionMontage
 {
 	GENERATED_USTRUCT_BODY()
 
-#if WITH_EDITORONLY_DATA
-	/** AnimMontage providing Root Motion */
-	UPROPERTY(meta = (DeprecatedProperty, DeprecationMessage = "Use the GetAnimMontage function instead"))
-	TObjectPtr<UAnimMontage> AnimMontage_DEPRECATED = nullptr;
-#endif
-	
 	/** Animation providing Root Motion */
 	UPROPERTY()
 	TObjectPtr<UAnimSequenceBase> Animation = nullptr;
