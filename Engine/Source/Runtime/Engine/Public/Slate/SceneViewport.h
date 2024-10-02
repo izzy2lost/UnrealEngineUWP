@@ -209,6 +209,7 @@ public:
 
 	/** ISlateViewport interface */
 	ENGINE_API virtual FSlateShaderResource* GetViewportRenderTargetTexture() const override;
+	ENGINE_API virtual bool IsStereoscopic3D() const override;
 	ENGINE_API virtual void OnDrawViewport( const FGeometry& AllottedGeometry, const FSlateRect& MyCullingRect, FSlateWindowElementList& OutDrawElements, int32 LayerId, const FWidgetStyle& InWidgetStyle, bool bParentEnabled ) override;
 	ENGINE_API virtual FCursorReply OnCursorQuery( const FGeometry& MyGeometry, const FPointerEvent& CursorEvent ) override;
 	ENGINE_API virtual TOptional<TSharedRef<SWidget>> OnMapCursor(const FCursorReply& CursorReply) override;
