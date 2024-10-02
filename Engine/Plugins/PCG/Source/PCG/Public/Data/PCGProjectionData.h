@@ -23,6 +23,7 @@ public:
 	const FPCGProjectionParams& GetProjectionParams() const { return ProjectionParams; }
 
 	// ~Begin UPCGData interface
+	virtual FPCGCrc ComputeCrc(bool bFullDataCrc) const override;
 	virtual void AddToCrc(FArchiveCrc32& Ar, bool bFullDataCrc) const override;
 	// ~End UPCGData interface
 

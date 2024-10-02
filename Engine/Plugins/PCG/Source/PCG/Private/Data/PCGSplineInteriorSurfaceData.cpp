@@ -7,6 +7,8 @@
 #include "Data/PCGSplineData.h"
 #include "Elements/PCGSplineSampler.h"
 
+#include "Serialization/ArchiveCrc32.h"
+
 #include UE_INLINE_GENERATED_CPP_BY_NAME(PCGSplineInteriorSurfaceData)
 
 void UPCGSplineInteriorSurfaceData::Initialize(FPCGContext* Context, const UPCGSplineData* InSplineData)
@@ -29,8 +31,12 @@ void UPCGSplineInteriorSurfaceData::AddToCrc(FArchiveCrc32& Ar, bool bFullDataCr
 {
 	Super::AddToCrc(Ar, bFullDataCrc);
 
-	// This data does not have a bespoke CRC implementation so just use a global unique data CRC.
-	AddUIDToCrc(Ar);
+	// Implementation note: no metadata in this data yet.
+
+	uint32 UniqueTypeID = StaticClass()->GetDefaultObject()->GetUniqueID();
+	Ar << UniqueTypeID;
+
+	Ar << SplineStruct;
 }
 
 bool UPCGSplineInteriorSurfaceData::SamplePoint(const FTransform& InTransform, const FBox& InBounds, FPCGPoint& OutPoint, UPCGMetadata* OutMetadata) const

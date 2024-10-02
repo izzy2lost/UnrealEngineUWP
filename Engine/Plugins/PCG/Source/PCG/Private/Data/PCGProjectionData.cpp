@@ -11,6 +11,8 @@
 #include "Helpers/PCGAsync.h"
 #include "Metadata/PCGMetadataAccessor.h"
 
+#include "Serialization/ArchiveCrc32.h"
+
 #include UE_INLINE_GENERATED_CPP_BY_NAME(PCGProjectionData)
 
 namespace PCGProjectionPrivate
@@ -68,12 +70,40 @@ void UPCGProjectionData::PostLoad()
 	ProjectionParams.ApplyDeprecation();
 }
 
+FPCGCrc UPCGProjectionData::ComputeCrc(bool bFullDataCrc) const
+{
+	FArchiveCrc32 Ar;
+
+	if (PropagateCrcThroughBooleanData())
+	{
+		AddToCrc(Ar, bFullDataCrc);
+
+		// Chain together CRCs of operands
+		check(Source && Target);
+		uint32 CrcSource = Source->GetOrComputeCrc(bFullDataCrc).GetValue();
+		uint32 CrcTarget = Target->GetOrComputeCrc(bFullDataCrc).GetValue();
+
+		Ar << CrcSource;
+		Ar << CrcTarget;
+	}
+	else
+	{
+		AddUIDToCrc(Ar);
+	}
+
+	return FPCGCrc(Ar.GetCrc());
+}
+
 void UPCGProjectionData::AddToCrc(FArchiveCrc32& Ar, bool bFullDataCrc) const
 {
 	Super::AddToCrc(Ar, bFullDataCrc);
 
-	// This data does not have a bespoke CRC implementation so just use a global unique data CRC.
-	AddUIDToCrc(Ar);
+	// Implementation note: no metadata in composite data at this point.
+
+	uint32 UniqueTypeID = StaticClass()->GetDefaultObject()->GetUniqueID();
+	Ar << UniqueTypeID;
+
+	Ar << ProjectionParams;
 }
 
 int UPCGProjectionData::GetDimension() const

@@ -72,6 +72,11 @@ void UPCGDynamicMeshData::AddToCrc(FArchiveCrc32& Ar, bool bFullDataCrc) const
 
 	if (bFullDataCrc)
 	{
+		// Implementation note: metadata not supported at this point.
+
+		uint32 UniqueTypeID = StaticClass()->GetDefaultObject()->GetUniqueID();
+		Ar << UniqueTypeID;
+
 		Ar << DynamicMesh->GetMeshRef();
 	}
 	else

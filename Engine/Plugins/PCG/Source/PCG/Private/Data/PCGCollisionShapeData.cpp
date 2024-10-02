@@ -45,6 +45,8 @@ void UPCGCollisionShapeData::AddToCrc(FArchiveCrc32& Ar, bool bFullDataCrc) cons
 {
 	Super::AddToCrc(Ar, bFullDataCrc);
 
+	// Implementation note: no metadata at this point yet.
+
 	uint32 UniqueTypeID = StaticClass()->GetDefaultObject()->GetUniqueID();
 	Ar << UniqueTypeID;
 

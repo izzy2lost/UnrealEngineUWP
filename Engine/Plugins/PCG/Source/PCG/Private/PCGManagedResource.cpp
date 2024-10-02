@@ -782,6 +782,8 @@ void UPCGManagedISMComponent::MarkAsUsed()
 
 	if (UInstancedStaticMeshComponent* ISMC = GetComponent())
 	{
+		const bool bHasPreviousRootLocation = bHasRootLocation;
+
 		// Keep track of the current root location so if we reuse this later we are able to update this appropriately
 		if (USceneComponent* RootComponent = ISMC->GetAttachmentRoot())
 		{
@@ -794,11 +796,14 @@ void UPCGManagedISMComponent::MarkAsUsed()
 			RootLocation = FVector::ZeroVector;
 		}
 
-		// Reset the rotation/scale to be identity otherwise if the root component transform has changed, the final transform will be wrong
-		// Since this is technically 'moving' the ISM, we need to unregister it before moving otherwise we could get a warning that we're moving a component with static mobility
-		ISMC->UnregisterComponent();
-		ISMC->SetWorldTransform(FTransform(FQuat::Identity, RootLocation, FVector::OneVector));
-		ISMC->RegisterComponent();
+		if (bHasPreviousRootLocation != bHasRootLocation || (ISMC->GetComponentLocation() - RootLocation).SquaredLength() > UE_DOUBLE_SMALL_NUMBER)
+		{
+			// Reset the rotation/scale to be identity otherwise if the root component transform has changed, the final transform will be wrong
+			// Since this is technically 'moving' the ISM, we need to unregister it before moving otherwise we could get a warning that we're moving a component with static mobility
+			ISMC->UnregisterComponent();
+			ISMC->SetWorldTransform(FTransform(FQuat::Identity, RootLocation, FVector::OneVector));
+			ISMC->RegisterComponent();
+		}
 	}
 }
 
@@ -819,10 +824,13 @@ void UPCGManagedISMComponent::MarkAsReused()
 			}
 		}
 
-		// Since this is technically 'moving' the ISM, we need to unregister it before moving otherwise we could get a warning that we're moving a component with static mobility
-		ISMC->UnregisterComponent();
-		ISMC->SetWorldTransform(FTransform(FQuat::Identity, TentativeRootLocation, FVector::OneVector));
-		ISMC->RegisterComponent();
+		if ((ISMC->GetComponentLocation() - TentativeRootLocation).SquaredLength() > UE_DOUBLE_SMALL_NUMBER)
+		{
+			// Since this is technically 'moving' the ISM, we need to unregister it before moving otherwise we could get a warning that we're moving a component with static mobility
+			ISMC->UnregisterComponent();
+			ISMC->SetWorldTransform(FTransform(FQuat::Identity, TentativeRootLocation, FVector::OneVector));
+			ISMC->RegisterComponent();
+		}
 	}
 }
 

@@ -68,6 +68,7 @@ public:
 
 	// ~Begin UPCGData Interface
 	virtual EPCGDataType GetDataType() const override { return EPCGDataType::Primitive; }
+	virtual FPCGCrc ComputeCrc(bool bFullDataCrc) const override;
 	virtual void AddToCrc(FArchiveCrc32& Ar, bool bFullDataCrc) const override;
 	virtual void GetResourceSizeEx(FResourceSizeEx& CumulativeResourceSize) override;
 	// ~End UPCGData Interface

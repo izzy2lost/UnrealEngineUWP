@@ -259,10 +259,24 @@ const PhysicsInterfaceTypes::FInlineShapeArray& UPCGCollisionWrapperData::GetCac
 	}
 }
 
+FPCGCrc UPCGCollisionWrapperData::ComputeCrc(bool bFullDataCrc) const
+{
+	FArchiveCrc32 Ar;
+
+	AddToCrc(Ar, bFullDataCrc);
+	GetPointData()->AddToCrc(Ar, bFullDataCrc);
+
+	return FPCGCrc(Ar.GetCrc());
+}
+
 void UPCGCollisionWrapperData::AddToCrc(FArchiveCrc32& Ar, bool bFullDataCrc) const
 {
 	Super::AddToCrc(Ar, bFullDataCrc);
-	GetPointData()->AddToCrc(Ar, bFullDataCrc);
+
+	// Implementation note: no metadata at this point yet
+
+	uint32 UniqueTypeID = StaticClass()->GetDefaultObject()->GetUniqueID();
+	Ar << UniqueTypeID;
 
 	CollisionSelector.AddToCrc(Ar);
 

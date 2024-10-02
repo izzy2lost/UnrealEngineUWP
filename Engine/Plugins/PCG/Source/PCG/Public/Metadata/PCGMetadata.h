@@ -348,6 +348,9 @@ public:
 		return InitializeAsCopyWithAttributeFilter(InMetadataToCopy, InFilteredAttributes, InFilterMode, !InOptionalEntriesToCopy.IsEmpty() ? &InOptionalEntriesToCopy : nullptr);
 	}
 
+	/** Computes Crc from all attributes & keys from outer's data. */
+	void AddToCrc(FArchiveCrc32& Ar, bool bFullDataCrc) const;
+
 protected:
 	FPCGMetadataAttributeBase* CopyAttribute(FName AttributeToCopy, FName NewAttributeName, bool bKeepParent, bool bCopyEntries, bool bCopyValues);
 

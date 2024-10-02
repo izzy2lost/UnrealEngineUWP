@@ -8,10 +8,12 @@
 #include "Elements/Metadata/PCGMetadataElementCommon.h"
 #include "Helpers/PCGPropertyHelpers.h"
 #include "Metadata/PCGAttributePropertySelector.h"
+#include "Metadata/Accessors/PCGAttributeAccessorHelpers.h"
 
 #include "Algo/AnyOf.h"
 #include "Algo/Transform.h"
 #include "Async/ParallelFor.h"
+#include "Serialization/ArchiveCrc32.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(PCGMetadata)
 
@@ -68,6 +70,64 @@ void UPCGMetadata::Serialize(FArchive& InArchive)
 		NextAttributeId = MaxAttributeId + 1;
 		check(NextAttributeId >= Attributes.Num());
 		ItemKeyOffset = (Parent ? Parent->GetItemCountForChild() : 0);
+	}
+}
+
+void UPCGMetadata::AddToCrc(FArchiveCrc32& Ar, bool bFullDataCrc) const
+{
+	const UPCGData* Data = Cast<UPCGData>(GetOuter());
+	check(Data);
+
+	// Sort attributes so we have a consistent processing path
+	TArray<FName> AttributeNames;
+
+	{
+		AttributeLock.ReadLock();
+		AttributeNames.Reserve(Attributes.Num());
+
+		for (const TPair<FName, FPCGMetadataAttributeBase*>& Attribute : Attributes)
+		{
+			AttributeNames.Add(Attribute.Key);
+		}
+		AttributeLock.ReadUnlock();
+
+		Algo::Sort(AttributeNames, [this](const FName& A, const FName& B) { return A.LexicalLess(B); });
+	}
+
+	// Add attributes to CRC
+	for (FName AttributeName : AttributeNames)
+	{
+		Ar << AttributeName;
+
+		FPCGAttributePropertyInputSelector InputSource;
+		InputSource.SetAttributeName(AttributeName);
+
+		TUniquePtr<const IPCGAttributeAccessor> InputAccessor = PCGAttributeAccessorHelpers::CreateConstAccessor(Data, InputSource);
+		TUniquePtr<const IPCGAttributeAccessorKeys> InputKeys = PCGAttributeAccessorHelpers::CreateConstKeys(Data, InputSource);
+
+		auto Callback = [&InputAccessor, &InputKeys, &Ar](auto&& Dummy)
+		{
+			using AttributeType = std::decay_t<decltype(Dummy)>;
+			TArray<AttributeType> Values;
+			if constexpr (std::is_trivially_copyable_v<AttributeType>)
+			{
+				Values.SetNumUninitialized(InputKeys->GetNum());
+			}
+			else
+			{
+				Values.SetNum(InputKeys->GetNum());
+			}
+			
+			InputAccessor->GetRange<AttributeType>(Values, 0, *InputKeys);
+
+			for (AttributeType& Value : Values)
+			{
+				// Add value to Crc
+				PCG::Private::Serialize(Ar, Value);
+			}
+		};
+
+		PCGMetadataAttribute::CallbackWithRightType(InputAccessor->GetUnderlyingType(), Callback);
 	}
 }
 
