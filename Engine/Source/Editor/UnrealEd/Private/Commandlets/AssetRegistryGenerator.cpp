@@ -856,17 +856,34 @@ void FAssetRegistryGenerator::CalculateChunkIdsAndAssignToManifest(const FName& 
 	{
 		FName PackageNameThatDefinesChunks = PackageFName;
 
-		// Generated packages use the chunks defined by their Generator
-		FName GeneratorName = GetGeneratorPackage(PackageFName, this->State);
-		if (!GeneratorName.IsNone())
+		UAssetManager& AssetManager = UAssetManager::Get();
+
+		TArray<int32> PackageChunkIDs;
+		
+		for (int32 ChunkID : AssetManager.GetEncryptedChunkIDsForPackage(PackageFName))
 		{
-			PackageNameThatDefinesChunks = GeneratorName;
+			PackageChunkIDs.Add(ChunkID);
 		}
 
-		TArray<int32> PackageChunkIDs = GetExplicitChunkIDs(PackageNameThatDefinesChunks);
-		ExistingChunkIDs = GetExistingPackageChunkAssignments(PackageNameThatDefinesChunks);
-		PackageChunkIDs.Append(ExistingChunkIDs);
-		UAssetManager::Get().GetPackageChunkIds(PackageNameThatDefinesChunks, TargetPlatform, PackageChunkIDs, TargetChunks);
+		// We only want to override the package name 
+		if (PackageChunkIDs.Num() == 0)
+		{
+			// Generated packages use the chunks defined by their Generator
+			FName GeneratorName = GetGeneratorPackage(PackageFName, this->State);
+			if (!GeneratorName.IsNone())
+			{
+				PackageNameThatDefinesChunks = GeneratorName;
+			}
+
+			PackageChunkIDs = GetExplicitChunkIDs(PackageNameThatDefinesChunks);
+			ExistingChunkIDs = GetExistingPackageChunkAssignments(PackageNameThatDefinesChunks);
+			PackageChunkIDs.Append(ExistingChunkIDs);
+			AssetManager.GetPackageChunkIds(PackageNameThatDefinesChunks, TargetPlatform, PackageChunkIDs, TargetChunks);
+		}
+		else
+		{
+			TargetChunks.Append(PackageChunkIDs);
+		}
 	}
 
 	// Add the package to the manifest for every chunk the AssetManager found it should belong to
