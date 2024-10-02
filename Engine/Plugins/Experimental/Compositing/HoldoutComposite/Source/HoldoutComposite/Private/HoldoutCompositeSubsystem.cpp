@@ -8,6 +8,7 @@
 
 #if WITH_EDITOR
 #include "Framework/Notifications/NotificationManager.h"
+#include "HAL/PlatformFileManager.h"
 #include "ISettingsEditorModule.h"
 #include "Misc/ConfigCacheIni.h"
 #include "Modules/ModuleManager.h"
@@ -15,6 +16,32 @@
 #endif
 
 #define LOCTEXT_NAMESPACE "HoldoutCompositeSubsystem"
+
+namespace
+{
+#if WITH_EDITOR
+	void UpdateDependentPropertyInConfigFile(URendererSettings* RendererSettings, FProperty* RendererProperty)
+	{
+		FString RelativePath = RendererSettings->GetDefaultConfigFilename();
+		FString FullPath = FPaths::ConvertRelativePathToFull(RelativePath);
+
+		const bool bIsWriteable = !FPlatformFileManager::Get().GetPlatformFile().IsReadOnly(*FullPath);
+
+		if (!bIsWriteable)
+		{
+			FPlatformFileManager::Get().GetPlatformFile().SetReadOnly(*FullPath, false);
+		}
+
+		RendererSettings->UpdateSinglePropertyInConfigFile(RendererProperty, RendererSettings->GetDefaultConfigFilename());
+
+		// Restore original state for source control
+		if (!bIsWriteable)
+		{
+			FPlatformFileManager::Get().GetPlatformFile().SetReadOnly(*FullPath, true);
+		}
+	}
+#endif
+}
 
 UHoldoutCompositeSubsystem::UHoldoutCompositeSubsystem()
 {
@@ -144,7 +171,7 @@ void UHoldoutCompositeSubsystem::PrimitiveHoldoutSettingsNotification(URendererS
 
 					FPropertyChangedEvent PropertyChangedEvent(Property, EPropertyChangeType::ValueSet, { RendererSettings });
 					RendererSettings->PostEditChangeProperty(PropertyChangedEvent);
-					RendererSettings->UpdateSinglePropertyInConfigFile(Property, RendererSettings->GetDefaultConfigFilename());
+					UpdateDependentPropertyInConfigFile(RendererSettings, Property);
 
 					// SupportPrimitiveAlphaHoldout requires shader recompilation, ask for a restart.
 					FModuleManager::GetModuleChecked<ISettingsEditorModule>("SettingsEditor").OnApplicationRestartRequired();
@@ -159,7 +186,7 @@ void UHoldoutCompositeSubsystem::PrimitiveHoldoutSettingsNotification(URendererS
 
 					FPropertyChangedEvent PropertyChangedEvent(Property, EPropertyChangeType::ValueSet, { RendererSettings });
 					RendererSettings->PostEditChangeProperty(PropertyChangedEvent);
-					RendererSettings->UpdateSinglePropertyInConfigFile(Property, RendererSettings->GetDefaultConfigFilename());
+					UpdateDependentPropertyInConfigFile(RendererSettings, Property);
 				}
 			}
 
