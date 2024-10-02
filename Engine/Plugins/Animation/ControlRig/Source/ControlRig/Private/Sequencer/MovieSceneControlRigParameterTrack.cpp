@@ -976,6 +976,24 @@ UControlRig* UMovieSceneControlRigParameterTrack::GetGameWorldControlRig(UWorld*
 	return nullptr;
 }
 
+bool UMovieSceneControlRigParameterTrack::IsAGameInstance(const UControlRig* InControlRig, const bool bCheckValidWorld) const
+{
+	if (!InControlRig || GameWorldControlRigs.IsEmpty())
+	{
+		return false;
+	}
+
+	for (const TPair<TWeakObjectPtr<UWorld>, TObjectPtr<UControlRig>>& WorldAndControlRig: GameWorldControlRigs)
+	{
+		if (WorldAndControlRig.Value == InControlRig)
+		{
+			return bCheckValidWorld ? WorldAndControlRig.Key.IsValid() : true;
+		}
+	}
+	
+	return false;
+}
+
 TArray<FRigControlFBXNodeAndChannels>* UMovieSceneControlRigParameterTrack::GetNodeAndChannelMappings(UMovieSceneSection* InSection )
 {
 #if WITH_EDITOR
