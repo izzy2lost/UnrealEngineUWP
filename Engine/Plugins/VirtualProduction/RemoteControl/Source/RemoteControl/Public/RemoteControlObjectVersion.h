@@ -30,6 +30,9 @@ struct FRemoteControlObjectVersion
 		// Instead of the global 'Protocol Generates Transactions' setting, each preset can now specify its modify operation flags
 		AddedPerPresetModifyOperationFlags,
 
+		// Change FRCEntityWrapper::ExposedEntities' Set to an Array to retain ordering across sessions
+		ChangedExposedEntitiesSetToAnOrderedTArray,
+
 		// -----<new versions can be added above this line>-------------------------------------------------
 		VersionPlusOne,
 		LatestVersion = VersionPlusOne - 1

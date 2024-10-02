@@ -1834,8 +1834,10 @@ void URemoteControlPreset::RenewEntityIds()
 		}
 	}
 
+	// Cache labels for all exposed entities
+	Registry->CacheLabels();
+
 	// Rehash the registries
-	Registry->Rehash();
 	PropertyIdRegistry->UpdateEntityIds(EntityIdMap);
 	Layout.UpdateEntityIds(EntityIdMap);
 	
