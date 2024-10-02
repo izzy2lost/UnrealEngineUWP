@@ -13,56 +13,59 @@
 UEditorValidator_Material::UEditorValidator_Material()
 	: Super()
 {
-	for (const FMaterialEditorValidationPlatform& Config: GetDefault<UDataValidationSettings>()->MaterialValidationPlatforms)
+	if (GetDefault<UDataValidationSettings>()->bEnableMaterialValidation)
 	{
-		FShaderValidationPlatform Platform = {};
+		for (const FMaterialEditorValidationPlatform& Config: GetDefault<UDataValidationSettings>()->MaterialValidationPlatforms)
+		{
+			FShaderValidationPlatform Platform = {};
 
-		bool bValidShaderPlatform = false;
-		if (Config.ShaderPlatform.Name == FMaterialEditorValidationShaderPlatform::MaxRHIShaderPlatformName)
-		{
-			Platform.ShaderPlatform = GMaxRHIShaderPlatform;
-			bValidShaderPlatform = true;
-		}
-		else
-		{
-			for (int32 ShaderPlatformIndex = 0; ShaderPlatformIndex < SP_NumPlatforms; ++ShaderPlatformIndex)
+			bool bValidShaderPlatform = false;
+			if (Config.ShaderPlatform.Name == FMaterialEditorValidationShaderPlatform::MaxRHIShaderPlatformName)
 			{
-				const EShaderPlatform ShaderPlatform = static_cast<EShaderPlatform>(ShaderPlatformIndex);
-
-				if (FDataDrivenShaderPlatformInfo::IsValid(ShaderPlatform)
-					&& FDataDrivenShaderPlatformInfo::CanUseForMaterialValidation(ShaderPlatform)
-					&& FDataDrivenShaderPlatformInfo::GetName(ShaderPlatform) == Config.ShaderPlatform.Name)
+				Platform.ShaderPlatform = GMaxRHIShaderPlatform;
+				bValidShaderPlatform = true;
+			}
+			else
+			{
+				for (int32 ShaderPlatformIndex = 0; ShaderPlatformIndex < SP_NumPlatforms; ++ShaderPlatformIndex)
 				{
-					Platform.ShaderPlatform = ShaderPlatform;
-					bValidShaderPlatform = true;
-					break;
+					const EShaderPlatform ShaderPlatform = static_cast<EShaderPlatform>(ShaderPlatformIndex);
+
+					if (FDataDrivenShaderPlatformInfo::IsValid(ShaderPlatform)
+						&& FDataDrivenShaderPlatformInfo::CanUseForMaterialValidation(ShaderPlatform)
+						&& FDataDrivenShaderPlatformInfo::GetName(ShaderPlatform) == Config.ShaderPlatform.Name)
+					{
+						Platform.ShaderPlatform = ShaderPlatform;
+						bValidShaderPlatform = true;
+						break;
+					}
 				}
 			}
-		}
 
-		if (!bValidShaderPlatform)
-		{
-			UE_LOG(LogContentValidation, Warning, TEXT("Material asset validation shader platform '%s' is not available, skipping."), *Config.ShaderPlatform.Name.ToString());
-			continue;
-		}
+			if (!bValidShaderPlatform)
+			{
+				UE_LOG(LogContentValidation, Warning, TEXT("Material asset validation shader platform '%s' is not available, skipping."), *Config.ShaderPlatform.Name.ToString());
+				continue;
+			}
 
-		switch (Config.FeatureLevel)
-		{
-		case EMaterialEditorValidationFeatureLevel::CurrentMaxFeatureLevel: Platform.FeatureLevel = GMaxRHIFeatureLevel; break; 
-		case EMaterialEditorValidationFeatureLevel::ES3_1: Platform.FeatureLevel = ERHIFeatureLevel::ES3_1; break;
-		case EMaterialEditorValidationFeatureLevel::SM5: Platform.FeatureLevel = ERHIFeatureLevel::SM5; break;
-		case EMaterialEditorValidationFeatureLevel::SM6: Platform.FeatureLevel = ERHIFeatureLevel::SM6; break;
-		}
+			switch (Config.FeatureLevel)
+			{
+			case EMaterialEditorValidationFeatureLevel::CurrentMaxFeatureLevel: Platform.FeatureLevel = GMaxRHIFeatureLevel; break; 
+			case EMaterialEditorValidationFeatureLevel::ES3_1: Platform.FeatureLevel = ERHIFeatureLevel::ES3_1; break;
+			case EMaterialEditorValidationFeatureLevel::SM5: Platform.FeatureLevel = ERHIFeatureLevel::SM5; break;
+			case EMaterialEditorValidationFeatureLevel::SM6: Platform.FeatureLevel = ERHIFeatureLevel::SM6; break;
+			}
 
-		switch (Config.MaterialQualityLevel)
-		{
-		case EMaterialEditorValidationQualityLevel::Low: Platform.MaterialQualityLevel = EMaterialQualityLevel::Low; break;
-		case EMaterialEditorValidationQualityLevel::Medium: Platform.MaterialQualityLevel = EMaterialQualityLevel::Medium; break;
-		case EMaterialEditorValidationQualityLevel::High: Platform.MaterialQualityLevel = EMaterialQualityLevel::High; break;
-		case EMaterialEditorValidationQualityLevel::Epic: Platform.MaterialQualityLevel = EMaterialQualityLevel::Epic; break;
-		}
+			switch (Config.MaterialQualityLevel)
+			{
+			case EMaterialEditorValidationQualityLevel::Low: Platform.MaterialQualityLevel = EMaterialQualityLevel::Low; break;
+			case EMaterialEditorValidationQualityLevel::Medium: Platform.MaterialQualityLevel = EMaterialQualityLevel::Medium; break;
+			case EMaterialEditorValidationQualityLevel::High: Platform.MaterialQualityLevel = EMaterialQualityLevel::High; break;
+			case EMaterialEditorValidationQualityLevel::Epic: Platform.MaterialQualityLevel = EMaterialQualityLevel::Epic; break;
+			}
 
-		ValidationPlatforms.Add(Platform);
+			ValidationPlatforms.Add(Platform);
+		}
 	}
 }
 
