@@ -4873,6 +4873,16 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 		return appPackageName;
 	}
 
+	public String AndroidThunkJava_GetCacheDir()
+	{
+		try {
+			return getApplicationContext().getCacheDir().getPath();
+		} catch (Exception e) {
+			Log.debug("getCacheDir failed: " + e.toString());
+		}
+		return "";
+	}
+
 	public boolean AndroidThunkJava_IsMusicActive()
 	{
 		AudioManager audioManager = (AudioManager)getThisActivity().getSystemService(Context.AUDIO_SERVICE);
