@@ -221,5 +221,8 @@ private:
 
 	UDataflowEditor* DataflowEditor = nullptr;
 
+	// Timestamp for telemetry
+	FDateTime LastModeStartTimestamp;
+
 };
 
