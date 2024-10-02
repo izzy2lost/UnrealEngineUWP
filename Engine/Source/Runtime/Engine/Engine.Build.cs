@@ -488,8 +488,8 @@ public class Engine : ModuleRules
 			PublicDefinitions.Add("WITH_ODSC=0");
 		}
 
-		const bool bIrisAddAsPublicDepedency = true;
-		SetupIrisSupport(Target, bIrisAddAsPublicDepedency);
+		const bool bIrisAddAsPublicDependency = true;
+		SetupIrisSupport(Target, bIrisAddAsPublicDependency);
 
 		PrivateDefinitions.Add("UE_DEPRECATE_LEGACY_MATH_CONSTANT_MACRO_NAMES=1");
 	}
