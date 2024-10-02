@@ -104,15 +104,15 @@ struct FNDCAccessContext_{ParameterName}
 	void Read_Float(out float3 Value){ NiagaraDataChannelRead_Float(GetBuffer_Float(), GetFloatStride(), Register_Float, ReadIndex, Value); }
 	void Read_Float(out float4 Value){ NiagaraDataChannelRead_Float(GetBuffer_Float(), GetFloatStride(), Register_Float, ReadIndex, Value); }
 
-	void Read_Int32(out int Value){ NiagaraDataChannelRead_Int32(GetBuffer_Int32(), GetFloatStride(), Register_Int32, ReadIndex, Value); }
-	void Read_Int32(out int2 Value){ NiagaraDataChannelRead_Int32(GetBuffer_Int32(), GetFloatStride(), Register_Int32, ReadIndex, Value); }
-	void Read_Int32(out int3 Value){ NiagaraDataChannelRead_Int32(GetBuffer_Int32(), GetFloatStride(), Register_Int32, ReadIndex, Value); }
-	void Read_Int32(out int4 Value){ NiagaraDataChannelRead_Int32(GetBuffer_Int32(), GetFloatStride(), Register_Int32, ReadIndex, Value); }
+	void Read_Int32(out int Value){ NiagaraDataChannelRead_Int32(GetBuffer_Int32(), GetIntStride(), Register_Int32, ReadIndex, Value); }
+	void Read_Int32(out int2 Value){ NiagaraDataChannelRead_Int32(GetBuffer_Int32(), GetIntStride(), Register_Int32, ReadIndex, Value); }
+	void Read_Int32(out int3 Value){ NiagaraDataChannelRead_Int32(GetBuffer_Int32(), GetIntStride(), Register_Int32, ReadIndex, Value); }
+	void Read_Int32(out int4 Value){ NiagaraDataChannelRead_Int32(GetBuffer_Int32(), GetIntStride(), Register_Int32, ReadIndex, Value); }
 
-	void Read_Half(out half Value){ NiagaraDataChannelRead_Half(GetBuffer_Half(), GetFloatStride(), Register_Half, ReadIndex, Value); }
-	void Read_Half(out half2 Value){ NiagaraDataChannelRead_Half(GetBuffer_Half(), GetFloatStride(), Register_Half, ReadIndex, Value); }
-	void Read_Half(out half3 Value){ NiagaraDataChannelRead_Half(GetBuffer_Half(), GetFloatStride(), Register_Half, ReadIndex, Value); }
-	void Read_Half(out half4 Value){ NiagaraDataChannelRead_Half(GetBuffer_Half(), GetFloatStride(), Register_Half, ReadIndex, Value); }
+	void Read_Half(out half Value){ NiagaraDataChannelRead_Half(GetBuffer_Half(), GetHalfStride(), Register_Half, ReadIndex, Value); }
+	void Read_Half(out half2 Value){ NiagaraDataChannelRead_Half(GetBuffer_Half(), GetHalfStride(), Register_Half, ReadIndex, Value); }
+	void Read_Half(out half3 Value){ NiagaraDataChannelRead_Half(GetBuffer_Half(), GetHalfStride(), Register_Half, ReadIndex, Value); }
+	void Read_Half(out half4 Value){ NiagaraDataChannelRead_Half(GetBuffer_Half(), GetHalfStride(), Register_Half, ReadIndex, Value); }
 };
 
 void Num_{ParameterName}(out int OutNum)
@@ -165,12 +165,12 @@ void GetNDCSpawnData_{ParameterName}(NiagaraEmitterID InEmitterID, int InExecInd
 
 	uint ExecIdx = (uint)InExecIndex;
 
-	uint NumNDCEntries = {ParameterName}_NDCElementCountAtSpawn;
+	int NumNDCEntries = {ParameterName}_NDCElementCountAtSpawn;
 
 	//First part of the buffer is the per emitter offsets into the data.
 	//Grab the right base offset for this emitter.
 	uint NDCSpawnDataOffset = { ParameterName }_NDCSpawnDataBuffer[InEmitterID.ID];
-	if(NDCSpawnDataOffset == 0 || NumNDCEntries == 0)
+	if(NDCSpawnDataOffset == 0 || NumNDCEntries <= 0)
 	{
 		OutNDCIndex = -1;
 		OutNDCSpawnIndex = -1;
@@ -197,8 +197,9 @@ void GetNDCSpawnData_{ParameterName}(NiagaraEmitterID InEmitterID, int InExecInd
 		if(ExecIdx < MaxBucketExecIndex)
 		{
 			//We found our bucket.
-			//Now we need to find our NDCIndex Entry Index.
-			uint NDCIndexEntry = (ExecIdx - MinBucketExecIndex) / BucketSize;			
+			//Find our NDC entry. There is one entry for each bucket load of instances. So we divide our current adjusted exec index in this bucket by the bucket size.
+			//As buckets are power of 2 we can do this faster by just shifting down.
+			uint NDCIndexEntry = (ExecIdx - MinBucketExecIndex) >> (15U - BucketIdx);			
 			OutNDCIndex = {ParameterName}_NDCSpawnDataBuffer[BucketEntryStart + NDCIndexEntry];
 			break;
 		}
