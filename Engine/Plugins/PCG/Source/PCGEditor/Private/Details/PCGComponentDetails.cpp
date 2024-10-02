@@ -256,19 +256,26 @@ EVisibility FPCGComponentDetails::RefreshButtonVisible() const
 
 FReply FPCGComponentDetails::OnGenerateClicked()
 {
+	const FModifierKeysState ModifierKeys = FSlateApplication::Get().GetModifierKeys();
+	const bool bIsControlDown = ModifierKeys.IsControlDown();
+
+	if (bIsControlDown)
+	{
+		for (TWeakObjectPtr<UPCGComponent>& Component : SelectedComponents)
+		{
+			if (Component.IsValid())
+			{
+				Component->GetSubsystem()->FlushCache();
+				break;
+			}
+		}
+	}
+
 	for (TWeakObjectPtr<UPCGComponent>& Component : SelectedComponents)
 	{
 		if (Component.IsValid())
 		{
-			bool bForce = false;
-			FModifierKeysState ModifierKeys = FSlateApplication::Get().GetModifierKeys();
-			if (ModifierKeys.IsControlDown())
-			{
-				Component->GetSubsystem()->FlushCache();
-				bForce = true;
-			}
-
-			Component.Get()->Generate(bForce);
+			Component.Get()->Generate(/*bForce=*/bIsControlDown);
 		}
 	}
 
