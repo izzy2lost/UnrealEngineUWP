@@ -80,9 +80,7 @@ void FPoseAssetDetails::CustomizeDetails(IDetailLayoutBuilder& DetailBuilder)
 	/////////////////////////////////////////////////////////////////////////////////
 	IDetailCategoryBuilder& AnimationCategory = DetailBuilder.EditCategory("Animation");
 	RetargetSourceNameHandler = DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(UPoseAsset, RetargetSource));
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	RetargetSourceAssetHandle = DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(UAnimSequence, RetargetSourceAsset));
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	// first create profile combo list
 	RetargetSourceComboList.Empty();
@@ -578,12 +576,10 @@ void FPoseAssetDetails::CachePoseAssetData()
  {
 	 if (UPoseAsset* Pose = PoseAsset.Get())
 	 {
-		 PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		 if (!Pose->RetargetSourceAsset.IsNull())
 		 {
 			 return EVisibility::Visible;
 		 }
-		 PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	 }
 
 	 return EVisibility::Collapsed;
