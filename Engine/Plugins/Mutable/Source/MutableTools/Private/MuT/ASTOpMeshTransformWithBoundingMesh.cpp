@@ -77,3 +77,9 @@ void mu::ASTOpMeshTransformWithBoundingMesh::Link(FProgram& program, FLinkerOpti
 		AppendCode(program.m_byteCode, args);
 	}
 }
+
+mu::FSourceDataDescriptor mu::ASTOpMeshTransformWithBoundingMesh::GetSourceDataDescriptor(
+	FGetSourceDataDescriptorContext* GetSourceDataDescriptorContext) const
+{
+	return source->GetSourceDataDescriptor(GetSourceDataDescriptorContext);
+}
