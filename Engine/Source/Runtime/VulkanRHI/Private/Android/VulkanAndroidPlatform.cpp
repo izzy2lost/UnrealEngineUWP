@@ -1638,7 +1638,7 @@ VkPipelineCache FVulkanAndroidPlatform::PrecompilePSO(
 			{
 				const int ProgramResultSharedHandle = Env->GetIntField(*ProgramResponseObj, VKRemoteProgramCompileJNI.ProgramResponse_SHMOutputHandleField);
 				const float ProgramResultCompilationDuration = Env->GetFloatField(*ProgramResponseObj, VKRemoteProgramCompileJNI.ProgramResponse_CompilationDurationField);
-				GetPSOMetricsDelegate().ExecuteIfBound(ProgramResultCompilationDuration);
+				AccumulatePSOMetrics(ProgramResultCompilationDuration);
 				if(ensure(ProgramResultSharedHandle > -1))
 				{
 					const uint32 ResultMemSize = (uint32)ASharedMemory_getSize(ProgramResultSharedHandle);

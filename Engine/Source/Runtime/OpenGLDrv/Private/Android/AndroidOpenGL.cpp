@@ -948,7 +948,7 @@ TArray<uint8> FAndroidOpenGL::DispatchAndWaitForRemoteGLProgramCompile(FGraphics
 				CompiledProgramBinary.SetNumUninitialized(len);
 				Env->GetByteArrayRegion(*ProgramResult, 0, len, reinterpret_cast<jbyte*>(CompiledProgramBinary.GetData()));
 				float CompilationDuration = (float)Env->GetFloatField(*ProgramResponseObj, OpenGLRemoteGLProgramCompileJNI.ProgramResponse_CompilationDurationField);
-				GetPSOMetricsDelegate().ExecuteIfBound(CompilationDuration);
+				AccumulatePSOMetrics(CompilationDuration);
 			}
 			else
 			{
