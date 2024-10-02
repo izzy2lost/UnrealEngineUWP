@@ -290,6 +290,9 @@ void URevisionControlDataStorageFactory::RegisterQueries(IEditorDataStorageProvi
 				DataStorage.UnregisterQuery(SelectionRemoved);
 				SelectionRemoved = InvalidQueryHandle;
 
+				DataStorage.UnregisterQuery(PackageReferenceAdded);
+				PackageReferenceAdded = InvalidQueryHandle;
+
 				DataStorage.UnregisterQuery(FlushPackageUpdates);
 				FlushPackageUpdates = InvalidQueryHandle;
 
@@ -569,6 +572,37 @@ void URevisionControlDataStorageFactory::RegisterApplyOverlays(IEditorDataStorag
 					})
 					.Where()
 						.All<FTypedElementActorTag>()
+					.DependsOn()
+						.SubQuery(Subqueries)
+					.Compile());
+
+	/**
+	 * Usually, when a revision control update is requested for an SCC row it adds a new row with FTypedElementPackageUpdateColumn and a reference to
+	 * the actor row and the SCC row to update the overlays. However, if the revision control update happens before the actor row and SCC row have a
+	 * chance to link to each other via the FTypedElementPackageReference column, FTypedElementPackageUpdateColumn cannot be added.
+	 * So we add an observer to track for FTypedElementPackageReference addition to the actor rows and manually execute an overlay update.
+	 */
+	PackageReferenceAdded = DataStorage.RegisterQuery(
+					Select(
+					TEXT("Add overlay on package reference added"),
+					FObserver::OnAdd<FTypedElementPackageReference>(),
+					[this](IQueryContext& ActorQueryContext, RowHandle ObjectRow, const FTypedElementPackageReference& PackageReference,
+						const FTypedElementUObjectColumn& Actor)
+					{
+						ActorQueryContext.RunSubquery(EApplyOverlaysObjectToSCC, PackageReference.Row, CreateSubqueryCallbackBinding(
+							[&ActorQueryContext, &ObjectRow, &Actor](ISubqueryContext& SubQueryContext)
+							{
+								FColor Color = DetermineOverlayColor(SubQueryContext, Actor, ActorQueryContext.HasColumn<FTypedElementSelectionColumn>());
+								if (Color.Bits != 0)
+								{
+									ActorQueryContext.AddColumn<FTypedElementViewportOverlayColorColumn>(ObjectRow, { .OverlayColor = Color });
+								}
+							})
+						);
+					})
+					.Where()
+						.All<FTypedElementActorTag>()
+						.None<FTypedElementViewportOverlayColorColumn>()
 					.DependsOn()
 						.SubQuery(Subqueries)
 					.Compile());
