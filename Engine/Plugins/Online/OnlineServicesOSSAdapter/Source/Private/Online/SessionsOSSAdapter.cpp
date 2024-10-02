@@ -243,8 +243,9 @@ TSharedRef<FOnlineSessionSearch> BuildV1SessionSearch(const FFindSessions::Param
 void WriteV2SessionInfoFromV1Session(const FOnlineSession& InSession, FSessionInfo& OutInfo)
 {
 	OutInfo.SessionIdOverride = InSession.SessionSettings.SessionIdOverride;
-
-	InSession.SessionSettings.Settings.FindChecked(OSS_ADAPTER_SESSIONS_ALLOW_SANCTIONED_PLAYERS).Data.GetValue(OutInfo.bAllowSanctionedPlayers);
+	bool bAllowSanctionedPlayers = false;
+	InSession.SessionSettings.Get(OSS_ADAPTER_SESSIONS_ALLOW_SANCTIONED_PLAYERS, bAllowSanctionedPlayers);
+	OutInfo.bAllowSanctionedPlayers = bAllowSanctionedPlayers;
 
 	OutInfo.bAntiCheatProtected = InSession.SessionSettings.bAntiCheatProtected;
 
@@ -310,8 +311,12 @@ void FSessionsOSSAdapter::Initialize()
 			LocalAccountId = (*LocalAccountIdPtr).AsShared();
 		}
 
+		TSharedRef<FSessionCommon> V2Session = BuildV2Session(&InviteResult.Session);
+		const FAccountId LocalAccountIdV2 = ServicesOSSAdapter.GetAccountIdRegistry().FindOrAddHandle(LocalAccountId);
+		AddSearchResult(V2Session, LocalAccountIdV2);
+
 		FUISessionJoinRequested Event {
-			ServicesOSSAdapter.GetAccountIdRegistry().FindOrAddHandle(LocalAccountId),
+			LocalAccountIdV2,
 			TResult<FOnlineSessionId, FOnlineError>(GetSessionIdRegistry().FindOrAddHandle(InviteResult.Session.SessionInfo->GetSessionId().AsShared())),
 			EUISessionJoinRequestedSource::FromInvitation
 		};
@@ -1103,7 +1108,7 @@ void FSessionsOSSAdapter::WriteV2SessionSettingsFromV1Session(const FOnlineSessi
 	OutSession->SessionSettings.NumMaxConnections = FMath::Max(InSession->SessionSettings.NumPrivateConnections, InSession->SessionSettings.NumPublicConnections);
 
 	FString SchemaNameStr;
-	InSession->SessionSettings.Settings.FindChecked(OSS_ADAPTER_SESSIONS_SCHEMA_NAME).Data.GetValue(SchemaNameStr);
+	InSession->SessionSettings.Get(OSS_ADAPTER_SESSIONS_SCHEMA_NAME, SchemaNameStr);
 	OutSession->SessionSettings.SchemaName = FSchemaId(SchemaNameStr);
 
 	OutSession->SessionSettings.CustomSettings = GetV2SessionSettings(InSession->SessionSettings.Settings);
@@ -1144,17 +1149,23 @@ FOnlineSession FSessionsOSSAdapter::BuildV1Session(const TSharedRef<const ISessi
 	return FOnlineSession(FSessionOSSAdapter::Cast(*InSession).GetV1Session());
 }
 
-TSharedRef<FSessionCommon> FSessionsOSSAdapter::BuildV2Session(const FOnlineSession* InSession) const
+TSharedRef<FSessionCommon> FSessionsOSSAdapter::BuildV2Session(const FNamedOnlineSession* InSession) const
 {
 	FOnlineServicesOSSAdapter& ServicesOSSAdapter = static_cast<FOnlineServicesOSSAdapter&>(Services);
 
 	TSharedRef<FSessionOSSAdapter> Session = MakeShared<FSessionOSSAdapter>(*InSession, GetSessionIdRegistry().FindOrAddHandle(InSession->SessionInfo->GetSessionId().AsShared()));
 
-	if (const FNamedOnlineSession* NamedInSession = static_cast<const FNamedOnlineSession*>(InSession))
-	{
-		Session->OwnerAccountId = ServicesOSSAdapter.GetAccountIdRegistry().FindOrAddHandle(NamedInSession->LocalOwnerId->AsShared());
-		WriteV2SessionSettingsFromV1NamedSession(NamedInSession, Session);
-	}
+	Session->OwnerAccountId = ServicesOSSAdapter.GetAccountIdRegistry().FindOrAddHandle(InSession->LocalOwnerId->AsShared());
+	WriteV2SessionSettingsFromV1NamedSession(InSession, Session);
+
+	return Session;
+}
+
+TSharedRef<FSessionCommon> FSessionsOSSAdapter::BuildV2Session(const FOnlineSession* InSession) const
+{
+	FOnlineServicesOSSAdapter& ServicesOSSAdapter = static_cast<FOnlineServicesOSSAdapter&>(Services);
+
+	TSharedRef<FSessionOSSAdapter> Session = MakeShared<FSessionOSSAdapter>(*InSession, GetSessionIdRegistry().FindOrAddHandle(InSession->SessionInfo->GetSessionId().AsShared()));
 
 	WriteV2SessionSettingsFromV1Session(InSession, Session);
 
