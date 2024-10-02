@@ -190,13 +190,10 @@ bool FPCGRuntimeGenScheduler::ShouldTick()
 	// same behaviour as other things).
 	if (!World->IsGameWorld())
 	{
-		bool bAnyVisible = false;
-		for (FEditorViewportClient* EditorViewportClient : GEditor->GetAllViewportClients())
-		{
-			bAnyVisible |= EditorViewportClient->IsVisible();
-		}
+		FViewport* Viewport = GEditor ? GEditor->GetActiveViewport() : nullptr;
+		FEditorViewportClient* ViewportClient = Viewport ? static_cast<FEditorViewportClient*>(Viewport->GetClient()) : nullptr;
 
-		if (!bAnyVisible)
+		if (!ViewportClient || !ViewportClient->IsVisible())
 		{
 			return false;
 		}
