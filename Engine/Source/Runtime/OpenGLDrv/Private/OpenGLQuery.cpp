@@ -347,6 +347,8 @@ bool FOpenGLRenderQuery_RHI::GetResult(bool bWait, uint64& OutResult)
 	return true;
 }
 
+void OpenGL_PollAllFences();
+
 void FOpenGLRenderQuery::PollQueryResults()
 {
 	if (ActiveQueries.First)
@@ -359,6 +361,11 @@ void FOpenGLRenderQuery::PollQueryResults()
 				break;
 		}
 		while (ActiveQueries.First);
+	}
+	EOpenGLCurrentContext Context = FOpenGLDynamicRHI::GetCurrentContext();
+	if (Context == CONTEXT_Rendering)
+	{
+ 		OpenGL_PollAllFences();
 	}
 }
 
