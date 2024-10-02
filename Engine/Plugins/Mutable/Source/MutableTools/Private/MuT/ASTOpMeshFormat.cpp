@@ -14,6 +14,7 @@
 #include "MuT/ASTOpConditional.h"
 #include "MuT/ASTOpConstantResource.h"
 #include "MuT/ASTOpMeshClipMorphPlane.h"
+#include "MuT/ASTOpMeshTransformWithBoundingMesh.h"
 #include "MuT/ASTOpMeshRemoveMask.h"
 #include "MuT/ASTOpMeshMorph.h"
 #include "MuT/ASTOpMeshAddTags.h"
@@ -267,9 +268,21 @@ mu::Ptr<ASTOp> Sink_MeshFormatAST::Visit(const mu::Ptr<ASTOp>& at, const ASTOpMe
 
 	case OP_TYPE::ME_CLIPMORPHPLANE:
 	{
-		auto newOp = mu::Clone<ASTOpMeshClipMorphPlane>(at);
+		Ptr<ASTOpMeshClipMorphPlane> newOp = mu::Clone<ASTOpMeshClipMorphPlane>(at);
 		newOp->source = Visit(newOp->source.child(), currentFormatOp);
 		newAt = newOp;
+		break;
+	}
+
+	case OP_TYPE::ME_TRANSFORMWITHMESH:
+	{
+		Ptr<ASTOpMeshTransformWithBoundingMesh> NewOp = mu::Clone<ASTOpMeshTransformWithBoundingMesh>(at);
+		NewOp->source = Visit(NewOp->source.child(), currentFormatOp);
+
+		// Don't transform the bounding mesh: it should be optimized with a different specific format elsewhere (TODO).
+		// NewOp->boundingMesh = Visit(NewOp->boundingMesh.child(), currentFormatOp);
+
+		newAt = NewOp;
 		break;
 	}
 

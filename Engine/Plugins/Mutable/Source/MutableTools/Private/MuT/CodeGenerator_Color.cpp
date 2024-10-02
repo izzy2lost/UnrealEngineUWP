@@ -301,7 +301,8 @@ namespace mu
 		op->op.type = OP_TYPE::CO_SAMPLEIMAGE;
 
 		// Source image
-		FImageGenerationOptions ImageOptions;
+		int32 ComponentId = -1; // TODO.
+		FImageGenerationOptions ImageOptions(ComponentId);
 		ImageOptions.State = Options.State;
 		ImageOptions.ActiveTags = Options.ActiveTags;
 

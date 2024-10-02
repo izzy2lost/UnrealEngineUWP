@@ -380,6 +380,14 @@ namespace mu
 		/** Options that affect the generation of images. It is like list of what required data we want while parsing down the image node graph. */
 		struct FImageGenerationOptions : public FGenericGenerationOptions
 		{
+			FImageGenerationOptions(int32 InComponentId)
+				: ComponentId(InComponentId)
+			{
+			}
+
+			/** The id of the component that we are currently generating. */
+			int32 ComponentId = -1;
+
 			/** */
 			CompilerOptions::TextureLayoutStrategy ImageLayoutStrategy = CompilerOptions::TextureLayoutStrategy::None;
 
@@ -392,29 +400,16 @@ namespace mu
 
 			friend FORCEINLINE uint32 GetTypeHash(const FImageGenerationOptions& InKey)
 			{
-				uint32 KeyHash = 0;
+				uint32 KeyHash = GetTypeHash((FGenericGenerationOptions&)InKey);
+				KeyHash = HashCombineFast(KeyHash, ::GetTypeHash(InKey.ComponentId));
 				KeyHash = HashCombineFast(KeyHash, ::GetTypeHash(InKey.ImageLayoutStrategy));
 				KeyHash = HashCombineFast(KeyHash, GetTypeHash(InKey.RectSize));
-				KeyHash = HashCombineFast(KeyHash, ::GetTypeHash(InKey.State));
 				KeyHash = HashCombineFast(KeyHash, ::GetTypeHash(InKey.LayoutBlockId));
 				KeyHash = HashCombineFast(KeyHash, ::GetTypeHash(InKey.LayoutToApply.get()));
 				return KeyHash;
 			}
 
-			FORCEINLINE bool operator==(const FImageGenerationOptions& Other) const
-			{
-				return ImageLayoutStrategy == Other.ImageLayoutStrategy
-					&&
-					RectSize == Other.RectSize
-					&&
-					State == Other.State
-					&&
-					LayoutBlockId == Other.LayoutBlockId
-					&&
-					LayoutToApply == Other.LayoutToApply
-					&&
-					ActiveTags == Other.ActiveTags;
-			}
+			FORCEINLINE bool operator==(const FImageGenerationOptions& Other) const = default;
 
 		};
 
@@ -427,6 +422,12 @@ namespace mu
 		/** */
 		struct FGeneratedImageCacheKey
 		{
+			FGeneratedImageCacheKey(const FImageGenerationOptions& InOptions, const NodeImagePtrConst& InNode)
+				: Node(InNode)
+				, Options(InOptions)
+			{
+			}
+
 			NodePtrConst Node;
 			FImageGenerationOptions Options;
 
@@ -438,10 +439,7 @@ namespace mu
 				return KeyHash;
 			}
 
-			FORCEINLINE bool operator==(const FGeneratedImageCacheKey& Other) const
-			{
-				return Node == Other.Node && Options == Other.Options;
-			}
+			FORCEINLINE bool operator==(const FGeneratedImageCacheKey& Other) const = default;
 		};
 
 		typedef TMap<FGeneratedImageCacheKey, FImageGenerationResult> GeneratedImagesMap;
@@ -521,6 +519,14 @@ namespace mu
 		*/
 		struct FMeshGenerationOptions : public FGenericGenerationOptions
 		{
+			FMeshGenerationOptions(int32 InComponentId)
+				: ComponentId(InComponentId)
+			{
+			}
+
+			/** The id of the component that we are currently generating. */
+			int32 ComponentId = -1;
+
 			/** The meshes at the leaves will need their own layout block data. */
 			bool bLayouts = false;
 
@@ -547,23 +553,14 @@ namespace mu
 			
 			friend FORCEINLINE uint32 GetTypeHash(const FMeshGenerationOptions& InKey)
 			{
-				uint32 KeyHash = 0;
+				uint32 KeyHash = GetTypeHash((FGenericGenerationOptions&)InKey);
+				KeyHash = HashCombineFast(KeyHash, ::GetTypeHash(InKey.ComponentId));
 				KeyHash = HashCombineFast(KeyHash, ::GetTypeHash(InKey.bLayouts));
 				KeyHash = HashCombineFast(KeyHash, ::GetTypeHash(InKey.OverrideLayouts.Num()));
-				KeyHash = HashCombineFast(KeyHash, ::GetTypeHash(InKey.State));
-				KeyHash = HashCombineFast(KeyHash, ::GetTypeHash(InKey.ActiveTags.Num()));
 				return KeyHash;
 			}
 
-			FORCEINLINE bool operator==(const FMeshGenerationOptions& Other) const
-			{
-				return State==Other.State 
-					&& bLayouts==Other.bLayouts 
-					&& bClampUVIslands == Other.bClampUVIslands && bNormalizeUVs == Other.bNormalizeUVs
-					&& bEnsureAllVerticesHaveLayoutBlock == Other.bEnsureAllVerticesHaveLayoutBlock
-					&& ActiveTags==Other.ActiveTags
-					&& OverrideLayouts ==Other.OverrideLayouts;
-			}
+			FORCEINLINE bool operator==(const FMeshGenerationOptions& Other) const = default;
 		};
 
 		//! Store the results of the code generation of a mesh.
@@ -826,7 +823,7 @@ namespace mu
 		void UpdateLayoutBlockDesc(FLayoutBlockDesc& Out, FImageDesc BlockDesc, FIntVector2 LayoutCellSize);
 
 		// Get the modifiers that have to be applied to elements with a specific tag.
-		void GetModifiersFor(const TArray<FString>& SurfaceTags, bool bModifiersForBeforeOperations, TArray<FirstPassGenerator::FModifier>& OutModifiers);
+		void GetModifiersFor(int32 ComponentId, const TArray<FString>& SurfaceTags, bool bModifiersForBeforeOperations, TArray<FirstPassGenerator::FModifier>& OutModifiers);
 
 		// Used to avoid recursion when generating modifiers.
 		TArray<FirstPassGenerator::FModifier> ModifiersToIgnore;
@@ -853,6 +850,7 @@ namespace mu
 		Ptr<ASTOp> ApplyImageExtendModifiers(
 			const TArray<FirstPassGenerator::FModifier>&,
 			const FGenericGenerationOptions& Options, 
+			int32 ComponentId,
 			const FMeshGenerationResult& BaseMeshResults,
 			Ptr<ASTOp> ImageAd, 
 			CompilerOptions::TextureLayoutStrategy ImageLayoutStrategy, 
