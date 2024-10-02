@@ -198,6 +198,7 @@ namespace HordeServer.Jobs
 			response.AgentType = graph.Groups[batch.GroupIdx].AgentType;
 			response.StreamId = streamConfig.Id.ToString();
 			response.StreamName = streamConfig.Name;
+			response.EnginePath = streamConfig.EnginePath;
 			response.Change = job.CommitId.GetPerforceChange();
 			response.CodeChange = job.CodeCommitId?.GetPerforceChange() ?? 0;
 			response.PreflightChange = job.PreflightCommitId?.GetPerforceChange() ?? 0;

@@ -127,6 +127,11 @@ namespace HordeServer.Streams
 		public string Name { get; set; } = String.Empty;
 
 		/// <summary>
+		/// Path to the engine directory within the workspace. Used for launching UAT.
+		/// </summary>
+		public string EnginePath { get; set; } = "Engine";
+
+		/// <summary>
 		/// The perforce cluster containing the stream
 		/// </summary>
 		public string ClusterName { get; set; } = PerforceCluster.DefaultName;
