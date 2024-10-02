@@ -63,8 +63,3 @@ protected:
 	/** Reparameterization of the spline by distance. Useful to query the InputKey at arbitrary distance. */
 	FInterpCurveFloat ReparamTable;
 };
-
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "CoreMinimal.h"
-#include "PCGProjectionData.h"
-#endif

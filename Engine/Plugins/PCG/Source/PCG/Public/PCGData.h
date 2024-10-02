@@ -183,10 +183,6 @@ struct PCG_API FPCGDataCollection
 	template <typename PCGDataType>
 	TArray<FPCGTaggedData> GetTaggedTypedInputs(const FString& InTag) const;
 
-	UE_DEPRECATED(5.2, "GetParams is deprecated, please use GetParamsByPin or GetFirstParamsOnParamsPin.")
-	/** Returns the first params found in the collection */
-	UPCGParamData* GetParams() const;
-
 	// Only used as a temporary solution for old graph with nodes that didn't have params pins.
 	// Should NOT be used with new nodes.
 	UE_DEPRECATED(5.4, "Was not supposed to be used anyway, you should query the data per pin using GetParamsByPin")
@@ -312,8 +308,3 @@ public:
 protected:
 	static TArray<UPCGData*> GetInputsByPredicate(const FPCGDataCollection& InCollection, TArray<FPCGTaggedData>& OutTaggedData, TFunctionRef<bool(const FPCGTaggedData&)> InPredicate);
 };
-
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "CoreMinimal.h"
-#include "PCGModule.h"
-#endif

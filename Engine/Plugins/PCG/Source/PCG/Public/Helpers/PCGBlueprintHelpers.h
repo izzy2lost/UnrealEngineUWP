@@ -98,10 +98,3 @@ public:
 	UFUNCTION(BlueprintCallable, Category="PCG|Data", meta = (ScriptMethod))
 	static UPCGData* DuplicateData(const UPCGData* InData, UPARAM(ref) FPCGContext& Context, bool bInitializeMetadata = true);
 };
-
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "CoreMinimal.h"
-#include "Math/RandomStream.h"
-#include "PCGContext.h"
-#include "PCGPoint.h"
-#endif

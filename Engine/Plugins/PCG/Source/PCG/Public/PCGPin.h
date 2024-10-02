@@ -333,7 +333,3 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "PCG|PinProperties", meta = (ScriptMethod))
 	static void SetNormalPin(UPARAM(ref) FPCGPinProperties& PinProperties) { PinProperties.SetNormalPin(); }
 };
-
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "CoreMinimal.h"
-#endif

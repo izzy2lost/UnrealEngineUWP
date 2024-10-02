@@ -432,16 +432,6 @@ bool UPCGActorHelpers::DeleteActors(UWorld* World, const TArray<TSoftObjectPtr<A
 	return true;
 }
 
-void UPCGActorHelpers::GetActorClassDefaultComponents(const TSubclassOf<AActor>& ActorClass, TArray<UActorComponent*>& OutComponents, const TSubclassOf<UActorComponent>& InComponentClass)
-{
-	OutComponents.Reset();
-	AActor::ForEachComponentOfActorClassDefault(ActorClass, InComponentClass, [&OutComponents](const UActorComponent* TemplateComponent)
-	{
-		OutComponents.Add(const_cast<UActorComponent*>(TemplateComponent));
-		return true;
-	});
-}
-
 void UPCGActorHelpers::ForEachActorInLevel(ULevel* Level, TSubclassOf<AActor> ActorClass, TFunctionRef<bool(AActor*)> Callback)
 {
 	if (!Level)
@@ -619,4 +609,3 @@ FIntVector UPCGActorHelpers::GetCellCoord(FVector InPosition, int InGridSize, bo
 		bUse2DGrid ? 0 : FMath::FloorToInt(Temp.Z)
 	);
 }
-

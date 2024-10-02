@@ -75,8 +75,3 @@ public:
 	/** True if the line holds custom metadata. */
 	virtual bool HasCustomMetadata() const { return false; }
 };
-
-
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "CoreMinimal.h"
-#endif

@@ -39,9 +39,3 @@ private:
 protected:
 	TArray<TWeakObjectPtr<UPCGComponent>> SelectedComponents;
 };
-
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "Input/Reply.h"
-#include "Layout/Visibility.h"
-#include "UObject/WeakObjectPtr.h"
-#endif

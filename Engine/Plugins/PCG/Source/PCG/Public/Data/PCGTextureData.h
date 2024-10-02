@@ -214,7 +214,3 @@ public:
 	// Added to help deprecation in 5.5. To be removed when the deprecated Initialized function is removed.
 	TFunction<void()> PostInitializeCallback;
 };
-
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "Engine/Texture2D.h"
-#endif

@@ -321,7 +321,3 @@ protected:
 	// Cached raw pointer to USplineMeshComponent
 	mutable USplineMeshComponent* CachedRawComponentPtr = nullptr;
 };
-
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "CoreMinimal.h"
-#endif

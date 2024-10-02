@@ -542,21 +542,6 @@ TUniquePtr<IPCGAttributeAccessor> PCGAttributeAccessorHelpers::CreateExtraAccess
 	}
 }
 
-TUniquePtr<const IPCGAttributeAccessor> PCGAttributeAccessorHelpers::CreateConstAccessorForOverrideParam(const FPCGDataCollection& InInputData, const FPCGSettingsOverridableParam& InParam, FName* OutAttributeName)
-{
-	if (OutAttributeName)
-	{
-		AccessorParamResult Result{};
-		TUniquePtr<const IPCGAttributeAccessor> Accessor = CreateConstAccessorForOverrideParamWithResult(InInputData, InParam, &Result);
-		*OutAttributeName = Result.AttributeName;
-		return Accessor;
-	}
-	else
-	{
-		return CreateConstAccessorForOverrideParamWithResult(InInputData, InParam);
-	}
-}
-
 TUniquePtr<const IPCGAttributeAccessor> PCGAttributeAccessorHelpers::CreateConstAccessorForOverrideParamWithResult(const FPCGDataCollection& InInputData, const FPCGSettingsOverridableParam& InParam, AccessorParamResult* OutResult)
 {
 	bool bFromGlobalParamsPin = false;

@@ -80,8 +80,3 @@ private:
 	void OnPartitionGridSizeChanged();
 #endif
 };
-
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "CoreMinimal.h"
-#include "Grid/PCGLandscapeCache.h"
-#endif

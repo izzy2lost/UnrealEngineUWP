@@ -199,9 +199,3 @@ public:
 
 class UE_DEPRECATED(5.4, "This class has been deprecated. Please inherit from IPCGElement directly.") PCG_API FSimplePCGElement : public IPCGElement
 {};
-
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "Misc/OutputDeviceRedirector.h"
-#include "PCGContext.h"
-#include "PCGData.h"
-#endif

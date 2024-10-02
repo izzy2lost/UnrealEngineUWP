@@ -53,9 +53,3 @@ public:
 	/** If OutNames is not null, returns a list of all attributes that will be packed. Returns true if this list can be statically determined (prior to execution). */
 	virtual bool GetAttributeNames(TArray<FName>* OutNames) { return false; }
 };
-
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "CoreMinimal.h"
-#include "MeshSelectors/PCGMeshSelectorBase.h"
-#include "PCGElement.h"
-#endif
