@@ -302,13 +302,17 @@ void FNiagaraGpuComputeDispatch::RemoveGpuComputeProxy(FNiagaraSystemGpuComputeP
 
 void FNiagaraGpuComputeDispatch::AddNDCDataProxy(FNiagaraDataChannelDataProxy* NDCDataProxy)
 {
-	check(NDCDataProxy->DispatchInterface == this);
-	NDCDataProxies.Add(NDCDataProxy);	
+#if !UE_BUILD_SHIPPING
+	check(NDCDataProxy->DispatchInterfaceForDebuggingOnly == this);
+#endif
+	NDCDataProxies.Add(NDCDataProxy);
 }
 
 void FNiagaraGpuComputeDispatch::RemoveNDCDataProxy(FNiagaraDataChannelDataProxy* NDCDataProxy)
 {
-	check(NDCDataProxy->DispatchInterface == this);
+#if !UE_BUILD_SHIPPING
+	check(NDCDataProxy->DispatchInterfaceForDebuggingOnly == this);
+#endif
 	NDCDataProxies.RemoveSwap(NDCDataProxy);
 }
 
@@ -1944,7 +1948,7 @@ void FNiagaraGpuComputeDispatch::PreInitViews(FRDGBuilder& GraphBuilder, bool bA
 
 			for(FNiagaraDataChannelDataProxy* NDCProxy : NDCDataProxies)
 			{
-				NDCProxy->BeginFrame(GraphBuilder.RHICmdList);
+				NDCProxy->BeginFrame(this, GraphBuilder.RHICmdList);
 			}
 
 			UpdateInstanceCountManager(GraphBuilder.RHICmdList);

@@ -458,8 +458,9 @@ void FNiagaraDataChannelGameData::SetFromSimCache(const FNiagaraVariableBase& So
 
 FNiagaraDataChannelDataProxy::~FNiagaraDataChannelDataProxy()
 {
-	check(DispatchInterface);
-	DispatchInterface->RemoveNDCDataProxy(this);
+#if !UE_BUILD_SHIPPING
+	ensureMsgf(DispatchInterfaceForDebuggingOnly == nullptr, TEXT("FNiagaraDataChannelDataProxy - ComputeDispatchInterface was not cleared this could result in a crash"));
+#endif
 }
 
 void FNiagaraDataChannelDataProxy::Reset()
@@ -467,16 +468,13 @@ void FNiagaraDataChannelDataProxy::Reset()
 	PrevFrameData = nullptr;
 }
 
-void FNiagaraDataChannelDataProxy::Init()
-{
-	check(DispatchInterface);
-	DispatchInterface->AddNDCDataProxy(this);
-}
-
-void FNiagaraDataChannelDataProxy::BeginFrame(FRHICommandListImmediate& RHICmdList)
+void FNiagaraDataChannelDataProxy::BeginFrame(FNiagaraGpuComputeDispatchInterface* DispatchInterface, FRHICommandListImmediate& RHICmdList)
 {
 	check(GPUDataSet);
 	check(GPUDataSet->GetSimTarget() == ENiagaraSimTarget::GPUComputeSim);
+#if !UE_BUILD_SHIPPING
+	check(DispatchInterfaceForDebuggingOnly == DispatchInterface);
+#endif
 
 	FNiagaraGPUInstanceCountManager& InstCountManager = DispatchInterface->GetGPUInstanceCounterManager();	
 	if(this->bNeedsPrevFrameData)
@@ -587,9 +585,12 @@ FNiagaraDataChannelData::~FNiagaraDataChannelData()
 {
 	GameData.Reset();
 
+	UWorld* OwnerWorld = WeakOwnerWorld.Get();
+	FNiagaraGpuComputeDispatchInterface* ComputeDispatchInterface = FNiagaraGpuComputeDispatchInterface::Get(OwnerWorld);
+
 	/** We defer the deletion of the dataset to the RT to be sure all in-flight RT commands have finished using it.*/
 	ENQUEUE_RENDER_COMMAND(FDeleteContextCommand)(
-		[CPUDataChannelDataSet = CPUSimData, GPUDataChannelDataSet = GPUSimData, ReleasedRTProxy = RTProxy.Release()](FRHICommandListImmediate& RHICmdList)
+		[ComputeDispatchInterface, CPUDataChannelDataSet = CPUSimData, GPUDataChannelDataSet = GPUSimData, ReleasedRTProxy = RTProxy.Release()](FRHICommandListImmediate& RHICmdList)
 	{
 		if (CPUDataChannelDataSet != nullptr)
 		{
@@ -601,6 +602,16 @@ FNiagaraDataChannelData::~FNiagaraDataChannelData()
 		}
 		if (ReleasedRTProxy)
 		{
+			if (ComputeDispatchInterface)
+			{
+			#if !UE_BUILD_SHIPPING
+				check(ComputeDispatchInterface == ReleasedRTProxy->DispatchInterfaceForDebuggingOnly);
+			#endif
+				ComputeDispatchInterface->RemoveNDCDataProxy(ReleasedRTProxy);
+			}
+		#if !UE_BUILD_SHIPPING
+			ReleasedRTProxy->DispatchInterfaceForDebuggingOnly = nullptr;
+		#endif
 			delete ReleasedRTProxy;
 		}
 	}
@@ -620,7 +631,6 @@ void FNiagaraDataChannelData::Init(UNiagaraDataChannelHandler* Owner)
 	CPUSimData = new FNiagaraDataSet();
 	GPUSimData = new FNiagaraDataSet();
 
-
 	const FNiagaraDataSetCompiledData& CompiledData = DataChannel->GetCompiledData(ENiagaraSimTarget::CPUSim);
 	const FNiagaraDataSetCompiledData& CompiledDataGPU = DataChannel->GetCompiledData(ENiagaraSimTarget::GPUComputeSim);
 	CPUSimData->Init(&CompiledData, 1);
@@ -630,21 +640,25 @@ void FNiagaraDataChannelData::Init(UNiagaraDataChannelHandler* Owner)
 	GameDataStaging = new FNiagaraDataSet();
 	GameDataStaging->Init(&CompiledData);
 
-	if (FNiagaraGpuComputeDispatchInterface* ComputeDispatchInterface = FNiagaraGpuComputeDispatchInterface::Get(Owner->GetWorld()))
+	UWorld* OwnerWorld = Owner->GetWorld();
+	WeakOwnerWorld = OwnerWorld;
+
+	if (FNiagaraGpuComputeDispatchInterface* ComputeDispatchInterface = FNiagaraGpuComputeDispatchInterface::Get(OwnerWorld))
 	{
 		RTProxy.Reset(new FNiagaraDataChannelDataProxy());
 		RTProxy->GPUDataSet = GPUSimData;
 		RTProxy->bNeedsPrevFrameData = DataChannel->KeepPreviousFrameData();
-		RTProxy->DispatchInterface = FNiagaraGpuComputeDispatchInterface::Get(Owner->GetWorld());
 		RTProxy->Owner = this->AsWeak();
 #if !UE_BUILD_SHIPPING
 		RTProxy->DebugName = FString::Printf(TEXT("%s__GPUData"), *DataChannel->GetName());
+		RTProxy->DispatchInterfaceForDebuggingOnly = ComputeDispatchInterface;
 #endif
 		ENQUEUE_RENDER_COMMAND(FNiagaraDataChannelDataProxyInit) (
-			[RT_Proxy = RTProxy.Get()](FRHICommandListImmediate& CmdList)
+			[ComputeDispatchInterface, RT_Proxy=RTProxy.Get()](FRHICommandListImmediate& CmdList)
 			{
-				RT_Proxy->Init();
-			});
+				ComputeDispatchInterface->AddNDCDataProxy(RT_Proxy);
+			}
+		);
 	}
 }
 

@@ -133,7 +133,6 @@ private:
 	/** DataChannel data accessible to Niagara GPU sims. SoA layout. Non LWC types. */
 	FNiagaraDataSet* GPUSimData = nullptr;
 
-
 	/** Data buffers we'll be passing to the RT proxy for uploading to the GPU */
 	TArray<FNiagaraDataBufferRef> BuffersForGPU;
 
@@ -145,6 +144,9 @@ private:
 
 	/** Pending requests to publish data into this data channel from the GPU. To alleviate data race behavior with data coming back from the GPU, we always consume GPU requests at the start of the frame only. */
 	TArray<FNiagaraDataChannelPublishRequest> PublishRequestsFromGPU;
+
+	/** The world we were initialized with, used to get the compute interface. */
+	TWeakObjectPtr<UWorld> WeakOwnerWorld;
 
 	FVector3f LwcTile = FVector3f::ZeroVector;
 
