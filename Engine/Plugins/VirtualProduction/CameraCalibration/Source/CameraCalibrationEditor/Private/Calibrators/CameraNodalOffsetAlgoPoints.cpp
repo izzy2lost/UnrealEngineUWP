@@ -13,6 +13,7 @@
 #include "DistortionRenderingUtils.h"
 #include "Dom/JsonObject.h"
 #include "Editor.h"
+#include "EngineAnalytics.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "GameFramework/Actor.h"
 #include "Input/Events.h"
@@ -44,6 +45,22 @@ const int UCameraNodalOffsetAlgoPoints::DATASET_VERSION = 1;
 namespace UE::CameraCalibration::Private::NodalOffsetPointsExportFields
 {
 	static const FString Version(TEXT("Version"));
+}
+
+namespace UE::NodalOffsetAlgoPointsAnalytics
+{
+	void RecordEvent(FString FriendlyName, int32 DatasetSize)
+	{
+		if (FEngineAnalytics::IsAvailable())
+		{
+			TArray<FAnalyticsEventAttribute> EventAttributes;
+
+			EventAttributes.Add(FAnalyticsEventAttribute(TEXT("Pattern"), *FriendlyName));
+			EventAttributes.Add(FAnalyticsEventAttribute(TEXT("DatasetSize"), FString::Printf(TEXT("%d"), DatasetSize)));
+
+			FEngineAnalytics::GetProvider().RecordEvent(TEXT("CameraCalibration.NodalOffsetCalibrationStarted"), EventAttributes);
+		}
+	}
 }
 
 namespace CameraNodalOffsetAlgoPoints
@@ -990,6 +1007,8 @@ bool UCameraNodalOffsetAlgoPoints::GetNodalOffset(FNodalPointOffset& OutNodalOff
 			return false;
 		}
 	}
+
+	UE::NodalOffsetAlgoPointsAnalytics::RecordEvent(FriendlyName().ToString(), CalibrationRows.Num());
 
 	// Undistort the 2D points in each calibration row 
 	UndistortCalibrationRowPoints();
