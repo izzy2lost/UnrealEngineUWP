@@ -28,6 +28,7 @@
 #include "EditorModeManager.h"
 #include "EdModeInteractiveToolsContext.h"
 #include "Elements/Framework/EngineElementsLibrary.h"
+#include "EngineAnalytics.h"
 #include "MeshSelectionTool.h"
 #include "MeshVertexPaintTool.h"
 #include "MeshAttributePaintTool.h"
@@ -88,6 +89,16 @@ void UDataflowEditorMode::Enter()
 
 	// Initialize view mode to a default
 	ConstructionViewMode = UE::Dataflow::FRenderingViewModeFactory::GetInstance().GetViewMode(UE::Dataflow::FDataflowConstruction3DViewMode::Name);
+
+	// Log mode starting
+	if (FEngineAnalytics::IsAvailable())
+	{
+		LastModeStartTimestamp = FDateTime::UtcNow();
+		TArray<FAnalyticsEventAttribute> EventAttributes;
+		EventAttributes.Add(FAnalyticsEventAttribute(TEXT("Timestamp"), LastModeStartTimestamp.ToString()));
+		FEngineAnalytics::GetProvider().RecordEvent(TEXT("Editor.Usage.DataflowEditor.Enter"), EventAttributes);
+	}
+
 }
 
 void UDataflowEditorMode::SetDataflowEditor(UDataflowEditor* InDataflowEditor) 
@@ -405,6 +416,18 @@ void UDataflowEditorMode::Exit()
 	{
 		SimulationScene->ResetSimulationScene();
 		SimulationScene = nullptr;
+	}
+
+	// Log mode exit
+	if (FEngineAnalytics::IsAvailable())
+	{
+		const FTimespan ModeUsageDuration = FDateTime::UtcNow() - LastModeStartTimestamp;
+
+		TArray<FAnalyticsEventAttribute> Attributes;
+		Attributes.Add(FAnalyticsEventAttribute(TEXT("Timestamp"), FDateTime::UtcNow().ToString()));
+		Attributes.Add(FAnalyticsEventAttribute(TEXT("Duration.Seconds"), static_cast<float>(ModeUsageDuration.GetTotalSeconds())));
+
+		FEngineAnalytics::GetProvider().RecordEvent(TEXT("Editor.Usage.DataflowEditor.Exit"));
 	}
 
 	Super::Exit();
