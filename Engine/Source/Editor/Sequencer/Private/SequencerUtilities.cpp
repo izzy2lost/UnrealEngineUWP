@@ -67,6 +67,8 @@
 #include "Bindings/MovieSceneCustomBinding.h"
 #include "Bindings/MovieSceneSpawnableBinding.h"
 #include "Bindings/MovieSceneReplaceableBinding.h"
+#include "Bindings/MovieSceneSpawnableActorBinding.h"
+#include "Bindings/MovieSceneReplaceableActorBinding.h"
 #include "ActorFactories/ActorFactory.h"
 #include "Tracks/MovieSceneBindingLifetimeTrack.h"
 #include "ClassViewerModule.h"
@@ -931,36 +933,42 @@ FGuid FSequencerUtilities::CreateCamera(TSharedRef<ISequencer> Sequencer, const 
 	OutActor->SetActorRotation(GCurrentLevelEditingViewportClient->GetViewRotation());
 	//OutActor->CameraComponent->FieldOfView = ViewportClient->ViewFOV; //@todo set the focal length from this field of view
 
-	if (bSpawnable)
+	FActorLabelUtilities::SetActorLabelUnique(OutActor, ACineCameraActor::StaticClass()->GetName());
+
+	CameraGuid = CreateBinding(Sequencer, *OutActor);
+
+	TSubclassOf<UMovieSceneCustomBinding> CustomBindingClass = bSpawnable ? UMovieSceneSpawnableActorBinding::StaticClass() : UMovieSceneReplaceableActorBinding::StaticClass();
+
+	const FMovieSceneBindingReferences* BindingReferences = Sequence->GetBindingReferences();
+
+	if (BindingReferences)
 	{
-		FString NewName = MovieSceneHelpers::MakeUniqueSpawnableName(MovieScene, FName::NameToDisplayString(ACineCameraActor::StaticClass()->GetFName().ToString(), false));
-
-		UE::Sequencer::FCreateBindingParams CreateBindingParams;
-		CreateBindingParams.BindingNameOverride = NewName;
-		CreateBindingParams.bSpawnable = true;
-		CameraGuid = CreateBinding(Sequencer, *OutActor, CreateBindingParams);
-		ensure(CameraGuid.IsValid());
-
-		// Destroy the old actor
-		World->EditorDestroyActor(OutActor, false);
-
-		for (TWeakObjectPtr<UObject>& Object : Sequencer->FindBoundObjects(CameraGuid, Sequencer->GetFocusedTemplateID()))
+		for (const FMovieSceneBindingReference& Reference : BindingReferences->GetReferences(CameraGuid))
 		{
-			OutActor = Cast<ACineCameraActor>(Object.Get());
-			if (OutActor)
+			for (const TSubclassOf<UMovieSceneCustomBinding>& SupportedCustomBindingType : Sequencer->GetSupportedCustomBindingTypes())
 			{
-				break;
+				if (SupportedCustomBindingType && SupportedCustomBindingType->IsChildOf(CustomBindingClass) &&
+					SupportedCustomBindingType->GetDefaultObject<UMovieSceneCustomBinding>()->SupportsConversionFromBinding(Reference, OutActor))
+				{
+					FMovieScenePossessable* NewPossessable = FSequencerUtilities::ConvertToCustomBinding(Sequencer->AsShared(), CameraGuid, CustomBindingClass);
+
+					if (NewPossessable)
+					{
+						for (TWeakObjectPtr<> WeakObject : Sequencer->FindBoundObjects(NewPossessable->GetGuid(), Sequencer->GetFocusedTemplateID()))
+						{
+							ACineCameraActor* SpawnedActor = Cast<ACineCameraActor>(WeakObject.Get());
+							if (SpawnedActor)
+							{
+								OutActor = SpawnedActor;
+							}
+						}
+
+						CameraGuid = NewPossessable->GetGuid();
+					}
+					break;
+				}
 			}
 		}
-		ensure(OutActor);
-
-		OutActor->SetActorLabel(NewName, false);
-	}
-	else
-	{
-		FActorLabelUtilities::SetActorLabelUnique(OutActor, ACineCameraActor::StaticClass()->GetName());
-
-		CameraGuid = CreateBinding(Sequencer, *OutActor);
 	}
 
 	if (!CameraGuid.IsValid())
