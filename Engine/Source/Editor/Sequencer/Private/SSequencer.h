@@ -640,6 +640,9 @@ public:
 	/** This adds the specified path to the selection set to be restored the next time the tree view is refreshed. */
 	void AddAdditionalPathToSelectionSet(const FString& Path) { AdditionalSelectionsToAdd.Add(Path); }
 
+	/** Adds a node path to be isolated after the tree view is refreshed and the new tracks are created. */
+	void AddNewNodePathsToIsolate(const TSet<FString>& InPaths) { NewNodePathsToIsolate.Append(InPaths); }
+
 	/** Request to rename the given node path. */
 	void RequestRenameNode(const FString& Path) { NodePathToRename = Path; }
 
@@ -889,6 +892,9 @@ private:
 	TArray<FString> AdditionalSelectionsToAdd;
 
 	FString NodePathToRename;
+
+	/** List of node paths that should be isolated on next tree update */
+	TSet<FString> NewNodePathsToIsolate;
 
 	TWeakPtr<SWindow> WeakTickResolutionOptionsWindow;
 

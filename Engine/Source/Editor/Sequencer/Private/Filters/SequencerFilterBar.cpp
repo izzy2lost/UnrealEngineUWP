@@ -366,9 +366,19 @@ void FSequencerFilterBar::HideTracks(const TSet<TWeakViewModelPtr<IOutlinerExten
 	HideIsolateFilter->HideTracks(InTracks, bInAddToExisting);
 }
 
+void FSequencerFilterBar::UnhideTracks(const TSet<TWeakViewModelPtr<IOutlinerExtension>>& InTracks)
+{
+	HideIsolateFilter->UnhideTracks(InTracks);
+}
+
 void FSequencerFilterBar::IsolateTracks(const TSet<TWeakViewModelPtr<IOutlinerExtension>>& InTracks, const bool bInAddToExisting)
 {
 	HideIsolateFilter->IsolateTracks(InTracks, bInAddToExisting);
+}
+
+void FSequencerFilterBar::UnisolateTracks(const TSet<TWeakViewModelPtr<IOutlinerExtension>>& InTracks)
+{
+	HideIsolateFilter->UnisolateTracks(InTracks);
 }
 
 void FSequencerFilterBar::ShowAllTracks()
