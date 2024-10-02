@@ -150,7 +150,7 @@ void FMovieGraphDeferredPass::Render(const FMovieGraphTraversalContext& InFrameT
 	}
 
 	// ToDo: When tiling is used, this should be the size of the per-tile backbuffer
-	const float CameraOverscan = GetRenderer()->GetCameraOverscan(InTimeData.EvaluatedConfig, LayerData.CameraIndex);
+	const float CameraOverscan = GetRenderer()->GetCameraOverscan(LayerData.CameraIndex);
 	FIntPoint AccumulatorResolution = UMovieGraphBlueprintLibrary::GetEffectiveOutputResolution(InTimeData.EvaluatedConfig, CameraOverscan);
 	FIntPoint BackbufferResolution = AccumulatorResolution;
 	
@@ -179,7 +179,7 @@ void FMovieGraphDeferredPass::Render(const FMovieGraphTraversalContext& InFrameT
 		}
 		 
 		// These are the parameters of our camera 
-		UE::MovieGraph::DefaultRenderer::FCameraInfo CameraInfo = GetRenderer()->GetCameraInfo(InTimeData.EvaluatedConfig, LayerData.CameraIndex);
+		UE::MovieGraph::DefaultRenderer::FCameraInfo CameraInfo = GetRenderer()->GetCameraInfo(LayerData.CameraIndex);
 
 		CameraInfo.bAllowCameraAspectRatio = true;
 		CameraInfo.TilingParams.TileSize = BackbufferResolution;

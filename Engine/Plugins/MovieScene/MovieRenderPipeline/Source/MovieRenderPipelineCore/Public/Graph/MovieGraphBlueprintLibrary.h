@@ -184,28 +184,28 @@ public:
 	* @param	InMovieGraphPipeline	- The pipeline to get the camera information from.
 	*/
 	UFUNCTION(BlueprintPure, Category = "Movie Graph")
-	static float GetCurrentFocusDistance(const UMovieGraphPipeline* InMovieGraphPipeline);
+	static float GetCurrentFocusDistance(const UMovieGraphPipeline* InMovieGraphPipeline, int32 InCameraIndex = -1);
 
 	/**
 	* Gets the focal length for the camera currently in use.
 	* @param	InMovieGraphPipeline	- The pipeline to get the camera information from.
 	*/
 	UFUNCTION(BlueprintPure, Category = "Movie Graph")
-	static float GetCurrentFocalLength(const UMovieGraphPipeline* InMovieGraphPipeline);
+	static float GetCurrentFocalLength(const UMovieGraphPipeline* InMovieGraphPipeline, int32 InCameraIndex = -1);
 	
 	/**
 	* Gets the aperture for the camera currently in use.
 	* @param	InMovieGraphPipeline	- The pipeline to get the camera information from.
 	*/
 	UFUNCTION(BlueprintPure, Category = "Movie Graph")
-	static float GetCurrentAperture(const UMovieGraphPipeline* InMovieGraphPipeline);
+	static float GetCurrentAperture(const UMovieGraphPipeline* InMovieGraphPipeline, int32 InCameraIndex = -1);
 
 	/**
 	* Gets the currently active cine camera, or nullptr if one was not found.
 	* @param	InMovieGraphPipeline	- The pipeline to get the camera from.
 	*/
 	UFUNCTION(BlueprintPure, Category = "Movie Graph")
-	static UCineCameraComponent* GetCurrentCineCamera(const UMovieGraphPipeline* InMovieGraphPipeline);
+	static UCineCameraComponent* GetCurrentCineCamera(const UMovieGraphPipeline* InMovieGraphPipeline, int32 InCameraIndex = -1);
 
 
 

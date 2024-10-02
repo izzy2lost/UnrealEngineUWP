@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
@@ -21,5 +21,5 @@ public:
 	* @param	InEvaluatedConfig	The evaluated graph that was used to generate this output frame.
 	*/
 	UFUNCTION(BlueprintImplementableEvent)
-	void UpdateForGraph(UMovieGraphPipeline* InGraphPipeline, UMovieGraphEvaluatedConfig* InEvaluatedConfig);
+	void UpdateForGraph(UMovieGraphPipeline* InGraphPipeline, UMovieGraphEvaluatedConfig* InEvaluatedConfig, int32 InCameraIndex, const FString& CameraName);
 };

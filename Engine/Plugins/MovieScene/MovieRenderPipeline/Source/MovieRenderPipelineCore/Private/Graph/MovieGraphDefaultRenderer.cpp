@@ -140,7 +140,7 @@ void UMovieGraphDefaultRenderer::SetupRenderingPipelineForShot(UMoviePipelineExe
 				LayerData.CameraIndex = CameraIndexes[CameraIndex]; 
 				
 				// We provide the name here so that the setup functions of the renderers can create RenderLayerIdentifiers.
-				UE::MovieGraph::DefaultRenderer::FCameraInfo CameraInfo = GetCameraInfo(EvaluatedConfig, LayerData.CameraIndex);
+				UE::MovieGraph::DefaultRenderer::FCameraInfo CameraInfo = GetCameraInfo(LayerData.CameraIndex);
 				LayerData.CameraName = CameraInfo.CameraName;
 			}
 				
@@ -411,10 +411,10 @@ void UMovieGraphDefaultRenderer::FlushAsyncEngineSystems(const TObjectPtr<UMovie
 
 void UMovieGraphDefaultRenderer::GetCameraLocationsForFrame(TArray<FVector>& OutLocations, UMoviePipelineExecutorShot* InShot, bool bIncludeSidecar) const
 {
-	TArray<FMinimalViewInfo> ViewInfos = GetOwningGraph()->GetDataSourceInstance()->GetCameraInformation(InShot, bIncludeSidecar);
-	for (const FMinimalViewInfo& ViewInfo : ViewInfos)
+	TArray<UE::MovieGraph::FMinimalCameraInfo> MinimalCameraInfos = GetOwningGraph()->GetDataSourceInstance()->GetCameraInformation(InShot, bIncludeSidecar);
+	for (const UE::MovieGraph::FMinimalCameraInfo& MinimalCameraInfo : MinimalCameraInfos)
 	{
-		OutLocations.Add(ViewInfo.Location);
+		OutLocations.Add(MinimalCameraInfo.ViewInfo.Location);
 	}
 }
 
@@ -426,16 +426,10 @@ void UMovieGraphDefaultRenderer::AddOutstandingRenderTask_AnyThread(UE::Tasks::F
 	OutstandingTasks.Add(MoveTemp(InTask));
 }
 
-UE::MovieGraph::DefaultRenderer::FCameraInfo UMovieGraphDefaultRenderer::GetCameraInfo(UMovieGraphEvaluatedConfig* InConfig, const int32 InCameraIndex) const
+UE::MovieGraph::DefaultRenderer::FCameraInfo UMovieGraphDefaultRenderer::GetCameraInfo(const int32 InCameraIndex) const
 {
 	UE::MovieGraph::DefaultRenderer::FCameraInfo CameraInfo;
 	
-	const bool bIncludeCDOs = true;
-	const UMovieGraphCameraSettingNode* CameraSettingNode = InConfig->GetSettingForBranch<UMovieGraphCameraSettingNode>(UMovieGraphNode::GlobalsPinName, bIncludeCDOs);
-	if (!ensure(CameraSettingNode))
-	{
-		return CameraInfo;
-	}
 
 	UMoviePipelineExecutorShot* CurrentShot = GetOwningGraph()->GetActiveShotList()[GetOwningGraph()->GetCurrentShotIndex()];
 
@@ -453,30 +447,29 @@ UE::MovieGraph::DefaultRenderer::FCameraInfo UMovieGraphDefaultRenderer::GetCame
 		CameraInfo.CameraName = CurrentShot->GetCameraName(InCameraIndex);
 	}
 
-	APlayerController* LocalPlayerController = GetWorld()->GetFirstPlayerController();
-	if (LocalPlayerController && LocalPlayerController->PlayerCameraManager)
-	{
-		CameraInfo.ViewActor = LocalPlayerController->GetViewTarget();
-	}
 
-	TArray<FMinimalViewInfo> ViewInfos = GetOwningGraph()->GetDataSourceInstance()->GetCameraInformation(GetOwningGraph()->GetActiveShotList()[GetOwningGraph()->GetCurrentShotIndex()], CameraSettingNode->bRenderAllCameras);
-	if (!ensureAlways(ViewInfos.IsValidIndex(LocalArrayIndex)))
+	// If we're not rendering all cameras, InCameraIndex is -1.
+	const bool bRenderAllCameras = InCameraIndex >= 0;
+	TArray<UE::MovieGraph::FMinimalCameraInfo> MinimalCameraInfos = GetOwningGraph()->GetDataSourceInstance()->GetCameraInformation(GetOwningGraph()->GetActiveShotList()[GetOwningGraph()->GetCurrentShotIndex()], bRenderAllCameras);
+	if (!ensureAlways(MinimalCameraInfos.IsValidIndex(LocalArrayIndex)))
 	{
 		return CameraInfo;
 	}
 
-	CameraInfo.ViewInfo = ViewInfos[LocalArrayIndex];
+	CameraInfo.ViewInfo = MinimalCameraInfos[LocalArrayIndex].ViewInfo;
+	CameraInfo.ViewActor = MinimalCameraInfos[LocalArrayIndex].ViewActor.Get();
+
 	return CameraInfo;
 }
 
-float UMovieGraphDefaultRenderer::GetCameraOverscan(UMovieGraphEvaluatedConfig* InConfig, int32 InCameraIndex)
+float UMovieGraphDefaultRenderer::GetCameraOverscan(int32 InCameraIndex)
 {
 	if (CameraOverscanCache.Contains(InCameraIndex))
 	{
 		return CameraOverscanCache[InCameraIndex];
 	}
 
-	const float CameraOverscan = GetCameraInfo(InConfig, InCameraIndex).ViewInfo.GetOverscan();
+	const float CameraOverscan = GetCameraInfo(InCameraIndex).ViewInfo.GetOverscan();
 	CameraOverscanCache.Add(InCameraIndex, CameraOverscan);
 	return CameraOverscan;
 }
