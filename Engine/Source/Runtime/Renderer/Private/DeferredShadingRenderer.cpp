@@ -611,7 +611,7 @@ bool FDeferredShadingSceneRenderer::SetupRayTracingPipelineStatesAndSBT(FRDGBuil
 		ReferenceView.AddRayTracingMeshBatchTaskList.Empty();
 	}
 
-	if (!GRHISupportsRayTracingShaders)
+	if (!GRHISupportsRayTracingShaders && !GRHISupportsInlineRayTracing)
 	{
 		return false;
 	}
@@ -967,7 +967,7 @@ void FDeferredShadingSceneRenderer::WaitForRayTracingScene(FRDGBuilder& GraphBui
 
 		if (!bIsPathTracing)
 		{
-			if (GRHISupportsRayTracingShaders)
+			if (GRHISupportsRayTracingShaders || GRHISupportsInlineRayTracing)
 			{
 				if (ReferenceView.LumenHardwareRayTracingMaterialPipeline)
 				{
