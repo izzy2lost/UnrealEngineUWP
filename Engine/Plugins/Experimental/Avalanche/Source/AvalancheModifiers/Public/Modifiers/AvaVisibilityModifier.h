@@ -68,7 +68,7 @@ protected:
 	//~ End UActorModifierCoreBase
 
 	//~ Begin IAvaRenderStateUpdateExtension
-	virtual void OnRenderStateUpdated(AActor* InActor, UActorComponent* InComponent) override;
+	virtual void OnActorVisibilityChanged(AActor* InActor) override;
 	//~ End IAvaRenderStateUpdateExtension
 
 	/** Used by other modifiers of this class to check if we are hiding an actor */

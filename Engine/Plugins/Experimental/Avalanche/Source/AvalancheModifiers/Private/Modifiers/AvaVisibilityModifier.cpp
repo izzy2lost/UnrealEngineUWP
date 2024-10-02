@@ -113,6 +113,9 @@ void UAvaVisibilityModifier::Apply()
 
 	ChildrenActorsWeak = NewChildrenActorsWeak;
 
+	FAvaRenderStateUpdateModifierExtension* RenderStateExtension = GetExtension<FAvaRenderStateUpdateModifierExtension>();
+	RenderStateExtension->SetTrackedActorsVisibility(ChildrenActorsWeak);
+
 	Next();
 }
 
@@ -174,18 +177,18 @@ void UAvaVisibilityModifier::OnModifiedActorTransformed()
 	// Overwrite parent class behaviour don't do anything when moved
 }
 
-void UAvaVisibilityModifier::OnRenderStateUpdated(AActor* InActor, UActorComponent* InComponent)
+void UAvaVisibilityModifier::OnActorVisibilityChanged(AActor* InActor)
 {
-	Super::OnRenderStateUpdated(InActor, InComponent);
+	Super::OnActorVisibilityChanged(InActor);
 
 	AActor* ActorModified = GetModifiedActor();
 
-	// Only handle what is linked to us
 	if (!IsValid(ActorModified))
 	{
 		return;
 	}
 
+	// Only handle what is linked to us
 	const bool bThisActorUpdated = InActor == ActorModified;
 	const bool bActorAttachedToThisUpdated = InActor->IsAttachedTo(ActorModified);
 
@@ -194,7 +197,7 @@ void UAvaVisibilityModifier::OnRenderStateUpdated(AActor* InActor, UActorCompone
 		return;
 	}
 
-	// If no modifier is found above us, then we handle this case
+	// If no modifier is found above us, then we handle this case otherwise let the other modifier handle it
 	const UAvaVisibilityModifier* Modifier = GetFirstModifierAbove(ActorModified);
 
 	if (bThisActorUpdated && Modifier)
