@@ -54,6 +54,9 @@ public:
 
 	/** Called when the external plugin directories configuration is modified via the browser. */
 	virtual FOnPluginDirectoriesChanged& OnPluginDirectoriesChanged() = 0;
+
+	/** Can optionally be bound to override the "restart required" button behavior. */
+	virtual FSimpleDelegate& OnRestartClicked() = 0;
 };
 
 

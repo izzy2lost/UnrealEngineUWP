@@ -23,6 +23,7 @@
 #include "SPluginPaths.h"
 #include "ToolMenu.h"
 #include "ToolMenus.h"
+#include "UnrealEdMisc.h"
 #include "Widgets/Docking/SDockTab.h"
 #include "Widgets/Notifications/SNotificationList.h"
 
@@ -347,7 +348,22 @@ TSharedRef<SDockTab> FPluginBrowserModule::HandleSpawnPluginBrowserTab(const FSp
 		SNew( SDockTab )
 		.TabRole( ETabRole::MajorTab );
 
-	MajorTab->SetContent( SNew( SPluginBrowser ) );
+	MajorTab->SetContent(
+		SNew( SPluginBrowser )
+		.OnRestartClicked_Lambda([this]() -> FReply
+		{
+			if (OnRestartClickedDelegate.IsBound())
+			{
+				OnRestartClickedDelegate.Execute();
+			}
+			else
+			{
+				const bool bWarn_false = false;
+				FUnrealEdMisc::Get().RestartEditor(bWarn_false);
+			}
+			return FReply::Handled();
+		})
+	);
 
 	PluginBrowserTab = MajorTab;
 	UpdatePreviousInstalledPlugins();
