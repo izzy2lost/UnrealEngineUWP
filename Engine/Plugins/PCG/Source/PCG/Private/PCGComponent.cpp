@@ -323,6 +323,12 @@ bool UPCGComponent::ShouldGenerate(bool bForce, EPCGComponentGenerationTrigger R
 	}
 #endif
 
+	// Always generate if procedural ISMs are being used, because the instance data is not persistent, and is currently lost regularly when the GPU Scene is flushed.
+	if (bProceduralInstancesInUse)
+	{
+		return true;
+	}
+
 	// A request is invalid only if it was requested "GenerateOnLoad", but it is "GenerateOnDemand"
 	// Meaning that all "GenerateOnDemand" requests are always valid, and "GenerateOnLoad" request is only valid if we want a "GenerateOnLoad" trigger.
 	bool bValidRequest = !(RequestedGenerationTrigger == EPCGComponentGenerationTrigger::GenerateOnLoad && GenerationTrigger == EPCGComponentGenerationTrigger::GenerateOnDemand);
@@ -452,6 +458,9 @@ FPCGTaskId UPCGComponent::GenerateInternal(bool bForce, EPCGHiGenGrid Grid, EPCG
 	}
 
 	Modify(!IsInPreviewMode());
+
+	// Clear prior to generation.
+	bProceduralInstancesInUse = false;
 
 	CurrentGenerationTask = GetSubsystem()->ScheduleComponent(this, Grid, bForce, Dependencies);
 

@@ -236,6 +236,9 @@ public:
 	/** Compute the runtime cleanup radius for the given grid size. */
 	double GetCleanupRadiusFromGrid(EPCGHiGenGrid Grid) const;
 
+	/** Called during execution if one or more procedural ISM components are in use. */
+	void NotifyProceduralInstancesInUse() { bProceduralInstancesInUse = true; }
+
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (DisplayPriority = 600))
 	int Seed = 42;
 
@@ -635,6 +638,10 @@ private:
 
 	UPROPERTY(VisibleAnywhere, Transient, Category = Debug, meta = (EditCondition = false, EditConditionHides))
 	bool bIsComponentLocal = false;
+
+	/** Whether procedural ISM components were used/generated in the last execution. */
+	UPROPERTY()
+	bool bProceduralInstancesInUse = false;
 
 #if WITH_EDITOR
 	bool bWasGeneratedThisSession = false;
