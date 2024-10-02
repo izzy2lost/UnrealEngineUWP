@@ -41,10 +41,10 @@ public:
 
 	void Reset()
 	{
-		// We reserve the first token as an invalid token
+		// We reserve the first token for each type as an invalid token
 		for (TArray<FNetTokenStoreKey>& TokenInfos : TokenInfoArray)
 		{
-			TokenInfos.Add(FNetTokenStoreKey());
+			TokenInfos.SetNum(1);
 		}
 	}
 
