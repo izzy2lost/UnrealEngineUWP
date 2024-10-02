@@ -13,6 +13,9 @@
 #include "LiveLinkTimedDataInput.h"
 #include "TimedDataInputCollection.h"
 
+#if WITH_EDITOR
+#include "SkinnedAssetCompiler.h"
+#endif
 
 FLiveLinkSubject::FSubjectEvaluationStatistics::FSubjectEvaluationStatistics()
 	: BufferUnderflow(0)
@@ -217,9 +220,9 @@ bool FLiveLinkSubject::HasValidFrameSnapshot() const
 	return FrameSnapshot.StaticData.IsValid() && FrameSnapshot.FrameData.IsValid();
 }
 
-FLiveLinkStaticDataStruct& FLiveLinkSubject::GetStaticData()
+FLiveLinkStaticDataStruct& FLiveLinkSubject::GetStaticData(bool bGetOverrideData)
 {
-	if (OverrideStaticData)
+	if (bGetOverrideData && OverrideStaticData)
 	{
 		return *OverrideStaticData;
 	}
@@ -1129,7 +1132,13 @@ void FLiveLinkSubject::CacheSettings(ULiveLinkSourceSettings* SourceSetting, ULi
 		}
 
 		SubjectRemapper.Reset();
-		if (SubjectSetting->Remapper)
+		
+		if (SubjectSetting->Remapper
+#if WITH_EDITOR
+		/** Remappers may call FinishCompilation for skinned assets, which isn't safe to do if we are running in a different thread. */
+		&& (IsInGameThread() || FSkinnedAssetCompilingManager::Get().GetNumRemainingJobs() == 0)
+#endif
+		)
 		{
 			// If there wasn't a remapper, then we need to initialize the one we will create.
 			bool bRecreateRemapper = SubjectSetting->Remapper->GetWorker() == nullptr || SubjectSetting->Remapper->bDirty;

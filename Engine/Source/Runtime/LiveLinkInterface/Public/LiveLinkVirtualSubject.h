@@ -37,7 +37,7 @@ public:
 	virtual FLiveLinkSubjectKey GetSubjectKey() const override { return SubjectKey; }
 	virtual TSubclassOf<ULiveLinkRole> GetRole() const override { return Role; }
 	LIVELINKINTERFACE_API virtual bool HasValidFrameSnapshot() const override;
-	virtual FLiveLinkStaticDataStruct& GetStaticData() override { return CurrentFrameSnapshot.StaticData; }
+	virtual FLiveLinkStaticDataStruct& GetStaticData(bool bGetOverrideData=true) override { return CurrentFrameSnapshot.StaticData; }
 	virtual const FLiveLinkStaticDataStruct& GetStaticData() const override { return CurrentFrameSnapshot.StaticData; }
 	virtual const TArray<ULiveLinkFrameTranslator::FWorkerSharedPtr> GetFrameTranslators() const override { return CurrentFrameTranslators; }
 	virtual const ULiveLinkSubjectRemapper::FWorkerSharedPtr GetFrameRemapper() const override { return CurrentSubjectRemapper; }

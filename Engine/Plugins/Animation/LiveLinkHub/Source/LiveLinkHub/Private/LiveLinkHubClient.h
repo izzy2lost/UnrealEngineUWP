@@ -26,14 +26,20 @@ public:
 		: FLiveLinkClient(InTickingDelegate)
 		, LiveLinkHub(MoveTemp(InLiveLinkHub))
 	{
-		RegisterGlobalSubjectFramesDelegate(FOnLiveLinkSubjectStaticDataAdded::FDelegate::CreateRaw(this, &FLiveLinkHubClient::OnStaticDataAdded), FOnLiveLinkSubjectFrameDataAdded::FDelegate::CreateRaw(this, &FLiveLinkHubClient::OnFrameDataAdded), StaticDataAddedHandle, FrameDataAddedHandle);
+		constexpr bool bUseUnmappedData = true;
+		RegisterGlobalSubjectFramesDelegate(FOnLiveLinkSubjectStaticDataAdded::FDelegate::CreateRaw(this, &FLiveLinkHubClient::OnStaticDataAdded),
+			FOnLiveLinkSubjectFrameDataAdded::FDelegate::CreateRaw(this, &FLiveLinkHubClient::OnFrameDataAdded),
+			StaticDataAddedHandle, FrameDataAddedHandle, bUseUnmappedData);
 	}
 
 	FLiveLinkHubClient(TSharedPtr<ILiveLinkHub> InLiveLinkHub)
 		: FLiveLinkClient()
 		, LiveLinkHub(MoveTemp(InLiveLinkHub))
 	{
-		RegisterGlobalSubjectFramesDelegate(FOnLiveLinkSubjectStaticDataAdded::FDelegate::CreateRaw(this, &FLiveLinkHubClient::OnStaticDataAdded), FOnLiveLinkSubjectFrameDataAdded::FDelegate::CreateRaw(this, &FLiveLinkHubClient::OnFrameDataAdded), StaticDataAddedHandle, FrameDataAddedHandle);
+		constexpr bool bUseUnmappedData = true;
+		RegisterGlobalSubjectFramesDelegate(FOnLiveLinkSubjectStaticDataAdded::FDelegate::CreateRaw(this, &FLiveLinkHubClient::OnStaticDataAdded),
+			FOnLiveLinkSubjectFrameDataAdded::FDelegate::CreateRaw(this, &FLiveLinkHubClient::OnFrameDataAdded),
+			StaticDataAddedHandle, FrameDataAddedHandle, bUseUnmappedData);
 	}
 
 	virtual ~FLiveLinkHubClient();

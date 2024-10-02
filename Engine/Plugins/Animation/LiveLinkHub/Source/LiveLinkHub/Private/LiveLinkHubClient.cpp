@@ -25,7 +25,8 @@ DECLARE_CYCLE_STAT(TEXT("LiveLinkHub - Push FrameData"), STAT_LiveLinkHub_PushFr
 
 FLiveLinkHubClient::~FLiveLinkHubClient()
 {
-	UnregisterGlobalSubjectFramesDelegate(StaticDataAddedHandle, FrameDataAddedHandle);
+	constexpr bool bUseUnmappedData = true;
+	UnregisterGlobalSubjectFramesDelegate(StaticDataAddedHandle, FrameDataAddedHandle, bUseUnmappedData);
 }
 
 void FLiveLinkHubClient::CacheSubjectSettings(const FLiveLinkSubjectKey& SubjectKey, ULiveLinkSubjectSettings* Settings) const

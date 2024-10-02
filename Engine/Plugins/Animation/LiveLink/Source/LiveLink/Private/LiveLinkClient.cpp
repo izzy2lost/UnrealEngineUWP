@@ -830,6 +830,8 @@ void FLiveLinkClient::PushSubjectStaticData_Internal(FPendingSubjectStatic&& Sub
 		Collection->AddSubject(MoveTemp(CollectionSubjectItem));
 	}
 
+	const FLiveLinkStaticDataStruct* UnmappedStaticData = &SubjectStaticData.StaticData;
+	
 	if (LiveLinkSubject)
 	{
 		if (ULiveLinkSubjectRemapper::FWorkerSharedPtr Remapper = LiveLinkSubject->GetFrameRemapper())
@@ -844,15 +846,18 @@ void FLiveLinkClient::PushSubjectStaticData_Internal(FPendingSubjectStatic&& Sub
 					LiveLinkSubject->SetStaticDataAsRebroadcasted(false);
 				}
 			}
+			UnmappedStaticData = &LiveLinkSubject->GetStaticData(/*bGetOverrideData*/ false);
 		}
 
 		if (const FSubjectFramesAddedHandles* Handles = SubjectFrameAddedHandles.Find(SubjectStaticData.SubjectKey.SubjectName))
 		{
 			Handles->OnStaticDataAdded.Broadcast(SubjectStaticData.SubjectKey, SubjectStaticData.Role, SubjectStaticData.StaticData);
+			Handles->OnUnmappedStaticDataAdded.Broadcast(SubjectStaticData.SubjectKey, SubjectStaticData.Role, *UnmappedStaticData);
 		}
 		else if (const FSubjectFramesAddedHandles* AllSubjectsHandler = SubjectFrameAddedHandles.Find(ALL_SUBJECTS_DELEGATE_TOKEN))
 		{
 			AllSubjectsHandler->OnStaticDataAdded.Broadcast(SubjectStaticData.SubjectKey, SubjectStaticData.Role, SubjectStaticData.StaticData);
+			AllSubjectsHandler->OnUnmappedStaticDataAdded.Broadcast(SubjectStaticData.SubjectKey, SubjectStaticData.Role, *UnmappedStaticData);
 		}
 
 		LiveLinkSubject->SetStaticData(SubjectStaticData.Role, MoveTemp(SubjectStaticData.StaticData));
@@ -956,8 +961,11 @@ void FLiveLinkClient::PushSubjectFrameData_Internal(FPendingSubjectFrame&& Subje
 		return;
 	}
 
+	FLiveLinkFrameDataStruct UnmappedFrameData;
+	
 	if (ULiveLinkSubjectRemapper::FWorkerSharedPtr Remapper = LinkSubject->GetFrameRemapper())
 	{
+		UnmappedFrameData.InitializeWith(SubjectFrameData.FrameData);
 		Remapper->RemapFrameData(LinkSubject->GetStaticData(), SubjectFrameData.FrameData);
 	}
 
@@ -972,6 +980,16 @@ void FLiveLinkClient::PushSubjectFrameData_Internal(FPendingSubjectFrame&& Subje
 		return;
 	}
 
+	if (UnmappedFrameData.IsValid() && !Role.GetDefaultObject()->IsFrameDataValid(LinkSubject->GetStaticData(/*bGetOverrideData*/ false), UnmappedFrameData, bShouldLogWarning))
+	{
+		if (bShouldLogWarning)
+		{
+			static const FName NAME_InvalidFrameData = "LiveLinkClient_InvalidUnmappedFrameData";
+			FLiveLinkLog::ErrorOnce(NAME_InvalidFrameData, SubjectFrameData.SubjectKey, TEXT("Trying to add unmapped frame data that is not formatted properly to role '%s' with subject '%s'."), *Role->GetName(), *SubjectFrameData.SubjectKey.SubjectName.ToString());
+		}
+		return;
+	}
+
 	//Stamp arrival time of each packet to track clock difference when it is effectively added to the stash.
 	//Doing it in the Add_AnyThread would mean that we stamp it up to 1 frame time behind, causing the offset to always be 1 frame behind
 	//and requiring 2.5 frames or so to have a valid smooth offset
@@ -982,6 +1000,10 @@ void FLiveLinkClient::PushSubjectFrameData_Internal(FPendingSubjectFrame&& Subje
 		if (CurrentTime.IsSet())
 		{
 			SubjectFrameData.FrameData.GetBaseData()->ArrivalTime.SceneTime = *CurrentTime;
+			if (UnmappedFrameData.IsValid() && UnmappedFrameData.GetBaseData())
+			{
+				UnmappedFrameData.GetBaseData()->ArrivalTime.SceneTime = *CurrentTime;
+			}
 		}
 	}
 
@@ -991,11 +1013,13 @@ void FLiveLinkClient::PushSubjectFrameData_Internal(FPendingSubjectFrame&& Subje
 	if (const FSubjectFramesAddedHandles* Handles = SubjectFrameAddedHandles.Find(SubjectFrameData.SubjectKey.SubjectName))
 	{
 		Handles->OnFrameDataAdded.Broadcast(SubjectItem->Key, Role, SubjectFrameData.FrameData);
+		Handles->OnUnmappedFrameDataAdded.Broadcast(SubjectItem->Key, Role, UnmappedFrameData.IsValid() ? UnmappedFrameData : SubjectFrameData.FrameData);
 	}
 	else if (const FSubjectFramesAddedHandles* AllSubjectsHandler = SubjectFrameAddedHandles.Find(ALL_SUBJECTS_DELEGATE_TOKEN))
 	{
 		// NAME_None means we registered for all subjects update.
 		AllSubjectsHandler->OnFrameDataAdded.Broadcast(SubjectItem->Key, Role, SubjectFrameData.FrameData);
+		AllSubjectsHandler->OnUnmappedFrameDataAdded.Broadcast(SubjectItem->Key, Role, UnmappedFrameData.IsValid() ? UnmappedFrameData : SubjectFrameData.FrameData);
 	}
 
 	const bool bHasParentSubject = SourceItem->Setting->ParentSubject != FLiveLinkSubjectName();
@@ -1767,13 +1791,13 @@ UObject* FLiveLinkClient::GetSubjectSettings(const FLiveLinkSubjectKey& InSubjec
 	return nullptr;
 }	
 
-const FLiveLinkStaticDataStruct* FLiveLinkClient::GetSubjectStaticData_AnyThread(const FLiveLinkSubjectKey& InSubjectKey) const
+const FLiveLinkStaticDataStruct* FLiveLinkClient::GetSubjectStaticData_AnyThread(const FLiveLinkSubjectKey& InSubjectKey, bool bGetOverrideData) const
 {
 	if (const FLiveLinkCollectionSubjectItem* SubjectItem = Collection->FindSubject(InSubjectKey))
 	{
 		if (FLiveLinkSubject* LiveLinkSubject = SubjectItem->GetLiveSubject())
 		{
-			return &LiveLinkSubject->GetStaticData();
+			return &LiveLinkSubject->GetStaticData(bGetOverrideData);
 		}
 	}
 
@@ -1926,20 +1950,30 @@ FLiveLinkSkeletonStaticData* FLiveLinkClient::GetSubjectAnimationStaticData_Depr
 	return nullptr;
 }
 
-void FLiveLinkClient::UnregisterGlobalSubjectFramesDelegate(FDelegateHandle& InStaticDataAddedHandle, FDelegateHandle& InFrameDataAddedHandle)
+void FLiveLinkClient::UnregisterGlobalSubjectFramesDelegate(FDelegateHandle& InStaticDataAddedHandle, FDelegateHandle& InFrameDataAddedHandle, bool bUseUnmappedData)
 {
 	if (FSubjectFramesAddedHandles* Handles = SubjectFrameAddedHandles.Find(ALL_SUBJECTS_DELEGATE_TOKEN))
 	{
-		Handles->OnStaticDataAdded.Remove(InStaticDataAddedHandle);
-		Handles->OnFrameDataAdded.Remove(InFrameDataAddedHandle);
+		if (bUseUnmappedData)
+		{
+			Handles->OnUnmappedStaticDataAdded.Remove(InStaticDataAddedHandle);
+			Handles->OnUnmappedFrameDataAdded.Remove(InFrameDataAddedHandle);
+		}
+		else
+		{
+			Handles->OnStaticDataAdded.Remove(InStaticDataAddedHandle);
+			Handles->OnFrameDataAdded.Remove(InFrameDataAddedHandle);
+		}
 	}
 }
 
-bool FLiveLinkClient::RegisterGlobalSubjectFramesDelegate(const FOnLiveLinkSubjectStaticDataAdded::FDelegate& InOnStaticDataAdded, const FOnLiveLinkSubjectFrameDataAdded::FDelegate& InOnFrameDataAdded, FDelegateHandle& OutStaticDataAddedHandle, FDelegateHandle& OutFrameDataAddedHandle)
+bool FLiveLinkClient::RegisterGlobalSubjectFramesDelegate(const FOnLiveLinkSubjectStaticDataAdded::FDelegate& InOnStaticDataAdded,
+	const FOnLiveLinkSubjectFrameDataAdded::FDelegate& InOnFrameDataAdded, FDelegateHandle& OutStaticDataAddedHandle,
+	FDelegateHandle& OutFrameDataAddedHandle, bool bUseUnmappedData)
 {
 	FSubjectFramesAddedHandles& Handles = SubjectFrameAddedHandles.FindOrAdd(ALL_SUBJECTS_DELEGATE_TOKEN);
-	OutStaticDataAddedHandle = Handles.OnStaticDataAdded.Add(InOnStaticDataAdded);
-	OutFrameDataAddedHandle = Handles.OnFrameDataAdded.Add(InOnFrameDataAdded);
+	OutStaticDataAddedHandle = bUseUnmappedData ? Handles.OnUnmappedStaticDataAdded.Add(InOnStaticDataAdded) : Handles.OnStaticDataAdded.Add(InOnStaticDataAdded);
+	OutFrameDataAddedHandle = bUseUnmappedData ? Handles.OnUnmappedFrameDataAdded.Add(InOnFrameDataAdded) : Handles.OnFrameDataAdded.Add(InOnFrameDataAdded);
 
 	return true;
 }

@@ -246,4 +246,7 @@ private:
 
 	/** Packages in the process of unloading. */
 	TSet<TWeakObjectPtr<UPackage>> PackagesUnloading;
+
+	/** The last sent static frame index. Used to ensure we only send static data when necessary. */
+	TMap<FLiveLinkSubjectKey, int32> LastStaticFrameIndex;
 };
