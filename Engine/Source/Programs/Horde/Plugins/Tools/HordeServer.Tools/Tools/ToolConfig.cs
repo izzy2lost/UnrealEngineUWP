@@ -7,6 +7,7 @@ using EpicGames.Horde.Acls;
 using EpicGames.Horde.Storage;
 using EpicGames.Horde.Tools;
 using HordeServer.Acls;
+using HordeServer.Utilities;
 
 #pragma warning disable CA2227 // Change x to be read-only by removing the property setter
 
@@ -74,6 +75,11 @@ namespace HordeServer.Tools
 		/// Whether to show this tool for download in Unreal Toolbox
 		/// </summary>
 		public bool ShowInToolbox { get; set; }
+
+		/// <summary>
+		/// Metadata for this tool
+		/// </summary>
+		public CaseInsensitiveDictionary<string> Metadata { get; set; } = new CaseInsensitiveDictionary<string>();
 
 		/// <summary>
 		/// Default namespace for new deployments of this tool

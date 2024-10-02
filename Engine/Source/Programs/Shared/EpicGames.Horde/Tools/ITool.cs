@@ -76,6 +76,11 @@ namespace EpicGames.Horde.Tools
 		bool ShowInToolbox { get; }
 
 		/// <summary>
+		/// User-defined metadata for this tool
+		/// </summary>
+		IReadOnlyDictionary<string, string> Metadata { get; }
+
+		/// <summary>
 		/// Current deployments of this tool, sorted by time.
 		/// </summary>
 		IReadOnlyList<IToolDeployment> Deployments { get; }

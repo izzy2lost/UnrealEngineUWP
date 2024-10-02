@@ -144,7 +144,7 @@ namespace UnrealToolbox
 				{
 					Status = $"Updating to {pending.Deployment.Version}...";
 				}
-				IsBusy = true;
+				IsBusy = !pending.Failed;
 			}
 			else
 			{
