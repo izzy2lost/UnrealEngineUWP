@@ -608,7 +608,6 @@ namespace HordeServer.Notifications.Sinks
 						foreach (string channel in _settings.JobNotificationChannel.Split(';'))
 						{
 							Uri jobStepLink = new Uri($"{_serverInfo.DashboardUrl}job/{job.Id}?step={step.Id}");
-							Uri jobStepLogLink = new Uri($"{_serverInfo.DashboardUrl}log/{step.LogId}");
 
 							SlackAttachment attachment = new SlackAttachment();
 							attachment.FallbackText = $"{streamConfig.Name} - {GetJobChangeText(job)} - {job.Name} - {node.Name} - {step.Outcome}";
