@@ -631,19 +631,28 @@ void UTransformableControlHandle::ResolveBoundObjects(FMovieSceneSequenceID Loca
 {
 	if (const UControlRig* InControlRig = Cast<UControlRig>(SubObject))
 	{
-		if (ControlRig != InControlRig)
+		// nothing to do
+		if (ControlRig == InControlRig)
 		{
-			for (const TWeakObjectPtr<> ParentObject : ConstraintBindingID.ResolveBoundObjects(LocalSequenceID, SharedPlaybackState))
+			return;
+		}
+
+		// skip resolving if the rigs don't share the same class type 
+		if (ControlRig && ControlRig->GetClass() != InControlRig->GetClass())
+		{
+			return;
+		}
+		
+		for (const TWeakObjectPtr<> ParentObject : ConstraintBindingID.ResolveBoundObjects(LocalSequenceID, SharedPlaybackState))
+		{
+			const UObject* Bindable = FControlRigObjectBinding::GetBindableObject(ParentObject.Get());
+			if (InControlRig->GetObjectBinding() && InControlRig->GetObjectBinding()->GetBoundObject() == Bindable)
 			{
-				const UObject* Bindable = FControlRigObjectBinding::GetBindableObject(ParentObject.Get());
-				if (InControlRig->GetObjectBinding() && InControlRig->GetObjectBinding()->GetBoundObject() == Bindable)
-				{
-					UnregisterDelegates();
-					ControlRig = const_cast<UControlRig*>(InControlRig);
-					RegisterDelegates();
-				}
-				break; //just do one
+				UnregisterDelegates();
+				ControlRig = const_cast<UControlRig*>(InControlRig);
+				RegisterDelegates();
 			}
+			break; //just do one
 		}
 	}
 }

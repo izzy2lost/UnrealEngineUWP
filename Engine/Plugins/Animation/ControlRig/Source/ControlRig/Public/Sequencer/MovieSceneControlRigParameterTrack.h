@@ -230,6 +230,8 @@ public:
 
 public:
 	UControlRig* GetGameWorldControlRig(UWorld* InWorld);
+	bool IsAGameInstance(const UControlRig* InControlRig, const bool bCheckValidWorld = false) const;
+    
 private:
 	/** copy of the controlled control rig that we use in the game world so editor control rig doesn't conflict*/
 	UPROPERTY(transient)
