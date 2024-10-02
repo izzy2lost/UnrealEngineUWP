@@ -48,4 +48,15 @@ else
 	export IS_DOTNET_INSTALLED=$IS_DOTNET_INSTALLED
 fi
 
+# this is the current assumed location for now
+# We use FUnixPlatformProcess::ApplicationSettingsDir() from c++ and
+# and for C# it uses Environment.GetFolderPath(SpecialFolder.ApplicationData)
+# for this location, so lets share this as our "place to put an AutoSDK file"
+AUTO_SDK_PATH_FILE="$HOME/.config/.autosdk"
+
+# if the file exists and we dont currently have a $UE_SDKS_ROOT set, lets setup UE_SDKS_ROOT to our files location path
+if [ -f "$AUTO_SDK_PATH_FILE" ] && [ -z "$UE_SDKS_ROOT" ]; then
+	export UE_SDKS_ROOT="$(cat $AUTO_SDK_PATH_FILE)"
+fi
+
 cd "$START_DIR"

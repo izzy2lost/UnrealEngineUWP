@@ -50,6 +50,23 @@ public class MacPlatform : ApplePlatform
 		}		
 	}
 
+	public override void PersistSdkRootVar()
+	{
+		string UeSdksRoot = Environment.GetEnvironmentVariable("UE_SDKS_ROOT");
+		if (UeSdksRoot != null)
+		{
+			base.PersistSdkRootVar();
+			string AutoSdkFile = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), ".autosdk");
+			if (!File.Exists(AutoSdkFile))
+			{
+				using (StreamWriter wr = new StreamWriter(AutoSdkFile))
+				{
+					wr.WriteLine(UeSdksRoot);
+				}
+			}
+		}
+	}
+
 	public override DeviceInfo[] GetDevices()
 	{
 		List<DeviceInfo> Devices = new List<DeviceInfo>();
