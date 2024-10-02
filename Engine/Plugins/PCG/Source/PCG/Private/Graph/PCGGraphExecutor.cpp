@@ -591,7 +591,7 @@ TSet<UPCGComponent*> FPCGGraphExecutor::Cancel(TFunctionRef<bool(TWeakObjectPtr<
 	return CancelledComponents;
 }
 
-bool FPCGGraphExecutor::IsGraphCurrentlyExecuting(UPCGGraph* InGraph)
+bool FPCGGraphExecutor::IsGraphCurrentlyExecuting(const UPCGGraph* InGraph)
 {
 	bool bAnyPresent = false;
 

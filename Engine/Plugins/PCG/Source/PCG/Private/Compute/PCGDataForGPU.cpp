@@ -810,12 +810,16 @@ void FPCGDataCollectionDesc::PackDataCollection(const FPCGDataCollection& InData
 		if (const UPCGPointData* PointData = Cast<UPCGPointData>(InputData[DataIndex].Data))
 		{
 			const TArray<FPCGPoint>& Points = PointData->GetPoints();
+			if (Points.IsEmpty())
+			{
+				continue;
+			}
+
 			const uint32 NumElements = Points.Num();
 
 			for (const FPCGKernelAttributeDesc& AttributeDesc : DataDesc.AttributeDescs)
 			{
 				const uint32 AttributeId = AttributeDesc.Index;
-				const uint32 AttributeStrideBytes = PCGDataForGPUHelpers::GetAttributeTypeStrideBytes(AttributeDesc.Type);
 
 				const FPCGMetadataAttributeBase* AttributeBase = (AttributeId >= NUM_RESERVED_ATTRS) ? Metadata->GetConstAttribute(AttributeDesc.Name) : nullptr;
 

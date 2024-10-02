@@ -90,7 +90,7 @@ public:
 	TArray<UPCGComponent*> CancelAll();
 
 	/** Returns true if any task is scheduled or executing for the given graph. */
-	bool IsGraphCurrentlyExecuting(UPCGGraph* InGraph);
+	bool IsGraphCurrentlyExecuting(const UPCGGraph* InGraph);
 
 	/** Returns true if any task is scheduled or executing for any graph */
 	bool IsAnyGraphCurrentlyExecuting() const;
