@@ -422,11 +422,11 @@ namespace UnrealConversionUtils
 
 		check(InMutableMesh->GetIndexBuffers().GetElementCount() > 0);
 		
-		const int32 NumIndices = 3;
+		const int32 NumIndices = InMutableMesh->GetIndexBuffers().GetElementCount();
 		const int32 ElementSize = InMutableMesh->GetIndexBuffers().GetElementSize(0);
 
 		LODResource.MultiSizeIndexContainer.CreateIndexBuffer(ElementSize);
-		LODResource.MultiSizeIndexContainer.GetIndexBuffer()->Insert(0, NumIndices);
+		LODResource.MultiSizeIndexContainer.GetIndexBuffer()->SetMetaData(NumIndices);
 	}
 
 

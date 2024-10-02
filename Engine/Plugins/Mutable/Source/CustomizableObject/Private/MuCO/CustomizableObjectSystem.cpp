@@ -728,7 +728,7 @@ bool bForceStreamMeshLODs = false;
 static FAutoConsoleVariableRef CVarMutableForceStreamMeshLODs(
 	TEXT("Mutable.ForceStreamMeshLODs"),
 	bForceStreamMeshLODs,
-	TEXT("true/false - If true, and bStreamMeshLODs is enabled, all COs will stream mesh LODs. "),
+	TEXT("Experimental - true/false - If true, and bStreamMeshLODs is enabled, all COs will stream mesh LODs. "),
 	ECVF_Default);
 
 
@@ -737,7 +737,7 @@ bool bStreamMeshLODs = false;
 static FAutoConsoleVariableRef CVarMutableStreamMeshLODsEnabled(
 	TEXT("Mutable.StreamMeshLODsEnabled"),
 	bStreamMeshLODs,
-	TEXT("true/false - If true, enable generated meshes to stream mesh LODs. "),
+	TEXT("Experimental - true/false - If true, enable generated meshes to stream mesh LODs. "),
 	ECVF_Default);
 
 int32 UCustomizableObjectSystemPrivate::EnableMutableProgressiveMipStreaming = 1;
