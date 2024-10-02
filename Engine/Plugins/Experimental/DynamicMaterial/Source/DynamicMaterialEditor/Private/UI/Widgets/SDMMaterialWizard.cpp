@@ -845,7 +845,20 @@ void SDMMaterialWizard::SelectTemplate(UDynamicMaterialModel* InTemplateModel)
 		return;
 	}
 
-	if (UDynamicMaterialModel* MaterialModel = GetMaterialModel())
+	if (MaterialObjectProperty.IsSet())
+	{
+		if (MaterialObjectProperty->IsValid())
+		{
+			CreateNewDynamicInstanceInActor(InTemplateModel, MaterialObjectProperty.GetValue());
+		}
+		else
+		{
+			UE::DynamicMaterialEditor::Private::LogError(TEXT("Invalid actor property to create new dynamic material in."));
+
+			DesignerWidget->ShowSelectPrompt();
+		}
+	}
+	else if (UDynamicMaterialModel* MaterialModel = GetMaterialModel())
 	{
 		if (UDynamicMaterialInstance* Instance = MaterialModel->GetDynamicMaterialInstance())
 		{
@@ -854,26 +867,6 @@ void SDMMaterialWizard::SelectTemplate(UDynamicMaterialModel* InTemplateModel)
 		else
 		{
 			UE::DynamicMaterialEditor::Private::LogError(TEXT("Unable to find material instance to create new dynamic material in."));
-
-			DesignerWidget->ShowSelectPrompt();
-		}
-	}
-	else if (MaterialObjectProperty.IsSet())
-	{
-		if (MaterialObjectProperty->IsValid())
-		{
-			if (UDynamicMaterialInstance* Instance = MaterialObjectProperty->GetMaterial())
-			{
-				CreateDynamicMaterialInInstance(InTemplateModel, Instance);
-			}
-			else
-			{
-				CreateNewDynamicInstanceInActor(InTemplateModel, MaterialObjectProperty.GetValue());
-			}
-		}
-		else
-		{
-			UE::DynamicMaterialEditor::Private::LogError(TEXT("Invalid actor property to create new dynamic material in."));
 
 			DesignerWidget->ShowSelectPrompt();
 		}

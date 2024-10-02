@@ -65,7 +65,7 @@ bool FAvaMaterialDesignerExtension::IsDynamicMaterialModelValid(UDynamicMaterial
 	{
 		if (UDynamicMaterialInstance* const MeshInstance = Cast<UDynamicMaterialInstance>(DynamicMesh->GetMaterial(MeshIndex)))
 		{
-			if (MeshInstance->GetMaterialModel() == InMaterialModel)
+			if (MeshInstance->GetMaterialModelBase() == InMaterialModel)
 			{
 				return true;
 			}
