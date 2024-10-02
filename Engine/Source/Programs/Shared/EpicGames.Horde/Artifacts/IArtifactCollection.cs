@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Horde.Commits;
+using EpicGames.Horde.Storage;
 using EpicGames.Horde.Streams;
 
 namespace EpicGames.Horde.Artifacts
@@ -25,7 +26,7 @@ namespace EpicGames.Horde.Artifacts
 		/// <param name="metadata">Metadata for the artifact</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>The new log file document</returns>
-		Task<IArtifact> AddAsync(ArtifactName name, ArtifactType type, string? description, StreamId streamId, CommitId commitId, IEnumerable<string> keys, IEnumerable<string> metadata, CancellationToken cancellationToken = default);
+		Task<IArtifactBuilder> CreateAsync(ArtifactName name, ArtifactType type, string? description, StreamId streamId, CommitId commitId, IEnumerable<string> keys, IEnumerable<string> metadata, CancellationToken cancellationToken = default);
 
 		/// <summary>
 		/// Finds artifacts with the given keys.

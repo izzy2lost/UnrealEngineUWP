@@ -61,6 +61,48 @@ namespace EpicGames.Horde.Artifacts
 				=> _collection.DeleteAsync(Id, cancellationToken);
 		}
 
+		class ArtifactBuilder : IArtifactBuilder
+		{
+			readonly HttpArtifactCollection _collection;
+			readonly Artifact _artifact;
+			readonly CreateArtifactResponse _response;
+			readonly IStorageNamespace _namespace;
+
+			public ArtifactId Id => _artifact.Id;
+			public ArtifactName Name => _artifact.Name;
+			public ArtifactType Type => _artifact.Type;
+			public string? Description => _artifact.Description;
+			public StreamId StreamId => _artifact.StreamId;
+			public CommitIdWithOrder CommitId => _artifact.CommitId;
+			public IReadOnlyList<string> Keys => _artifact.Keys;
+			public IReadOnlyList<string> Metadata => _artifact.Metadata;
+			public NamespaceId NamespaceId => _artifact.NamespaceId;
+			public RefName RefName => _artifact.RefName;
+
+			public ArtifactBuilder(HttpArtifactCollection collection, Artifact artifact, CreateArtifactResponse response)
+			{
+				_collection = collection;
+				_artifact = artifact;
+				_response = response;
+				_namespace = collection._hordeClient.GetStorageNamespace(response.NamespaceId, response.Token);
+			}
+
+			/// <inheritdoc/>
+			public Task AddAliasAsync(string name, IBlobRef handle, int rank = 0, ReadOnlyMemory<byte> data = default, CancellationToken cancellationToken = default)
+				=> _namespace.AddAliasAsync(name, handle, rank, data, cancellationToken);
+
+			/// <inheritdoc/>
+			public async Task<IArtifact> CompleteAsync(IHashedBlobRef blobRef, CancellationToken cancellationToken = default)
+			{
+				await _namespace.WriteRefAsync(_response.RefName, blobRef);
+				return _artifact;
+			}
+
+			/// <inheritdoc/>
+			public IBlobWriter CreateBlobWriter()
+				=> _namespace.CreateBlobWriter(_response.RefName);
+		}
+
 		readonly IHordeClient _hordeClient;
 
 		public HttpArtifactCollection(IHordeClient hordeClient)
@@ -73,11 +115,12 @@ namespace EpicGames.Horde.Artifacts
 		}
 
 		/// <inheritdoc/>
-		public async Task<IArtifact> AddAsync(ArtifactName name, ArtifactType type, string? description, StreamId streamId, CommitId commitId, IEnumerable<string> keys, IEnumerable<string> metadata, CancellationToken cancellationToken = default)
+		public async Task<IArtifactBuilder> CreateAsync(ArtifactName name, ArtifactType type, string? description, StreamId streamId, CommitId commitId, IEnumerable<string> keys, IEnumerable<string> metadata, CancellationToken cancellationToken = default)
 		{
 			HordeHttpClient hordeHttpClient = _hordeClient.CreateHttpClient();
 			CreateArtifactResponse response = await hordeHttpClient.CreateArtifactAsync(name, type, description, streamId, commitId, keys, metadata, cancellationToken);
-			return new Artifact(this, response.ArtifactId, name, type, description, streamId, CommitIdWithOrder.FromPerforceChange(commitId.GetPerforceChange()), keys.ToList(), metadata.ToList(), response.NamespaceId, response.RefName, DateTime.UtcNow);
+			Artifact artifact = new Artifact(this, response.ArtifactId, name, type, description, streamId, CommitIdWithOrder.FromPerforceChange(commitId.GetPerforceChange()), keys.ToList(), metadata.ToList(), response.NamespaceId, response.RefName, DateTime.UtcNow);
+			return new ArtifactBuilder(this, artifact, response);
 		}
 
 		/// <inheritdoc/>
