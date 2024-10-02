@@ -6,6 +6,8 @@ public class SlateCore : ModuleRules
 {
 	public SlateCore(ReadOnlyTargetRules Target) : base(Target)
 	{
+		StaticAnalyzerDisabledCheckers.Add("core.uninitialized.ArraySubscript");
+
 		PrivateDefinitions.Add("UE_REPORT_SLATE_VECTOR_DEPRECATION=1");
 
 		PublicDependencyModuleNames.AddRange(

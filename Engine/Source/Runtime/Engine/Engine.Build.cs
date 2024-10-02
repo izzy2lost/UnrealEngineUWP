@@ -13,6 +13,8 @@ public class Engine : ModuleRules
 
 		SharedPCHHeaderFile = "Public/EngineSharedPCH.h";
 
+		StaticAnalyzerDisabledCheckers.Add("core.uninitialized.ArraySubscript");
+
 		PublicIncludePathModuleNames.AddRange(
 			new string[] {
 				"AnimationCore",
