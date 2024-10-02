@@ -93,7 +93,7 @@ const AgentsPanel: React.FC = observer(() => {
 
       const queryAgents = async (queryTime: string) => {
 
-         const nagents = await backend.getAgents({ modifiedAfter: queryTime });
+         const nagents = await backend.getAgents({ modifiedAfter: queryTime, invalidateCache: true });
          if (nagents.length) {
             await agentStore.update(false);
             navigate("/agents");

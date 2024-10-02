@@ -295,6 +295,7 @@ export type AgentQuery = {
 	modifiedAfter?: string;
 	poolId?: string;
 	includeDeleted?: boolean;
+	invalidateCache?: boolean;
 	condition?: string;
 	filter?: string;
 }

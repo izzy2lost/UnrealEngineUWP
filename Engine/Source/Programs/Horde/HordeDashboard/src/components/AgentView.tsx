@@ -438,7 +438,7 @@ class LocalState {
       }).finally(function () {
          that.selection.setAllSelected(false);
          that.currentSelection = [];
-         agentStore.update();
+         agentStore.update(false, true);
       });
    };
 
