@@ -438,6 +438,19 @@ bool UInterchangeGLTFTranslator::Translate( UInterchangeBaseNodeContainer& NodeC
 		SourceNode->SetExtraInformation(Extra.Name, Extra.Value);
 	}
 
+	{
+		//For sockets, crete the Axis System conversion inverse:
+
+		FMatrix glTFToUE5Matrix = FMatrix(
+			FPlane(1, 0, 0, 0),  // X-axis remains the same
+			FPlane(0, 0, 1, 0),  // Y-axis becomes Z-axis
+			FPlane(0, 1, 0, 0),  // Z-axis becomes Y-axis
+			FPlane(0, 0, 0, 1)   // W (homogeneous coordinate)
+		);
+		FTransform AxisConversionInverseTransform = FTransform(glTFToUE5Matrix.Inverse());
+		SourceNode->SetCustomAxisConversionInverseTransform(AxisConversionInverseTransform);
+	}
+
 	const FString FileName = GltfAsset.Name;
 
 	//Required Extension Check:

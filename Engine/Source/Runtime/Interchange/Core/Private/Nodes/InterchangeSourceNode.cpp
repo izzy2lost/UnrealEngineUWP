@@ -148,3 +148,13 @@ void UInterchangeSourceNode::GetExtraInformation(TMap<FString, FString>& OutExtr
 {
 	OutExtraInformation = ExtraInformation.ToMap();
 }
+
+bool UInterchangeSourceNode::GetCustomAxisConversionInverseTransform(FTransform& AttributeValue) const
+{
+	IMPLEMENT_NODE_ATTRIBUTE_GETTER(AxisConversionInverseTransform, FTransform);
+}
+bool UInterchangeSourceNode::SetCustomAxisConversionInverseTransform(const FTransform& AttributeValue)
+{
+	IMPLEMENT_NODE_ATTRIBUTE_SETTER_NODELEGATE(AxisConversionInverseTransform, FTransform);
+}
+

@@ -40,6 +40,7 @@
 #include "StaticMeshCompiler.h"
 #include "StaticMeshOperations.h"
 #include "InterchangeManager.h"
+#include "Nodes/InterchangeSourceNode.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(InterchangeStaticMeshFactory)
 
@@ -1870,6 +1871,14 @@ bool UInterchangeStaticMeshFactory::ImportSockets(const FImportAssetObjectParams
 			}
 
 			UE::Interchange::Private::MeshHelper::AddSceneNodeGeometricAndPivotToGlobalTransform(Transform, SceneNode, bBakeMeshes, bBakePivotMeshes);
+
+			//Apply axis transformation inverse to get correct Socket Transform:
+			const UInterchangeSourceNode* SourceNode = UInterchangeSourceNode::GetUniqueInstance(Arguments.NodeContainer);
+			FTransform AxisConversionInverseTransform;
+			if (SourceNode->GetCustomAxisConversionInverseTransform(AxisConversionInverseTransform))
+			{
+				Transform = AxisConversionInverseTransform * Transform;
+			}
 
 			UStaticMeshSocket* Socket = StaticMesh->FindSocket(SocketName);
 			if (!Socket)

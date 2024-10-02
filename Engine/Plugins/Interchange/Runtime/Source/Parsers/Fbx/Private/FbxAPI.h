@@ -63,7 +63,7 @@ namespace UE
 				const TSharedPtr<FFbxHelper> GetFbxHelper();
 
 				/* Load an fbx file into the fbx sdk, return false if the file could not be load. */
-				bool LoadFbxFile(const FString& Filename);
+				bool LoadFbxFile(const FString& Filename, UInterchangeBaseNodeContainer& NodeContainer);
 
 				/* Extract the fbx data from the sdk into our node container */
 				void FillContainerWithFbxScene(UInterchangeBaseNodeContainer& NodeContainer);

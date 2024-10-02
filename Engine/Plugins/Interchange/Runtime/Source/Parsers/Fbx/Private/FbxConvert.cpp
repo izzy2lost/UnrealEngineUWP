@@ -55,7 +55,7 @@ namespace UE
 				return AxisDirection;
 			}
 
-			void FFbxConvert::ConvertScene(FbxScene* SDKScene, const bool bConvertScene, const bool bForceFrontXAxis, const bool bConvertSceneUnit, FString& FileSystemDirection, FString& FileUnitSystem)
+			void FFbxConvert::ConvertScene(FbxScene* SDKScene, const bool bConvertScene, const bool bForceFrontXAxis, const bool bConvertSceneUnit, FString& FileSystemDirection, FString& FileUnitSystem, FbxAMatrix& AxisConversionInverseMatrix)
 			{
 				if (!ensure(SDKScene))
 				{
@@ -87,6 +87,15 @@ namespace UE
 					{
 						FbxRootNodeUtility::RemoveAllFbxRoots(SDKScene);
 						UnrealImportAxis.ConvertScene(SDKScene);
+
+						FbxAMatrix SourceMatrix;
+						FileAxisSystem.GetMatrix(SourceMatrix);
+						FbxAMatrix UnrealMatrix;
+						UnrealImportAxis.GetMatrix(UnrealMatrix);
+
+						FbxAMatrix AxisConversionMatrix;
+						AxisConversionMatrix = SourceMatrix.Inverse() * UnrealMatrix;
+						AxisConversionInverseMatrix = AxisConversionMatrix.Inverse();
 					}
 				}
 
