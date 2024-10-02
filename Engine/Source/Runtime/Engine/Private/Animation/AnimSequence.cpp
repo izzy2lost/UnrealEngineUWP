@@ -58,21 +58,16 @@ LLM_DEFINE_TAG(SequenceData);
 #include "Animation/AnimationCompressionDerivedData.h"
 #include "Animation/AnimData/IAnimationDataModel.h"
 #include "Animation/BuiltInAttributeTypes.h"
-#include "AssetRegistry/AssetData.h"
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "Cooker/CookDeterminismHelper.h"
 #include "ProfilingDebugging/CookStats.h"
 #include "Serialization/CompactBinaryWriter.h"
 #include "Serialization/MemoryHasher.h"
 #include "Misc/DataValidation.h"
-#include "Animation/PoseAsset.h"
 #endif // WITH_EDITOR
 
 #include "Animation/AnimSequenceHelpers.h"
 
-#if WITH_EDITORONLY_DATA
-#include "Animation/AnimRetargetHelpers.h"
-#endif
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(AnimSequence)
 
@@ -989,7 +984,7 @@ void UAnimSequence::PreSave(FObjectPreSaveContext ObjectSaveContext)
 
 	if (!ObjectSaveContext.IsProceduralSave())
 	{
-		UpdateRetargetSourceAssetData();
+		UpdateRetargetSourceAsset();
 	}
 
 	if (ObjectSaveContext.IsDeterminismDebug())
@@ -1076,16 +1071,6 @@ void UAnimSequence::PostLoad()
 		}
 #endif
 	}
-
-#if WITH_EDITOR
-	if (UE::Anim::RetargetHelpers::ShouldCheckRetargetSourceAssetData())
-	{
-		if (UE::Anim::RetargetHelpers::CheckRetargetSourceAssetData(this) == UE::Anim::RetargetHelpers::ERetargetSourceAssetStatus::RetargetSourceMissing)
-		{
-			UpdateRetargetSourceAssetData();
-		}
-	}
-#endif // WITH_EDITOR
 }
 
 #if WITH_EDITOR
@@ -1184,12 +1169,10 @@ void UAnimSequence::PostEditChangeProperty(FPropertyChangedEvent& PropertyChange
 
 	if(PropertyChangedEvent.Property)
 	{
-		PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		if (PropertyChangedEvent.Property->GetFName() == GET_MEMBER_NAME_CHECKED(UAnimSequence, RetargetSourceAsset))
 		{
-			UpdateRetargetSourceAssetData();
+			UpdateRetargetSourceAsset();
 		}
-		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 		const bool bChangedRefFrameIndex = PropertyChangedEvent.Property->GetFName() == GET_MEMBER_NAME_CHECKED(UAnimSequence, RefFrameIndex);
 
@@ -1972,33 +1955,9 @@ void UAnimSequence::UpdateCompressedCurveName(const FName& OldCurveName, const F
 #endif // WITH_EDITOR
 
 #if WITH_EDITORONLY_DATA
-void UAnimSequence::SetRetargetSourceAsset(USkeletalMesh* InRetargetSourceAsset)
+void UAnimSequence::UpdateRetargetSourceAsset()
 {
-	if (InRetargetSourceAsset != nullptr && InRetargetSourceAsset->HasAnyFlags(RF_Transient))
-	{
-		UE_LOG(LogAnimation, Error, TEXT("Error, Transient asset [%s] can not be assigned as Retarget Source for AnimSequence [%s]. Please, use a non transient asset as retarget surce.")
-			, *(InRetargetSourceAsset->GetFullName())
-			, *GetFullName());
-		ensure(false);
-		return;
-	}
-
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	RetargetSourceAsset = InRetargetSourceAsset;
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
-}
-
-USkeletalMesh* UAnimSequence::GetRetargetSourceAsset() const
-{
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	USkeletalMesh* SourceReferenceMesh = RetargetSourceAsset.LoadSynchronous();
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
-	return SourceReferenceMesh;
-}
-
-void UAnimSequence::UpdateRetargetSourceAssetData()
-{
-	USkeletalMesh* SourceReferenceMesh = GetRetargetSourceAsset();
 	const USkeleton* MySkeleton = GetSkeleton();
 	if (SourceReferenceMesh && MySkeleton)
 	{
@@ -5013,7 +4972,6 @@ void UAnimSequence::RequestSyncAnimRecompression(bool bOutput)
 	}
 }
 #endif // WITH_EDITOR
-
 
 /*-----------------------------------------------------------------------------
 	AnimNotify& subclasses
