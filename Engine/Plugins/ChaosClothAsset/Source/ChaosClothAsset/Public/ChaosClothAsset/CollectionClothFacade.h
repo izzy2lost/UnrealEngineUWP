@@ -177,6 +177,7 @@ namespace UE::Chaos::ClothAsset
 		template<typename T UE_REQUIRES(TIsUserAttributeType<T>::Value)>
 		TConstArrayView<T> GetUserDefinedAttribute(const FName& Name, const FName& GroupName) const;
 		static bool IsValidClothCollectionGroupName(const FName& GroupName);
+		static TArray<FName> GetValidClothCollectionGroupName();
 
 		void BuildSimulationMesh(TArray<FVector3f>& Positions, TArray<FVector3f>& Normals, TArray<uint32>& Indices, TArray<FVector2f>& PatternsPositions, TArray<uint32>& PatternsIndices, 
 			TArray<uint32>& PatternToWeldedIndices, TArray<TArray<int32>>* OptionalWeldedToPatternIndices = nullptr) const;

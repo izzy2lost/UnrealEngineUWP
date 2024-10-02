@@ -490,6 +490,11 @@ namespace UE::Chaos::ClothAsset
 		return FClothCollection::IsValidClothCollectionGroupName(GroupName);
 	}
 
+	TArray<FName> FCollectionClothConstFacade::GetValidClothCollectionGroupName()
+	{
+		return FClothCollection::GetValidClothCollectionGroupName();
+	}
+
 	void FCollectionClothConstFacade::BuildSimulationMesh(TArray<FVector3f>& Positions, TArray<FVector3f>& Normals, TArray<uint32>& Indices, TArray<FVector2f>& PatternsPositions, TArray<uint32>& PatternsIndices,
 		TArray<uint32>& PatternToWeldedIndices, TArray<TArray<int32>>* OptionalWeldedToPatternIndices) const
 	{

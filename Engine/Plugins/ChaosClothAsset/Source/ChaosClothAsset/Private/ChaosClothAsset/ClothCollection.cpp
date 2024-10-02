@@ -823,6 +823,14 @@ namespace UE::Chaos::ClothAsset
 	template CHAOSCLOTHASSET_API TManagedArray<float>* FClothCollection::GetUserDefinedAttribute<float>(const FName& Name, const FName& GroupName);
 	template CHAOSCLOTHASSET_API TManagedArray<FVector3f>* FClothCollection::GetUserDefinedAttribute<FVector3f>(const FName& Name, const FName& GroupName);
 
+	TArray<FName> FClothCollection::GetValidClothCollectionGroupName()
+	{
+		using namespace UE::Chaos::ClothAsset::Private;
+		TArray<FName> ValidClothCollectionGroupName;
+		FixedAttributeNamesMap.GetKeys(ValidClothCollectionGroupName);
+		return ValidClothCollectionGroupName;
+	}
+
 	bool FClothCollection::IsValidClothCollectionGroupName(const FName& GroupName)
 	{
 		using namespace UE::Chaos::ClothAsset::Private;
