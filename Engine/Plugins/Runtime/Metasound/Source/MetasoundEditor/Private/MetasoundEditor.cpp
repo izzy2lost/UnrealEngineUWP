@@ -1505,6 +1505,7 @@ namespace Metasound
 			}
 
 			SyncAuditionState();
+			bRefreshGraph = true;
 		}
 
 		void FEditor::NotifyAssetPrimeInProgress()
