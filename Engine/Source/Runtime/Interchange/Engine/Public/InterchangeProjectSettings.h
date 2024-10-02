@@ -181,7 +181,7 @@ public:
 	/**
 	* Groups that define PerTransalatorPipelines that user can select to use.
 	*/
-	UPROPERTY(EditAnywhere, config, Category = "Groups")
+	UPROPERTY(EditAnywhere, config, Category = "Groups", meta = (NoElementDuplicate))
 	TArray<FInterchangeGroup> InterchangeGroups;
 
 private:
