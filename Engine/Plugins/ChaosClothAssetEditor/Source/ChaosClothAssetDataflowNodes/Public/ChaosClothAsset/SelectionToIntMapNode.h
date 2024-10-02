@@ -7,6 +7,12 @@
 #include "ChaosClothAsset/ConnectableValue.h"
 #include "SelectionToIntMapNode.generated.h"
 
+#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
+namespace Dataflow = UE::Dataflow;
+#else
+namespace UE_DEPRECATED(5.5, "Use UE::Dafaflow instead.") Dataflow {}
+#endif
+
 /** Convert an integer index selection to an integer map. Map type will match the selection type.*/
 USTRUCT(Meta = (DataflowCloth))
 struct FChaosClothAssetSelectionToIntMapNode : public FDataflowNode

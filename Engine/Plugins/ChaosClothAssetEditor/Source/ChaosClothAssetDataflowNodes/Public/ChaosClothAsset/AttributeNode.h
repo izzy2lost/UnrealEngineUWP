@@ -7,6 +7,12 @@
 #include "ChaosClothAsset/ConnectableValue.h"
 #include "AttributeNode.generated.h"
 
+#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
+namespace Dataflow = UE::Dataflow;
+#else
+namespace UE_DEPRECATED(5.5, "Use UE::Dafaflow instead.") Dataflow {}
+#endif
+
 /**
  * The managed array collection group used for the attribute creation.
  * This separate structure is required to allow for customization of the UI.

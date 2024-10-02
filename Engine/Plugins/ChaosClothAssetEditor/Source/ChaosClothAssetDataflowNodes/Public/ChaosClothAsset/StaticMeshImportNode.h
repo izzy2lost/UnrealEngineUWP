@@ -6,6 +6,12 @@
 #include "GeometryCollection/ManagedArrayCollection.h"
 #include "StaticMeshImportNode.generated.h"
 
+#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
+namespace Dataflow = UE::Dataflow;
+#else
+namespace UE_DEPRECATED(5.5, "Use UE::Dafaflow instead.") Dataflow {}
+#endif
+
 class UStaticMesh;
 
 /** Import a static mesh asset into the cloth collection simulation and/or render mesh containers.*/

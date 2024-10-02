@@ -8,6 +8,12 @@
 #include "ChaosClothAsset/ConnectableValue.h"
 #include "WeightMapNode.generated.h"
 
+#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
+namespace Dataflow = UE::Dataflow;
+#else
+namespace UE_DEPRECATED(5.5, "Use UE::Dafaflow instead.") Dataflow {}
+#endif
+
 /** Which mesh to update with the node's weight map */
 UENUM()
 enum class EChaosClothAssetWeightMapMeshTarget : uint8

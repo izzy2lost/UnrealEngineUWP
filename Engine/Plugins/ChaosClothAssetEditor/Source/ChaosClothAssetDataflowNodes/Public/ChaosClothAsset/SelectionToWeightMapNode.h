@@ -6,6 +6,12 @@
 #include "GeometryCollection/ManagedArrayCollection.h"
 #include "SelectionToWeightMapNode.generated.h"
 
+#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
+namespace Dataflow = UE::Dataflow;
+#else
+namespace UE_DEPRECATED(5.5, "Use UE::Dafaflow instead.") Dataflow {}
+#endif
+
 /** Convert an integer index selection to a vertex weight map where different map values can be set for selected and unselected vertices. */
 USTRUCT(Meta = (DataflowCloth))
 struct FChaosClothAssetSelectionToWeightMapNode : public FDataflowNode

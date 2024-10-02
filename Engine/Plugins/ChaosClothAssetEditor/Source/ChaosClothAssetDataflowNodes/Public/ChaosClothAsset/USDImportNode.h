@@ -7,6 +7,12 @@
 #include "Misc/SecureHash.h"
 #include "USDImportNode.generated.h"
 
+#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
+namespace Dataflow = UE::Dataflow;
+#else
+namespace UE_DEPRECATED(5.5, "Use UE::Dafaflow instead.") Dataflow {}
+#endif
+
 /** Import a USD file from a third party garment construction software. */
 USTRUCT(Meta = (DataflowCloth, Deprecated = "5.5"))
 struct UE_DEPRECATED(5.5, "Use the newer version of this node instead.") FChaosClothAssetUSDImportNode : public FDataflowTerminalNode
