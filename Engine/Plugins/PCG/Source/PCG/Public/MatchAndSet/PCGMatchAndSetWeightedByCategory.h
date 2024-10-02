@@ -83,7 +83,3 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = MatchAndSet)
 	bool bShouldMutateSeed = true;
 };
-
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "MatchAndSet/PCGMatchAndSetWeighted.h"
-#endif

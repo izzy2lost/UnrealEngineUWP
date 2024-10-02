@@ -59,9 +59,3 @@ private:
 	FPCGDataVisualizationRegistry PCGDataVisualizationRegistry;
 #endif
 };
-
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "CoreMinimal.h"
-#include "Modules/ModuleManager.h"
-#include "Stats/Stats.h"
-#endif

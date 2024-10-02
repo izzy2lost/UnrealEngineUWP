@@ -54,7 +54,3 @@ class FPCGMetadataBreakTransformElement : public FPCGMetadataElementBase
 protected:
 	virtual bool DoOperation(PCGMetadataOps::FOperationData& OperationData) const override;
 };
-
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "Elements/Metadata/PCGMetadataMakeTransform.h"
-#endif

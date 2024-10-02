@@ -17,8 +17,3 @@ public:
 private:
 	TArray<TWeakObjectPtr<UPCGGraph>> SelectedGraphs;
 };
-
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "Input/Reply.h"
-#include "UObject/WeakObjectPtr.h"
-#endif

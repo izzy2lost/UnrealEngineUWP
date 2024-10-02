@@ -50,9 +50,6 @@ namespace PCGAttributeAccessorHelpers
 		bool bHasMultipleDataInAttributeSet = false;
 	};
 
-	UE_DEPRECATED(5.3, "Use the CreateConstAccessorForOverrideParamWithResult version")
-	PCG_API TUniquePtr<const IPCGAttributeAccessor> CreateConstAccessorForOverrideParam(const FPCGDataCollection& InInputData, const FPCGSettingsOverridableParam& InParam, FName* OutAttributeName = nullptr);
-
 	/**
 	* Create a const accessor depending on an overridable param
 	*/

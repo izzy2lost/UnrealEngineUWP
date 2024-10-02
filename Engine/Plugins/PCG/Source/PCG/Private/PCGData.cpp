@@ -317,19 +317,6 @@ UPCGParamData* FPCGDataCollection::GetParamsWithDeprecation(const UPCGNode* Node
 	return nullptr;
 }
 
-UPCGParamData* FPCGDataCollection::GetParams() const
-{
-	for (const FPCGTaggedData& TaggedDatum : TaggedData)
-	{
-		if (const UPCGParamData* Params = Cast<UPCGParamData>(TaggedDatum.Data))
-		{
-			return const_cast<UPCGParamData*>(Params); 
-		}
-	}
-
-	return nullptr;
-}
-
 UPCGParamData* FPCGDataCollection::GetFirstParamsOnParamsPin() const
 {
 	TArray<FPCGTaggedData> ParamsOnDefaultPin = GetParamsByPin(PCGPinConstants::DefaultParamsLabel);

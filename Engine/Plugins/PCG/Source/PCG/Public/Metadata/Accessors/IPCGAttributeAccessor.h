@@ -169,7 +169,3 @@ template <> bool PCG_API IPCGAttributeAccessor::GetRange<T>(TArrayView<T> OutVal
 template <> bool PCG_API IPCGAttributeAccessor::SetRange<T>(TArrayView<const T> InValues, int32 Index, IPCGAttributeAccessorKeys& Keys, EPCGAttributeAccessorFlags Flags);
 PCG_FOREACH_SUPPORTEDTYPES(IACCESSOR_DECL);
 #undef IACCESSOR_DECL
-
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "Metadata/PCGMetadataCommon.h"
-#endif

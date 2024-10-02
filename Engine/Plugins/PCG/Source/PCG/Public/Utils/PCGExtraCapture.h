@@ -99,8 +99,3 @@ namespace PCGUtils
 	};
 #endif // WITH_EDITOR
 }
-
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "PCGContext.h"
-#include "UObject/UnrealType.h"
-#endif

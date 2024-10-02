@@ -43,7 +43,3 @@ protected:
 
 	TSharedPtr<IPropertyHandle> PropertyHandle;
 };
-
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "PCGPoint.h"
-#endif
