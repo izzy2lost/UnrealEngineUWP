@@ -48,15 +48,17 @@ struct PCG_API FPCGStackFrame
 	{
 		Object = InObject;
 		LoopIndex = INDEX_NONE;
-		Hash = PointerHash(Object.Get());
+		ComputeHash();
 	}
 
 	void SetLoopIndex(int32 InLoopIndex)
 	{
 		Object = nullptr;
 		LoopIndex = InLoopIndex;
-		Hash = GetTypeHash(LoopIndex);
+		ComputeHash();
 	}
+
+	void PostSerialize(const FArchive& Ar);
 
 	// Stores object this frame refers to. Use SetObject to change this and properly update the hash.
 	UPROPERTY()
@@ -67,8 +69,18 @@ struct PCG_API FPCGStackFrame
 	int32 LoopIndex = INDEX_NONE;
 
 private:
-	UPROPERTY()
+	void ComputeHash();
+
 	uint32 Hash = 0;
+};
+
+template<>
+struct TStructOpsTypeTraits<FPCGStackFrame> : public TStructOpsTypeTraitsBase2<FPCGStackFrame>
+{
+	enum
+	{
+		WithPostSerialize = true,
+	};
 };
 
 /** A call stack, represented as an array of stack frames. */
