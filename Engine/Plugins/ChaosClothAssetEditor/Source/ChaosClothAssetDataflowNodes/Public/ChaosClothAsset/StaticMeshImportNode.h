@@ -69,7 +69,7 @@ private:
 
 
 /** Import a static mesh asset into the cloth collection simulation and/or render mesh containers. 
-* This version re-calculates the Sim Mesh Normals, and they are flipped. */
+* This version re-calculates the Sim Mesh Normals, and they are flipped. It also does not remove topologically degenerate triangles.*/
 USTRUCT(Meta = (DataflowCloth, Deprecated = "5.5"))
 struct UE_DEPRECATED(5.5, "Use the newer version of this node instead.") FChaosClothAssetStaticMeshImportNode : public FDataflowNode
 {

@@ -147,8 +147,11 @@ void FChaosClothAssetStaticMeshImportNode_v2::Evaluate(UE::Dataflow::FContext& C
 						}
 					}
 				}
+				
 				// Bind to root bone by default
+				FClothGeometryTools::CleanupAndCompactMesh(ClothCollection);
 				FClothGeometryTools::BindMeshToRootBone(ClothCollection, bImportSimMesh, bImportRenderMesh);
+
 			}
 			else
 			{
