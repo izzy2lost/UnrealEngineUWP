@@ -285,9 +285,9 @@ public:
 				{
 					const double CompilationStartTime = FPlatformTime::Seconds();
 					Desc = CreateMTLRenderPipeline(Device, bSync, Key, Init, State);
-					const double CompilationDuration = FPlatformTime::Seconds() - CompilationStartTime;
+					const float CompilationDuration = static_cast<float>(FPlatformTime::Seconds() - CompilationStartTime);
 
-					GetPSOMetricsDelegate().ExecuteIfBound((float)CompilationDuration);
+					AccumulatePSOMetrics(CompilationDuration);
 
 
 					if (Desc != nullptr)

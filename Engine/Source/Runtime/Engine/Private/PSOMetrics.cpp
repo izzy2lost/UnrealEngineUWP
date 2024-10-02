@@ -14,22 +14,12 @@ namespace PSOMetrics
 	int Count = 0;
 }
 
-static FPSOMetricsEvent PSOMetricsEvent;
-FPSOMetricsEvent& GetPSOMetricsDelegate()
+void AccumulatePSOMetrics(float CompilationDuration)
 {
-	if (!PSOMetricsEvent.IsBound())
-	{
-		PSOMetricsEvent.BindLambda([](float CompilationDuration)
-		{
-			// we need this scope because this will be called from RHIThread
-			FScopeLock ScopeLock(&PSOMetrics::PSOCriticalSection);
-
-			PSOMetrics::DurationSum += CompilationDuration;
-			++PSOMetrics::Count;
-		});
-	}
-
-	return PSOMetricsEvent;
+	FScopeLock ScopeLock(&PSOMetrics::PSOCriticalSection);
+	
+	PSOMetrics::DurationSum += CompilationDuration;
+	++PSOMetrics::Count;
 }
 
 void GetPSOCompilationMetrics(float& DurationSum, int& Count)
