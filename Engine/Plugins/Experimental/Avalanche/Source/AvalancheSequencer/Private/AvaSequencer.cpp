@@ -1022,6 +1022,7 @@ void FAvaSequencer::PlaySelected_Execute()
 
 	FAvaSequencePlayParams PlaySettings;
 	PlaySettings.AdvancedSettings.bRestoreState = true;
+	PlaySettings.AdvancedSettings.bTearDownOnFinished = true;
 
 	for (const FAvaSequenceItemPtr& Item : SelectedItems)
 	{
