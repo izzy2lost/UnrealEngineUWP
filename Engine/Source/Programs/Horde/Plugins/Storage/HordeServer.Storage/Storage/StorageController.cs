@@ -117,9 +117,10 @@ namespace HordeServer.Storage
 		/// <returns>Information about the written blob, or redirect information</returns>
 		public static async Task<ActionResult<WriteBlobResponse>> WriteBlobAsync(IStorageBackend storageBackend, WriteBlobRequest request, CancellationToken cancellationToken = default)
 		{
+			IReadOnlyCollection<BlobLocator> imports = request.Imports ?? (IReadOnlyCollection<BlobLocator>)Array.Empty<BlobLocator>();
 			if (request.File == null)
 			{
-				(BlobLocator Path, Uri UploadUrl)? result = await storageBackend.TryGetBlobWriteRedirectAsync(request.Imports, request.Prefix ?? String.Empty, cancellationToken);
+				(BlobLocator Path, Uri UploadUrl)? result = await storageBackend.TryGetBlobWriteRedirectAsync(imports, request.Prefix ?? String.Empty, cancellationToken);
 				if (result == null)
 				{
 					return new WriteBlobResponse { SupportsRedirects = false };
@@ -130,7 +131,7 @@ namespace HordeServer.Storage
 			else
 			{
 				using Stream stream = request.File.OpenReadStream();
-				BlobLocator locator = await storageBackend.WriteBlobAsync(stream, request.Imports, request.Prefix, cancellationToken);
+				BlobLocator locator = await storageBackend.WriteBlobAsync(stream, imports, request.Prefix, cancellationToken);
 				return new WriteBlobResponse { Blob = locator.ToString(), SupportsRedirects = storageBackend.SupportsRedirects };
 			}
 		}

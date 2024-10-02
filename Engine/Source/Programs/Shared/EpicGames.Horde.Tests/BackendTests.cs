@@ -61,7 +61,7 @@ namespace EpicGames.Horde.Tests
 			{
 				using MemoryMappedFileCache memoryMappedFileCache = new MemoryMappedFileCache();
 				FileStorageBackend backend = new FileStorageBackend(tempDir.Location, memoryMappedFileCache, NullLogger.Instance);
-				BlobLocator path = await backend.WriteBytesAsync(Encoding.UTF8.GetBytes("hello world"));
+				BlobLocator path = await backend.WriteBytesAsync(Encoding.UTF8.GetBytes("hello world"), Array.Empty<BlobLocator>());
 
 				using (IReadOnlyMemoryOwner<byte> handle = await backend.ReadBlobAsync(path, 0, null))
 				{
@@ -95,15 +95,15 @@ namespace EpicGames.Horde.Tests
 				Assert.IsTrue(value.SequenceEqual(Encoding.UTF8.GetBytes("item 2")));
 
 				byte[] data3 = Encoding.UTF8.GetBytes("3");
-				BlobLocator path3 = await cacheBackend.WriteBytesAsync(data3);
+				BlobLocator path3 = await cacheBackend.WriteBytesAsync(data3, Array.Empty<BlobLocator>());
 				await cacheBackend.ReadBytesAsync(path3);
 
 				byte[] data4 = Encoding.UTF8.GetBytes("4");
-				BlobLocator path4 = await cacheBackend.WriteBytesAsync(data4);
+				BlobLocator path4 = await cacheBackend.WriteBytesAsync(data4, Array.Empty<BlobLocator>());
 				await cacheBackend.ReadBytesAsync(path4);
 
 				byte[] data5 = Encoding.UTF8.GetBytes("5");
-				BlobLocator path5 = await cacheBackend.WriteBytesAsync(data5);
+				BlobLocator path5 = await cacheBackend.WriteBytesAsync(data5, Array.Empty<BlobLocator>());
 				await cacheBackend.ReadBytesAsync(path5);
 
 				HashSet<BlobLocator> paths = new HashSet<BlobLocator>(cache.GetLocators());
@@ -113,7 +113,7 @@ namespace EpicGames.Horde.Tests
 				Assert.IsTrue(paths.Contains(path5));
 
 				byte[] data6 = Encoding.UTF8.GetBytes("12345678901");
-				BlobLocator path6 = await cacheBackend.WriteBytesAsync(data6);
+				BlobLocator path6 = await cacheBackend.WriteBytesAsync(data6, Array.Empty<BlobLocator>());
 				await cacheBackend.ReadBytesAsync(path6);
 
 				paths = new HashSet<BlobLocator>(cache.GetLocators());
@@ -136,10 +136,10 @@ namespace EpicGames.Horde.Tests
 			byte[] data1 = Encoding.UTF8.GetBytes("hello world");
 			byte[] data2 = Encoding.UTF8.GetBytes("item 2");
 
-			BlobLocator path1 = await backend.WriteBytesAsync(data1);
+			BlobLocator path1 = await backend.WriteBytesAsync(data1, Array.Empty<BlobLocator>());
 			byte[] outputData1 = await backend.ReadBytesAsync(path1);
 
-			BlobLocator path2 = await backend.WriteBytesAsync(data2);
+			BlobLocator path2 = await backend.WriteBytesAsync(data2, Array.Empty<BlobLocator>());
 			byte[] outputData2 = await backend.ReadBytesAsync(path2);
 
 			Assert.IsTrue(data1.SequenceEqual(outputData1));
