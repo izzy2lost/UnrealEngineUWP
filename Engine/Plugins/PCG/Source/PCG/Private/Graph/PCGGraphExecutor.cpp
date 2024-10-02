@@ -2705,6 +2705,7 @@ FPCGTaskId FPCGGraphExecutor::ScheduleDebugWithTaskCallback(UPCGComponent* InCom
 {
 	check(InComponent);
 	FPCGTaskId FinalTaskID = Schedule(InComponent, {});
+	InComponent->CurrentGenerationTask = FinalTaskID;
 
 	const bool bNonPartitionedComponent = !InComponent->IsLocalComponent() && !InComponent->IsPartitioned();
 	const uint32 GenerationGridSize = bNonPartitionedComponent ? PCGHiGenGrid::UninitializedGridSize() : InComponent->GetGenerationGridSize();
@@ -2862,7 +2863,7 @@ bool FPCGPreGraphElement::ExecuteInternal(FPCGContext* Context) const
 	Component->StartGenerationInProgress();
 #endif
 
-	check(Component->GetGenerationTaskId() != InvalidPCGTaskId);
+	ensureMsgf(Component->GetGenerationTaskId() != InvalidPCGTaskId, TEXT("Component was Scheduled for generation without having its CurrentGenerationTask assigned"));
 
 	{
 		PCG_EXECUTION_CACHE_VALIDATION_CREATE_SCOPE(Component);
