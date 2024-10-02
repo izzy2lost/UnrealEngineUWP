@@ -497,7 +497,8 @@ bool UDMMaterialModelFunctionLibrary::CreateModelInstanceInMaterial(UDynamicMate
 		CurrentName = CurrentModel->GetName();
 
 		const FString NewName = CurrentName + TEXT("_OLD");
-		CurrentModel->Rename(*NewName, GetTransientPackage(), UE::DynamicMaterial::RenameFlags);
+		const FName NewNameUnique = MakeUniqueObjectName(GetTransientPackage(), CurrentModel->GetClass(), *NewName);
+		CurrentModel->Rename(*NewNameUnique.ToString(), GetTransientPackage(), UE::DynamicMaterial::RenameFlags);
 
 		InToInstance->SetMaterialModel(nullptr);
 	}
