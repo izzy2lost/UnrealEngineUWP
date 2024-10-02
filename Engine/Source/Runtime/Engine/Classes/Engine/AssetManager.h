@@ -616,6 +616,10 @@ public:
 	 */
 	virtual FGuid GetChunkEncryptionKeyGuid(int32 InChunkId) const { return FGuid(); }
 
+
+	/** Get the encrypted chunk assignments for a give package. Only valid between PreSaveAssetRegistry and PostSaveAssetRegistry */
+	ENGINE_API virtual TSet<int32> GetEncryptedChunkIDsForPackage(FName InPackageName) const { return TSet<int32>(); }
+
 	/**
 	 * Determine if we should separate the asset registry for this chunk out into its own file and return the unique name that identifies it
 	 * @param InChunkIndex Chunk index to check
