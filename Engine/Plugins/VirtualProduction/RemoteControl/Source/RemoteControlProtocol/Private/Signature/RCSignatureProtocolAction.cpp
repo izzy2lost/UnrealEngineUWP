@@ -228,13 +228,22 @@ void FRCSignatureProtocolAction::Initialize(const FRCSignatureField& InField)
 	MaxMappingDesc.Name = TEXT("Max");
 
 #if WITH_EDITORONLY_DATA
-	// Reset MetaData that could affect Display Name, or Min/Max clamping.
-	// The mapping descs are meant to just match the type
-	MinMappingDesc.MetaData.Reset();
-	MinMappingDesc.MetaClass = nullptr;
+	// Remove Meta-data like DisplayName, Tooltip
+	// Other meta-data like Min/Max clamping, whether to hide Alpha Channel should be retained
+	static const TSet<FName, DefaultKeyFuncs<FName>, TFixedSetAllocator<2>> MetaDataToRemove =
+	{
+		TEXT("DisplayName"),
+		TEXT("Tooltip"),
+	};
 
-	MaxMappingDesc.MetaData.Reset();
-	MaxMappingDesc.MetaClass = nullptr;
+	MinMappingDesc.MetaData.RemoveAll(
+		[](const FPropertyBagPropertyDescMetaData& InMetaData)
+		{
+			return MetaDataToRemove.Contains(InMetaData.Key);
+		});
+
+	// Both Min/Max refer to the same property so should have the same meta-data
+	MaxMappingDesc.MetaData = MinMappingDesc.MetaData;
 #endif
 
 	PropertyDimension = UE::RemoteControlProtocol::Private::GetPropertyDimension(GetPropertyStruct());
