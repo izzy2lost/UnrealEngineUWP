@@ -212,4 +212,6 @@ class IViewportRenderTargetProvider
 {
 public:
 	virtual FSlateShaderResource* GetViewportRenderTargetTexture() = 0;
+
+	virtual bool IsStereoscopic3D() const = 0;
 };
