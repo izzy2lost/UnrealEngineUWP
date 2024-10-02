@@ -730,6 +730,8 @@ namespace HordeServer.Agents
 		public AgentWorkspaceInfo(RpcAgentWorkspace workspace)
 			: this(workspace.ConfiguredCluster, workspace.ConfiguredUserName, workspace.Identifier, workspace.Stream, (workspace.View.Count > 0) ? workspace.View.ToList() : null, workspace.Incremental, workspace.Method, workspace.MinScratchSpace, workspace.ConformDiskFreeSpace)
 		{
+			Method = String.IsNullOrEmpty(Method) ? null : Method;
+
 			// Treat zero value as null as Protobuf cannot store null 
 			MinScratchSpace = workspace.MinScratchSpace == 0 ? null : workspace.MinScratchSpace;
 			ConformDiskFreeSpace = workspace.ConformDiskFreeSpace == 0 ? null : workspace.ConformDiskFreeSpace;
@@ -758,7 +760,14 @@ namespace HordeServer.Agents
 			{
 				return false;
 			}
-			if (Cluster != other.Cluster || UserName != other.UserName || Identifier != other.Identifier || Stream != other.Stream || Incremental != other.Incremental)
+			if (Cluster != other.Cluster || 
+				UserName != other.UserName ||
+				Identifier != other.Identifier ||
+				Stream != other.Stream || 
+				Incremental != other.Incremental ||
+				Method != other.Method ||
+				MinScratchSpace != other.MinScratchSpace ||
+				ConformDiskFreeSpace != other.ConformDiskFreeSpace)
 			{
 				return false;
 			}

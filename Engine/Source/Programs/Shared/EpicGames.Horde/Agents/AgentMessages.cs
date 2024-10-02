@@ -85,8 +85,10 @@ namespace EpicGames.Horde.Agents
 	/// <param name="View"> Custom view for the workspace </param>
 	/// <param name="BIncremental"> Whether to use an incremental workspace </param>
 	/// <param name="Method"> Method to use when syncing/materializing data from Perforce </param>
-	public record GetAgentWorkspaceResponse(string? Cluster, string? UserName, string Identifier, string Stream, List<string>? View, bool BIncremental, string? Method);
-
+	/// <param name="MinScratchSpace">Minimum disk space that must be available *after* syncing this workspace (in megabytes)</param>
+	/// <param name="ConformDiskFreeSpace">Threshold for when to trigger an automatic conform of agent. Measured in megabytes free on disk</param>
+	public record GetAgentWorkspaceResponse(string? Cluster, string? UserName, string Identifier, string Stream, List<string>? View, bool BIncremental, string? Method, long? MinScratchSpace, long? ConformDiskFreeSpace);
+	
 	/// <summary>
 	/// Information about an agent
 	/// </summary>

@@ -120,6 +120,7 @@ namespace EpicGames.Horde.Issues.Handlers
 			sanitized = Regex.Replace(sanitized, @"(?<![a-zA-Z])(?:[A-Z]:|/)[^ :]+[/\\]SYNC[/\\]", "{root}/"); // Redact things that look like workspace roots; may be different between agents
 			sanitized = Regex.Replace(sanitized, @"0[xX][0-9a-fA-F]+", "H"); // Redact hex strings
 			sanitized = Regex.Replace(sanitized, @"\d[\d.,:]*", "n"); // Redact numbers and timestamp like things
+			sanitized = Regex.Replace(sanitized, @"\\", "/");
 
 			if (sanitized.Length > 30)
 			{
