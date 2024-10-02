@@ -116,7 +116,7 @@ export class AgentStore {
 
     }
 
-    async update(slim = false): Promise<void> {
+    async update(slim:boolean = false, invalidateCache: boolean = false): Promise<void> {
         return new Promise<void>((resolve, reject) => {
 
             if (this.inflight !== undefined && slim) {                
@@ -128,7 +128,7 @@ export class AgentStore {
 
             const filter = "id,name,sessionId,sessionExpiresAt,online,enabled,ephemeral,comment,version,forceVersion,pools,capabilities,leases,acl,updateTime,deleted,pendingConform,pendingFullConform,conformAttemptCount,lastConformTime,nextConformTime,lastShutdownReason,pendingShutdown,status";
             const promises: any[] = [];
-            promises.push(backend.getAgents({ includeDeleted: false, modifiedAfter: this.modifiedAfterDate?.toISOString(), filter:filter    }));
+            promises.push(backend.getAgents({ includeDeleted: false, modifiedAfter: this.modifiedAfterDate?.toISOString(), filter:filter,invalidateCache:invalidateCache}));
             if (!slim) {
                 promises.push(backend.getPools());
             }
