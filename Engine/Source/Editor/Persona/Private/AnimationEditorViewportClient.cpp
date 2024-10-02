@@ -282,6 +282,8 @@ FAnimationViewportClient::~FAnimationViewportClient()
 				}
 			}
 		}
+
+		AnimationEditorPreviewScene->UnregisterOnSelectedBoneChanged(OnSelectedBoneChangedHandle);
 	}
 	OnPhysicsCreatedDelegateHandle.Reset();
 	OnMeshChangedDelegateHandle.Reset();
@@ -303,12 +305,20 @@ void FAnimationViewportClient::Initialize()
 		AnimationEditorPreviewScene->RegisterOnFocusViews(FSimpleDelegate::CreateSP(this, &FAnimationViewportClient::HandleFocusViews));
 		AnimationEditorPreviewScene->RegisterOnPreTick(FSimpleDelegate::CreateSP(this, &FAnimationViewportClient::HandlePreviewScenePreTick));
 		AnimationEditorPreviewScene->RegisterOnPostTick(FSimpleDelegate::CreateSP(this, &FAnimationViewportClient::HandlePreviewScenePostTick));
+
+		OnSelectedBoneChangedHandle = AnimationEditorPreviewScene->RegisterOnSelectedBoneChanged(FOnSelectedBoneChanged::CreateLambda([this](const FName&, ESelectInfo::Type)
+		{
+			UpdateBonesToDraw();
+		}));
 	}
 
 	// Register delegate to update the show flags when the post processing is turned on or off
 	UAssetViewerSettings::Get()->OnAssetViewerSettingsChanged().AddSP(this, &FAnimationViewportClient::OnAssetViewerSettingsChanged);
 	// Set correct flags according to current profile settings
 	UAssetViewerSettings::GetCurrentUserProjectProfile().SetShowFlags(EngineShowFlags);
+
+	// Setup bones to draw on initialise
+	UpdateBonesToDraw();
 }
 
 void FAnimationViewportClient::OnToggleAutoAlignFloor()
@@ -595,6 +605,8 @@ void FAnimationViewportClient::HandleSkeletalMeshChanged(USkeletalMesh* OldSkele
 			PreviewMeshComponent->SetCollisionProfileName(CollisionProfileName);
 		}
 	}
+
+	UpdateBonesToDraw();
 
 	Invalidate();
 }
@@ -940,6 +952,11 @@ void FAnimationViewportClient::ShowBoneNames( FCanvas* Canvas, FSceneView* View,
 	for (int32 i=0; i< LODData.RequiredBones.Num(); i++)
 	{
 		const int32 BoneIndex = LODData.RequiredBones[i];
+
+		if (!BonesToDraw[BoneIndex])
+		{
+			continue;
+		}
 
 		// If previewing a specific section, only show the bone names that belong to it
 		if ((PreviewMeshComponent->GetSectionPreview() >= 0) && !LODData.RenderSections[PreviewMeshComponent->GetSectionPreview()].BoneMap.Contains(BoneIndex))
@@ -1629,6 +1646,8 @@ void FAnimationViewportClient::SetBoneDrawMode(EBoneDrawMode::Type AxesMode)
 {
 	ConfigOption->SetDefaultBoneDrawSelection(AxesMode);
 	RedrawRequested(Viewport);
+
+	UpdateBonesToDraw();
 }
 
 bool FAnimationViewportClient::IsBoneDrawModeSet(EBoneDrawMode::Type AxesMode) const
@@ -1864,6 +1883,27 @@ void FAnimationViewportClient::DrawBonesFromSkeleton(UDebugSkelMeshComponent * M
 		bUseMultiColor);
 }
 
+void FAnimationViewportClient::UpdateBonesToDraw()
+{
+	if (UDebugSkelMeshComponent* MeshComponent = GetAnimPreviewScene()->GetPreviewMeshComponent())
+	{
+		const FReferenceSkeleton& RefSkeleton = MeshComponent->GetReferenceSkeleton();
+
+		TArray<int32> ParentIndices;
+		ParentIndices.AddUninitialized(RefSkeleton.GetNum());
+		for (int32 BoneIndex = 0; BoneIndex < RefSkeleton.GetNum(); ++BoneIndex)
+		{
+			ParentIndices[BoneIndex] = RefSkeleton.GetParentIndex(BoneIndex);
+		}
+
+		SkeletalDebugRendering::CalculateBonesToDraw(
+			ParentIndices,
+			MeshComponent->BonesOfInterest,
+			GetBoneDrawMode(),
+			BonesToDraw);
+	}
+}
+
 void FAnimationViewportClient::DrawMeshBones(UDebugSkelMeshComponent* MeshComponent, FPrimitiveDrawInterface* PDI) const
 {
 	if (!MeshComponent ||
@@ -1960,7 +2000,8 @@ void FAnimationViewportClient::DrawBones(
 		InSelectedBones,
 		BoneColors,
 		HitProxies,
-		DrawConfig
+		DrawConfig,
+		BonesToDraw
 	);
 }
 

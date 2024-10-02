@@ -106,6 +106,9 @@ public:
 	UE_DEPRECATED(5.1, "This version of InputAxis is deprecated. Please use the version that takes DeviceId instead.")
 	virtual bool InputAxis(FViewport* InViewport, int32 ControllerId, FKey Key, float Delta, float DeltaTime, int32 NumSamples = 1, bool bGamepad = false) override;
 	virtual bool InputAxis(FViewport* InViewport, FInputDeviceId DeviceId, FKey Key, float Delta, float DeltaTime, int32 NumSamples = 1, bool bGamepad = false) override;
+
+	// Sets what bones are drawn by DrawMeshBones and ShowBoneNames
+	virtual void UpdateBonesToDraw();
 	
 //	virtual void ProcessClick(class FSceneView& View, class HHitProxy* HitProxy, FKey Key, EInputEvent Event, uint32 HitX, uint32 HitY) override;
 //	virtual bool InputWidgetDelta( FViewport* Viewport, EAxisList::Type CurrentAxis, FVector& Drag, FRotator& Rot, FVector& Scale ) override;
@@ -403,6 +406,11 @@ private:
 
 	/* Member use to unregister OnMeshChanged for our preview skeletal mesh */
 	FDelegateHandle OnMeshChangedDelegateHandle;
+
+	/* Bit field indexed on bone index that stores what bones are visible in the viewport, updated with UpdateBonesToDraw */
+	TBitArray<> BonesToDraw;
+
+	FDelegateHandle OnSelectedBoneChangedHandle;
 
 private:
 
