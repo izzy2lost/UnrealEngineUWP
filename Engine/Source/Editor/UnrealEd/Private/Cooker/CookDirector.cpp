@@ -2088,10 +2088,7 @@ FCookDirector::FRetractionHandler::ReassignPackages(const FWorkerId& FromWorker,
 		}
 
 		AssignmentPackages.Add(PackageData);
-		// The package is no longer assigned to the worker, and the worker already knows it, so remove its assignment.
-		// We have to remove the assignment so that we can reassign it down below; it is invalid to call
-		// SetWorkerAssignment to a new worker without clearing the old worker first.
-		PackageData->SetWorkerAssignment(FWorkerId::Invalid());
+		PackageData->SendToState(EPackageState::Request, ESendFlags::QueueRemove, EStateChangeReason::Retraction);
 	}
 	if (AssignmentPackages.IsEmpty())
 	{
@@ -2150,16 +2147,7 @@ FCookDirector::FRetractionHandler::ReassignPackages(const FWorkerId& FromWorker,
 		}
 		else if (Assignment.IsLocal())
 		{
-			// UnStall the package to handle the case where it was previously in the save state on the LocalWorker
-			// and was retracted to a remote worker, so we stalled it, but now we've pulled it back to the LocalWorker.
-			PackageData->UnStall(ESendFlags::QueueAddAndRemove);
-			// If the packagedata was unstalled back into the Save State, then keep it there, but otherwise it is in
-			// the AssignedToWorker state so kick it back to readyrequest.
-			if (PackageData->GetState() != EPackageState::SaveActive)
-			{
-				PackageData->SendToState(EPackageState::Request, ESendFlags::QueueRemove, EStateChangeReason::Retraction);
-				RequestQueue.AddReadyRequest(PackageData);
-			}
+			RequestQueue.AddReadyRequest(PackageData);
 			bAssignedToLocal = true;
 		}
 		else
