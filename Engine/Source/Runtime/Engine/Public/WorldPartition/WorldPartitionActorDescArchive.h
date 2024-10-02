@@ -28,6 +28,9 @@ public:
 	virtual FArchive& operator<<(FWeakObjectPtr& Value) override { unimplemented(); return *this; }
 	//~ End FArchive Interface
 
+	using FArchive::operator<<;
+	virtual FArchive& operator<<(FTopLevelAssetPath& Value); 
+
 	template <typename DestPropertyType, typename SourcePropertyType>
 	struct TDeltaSerializer
 	{
@@ -139,6 +142,8 @@ public:
 	virtual FArchive& operator<<(FSoftObjectPath& Value) override;
 	virtual void Serialize(void* V, int64 Length) override;
 	//~ End FArchive Interface
+
+	virtual FArchive& operator<<(FTopLevelAssetPath& Value) override;
 
 private:
 	FArchive& OutAr;
