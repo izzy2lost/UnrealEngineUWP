@@ -36,6 +36,9 @@ namespace mu
 	{
 	public:
 
+		/** If not negative, this modifier will only be applied to the nodes of the component with matching id. Otherwise it will be applied to all components. */
+		int32 RequiredComponentId = -1;
+
 		/** Tags that target surface need to have enabled to receive this modifier. */
 		TArray<FString> RequiredTags;
 

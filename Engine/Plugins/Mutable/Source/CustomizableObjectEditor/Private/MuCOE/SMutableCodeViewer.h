@@ -232,6 +232,7 @@ private:
 		mu::OP_TYPE::IM_PIXELFORMAT,
 		mu::OP_TYPE::IM_SWIZZLE,
 		mu::OP_TYPE::ME_PROJECT,
+		mu::OP_TYPE::ME_TRANSFORMWITHMESH,
 	};
 	
 	/** Enum designed to be able to notify the row generation of the type of operation being generated */

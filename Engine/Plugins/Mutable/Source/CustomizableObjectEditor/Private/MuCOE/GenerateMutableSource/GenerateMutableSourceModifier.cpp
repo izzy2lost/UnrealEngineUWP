@@ -234,7 +234,6 @@ mu::Ptr<mu::NodeModifier> GenerateMutableSourceModifier(const UEdGraphPin * Pin,
 		mu::Ptr<mu::NodeModifierMeshClipWithUVMask> ClipNode = new mu::NodeModifierMeshClipWithUVMask();
 		Result = ClipNode;
 
-		ClipNode->SetMessageContext(Node);
 		ClipNode->FaceCullStrategy = TypedNodeClipUVMask->FaceCullStrategy;
 
 		if (const UEdGraphPin* ConnectedPin = FollowInputPin(*TypedNodeClipUVMask->ClipMaskPin()))
@@ -266,7 +265,6 @@ mu::Ptr<mu::NodeModifier> GenerateMutableSourceModifier(const UEdGraphPin * Pin,
 		GenerationContext.MeshGenerationFlags.Push(ModifiersMeshFlags);
 
 		mu::Ptr<mu::NodeModifierSurfaceEdit> SurfNode = new mu::NodeModifierSurfaceEdit();
-		SurfNode->SetMessageContext(Node);
 		Result = SurfNode;
 
 		// TODO: This was used in the non-modifier version for group projectors. It may affect the "drop projection from LOD" feature.
@@ -444,7 +442,6 @@ mu::Ptr<mu::NodeModifier> GenerateMutableSourceModifier(const UEdGraphPin * Pin,
 		mu::Ptr<mu::NodeModifierSurfaceEdit> SurfNode = new mu::NodeModifierSurfaceEdit();
 		Result = SurfNode;
 
-		SurfNode->SetMessageContext(Node);
 		SurfNode->MultipleTagsPolicy = TypedNodeRem->MultipleTagPolicy;
 		SurfNode->RequiredTags = TypedNodeRem->RequiredTags;
 
@@ -482,7 +479,6 @@ mu::Ptr<mu::NodeModifier> GenerateMutableSourceModifier(const UEdGraphPin * Pin,
 		mu::Ptr<mu::NodeModifierMeshClipWithUVMask> ClipNode = new mu::NodeModifierMeshClipWithUVMask();
 		Result = ClipNode;
 
-		ClipNode->SetMessageContext(Node);
 		ClipNode->FaceCullStrategy = TypedNodeRemBlocks->FaceCullStrategy;
 
 		ClipNode->MultipleTagsPolicy = TypedNodeRemBlocks->MultipleTagPolicy;
@@ -506,7 +502,6 @@ mu::Ptr<mu::NodeModifier> GenerateMutableSourceModifier(const UEdGraphPin * Pin,
 		mu::Ptr<mu::NodeModifierSurfaceEdit> SurfNode = new mu::NodeModifierSurfaceEdit();
 		Result = SurfNode;
 
-		SurfNode->SetMessageContext(Node);
 		SurfNode->MultipleTagsPolicy = TypedNodeEdit->MultipleTagPolicy;
 		SurfNode->RequiredTags = TypedNodeEdit->RequiredTags;
 
@@ -584,8 +579,6 @@ mu::Ptr<mu::NodeModifier> GenerateMutableSourceModifier(const UEdGraphPin * Pin,
 		mu::Ptr<mu::NodeModifierSurfaceEdit> SurfNode = new mu::NodeModifierSurfaceEdit();
 		Result = SurfNode;
 
-		SurfNode->SetMessageContext(Node);
-
 		// This modifier needs to be applied right after the mesh constant is generated
 		SurfNode->bApplyBeforeNormalOperations = true;
 
@@ -651,7 +644,6 @@ mu::Ptr<mu::NodeModifier> GenerateMutableSourceModifier(const UEdGraphPin * Pin,
 		bDoNotAddToGeneratedCache = true;
 
 		mu::Ptr<mu::NodeModifierMeshTransformInMesh> TransformNode = new mu::NodeModifierMeshTransformInMesh();
-		TransformNode->SetMessageContext(Node);
 		Result = TransformNode;
 
 		if (const UEdGraphPin* ConnectedPin = FollowInputPin(*TypedNodeTransformMesh->TransformPin()))
@@ -713,6 +705,15 @@ mu::Ptr<mu::NodeModifier> GenerateMutableSourceModifier(const UEdGraphPin * Pin,
 	else
 	{
 		GenerationContext.Log(LOCTEXT("UnimplementedNode", "Node type not implemented yet."), Node);
+	}
+
+	if (Result)
+	{
+		Result->SetMessageContext(Node);
+
+		int32 ComponentId = GenerationContext.ComponentNames.IndexOfByKey(GenerationContext.CurrentMeshComponent);
+		check(ComponentId>=0);
+		Result->RequiredComponentId = ComponentId;
 	}
 
 	if (!bDoNotAddToGeneratedCache)

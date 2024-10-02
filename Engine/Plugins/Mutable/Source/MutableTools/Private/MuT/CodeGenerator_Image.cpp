@@ -118,9 +118,7 @@ namespace mu
 		}
 
 		// See if it was already generated
-		FGeneratedImageCacheKey key;
-		key.Options = Options;
-		key.Node = Untyped;
+		FGeneratedImageCacheKey key(Options,Untyped);
 		GeneratedImagesMap::ValueType* CachedPtr = GeneratedImages.Find(key);
 		if (CachedPtr)
 		{
@@ -1423,7 +1421,7 @@ namespace mu
         {
 			// TODO: This will probably Result in a duplicated mesh subgraph, with the original mesh but new layout block ids.
 			// See if it can be optimized and try to reuse the existing layout block ids instead of generating new ones.
-			FMeshGenerationOptions MeshOptions;
+			FMeshGenerationOptions MeshOptions(Options.ComponentId);
 			MeshOptions.State = Options.State;
 			MeshOptions.ActiveTags = Options.ActiveTags;
 			MeshOptions.bLayouts = true;			// We need the layout that we will use to render
