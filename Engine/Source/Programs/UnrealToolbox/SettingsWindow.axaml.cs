@@ -54,6 +54,8 @@ namespace UnrealToolbox
 
 				_navView.SelectedItem = _navView.MenuItems.FirstOrDefault(x => Object.Equals((x as NavigationViewItem)?.Content, selectedItemContent)) ?? _navView.MenuItems[0];
 
+				_navView.FooterMenuItems.Add(new NavigationViewItem() { Content = "About", IconSource = new SymbolIconSource() { Symbol = Symbol.Help } });
+
 				NavView_UpdateContent();
 			}
 		}
@@ -89,6 +91,10 @@ namespace UnrealToolbox
 				if (typeName != null && _typeToPlugin.TryGetValue(typeName, out ITrayAppPlugin? plugin))
 				{
 					_navView.Content = plugin.CreateSettingsPage(context);
+				}
+				else if (nvi == _navView.FooterMenuItems.FirstOrDefault())
+				{
+					_navView.Content = new AboutPage();
 				}
 				else
 				{

@@ -26,6 +26,9 @@ namespace UnrealToolbox
 		readonly string[] _args;
 		readonly bool _isLaunchApp;
 
+		public string? CurrentVersionString
+			=> _currentVersion;
+
 		public string? LatestVersion
 			=> _config.Current.LatestVersion;
 
