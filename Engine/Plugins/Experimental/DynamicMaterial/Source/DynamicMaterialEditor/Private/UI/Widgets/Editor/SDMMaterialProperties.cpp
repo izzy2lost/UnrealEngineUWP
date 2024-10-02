@@ -108,6 +108,8 @@ TSharedRef<SWidget> SDMMaterialProperties::CreateSlot_Content()
 		return SNullWidget::NullWidget;
 	}
 
+	TGuardValue<bool> ConstructGuard(bConstructing, true);
+
 	FCustomDetailsViewArgs Args;
 	Args.bAllowGlobalExtensions = false;
 	Args.bAllowResetToDefault = false;
@@ -613,8 +615,6 @@ TSharedRef<SWidget> SDMMaterialProperties::CreateGlobalSlider(UDMMaterialPropert
 			KeyframeHandler = WorldSubsystem->GetKeyframeHandler();
 		}
 	}
-
-	TGuardValue<bool> ConstructGuard(bConstructing, true);
 
 	FCustomDetailsViewArgs Args;
 	Args.KeyframeHandler = KeyframeHandler;
