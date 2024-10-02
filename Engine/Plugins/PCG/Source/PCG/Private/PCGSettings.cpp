@@ -271,6 +271,9 @@ FPCGDataCollectionDesc UPCGSettings::ComputeOutputPinDataDesc(const FName& Outpu
 
 FPCGDataCollectionDesc UPCGSettings::ComputeOutputPinDataDesc(const UPCGPin* OutputPin, const UPCGDataBinding* Binding) const
 {
+	check(OutputPin);
+	check(Binding);
+
 	// This base class implementation will be called on upstream CPU nodes. Get the downstream pin alias in order to
 	// pick the relevant data items out of the compute graph element's input data collection.
 	if (const FName* FoundPinAlias = Binding->Graph->OutputCPUPinToInputGPUPinAlias.Find(OutputPin))
@@ -282,7 +285,11 @@ FPCGDataCollectionDesc UPCGSettings::ComputeOutputPinDataDesc(const UPCGPin* Out
 			Binding->GetStringTable());
 	}
 
-	ensure(false);
+	ensureMsgf(false, TEXT("Gathering data from CPU output pin '%s' on node '%s' failed. Pin was not present in OutputCPUPinToInputGPUPinAlias map (%d entries)."),
+		*OutputPin->Properties.Label.ToString(),
+		OutputPin->Node ? *OutputPin->Node->GetNodeTitle(EPCGNodeTitleType::ListView).ToString() : TEXT("MISSING"),
+		Binding->Graph->OutputCPUPinToInputGPUPinAlias.Num());
+
 	return {};
 }
 
