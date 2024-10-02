@@ -108,7 +108,7 @@ public:
 
 	bool bIsInitialized = false;
 	TSet<int32> CachedSelectedBones;
-	TArray<TArray<uint32>> CachedBoneIsSelectedPerSection;
+	TArray<TArray<TArray<uint32>>> CachedBoneIsSelectedPerSectionPerLod;
 	
 	//~ Begin UComputeDataProvider Interface
 	FComputeDataProviderRenderProxy* GetRenderProxy() override;
@@ -140,7 +140,7 @@ public:
 	
 	FName SkinWeightProfile = NAME_None;
 
-	TArray<TArray<uint32>> BoneIsSelectedPerSection;
+	TArray<TArray<TArray<uint32>>> BoneIsSelectedPerSectionPerLod;
 	TArray<FRDGBufferRef> BoneIsSelectedBuffersPerSection;
 	TArray<FRDGBufferSRVRef> BoneIsSelectedBufferSRVsPerSection;
 };
