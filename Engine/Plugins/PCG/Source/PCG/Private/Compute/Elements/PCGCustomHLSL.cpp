@@ -639,7 +639,7 @@ void UPCGCustomHLSLSettings::UpdateInputDeclarations()
 		if (KernelType == EPCGKernelType::PointGenerator)
 		{
 			InputDeclarations += TEXT("/*** INPUT CONSTANTS ***/\n\n");
-			InputDeclarations += FString::Format(TEXT("const uint PointCount = {0};\n\n"), { PointCount });
+			InputDeclarations += FString::Format(TEXT("const uint NumPoints = {0};\n\n"), { PointCount });
 		}
 
 		InputDeclarations += TEXT("/*** INPUT PER-THREAD CONSTANTS ***/\n\n");
@@ -1721,7 +1721,7 @@ FString UPCGCustomHLSLSettings::GetCookedKernelSource(const TMap<FName, FPCGKern
 	}
 	else if (KernelType == EPCGKernelType::PointGenerator)
 	{
-		KernelSpecificPreamble += FString::Format(TEXT("    const uint PointCount = {0};\n"), { PointCount });
+		KernelSpecificPreamble += FString::Format(TEXT("    const uint NumPoints = {0};\n"), { PointCount });
 
 		if (const UPCGPin* OutputPin = GetFirstPointOutputPin())
 		{
