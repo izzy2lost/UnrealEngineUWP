@@ -515,7 +515,8 @@ public:
 	 */
 	GEOMETRYCORE_API void AppendMesh(const FDynamicMesh3* AppendMesh, FMeshIndexMappings& IndexMapsOut, 
 		TFunction<FVector3d(int, const FVector3d&)> PositionTransform = nullptr,
-		TFunction<FVector3d(int, const FVector3d&)> NormalTransform = nullptr);
+		TFunction<FVector3d(int, const FVector3d&)> NormalTransform = nullptr,
+		bool bReverseOrientation = false);
 
 	/**
 	 * Append input mesh to our internal Mesh. If the internal Mesh has attributes enabled,

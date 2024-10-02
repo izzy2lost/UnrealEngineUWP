@@ -458,7 +458,8 @@ namespace UE::Private::AppendHelpers
 				}
 				Editor.AppendMesh(UseOtherMesh, TmpMappings,
 					[&XForm](int, const FVector3d& Position) { return XForm.TransformPosition(Position); },
-					[&XForm](int, const FVector3d& Normal) { return XForm.TransformNormal(Normal); });
+					[&XForm](int, const FVector3d& Normal) { return XForm.TransformNormal(Normal); },
+					XForm.GetDeterminant() < 0);
 				if (AppendMaterialRemap)
 				{
 					ApplyMaterialRemap(TmpMappings, *AppendMaterialRemap, AppendToMesh);
@@ -534,7 +535,8 @@ namespace UE::Private::AppendHelpers
 
 					Editor.AppendMesh(UseOtherMesh, TmpMappings,
 						[&TransformSequence](int, const FVector3d& Position) { return TransformSequence.TransformPosition(Position); },
-						[&TransformSequence](int, const FVector3d& Normal) { return TransformSequence.TransformNormal(Normal); });
+						[&TransformSequence](int, const FVector3d& Normal) { return TransformSequence.TransformNormal(Normal); },
+						TransformSequence.WillInvert());
 					if (AppendMaterialRemap)
 					{
 						ApplyMaterialRemap(TmpMappings, *AppendMaterialRemap, AppendToMesh);
