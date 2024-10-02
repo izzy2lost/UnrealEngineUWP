@@ -30,7 +30,7 @@ enum class EChaosClothAssetNodeAttributeType : uint8
 
 /** Create a new attribute for the specified group. */
 USTRUCT(Meta = (DataflowCloth, Experimental))
-struct FChaosClothAssetAttributeNode_v2 : public FDataflowNode
+struct FChaosClothAssetAttributeNode_v2 final : public FDataflowNode
 {
 	GENERATED_USTRUCT_BODY()
 	DATAFLOW_NODE_DEFINE_INTERNAL(FChaosClothAssetAttributeNode_v2, "Attribute", "Cloth", "Cloth Attribute")
@@ -67,17 +67,10 @@ public:
 
 	FChaosClothAssetAttributeNode_v2(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
 
-	/** Return a cached array of all the groups used by the input collection during at the time of the latest evaluation. */
-	const TArray<FName>& GetCachedCollectionGroupNames() const { return CachedCollectionGroupNames; }
-
 private:
 	//~ Begin FDataflowNode interface
 	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
-	virtual void OnSelected(UE::Dataflow::FContext& Context) override;
-	virtual void OnDeselected() override;
 	//~ End FDataflowNode interface
-
-	TArray<FName> CachedCollectionGroupNames;
 };
 
 /** Create a new attribute for the specified group. */
@@ -119,13 +112,16 @@ public:
 	FChaosClothAssetAttributeNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
 
 	/** Return a cached array of all the groups used by the input collection during at the time of the latest evaluation. */
+	UE_DEPRECATED(5.5, "This function is deprecated and will now return an empty array.")
 	const TArray<FName>& GetCachedCollectionGroupNames() const { return CachedCollectionGroupNames; }
 
 private:
 	//~ Begin FDataflowNode interface
 	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
-	virtual void OnSelected(UE::Dataflow::FContext& Context) override;
-	virtual void OnDeselected() override;
+	UE_DEPRECATED(5.5, "This function is deprecated and will not be called on selection/deselection.")
+	virtual void OnSelected(UE::Dataflow::FContext& Context) {}
+	UE_DEPRECATED(5.5, "This function is deprecated and will not be called on selection/deselection.")
+	virtual void OnDeselected() {}
 	//~ End FDataflowNode interface
 
 	TArray<FName> CachedCollectionGroupNames;

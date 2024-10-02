@@ -36,7 +36,7 @@ namespace UE::Chaos::ClothAsset::Private
 
 FChaosClothAssetWeightMapNode::FChaosClothAssetWeightMapNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid)
 	: FDataflowNode(InParam, InGuid)
-	, Transfer(FSimpleDelegate::CreateRaw(this, &FChaosClothAssetWeightMapNode::OnTransfer))
+	, Transfer(FDataflowFunctionProperty::FDelegate::CreateRaw(this, &FChaosClothAssetWeightMapNode::OnTransfer))
 {
 	RegisterInputConnection(&Collection);
 	RegisterInputConnection(&InputName.StringValue, GET_MEMBER_NAME_CHECKED(FChaosClothAssetConnectableIStringValue, StringValue))
@@ -49,12 +49,9 @@ FChaosClothAssetWeightMapNode::FChaosClothAssetWeightMapNode(const UE::Dataflow:
 	RegisterOutputConnection(&OutputName.StringValue, (FString*)nullptr, GET_MEMBER_NAME_CHECKED(FChaosClothAssetConnectableOStringValue, StringValue));
 }
 
-void FChaosClothAssetWeightMapNode::OnTransfer()
+void FChaosClothAssetWeightMapNode::OnTransfer(UE::Dataflow::FContext& Context)
 {
 	using namespace UE::Chaos::ClothAsset;
-
-	// Create a temporary context (until we find a way to re-use the one from the tool calling this function)
-	UE::Dataflow::FContextThreaded Context;
 
 	// Transfer weight map if the transfer collection input has changed and is valid
 	FManagedArrayCollection InCollection = GetValue<FManagedArrayCollection>(Context, &Collection);

@@ -967,8 +967,6 @@ void FDataflowEditorToolkit::OnNodeSelectionChanged(const TSet<UObject*>& InNewS
 				{
 					if (const TSharedPtr<FDataflowNode> DataflowNode = PrimarySelection->GetDataflowNode())
 					{
-						DataflowNode->OnSelected(*DataflowContext);
-
 						// Update selected Collection in the ContextObject
 						for (const FDataflowOutput* const Output : DataflowNode->GetOutputs())
 						{

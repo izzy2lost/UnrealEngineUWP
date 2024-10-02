@@ -90,33 +90,6 @@ void FChaosClothAssetAttributeNode_v2::Evaluate(UE::Dataflow::FContext& Context,
 	}
 }
 
-void FChaosClothAssetAttributeNode_v2::OnSelected(UE::Dataflow::FContext& Context)
-{
-	using namespace UE::Chaos::ClothAsset;
-
-	// Re-evaluate the input collection
-	FManagedArrayCollection InCollection = GetValue<FManagedArrayCollection>(Context, &Collection);
-	const TSharedRef<FManagedArrayCollection> ClothCollection = MakeShared<FManagedArrayCollection>(MoveTemp(InCollection));
-	FCollectionClothFacade Cloth(ClothCollection);
-
-	// Update the list of used group for the UI customization
-	const TArray<FName> GroupNames = ClothCollection->GroupNames();
-	CachedCollectionGroupNames.Reset(GroupNames.Num());
-	for (const FName& GroupName : GroupNames)
-	{
-		if (Cloth.IsValidClothCollectionGroupName(GroupName))  // Restrict to the cloth facade groups
-		{
-			CachedCollectionGroupNames.Emplace(GroupName);
-		}
-	}
-}
-
-void FChaosClothAssetAttributeNode_v2::OnDeselected()
-{
-	// Clean up, to avoid another toolkit picking up the wrong context evaluation
-	CachedCollectionGroupNames.Reset();
-}
-
 FChaosClothAssetAttributeNode::FChaosClothAssetAttributeNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid)
 	: FDataflowNode(InParam, InGuid)
 {
@@ -191,33 +164,5 @@ void FChaosClothAssetAttributeNode::Evaluate(UE::Dataflow::FContext& Context, co
 		SetValue(Context, Name, &Name);
 	}
 }
-
-void FChaosClothAssetAttributeNode::OnSelected(UE::Dataflow::FContext& Context)
-{
-	using namespace UE::Chaos::ClothAsset;
-
-	// Re-evaluate the input collection
-	FManagedArrayCollection InCollection = GetValue<FManagedArrayCollection>(Context, &Collection);
-	const TSharedRef<FManagedArrayCollection> ClothCollection = MakeShared<FManagedArrayCollection>(MoveTemp(InCollection));
-	FCollectionClothFacade Cloth(ClothCollection);
-
-	// Update the list of used group for the UI customization
-	const TArray<FName> GroupNames = ClothCollection->GroupNames();
-	CachedCollectionGroupNames.Reset(GroupNames.Num());
-	for (const FName& GroupName : GroupNames)
-	{
-		if (Cloth.IsValidClothCollectionGroupName(GroupName))  // Restrict to the cloth facade groups
-		{
-			CachedCollectionGroupNames.Emplace(GroupName);
-		}
-	}
-}
-
-void FChaosClothAssetAttributeNode::OnDeselected()
-{
-	// Clean up, to avoid another toolkit picking up the wrong context evaluation
-	CachedCollectionGroupNames.Reset();
-}
-
 
 #undef LOCTEXT_NAMESPACE

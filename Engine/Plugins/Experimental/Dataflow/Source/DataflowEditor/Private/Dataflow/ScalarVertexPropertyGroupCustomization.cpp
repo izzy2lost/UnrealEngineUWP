@@ -127,7 +127,9 @@ namespace UE::Dataflow
 		TArray<FName> CollectionGroupNames;
 		if (const FDataflowCollectionAddScalarVertexPropertyNode* const ScalarVertexPropertyNode = GetOwnerStruct<FDataflowCollectionAddScalarVertexPropertyNode>())
 		{
-			CollectionGroupNames = ScalarVertexPropertyNode->GetCachedCollectionGroupNames();
+			// TODO: 
+			//   Fix this using the new context based paradigm (see SelectionGroupCustomization.cpp GetCollection() implementation).
+			//CollectionGroupNames = ScalarVertexPropertyNode->GetCachedCollectionGroupNames();
 			NodeType = ScalarVertexPropertyNode->GetType();
 
 			const TArray<FName> AvailableTargetGroups = DataflowAddScalarVertexPropertyCallbackRegistry::Get().GetTargetGroupNames();

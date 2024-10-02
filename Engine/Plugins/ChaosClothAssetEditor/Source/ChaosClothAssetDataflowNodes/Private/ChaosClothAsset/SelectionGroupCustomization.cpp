@@ -6,6 +6,7 @@
 #include "ChaosClothAsset/CollectionClothFacade.h"
 #include "ChaosClothAsset/DeleteElementNode.h"
 #include "ChaosClothAsset/SelectionNode.h"
+#include "Dataflow/DataflowGraphEditor.h"
 #include "Widgets/Input/SEditableTextBox.h"
 #include "Widgets/Input/SComboButton.h"
 #include "Widgets/Views/SListView.h"
@@ -18,6 +19,52 @@
 
 namespace UE::Chaos::ClothAsset
 {
+	namespace Private
+	{
+		// Return the FManagedArrayCollection with the specified name from the property held by the top level struct owner of ChildPropertyHandle
+		FManagedArrayCollection GetPropertyCollection(
+			UE::Dataflow::FContext& Context,
+			const TSharedPtr<IPropertyHandle>& ChildPropertyHandle,
+			const FName CollectionPropertyName = FName(TEXT("Collection")))
+		{
+			static const FManagedArrayCollection EmptyCollection;
+
+			TSharedPtr<IPropertyHandle> OwnerHandle = ChildPropertyHandle;
+			while (TSharedPtr<IPropertyHandle> ParentHandle = OwnerHandle->GetParentHandle())
+			{
+				OwnerHandle = MoveTemp(ParentHandle);
+			}
+			if (const TSharedPtr<IPropertyHandleStruct> OwnerHandleStruct = OwnerHandle->AsStruct())
+			{
+				if (const TSharedPtr<FStructOnScope> StructOnScope = OwnerHandleStruct->GetStructData())
+				{
+					if (const UStruct* const Struct = StructOnScope->GetStruct())
+					{
+						if (Struct->IsChildOf<FDataflowNode>())
+						{
+							const FDataflowNode* const DataflowNode = reinterpret_cast<FDataflowNode*>(StructOnScope->GetStructMemory());
+
+							if (const FProperty* const Property = Struct->FindPropertyByName(CollectionPropertyName))
+							{
+								if (const FStructProperty* const StructProperty = CastField<FStructProperty>(Property))
+								{
+									if (StructProperty->GetCPPType(nullptr, CPPF_None) == TEXT("FManagedArrayCollection"))
+									{
+										if (const FDataflowInput* const DataflowInput = DataflowNode->FindInput(StructProperty->ContainerPtrToValuePtr<FManagedArrayCollection*>(DataflowNode)))
+										{
+											return DataflowInput->GetValue(Context, EmptyCollection);
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+			return EmptyCollection;
+		}
+	}  // End namespace Private
+
 	TSharedRef<IPropertyTypeCustomization> FSelectionGroupCustomization::MakeInstance()
 	{
 		return MakeShareable(new FSelectionGroupCustomization);
@@ -25,6 +72,8 @@ namespace UE::Chaos::ClothAsset
 
 	void FSelectionGroupCustomization::CustomizeHeader(TSharedRef<IPropertyHandle> PropertyHandle, FDetailWidgetRow& HeaderRow, IPropertyTypeCustomizationUtils& CustomizationUtils)
 	{
+		DataflowGraphEditor = SDataflowGraphEditor::GetSelectedGraphEditor();
+
 		uint32 NumChildren;
 		const FPropertyAccess::Result Result = PropertyHandle->GetNumChildren(NumChildren);
 
@@ -107,36 +156,22 @@ namespace UE::Chaos::ClothAsset
 
 	TSharedRef<SWidget> FSelectionGroupCustomization::OnGetMenuContent()
 	{
+		// Retrieve context if any, or use an empty context
+		const TSharedPtr<const SDataflowGraphEditor> DataflowGraphEditorPtr = DataflowGraphEditor.Pin();
+		const TSharedPtr<UE::Dataflow::FContext> Context = DataflowGraphEditorPtr ? DataflowGraphEditorPtr->GetDataflowContext() : TSharedPtr<UE::Dataflow::FContext>();
+
 		// Find all group names in the parent selection node's collection
 		GroupNames.Reset();
-
-		TArray<FName> CollectionGroupNames;
-		if (const FChaosClothAssetSelectionNode_v2* const SelectionNode_v2 = GetOwnerStruct<FChaosClothAssetSelectionNode_v2>())
+		UE::Dataflow::FContextThreaded EmptyContext;
+		FManagedArrayCollection Collection = Private::GetPropertyCollection(Context.IsValid() ? *Context : EmptyContext, ChildPropertyHandle);
+		const TSharedRef<FManagedArrayCollection> ClothCollection = MakeShared<FManagedArrayCollection>(MoveTemp(Collection));
+		FCollectionClothFacade Cloth(ClothCollection);
+		for (const FName& GroupName : ClothCollection->GroupNames())
 		{
-			CollectionGroupNames = SelectionNode_v2->GetCachedCollectionGroupNames();
-		}
-		else if (const FChaosClothAssetDeleteElementNode* const DeleteNode = GetOwnerStruct<FChaosClothAssetDeleteElementNode>())
-		{
-			CollectionGroupNames = DeleteNode->GetCachedCollectionGroupNames();
-		}
-		else if (const FChaosClothAssetAttributeNode_v2* const AttributeNode_v2 = GetOwnerStruct<FChaosClothAssetAttributeNode_v2>())
-		{
-			CollectionGroupNames = AttributeNode_v2->GetCachedCollectionGroupNames();
-		}
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-		else if (const FChaosClothAssetSelectionNode* const SelectionNode = GetOwnerStruct<FChaosClothAssetSelectionNode>())
-		{
-			CollectionGroupNames = SelectionNode->GetCachedCollectionGroupNames();
-		}
-		else if (const FChaosClothAssetAttributeNode* const AttributeNode = GetOwnerStruct<FChaosClothAssetAttributeNode>())
-		{
-			CollectionGroupNames = AttributeNode->GetCachedCollectionGroupNames();
-		}
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
-
-		for (const FName& CollectionGroupName : CollectionGroupNames)
-		{
-			GroupNames.Add(MakeShareable(new FText(FText::FromName(CollectionGroupName))));
+			if (Cloth.IsValidClothCollectionGroupName(GroupName))  // Restrict to the cloth facade groups
+			{
+				GroupNames.Add(MakeShareable(new FText(FText::FromName(GroupName))));
+			}
 		}
 
 		return SNew(SVerticalBox)

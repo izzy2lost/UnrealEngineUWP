@@ -82,13 +82,6 @@ public:
 
 	FDataflowCollectionAddScalarVertexPropertyNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
 
-	/** Return a cached array of all the groups used by the input collection during at the time of the latest evaluation. */
-	const TArray<FName>& GetCachedCollectionGroupNames() const { return CachedCollectionGroupNames; }
-
 private:
 	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
-	virtual void OnSelected(UE::Dataflow::FContext& Context) override;
-	virtual void OnDeselected() override;
-
-	TArray<FName> CachedCollectionGroupNames;
 };

@@ -48,6 +48,42 @@
 
 #define LOCTEXT_NAMESPACE "ChaosClothAssetEditorToolkit"
 
+// Same as SDataflowGraphEditor, only adds a ClothAssetEditorToolkit pointer to correctly override the GetDataflowContext() method.
+class SClothAssetDataflowGraphEditor : public SDataflowGraphEditor
+{
+public:
+	SLATE_BEGIN_ARGS(SClothAssetDataflowGraphEditor) {}
+	SLATE_ARGUMENT_DEFAULT(UEdGraph*, GraphToEdit) = nullptr;
+	SLATE_ARGUMENT(FGraphEditorEvents, GraphEvents)
+	SLATE_ARGUMENT(TSharedPtr<IStructureDetailsView>, DetailsView)
+	SLATE_ARGUMENT(FDataflowEditorCommands::FGraphEvaluationCallback, EvaluateGraph)
+	SLATE_ARGUMENT_DEFAULT(UE::Chaos::ClothAsset::FChaosClothAssetEditorToolkit*, ClothAssetEditorToolkit) = nullptr;
+	SLATE_END_ARGS()
+
+	void Construct(const FArguments& InArgs, UObject* InAssetOwner)
+	{
+		check(InArgs._GraphToEdit);
+		ClothAssetEditorToolkit = InArgs._ClothAssetEditorToolkit;
+
+		SDataflowGraphEditor::FArguments Arguments;
+		Arguments._GraphToEdit = InArgs._GraphToEdit;
+		Arguments._GraphEvents = InArgs._GraphEvents;
+		Arguments._DetailsView = InArgs._DetailsView;
+		Arguments._EvaluateGraph = InArgs._EvaluateGraph;
+		SDataflowGraphEditor::Construct(Arguments, InAssetOwner);
+	}
+
+	//~ Begin FDataflowSNodeInterface interface
+	virtual TSharedPtr<UE::Dataflow::FContext> GetDataflowContext() const override
+	{
+		return ensure(ClothAssetEditorToolkit) ? ClothAssetEditorToolkit->GetDataflowContext() : TSharedPtr<UE::Dataflow::FContext>();
+	}
+	//~ End FDataflowSNodeInterface interface
+
+private:
+	UE::Chaos::ClothAsset::FChaosClothAssetEditorToolkit* ClothAssetEditorToolkit = nullptr;
+};
+
 namespace UE::Chaos::ClothAsset
 {
 const FName FChaosClothAssetEditorToolkit::ClothPreviewTabID(TEXT("ChaosClothAssetEditor_ClothPreviewTab"));
@@ -187,7 +223,6 @@ FChaosClothAssetEditorToolkit::~FChaosClothAssetEditorToolkit()
 	if (SelectedDataflowNode && OnNodeInvalidatedDelegateHandle.IsValid())
 	{
 		SelectedDataflowNode->GetOnNodeInvalidatedDelegate().Remove(OnNodeInvalidatedDelegateHandle);
-		SelectedDataflowNode->OnDeselected();
 	}
 	SelectedDataflowNodeGuid.Invalidate();
 
@@ -370,7 +405,6 @@ bool FChaosClothAssetEditorToolkit::OnRequestClose(EAssetEditorCloseReason InClo
 	if (SelectedDataflowNode && OnNodeInvalidatedDelegateHandle.IsValid())
 	{
 		SelectedDataflowNode->GetOnNodeInvalidatedDelegate().Remove(OnNodeInvalidatedDelegateHandle);
-		SelectedDataflowNode->OnDeselected();
 	}
 	SelectedDataflowNodeGuid.Invalidate();
 
@@ -905,12 +939,12 @@ TSharedRef<SDataflowGraphEditor> FChaosClothAssetEditorToolkit::CreateGraphEdito
 	InEvents.OnTextCommitted = FOnNodeTextCommitted::CreateSP(this, &FChaosClothAssetEditorToolkit::OnNodeTitleCommitted);
 	InEvents.OnNodeSingleClicked = SGraphEditor::FOnNodeSingleClicked::CreateSP(this, &FChaosClothAssetEditorToolkit::OnNodeSingleClicked);
 
-	TSharedRef<SDataflowGraphEditor> NewGraphEditor = SNew(SDataflowGraphEditor, Dataflow)
+	TSharedRef<SDataflowGraphEditor> NewGraphEditor = SNew(SClothAssetDataflowGraphEditor, Dataflow)
 		.GraphToEdit(Dataflow)
 		.GraphEvents(InEvents)
 		.DetailsView(NodeDetailsEditor)
 		.EvaluateGraph(EvalLambda)
-		.DataflowEditor(nullptr);
+		.ClothAssetEditorToolkit(this);
 
 	NewGraphEditor->OnSelectionChangedMulticast.AddSP(this, &FChaosClothAssetEditorToolkit::OnNodeSelectionChanged);
 	NewGraphEditor->OnNodeDeletedMulticast.AddSP(this, &FChaosClothAssetEditorToolkit::OnNodeDeleted);
@@ -1137,7 +1171,6 @@ void FChaosClothAssetEditorToolkit::OnNodeSelectionChanged(const TSet<UObject*>&
 				{
 					SelectedDataflowNode->GetOnNodeInvalidatedDelegate().Remove(OnNodeInvalidatedDelegateHandle);
 				}
-				SelectedDataflowNode->OnDeselected();
 				SelectedDataflowNodeGuid.Invalidate();
 			}
 		}
@@ -1160,7 +1193,6 @@ void FChaosClothAssetEditorToolkit::OnNodeSelectionChanged(const TSet<UObject*>&
 							{
 								SelectedDataflowNode->GetOnNodeInvalidatedDelegate().Remove(OnNodeInvalidatedDelegateHandle);
 							}
-							SelectedDataflowNode->OnDeselected();
 						}
 						SelectedDataflowNode = Node->GetDataflowNode();
 						SelectedDataflowNodeGuid = SelectedDataflowNode->GetGuid();
@@ -1169,10 +1201,6 @@ void FChaosClothAssetEditorToolkit::OnNodeSelectionChanged(const TSet<UObject*>&
 						{
 							InputCollection = GetInputClothCollectionIfPossible(SelectedDataflowNode, DataflowContext);
 							Collection = GetClothCollectionIfPossible(SelectedDataflowNode, DataflowContext);
-							if (DataflowContext.IsValid())  // TODO: The context shouldn't be nullptr on the first node creation
-							{
-								SelectedDataflowNode->OnSelected(*DataflowContext);
-							}
 
 							// Set a callback to re-evaluate the node if it is invalidated
 							OnNodeInvalidatedDelegateHandle = SelectedDataflowNode->GetOnNodeInvalidatedDelegate().AddLambda(
@@ -1191,11 +1219,6 @@ void FChaosClothAssetEditorToolkit::OnNodeSelectionChanged(const TSet<UObject*>&
 										{
 											constexpr bool bDeferDynamicMeshInit = false;
 											ClothMode->SetSelectedClothCollection(Collection, InputCollection, bDeferDynamicMeshInit);
-										}
-
-										if (DataflowContext.IsValid())  // TODO: The context shouldn't be nullptr on the first node creation
-										{
-											SelectedDataflowNode->OnSelected(*DataflowContext);
 										}
 									}
 									// The detail panel won't update correctly when a change affects a node's properties and needs a refresh at the next tick

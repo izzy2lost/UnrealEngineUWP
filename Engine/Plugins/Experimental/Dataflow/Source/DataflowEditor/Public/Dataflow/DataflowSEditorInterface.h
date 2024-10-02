@@ -2,24 +2,23 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
-#include "Dataflow/DataflowObjectInterface.h"
+#include "Templates/SharedPointerFwd.h"
+
+namespace UE::Dataflow
+{
+	class FContext;
+}
 
 /**
 * FDataflowSEditorInterface
 * 
 */
-
-class UDataflowBaseContent;
-class UDataflowEditor;
-
 class FDataflowSEditorInterface
 {
 public:
-	FDataflowSEditorInterface() {}
-
 	/** Dataflow editor content accessors */
-	virtual const TSharedPtr<UE::Dataflow::FEngineContext> GetDataflowContext() const { return TSharedPtr<UE::Dataflow::FEngineContext>(nullptr); };
+	virtual TSharedPtr<UE::Dataflow::FContext> GetDataflowContext() const = 0;
 
+protected:
+	FDataflowSEditorInterface() = default;
 };
-

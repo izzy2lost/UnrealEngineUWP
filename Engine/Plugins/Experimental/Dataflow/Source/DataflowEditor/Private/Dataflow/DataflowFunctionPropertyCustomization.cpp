@@ -2,6 +2,8 @@
 
 #include "Dataflow/DataflowFunctionPropertyCustomization.h"
 #include "Dataflow/DataflowFunctionProperty.h"
+#include "Dataflow/DataflowGraphEditor.h"
+#include "Dataflow/DataflowNodeParameters.h"
 #include "Widgets/Images/SImage.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Layout/SWrapBox.h"
@@ -44,6 +46,10 @@ namespace UE::Dataflow
 	void FFunctionPropertyCustomization::CustomizeHeader(TSharedRef<IPropertyHandle> StructPropertyHandle, FDetailWidgetRow& HeaderRow, IPropertyTypeCustomizationUtils& CustomizationUtils)
 	{
 		StructProperty = StructPropertyHandle;
+
+		// Keep a weak pointer to the graph editor that is creating this customization
+		DataflowGraphEditor = SDataflowGraphEditor::GetSelectedGraphEditor();
+
 		// Find all functions under the same category
 		const FName CategoryName = StructProperty->GetDefaultCategoryName();
 		const TSharedPtr<IPropertyHandle> OwnerProperty = StructProperty->GetParentHandle();
@@ -81,11 +87,19 @@ namespace UE::Dataflow
 						];
 					}
 
-					auto OnClicked = [ChildProperty, FunctionProperty]() -> FReply
+					auto OnClicked = [this, ChildProperty, FunctionProperty]() -> FReply
 						{
+							// Retrieve context if any
+							const TSharedPtr<const SDataflowGraphEditor> DataflowGraphEditorPtr = DataflowGraphEditor.Pin();
+							const TSharedPtr<UE::Dataflow::FContext> Context = DataflowGraphEditorPtr ? DataflowGraphEditorPtr->GetDataflowContext() : TSharedPtr<UE::Dataflow::FContext>();
+							
 							// Execute function
-							FunctionProperty->Execute();
-							ChildProperty->NotifyFinishedChangingProperties();  // Triggers node invalidation
+							UE::Dataflow::FContextThreaded EmptyContext;
+							FunctionProperty->Execute(Context.IsValid() ? *Context : EmptyContext);
+
+							// Triggers node invalidation
+							ChildProperty->NotifyFinishedChangingProperties();
+
 							return FReply::Handled();
 						};
 

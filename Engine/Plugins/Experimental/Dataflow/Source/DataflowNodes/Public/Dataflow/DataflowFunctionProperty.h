@@ -2,8 +2,14 @@
 
 #pragma once
 
-#include "Delegates/Delegate.h"
+#include "Delegates/DelegateCombinations.h"
+#include "Templates/SharedPointerFwd.h"
 #include "DataflowFunctionProperty.generated.h"
+
+namespace UE::Dataflow
+{
+	class FContext;
+}
 
 /**
  * Function property for all Dataflow nodes.
@@ -41,13 +47,14 @@ struct FDataflowFunctionProperty
 	GENERATED_BODY()
 
 public:
+	DECLARE_DELEGATE_OneParam(FDelegate, UE::Dataflow::FContext&);
 
 	FDataflowFunctionProperty() = default;
 
-	explicit FDataflowFunctionProperty(FSimpleDelegate&& InDelegate) : Delegate(MoveTemp(InDelegate)) {}
+	explicit FDataflowFunctionProperty(FDelegate&& InDelegate) : Delegate(MoveTemp(InDelegate)) {}
 
-	void Execute() const { Delegate.ExecuteIfBound(); }
+	void Execute(UE::Dataflow::FContext& Context) const { Delegate.ExecuteIfBound(Context); }
 
 private:
-	FSimpleDelegate Delegate;
+	FDelegate Delegate;
 };

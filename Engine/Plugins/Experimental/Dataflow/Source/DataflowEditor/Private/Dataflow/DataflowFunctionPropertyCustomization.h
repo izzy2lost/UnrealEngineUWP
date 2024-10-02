@@ -4,6 +4,8 @@
 
 #include "IPropertyTypeCustomization.h"
 
+class SDataflowGraphEditor;
+
 namespace UE::Dataflow
 {
 	/**
@@ -20,5 +22,6 @@ namespace UE::Dataflow
 
 	private:
 		TSharedPtr<IPropertyHandle> StructProperty;
+		TWeakPtr<const SDataflowGraphEditor> DataflowGraphEditor;
 	};
 }

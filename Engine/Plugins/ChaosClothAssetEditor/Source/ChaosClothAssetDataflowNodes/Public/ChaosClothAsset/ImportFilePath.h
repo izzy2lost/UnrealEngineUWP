@@ -2,8 +2,13 @@
 
 #pragma once
 
-#include "Delegates/Delegate.h"
+#include "Delegates/DelegateCombinations.h"
 #include "ImportFilePath.generated.h"
+
+namespace UE::Dataflow
+{
+	class FContext;
+}
 
 PRAGMA_DISABLE_DEPRECATION_WARNINGS  // For bForceReimport
 USTRUCT()
@@ -13,6 +18,8 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	GENERATED_USTRUCT_BODY()
 
 public:
+	DECLARE_DELEGATE_OneParam(FDelegate, UE::Dataflow::FContext&);
+
 	UPROPERTY(EditAnywhere, Category = "Import File Path")
 	FString FilePath;
 
@@ -22,13 +29,10 @@ public:
 
 	FChaosClothAssetImportFilePath() = default;
 
-	explicit FChaosClothAssetImportFilePath(FSimpleDelegate&& InDelegate) : Delegate(MoveTemp(InDelegate)) {}
+	explicit FChaosClothAssetImportFilePath(FDelegate&& InDelegate) : Delegate(MoveTemp(InDelegate)) {}
 
-	void Execute() const
-	{
-		Delegate.ExecuteIfBound();
-	}
+	void Execute(UE::Dataflow::FContext& Context) const { Delegate.ExecuteIfBound(Context); }
 
 private:
-	FSimpleDelegate Delegate;
+	FDelegate Delegate;
 };
