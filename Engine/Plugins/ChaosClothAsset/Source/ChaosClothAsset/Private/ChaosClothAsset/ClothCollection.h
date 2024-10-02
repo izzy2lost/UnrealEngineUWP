@@ -151,6 +151,7 @@ namespace UE::Chaos::ClothAsset
 		template<typename T UE_REQUIRES(TIsUserAttributeType<T>::Value)>
 		TManagedArray<T>* GetUserDefinedAttribute(const FName& Name, const FName& GroupName);
 
+		static TArray<FName> GetValidClothCollectionGroupName();
 		static bool IsValidClothCollectionGroupName(const FName& GroupName);
 		bool IsValidUserDefinedAttributeName(const FName& Name, const FName& GroupName);
 
