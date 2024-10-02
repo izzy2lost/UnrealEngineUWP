@@ -68,23 +68,29 @@ UMoverComponent::UMoverComponent()
 void UMoverComponent::InitializeComponent()
 {
 	TGuardValue<bool> InInitializeComponentGuard(bInInitializeComponent, true);
-	FindDefaultUpdatedComponent();
-	
-	// Instantiate out sister backend component that will actually talk to the system driving the simulation
-	if (BackendClass)
+
+	const UWorld* MyWorld = GetWorld();
+
+	if (MyWorld && MyWorld->IsGameWorld())
 	{
-		UActorComponent* NewLiaisonComp = NewObject<UActorComponent>(GetOwner(), BackendClass, TEXT("BackendLiaisonComponent"));
-		BackendLiaisonComp = CastChecked<IMoverBackendLiaisonInterface>(NewLiaisonComp);
-		if (BackendLiaisonComp.Get())
+		FindDefaultUpdatedComponent();
+
+		// Instantiate out sister backend component that will actually talk to the system driving the simulation
+		if (BackendClass)
 		{
-			NewLiaisonComp->RegisterComponent();
-			NewLiaisonComp->InitializeComponent();
-			NewLiaisonComp->SetNetAddressable();
+			UActorComponent* NewLiaisonComp = NewObject<UActorComponent>(GetOwner(), BackendClass, TEXT("BackendLiaisonComponent"));
+			BackendLiaisonComp = CastChecked<IMoverBackendLiaisonInterface>(NewLiaisonComp);
+			if (BackendLiaisonComp.Get())
+			{
+				NewLiaisonComp->RegisterComponent();
+				NewLiaisonComp->InitializeComponent();
+				NewLiaisonComp->SetNetAddressable();
+			}
 		}
-	}
-	else
-	{
-		UE_LOG(LogMover, Error, TEXT("No backend class set on %s. Mover actor will not function."), *GetNameSafe(GetOwner()));
+		else
+		{
+			UE_LOG(LogMover, Error, TEXT("No backend class set on %s. Mover actor will not function."), *GetNameSafe(GetOwner()));
+		}
 	}
 
 	Super::InitializeComponent();
