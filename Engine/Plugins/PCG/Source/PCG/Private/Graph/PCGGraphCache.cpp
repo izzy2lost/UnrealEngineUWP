@@ -320,9 +320,14 @@ void FPCGGraphCache::RemoveFromMemoryTotal(const FPCGDataCollection& InCollectio
 					if (Record->InstanceCount == 0)
 					{
 						// Last instance removed, update accordingly
-						if (ensure(TotalMemoryUsed >= Record->MemoryPerInstance))
+						if (TotalMemoryUsed >= Record->MemoryPerInstance)
 						{
 							TotalMemoryUsed -= Record->MemoryPerInstance;
+						}
+						else
+						{
+							// Should not normally reach here but it seems to happen in rare cases. Clamp to 0.
+							TotalMemoryUsed = 0;
 						}
 
 						MemoryRecords.Remove(Data->UID);
