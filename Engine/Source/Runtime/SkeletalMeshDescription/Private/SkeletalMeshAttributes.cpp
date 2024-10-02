@@ -115,7 +115,7 @@ bool FSkeletalMeshAttributes::RegisterSkinWeightAttribute(const FName InProfileN
 	
 	if (MeshDescription.VertexAttributes().HasAttribute(AttributeName))
 	{
-		return false;
+		return true;
 	}
 
 	return MeshDescription.VertexAttributes().RegisterAttribute<int32[]>(AttributeName, 1, 0, EMeshAttributeFlags::None).IsValid();
