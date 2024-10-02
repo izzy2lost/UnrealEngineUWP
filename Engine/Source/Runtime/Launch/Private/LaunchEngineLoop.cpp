@@ -6071,14 +6071,9 @@ void FEngineLoop::Tick()
 		FPendingCleanupObjects* PreviousPendingCleanupObjects = PendingCleanupObjects;
 		PendingCleanupObjects = GetPendingCleanupObjects();
 
-		{
-			SCOPE_CYCLE_COUNTER(STAT_FrameSyncTime);
-			// this could be perhaps moved down to get greater parallelism
-			// Sync game and render thread. Either total sync or allowing one frame lag.
-			static FFrameEndSync FrameEndSync;
-			static auto CVarAllowOneFrameThreadLag = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.OneFrameThreadLag"));
-			FrameEndSync.Sync( CVarAllowOneFrameThreadLag->GetValueOnGameThread() != 0 );
-		}
+		// This could be perhaps moved down to get greater parallelism
+		// Sync game and render/RHI threads.
+		FFrameEndSync::Sync();
 
 		// tick core ticker, threads & deferred commands
 		{

@@ -368,31 +368,14 @@ extern ENGINE_API UFont* GetStatsFont();
 	Frame end sync object implementation.
 -----------------------------------------------------------------------------*/
 
-/**
- * Special helper class for frame end sync. It respects a passed in option to allow one frame
- * of lag between the game and the render thread by using two events in round robin fashion.
- */
-class FFrameEndSync
+namespace FFrameEndSync
 {
-	/** Pair of fences. */
-	FRenderCommandFence Fence[2];
-	/** Current index into events array. */
-	int32 EventIndex;
-	/** cleanup delegate for engine pre-exit */
-	FDelegateHandle CleanupDelegate;
-
-public:
-	ENGINE_API FFrameEndSync();
-	ENGINE_API ~FFrameEndSync();
-
 	/**
-	 * Syncs the game thread with the render thread. Depending on passed in bool this will be a total
-	 * sync or a one frame lag.
+	 * Syncs the game thread based on progress throughout the rendering pipeline
+	 * @param bFullSync - when true, blocks the caller until all rendering work is completed,
+	 * otherwise only blocks until the N - m frame has completed, where m is driven by various config.
 	 */
-	ENGINE_API void Sync( bool bAllowOneFrameThreadLag );
-
-private:
-	void Cleanup();
+	ENGINE_API void Sync(bool bFullSync = false);
 };
 
 
