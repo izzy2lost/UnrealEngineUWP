@@ -1018,10 +1018,10 @@ void UStruct::Link(FArchive& Ar, bool bRelinkExistingProperties)
 
 	// Link the references, structs, and arrays for optimized cleanup.
 	// Note: Could optimize further by adding FProperty::NeedsDynamicRefCleanup, excluding things like arrays of ints.
-	FProperty** PropertyLinkPtr = &PropertyLink;
-	FProperty** DestructorLinkPtr = &DestructorLink;
-	FProperty** RefLinkPtr = (FProperty**)&RefLink;
-	FProperty** PostConstructLinkPtr = &PostConstructLink;
+	UEProperty_Private::FPropertyListBuilderPropertyLink PropertyLinkBuilder(&PropertyLink);
+	UEProperty_Private::FPropertyListBuilderDestructorLink DestructorLinkBuilder(&DestructorLink);
+	UEProperty_Private::FPropertyListBuilderRefLink RefLinkBuilder(&RefLink);
+	UEProperty_Private::FPropertyListBuilderPostConstructLink PostConstructLinkBuilder(&PostConstructLink);
 
 	TArray<const FStructProperty*> EncounteredStructProps;
 	for (TFieldIterator<FProperty> It(this); It; ++It)
@@ -1032,8 +1032,7 @@ void UStruct::Link(FArchive& Ar, bool bRelinkExistingProperties)
 		// contain object references
 		if (Property->ContainsObjectReference(EncounteredStructProps, EPropertyObjectReferenceType::Any))
 		{
-			*RefLinkPtr = Property;
-			RefLinkPtr = &(*RefLinkPtr)->NextRef;
+			RefLinkBuilder.Append(*Property);
 		}
 
 		const UClass* OwnerClass = Property->GetOwnerClass();
@@ -1045,15 +1044,13 @@ void UStruct::Link(FArchive& Ar, bool bRelinkExistingProperties)
 			|| bShouldHandleFinishDestroy)
 		{
 			// things in a struct that need a destructor will still be in here, even though in many cases they will also be destroyed by a native destructor on the whole struct
-			*DestructorLinkPtr = Property;
-			DestructorLinkPtr = &(*DestructorLinkPtr)->DestructorLinkNext;
+			DestructorLinkBuilder.Append(*Property);
 		}
 
 		// Link references to properties that require their values to be initialized and/or copied from CDO post-construction. Note that this includes all non-native-class-owned properties.
 		if (OwnerClass && (!bOwnedByNativeClass || (Property->HasAnyPropertyFlags(CPF_Config) && !OwnerClass->HasAnyClassFlags(CLASS_PerObjectConfig))))
 		{
-			*PostConstructLinkPtr = Property;
-			PostConstructLinkPtr = &(*PostConstructLinkPtr)->PostConstructLinkNext;
+			PostConstructLinkBuilder.Append(*Property);
 		}
 
 #if WITH_EDITORONLY_DATA
@@ -1062,14 +1059,13 @@ void UStruct::Link(FArchive& Ar, bool bRelinkExistingProperties)
 		bHasAssetRegistrySearchableProperties |= Property->HasAnyPropertyFlags(CPF_AssetRegistrySearchable);
 #endif
 
-		*PropertyLinkPtr = Property;
-		PropertyLinkPtr = &(*PropertyLinkPtr)->PropertyLinkNext;
+		PropertyLinkBuilder.Append(*Property);
 	}
 
-	*PropertyLinkPtr = nullptr;
-	*DestructorLinkPtr = nullptr;
-	*RefLinkPtr = nullptr;
-	*PostConstructLinkPtr = nullptr;
+	PropertyLinkBuilder.NullTerminate();
+	DestructorLinkBuilder.NullTerminate();
+	RefLinkBuilder.NullTerminate();
+	PostConstructLinkBuilder.NullTerminate();
 
 	{
 		// Now collect all references from FProperties to UObjects and store them in GC-exposed array for fast access
@@ -7149,8 +7145,8 @@ void UFunction::InitializeDerivedMembers()
 	NumParms = 0;
 	ParmsSize = 0;
 	ReturnValueOffset = MAX_uint16;
-	FProperty** ConstructLink = &FirstPropertyToInit;
 
+	UEProperty_Private::FPropertyListBuilderPostConstructLink ConstructLink(&FirstPropertyToInit);
 	for (FProperty* Property = CastField<FProperty>(ChildProperties); Property; Property = CastField<FProperty>(Property->Next))
 	{
 		if (Property->PropertyFlags & CPF_Parm)
@@ -7170,9 +7166,7 @@ void UFunction::InitializeDerivedMembers()
 		}
 		else if (!Property->HasAnyPropertyFlags(CPF_ZeroConstructor))
 		{
-			*ConstructLink = Property;
-			Property->PostConstructLinkNext = nullptr;
-			ConstructLink = &Property->PostConstructLinkNext;
+			ConstructLink.Append(*Property);
 		}
 	}
 }

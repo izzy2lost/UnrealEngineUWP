@@ -48,24 +48,21 @@ void UVerseClass::Link(FArchive& Ar, bool bRelinkExistingProperties)
 	// Properties which represent native C++ members need to be removed from the
 	// destruct chain, as they will be destructed by the native C++ destructor.
 	bool bPropertiesChanged = false;
-	FProperty** PriorLinkPtr = &DestructorLink;
-	for (FProperty* Prop = DestructorLink; Prop;)
+	
+	UEProperty_Private::FPropertyListBuilderDestructorLink DestructorLinkBuilder(&DestructorLink);
+	for (FProperty* Prop = DestructorLinkBuilder.GetListStart(); Prop;)
 	{
+		FProperty* NextProp = DestructorLinkBuilder.GetNext(*Prop);
+
 		const UVerseClass* SolOwnerClass = Cast<UVerseClass>(Prop->GetOwnerClass());
 		if (SolOwnerClass && (SolOwnerClass->SolClassFlags & VCLASS_NativeBound) != EVerseClassFlags::VCLASS_None)
 		{
-			// Remove this link from the chain (fold in the surround links, so they connect)
-			*PriorLinkPtr = Prop->DestructorLinkNext;
-			Prop->DestructorLinkNext = nullptr;
-
-			Prop = *PriorLinkPtr;
+			// property should be removed from linked list
+			DestructorLinkBuilder.Remove(*Prop);
 			bPropertiesChanged = true;
 		}
-		else
-		{
-			PriorLinkPtr = &Prop->DestructorLinkNext;
-			Prop = Prop->DestructorLinkNext;
-		}
+		
+		Prop = NextProp;
 	}
 
 	// Only do this for classes we're loading from disk/file -- in-memory generated ones

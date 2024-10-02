@@ -2960,7 +2960,7 @@ void FKismetCompilerContext::SetCalculatedMetaDataAndFlags(UFunction* Function, 
 	Function->NumParms = 0;
 	Function->ReturnValueOffset = MAX_uint16;
 	Function->FirstPropertyToInit = nullptr;
-	FProperty** ConstructLink = &Function->FirstPropertyToInit;
+	UEProperty_Private::FPropertyListBuilderPostConstructLink ConstructLink(&Function->FirstPropertyToInit);
 
 	for (TFieldIterator<FProperty> PropIt(Function, EFieldIteratorFlags::ExcludeSuper); PropIt; ++PropIt)
 	{
@@ -2984,10 +2984,7 @@ void FKismetCompilerContext::SetCalculatedMetaDataAndFlags(UFunction* Function, 
 		{
 			if (!Property->HasAnyPropertyFlags(CPF_ZeroConstructor))
 			{
-				(*ConstructLink) = Property;
-				Property->PostConstructLinkNext = nullptr;
-				ConstructLink = &Property->PostConstructLinkNext;
-
+				ConstructLink.Append(*Property);
 				Function->FunctionFlags |= FUNC_HasDefaults;
 			}
 		}

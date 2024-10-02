@@ -6614,6 +6614,83 @@ struct FPropertyChangedChainEvent : public FPropertyChangedEvent
 	FEditPropertyChain& PropertyChain;
 };
 
+namespace UEProperty_Private
+{
+	template<FProperty* FProperty::*NextName>
+	struct TPropertyLinkedListBuilder
+	{
+	public:
+		UE_NONCOPYABLE(TPropertyLinkedListBuilder);
+
+		explicit TPropertyLinkedListBuilder(FProperty** ListStartPtr) :
+			StartPtr(ListStartPtr),
+			EndPtr(ListStartPtr)
+		{
+			check(ListStartPtr);
+		}
+
+		FORCEINLINE void Append(FProperty& Prop)
+		{
+			*EndPtr = &Prop;
+			EndPtr = &(Prop.*NextName);
+			Prop.*NextName = nullptr;
+		}
+
+		FORCEINLINE void Remove(FProperty& Prop)
+		{
+			FProperty** PrevIt = StartPtr;
+			for (FProperty* It = *StartPtr; It; It = GetNext(*It))
+			{
+				if (It == &Prop)
+				{
+					*PrevIt = Prop.*NextName;
+					Prop.*NextName = nullptr;
+					break;
+				}
+
+				PrevIt = &It;
+			}
+		}
+
+		FORCEINLINE void NullTerminate()
+		{
+			*EndPtr = nullptr;
+		}
+
+		FORCEINLINE void MoveToEnd()
+		{
+			for (FProperty* It = *StartPtr; It; It = GetNext(*It))
+			{
+				EndPtr = &(It->*NextName);
+			}
+		}
+
+		FORCEINLINE FProperty* GetNext(FProperty& Prop) const
+		{
+			return Prop.*NextName;
+		}
+
+		FORCEINLINE FProperty* GetListStart() const
+		{
+			return *StartPtr;
+		}
+
+		FORCEINLINE FProperty* GetListEnd() const
+		{
+			return *EndPtr;
+		}
+
+	private:
+		FProperty** StartPtr;
+		FProperty** EndPtr;
+	};
+
+	using FPropertyListBuilderPropertyLink = TPropertyLinkedListBuilder<&FProperty::PropertyLinkNext>;
+	using FPropertyListBuilderRefLink = TPropertyLinkedListBuilder<&FProperty::NextRef>;
+	using FPropertyListBuilderDestructorLink = TPropertyLinkedListBuilder<&FProperty::DestructorLinkNext>;
+	using FPropertyListBuilderPostConstructLink = TPropertyLinkedListBuilder<&FProperty::PostConstructLinkNext>;
+}
+
 /*-----------------------------------------------------------------------------
 TFieldIterator.
 -----------------------------------------------------------------------------*/
