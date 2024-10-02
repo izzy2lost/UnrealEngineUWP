@@ -13,18 +13,6 @@ struct FLiveLinkOpenVRCommonSettings
 	GENERATED_BODY()
 
 public:
-	/** Track all tracker pucks */
-	UPROPERTY(EditAnywhere, Category="LiveLinkOpenVR Settings")
-	bool bTrackTrackers = true;
-
-	/** Track all controllers */
-	UPROPERTY(EditAnywhere, Category="LiveLinkOpenVR Settings")
-	bool bTrackControllers = false;
-
-	/** Track all HMDs */
-	UPROPERTY(EditAnywhere, Category="LiveLinkOpenVR Settings")
-	bool bTrackHMDs = false;
-
 	/** Update rate (in Hz) at which to read the tracking data for each device */
 	UPROPERTY(EditAnywhere, Category="LiveLinkOpenVR Settings", meta=(ClampMin=1, ClampMax=1000))
 	uint32 LocalUpdateRateInHz = 60;
@@ -38,6 +26,22 @@ struct FLiveLinkOpenVRConnectionSettings
 
 	UPROPERTY(EditAnywhere, Category="LiveLinkOpenVR Settings", meta=(ShowOnlyInnerProperties))
 	FLiveLinkOpenVRCommonSettings CommonSettings;
+
+	/** Track all tracker pucks */
+	UPROPERTY(EditAnywhere, Category="LiveLinkOpenVR Settings")
+	bool bTrackTrackers = true;
+
+	/** Track all tracking references (e.g. base stations) */
+	UPROPERTY(EditAnywhere, Category="LiveLinkOpenVR Settings")
+	bool bTrackTrackingReferences = true;
+
+	/** Track all controllers */
+	UPROPERTY(EditAnywhere, Category="LiveLinkOpenVR Settings")
+	bool bTrackControllers = false;
+
+	/** Track all HMDs */
+	UPROPERTY(EditAnywhere, Category="LiveLinkOpenVR Settings")
+	bool bTrackHMDs = false;
 };
 
 
