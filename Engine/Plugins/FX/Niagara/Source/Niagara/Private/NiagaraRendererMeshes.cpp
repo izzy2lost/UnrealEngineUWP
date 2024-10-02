@@ -1534,7 +1534,7 @@ void FNiagaraRendererMeshes::GetDynamicMeshElements(const TArray<const FSceneVie
 					for (int32 SectionIndex = 0; SectionIndex < LODModel.Sections.Num(); SectionIndex++)
 					{
 						const FStaticMeshSection& Section = LODModel.Sections[SectionIndex];
-						const uint32 RemappedMaterialIndex = MeshData.MaterialRemapTable[Section.MaterialIndex];
+						const uint32 RemappedMaterialIndex = MeshData.MaterialRemapTable.IsValidIndex(Section.MaterialIndex) ? MeshData.MaterialRemapTable[Section.MaterialIndex] : INDEX_NONE;
 						FMaterialRenderProxy* MaterialProxy = ParticleMeshRenderData.DynamicDataMesh->Materials.IsValidIndex(RemappedMaterialIndex) ? ParticleMeshRenderData.DynamicDataMesh->Materials[RemappedMaterialIndex] : UMaterial::GetDefaultMaterial(MD_Surface)->GetRenderProxy();
 						if (Section.NumTriangles == 0 || MaterialProxy == nullptr)
 						{
