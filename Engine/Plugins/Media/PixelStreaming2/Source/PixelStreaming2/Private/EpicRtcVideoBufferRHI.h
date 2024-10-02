@@ -14,9 +14,13 @@ namespace UE::PixelStreaming2
 		FEpicRtcVideoBufferRHI(TSharedPtr<FVideoResourceRHI> VideoResourceRHI)
 			: VideoResourceRHI(VideoResourceRHI) 
 		{
+			VideoResourceRHI->SetUsing(true);
 		}
 
-		virtual ~FEpicRtcVideoBufferRHI() = default;
+		virtual ~FEpicRtcVideoBufferRHI() 
+		{
+			VideoResourceRHI->SetUsing(false);
+		}
 
 	public:
 		// Begin EpicRtcVideoBufferInterface

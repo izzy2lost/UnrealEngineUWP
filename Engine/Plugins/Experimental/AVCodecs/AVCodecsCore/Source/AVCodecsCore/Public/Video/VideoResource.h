@@ -8,6 +8,8 @@
 #include "PixelFormat.h"
 #include "Containers/ResourceArray.h"
 
+#include <atomic>
+
 enum class EVideoFormat : uint8
 {
 	BGRA = EPixelFormat::PF_B8G8R8A8,
@@ -167,6 +169,11 @@ private:
 	 */
 	FVideoDescriptor Descriptor;
 
+	/**
+	 * 
+	 */
+	std::atomic<bool> bIsInUse = false;
+
 public:
 	/**
 	 * @return Get the descriptor of our video data in device memory.
@@ -197,6 +204,16 @@ public:
 	 * @return Get the Size in bytes of our Resource.
 	 */
 	FORCEINLINE uint32 GetSize() const { return Descriptor.GetSizeInBytes(); }
+
+	/**
+	 * 
+	 */
+	FORCEINLINE void SetUsing(bool bUsing) { bIsInUse = bUsing; }
+
+	/**
+	 * 
+	 */
+	FORCEINLINE bool IsInUse() { return bIsInUse; }
 
 	FVideoResource(TSharedRef<FAVDevice> const& Device, FAVLayout const& Layout, FVideoDescriptor const& Descriptor);
 	virtual ~FVideoResource() override = default;
