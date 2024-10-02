@@ -41,6 +41,11 @@ public:
 
 	bool IsRundownValid() const { return AvaRundown.IsValid(); }
 	AVALANCHEMEDIAEDITOR_API UAvaRundown* GetRundown() const;
+
+	/** Begin transaction buffer, but don't mark as dirty yet. */
+	void BeginModify();
+	
+	/** Mark the rundown as dirty. */
 	void MarkAsModified();
 
 	DECLARE_MULTICAST_DELEGATE_TwoParams(FOnPageEvent, const TArray<int32>&, UE::AvaRundown::EPageEvent);

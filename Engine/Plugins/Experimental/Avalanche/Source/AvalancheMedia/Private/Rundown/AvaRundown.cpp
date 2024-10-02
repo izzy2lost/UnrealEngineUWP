@@ -163,6 +163,52 @@ void UAvaRundown::PostLoad()
 }
 
 #if WITH_EDITOR
+
+// Undo backup helper.
+class UAvaRundown::FPreUndoBackup
+{
+public:
+	FAvaRundownPageCollection TemplatePages;
+	FAvaRundownPageCollection InstancedPages;
+
+	static const FAvaRundownPage& GetPage(int32 InPageId, const FAvaRundownPageCollection& InCollection)
+	{
+		const int32 PageIndex = InCollection.GetPageIndex(InPageId);
+		return InCollection.Pages.IsValidIndex(PageIndex) ? InCollection.Pages[PageIndex] : FAvaRundownPage::NullPage;
+	}
+
+	static void NofifyPageValueChanges(UAvaRundown* InRundown, const FAvaRundownPageCollection& InCollection, const FAvaRundownPageCollection& InOtherCollection)
+	{
+		for (const FAvaRundownPage& Page : InCollection.Pages)
+		{
+			const FAvaRundownPage& BackupPage = GetPage(Page.GetPageId(), InOtherCollection);
+			if (BackupPage.IsValidPage())
+			{
+				EAvaPlayableRemoteControlChanges ValueChanges = EAvaPlayableRemoteControlChanges::None;
+				if (!BackupPage.GetRemoteControlValues().HasSameControllerValues(Page.GetRemoteControlValues()))
+				{
+					ValueChanges |= EAvaPlayableRemoteControlChanges::ControllerValues;
+				}
+				if (!BackupPage.GetRemoteControlValues().HasSameEntityValues(Page.GetRemoteControlValues()))
+				{
+					ValueChanges |= EAvaPlayableRemoteControlChanges::EntityValues;
+				}
+				if (ValueChanges != EAvaPlayableRemoteControlChanges::None)
+				{
+					InRundown->NotifyPageRemoteControlValueChanged(Page.GetPageId(), ValueChanges);
+				}
+			}
+		}
+	}
+};
+
+void UAvaRundown::PreEditUndo()
+{
+	PreUndoBackup = MakePimpl<FPreUndoBackup>();
+	PreUndoBackup->TemplatePages = TemplatePages;
+	PreUndoBackup->InstancedPages = InstancedPages;
+}
+
 void UAvaRundown::PostEditUndo()
 {
 	UObject::PostEditUndo();
@@ -180,6 +226,13 @@ void UAvaRundown::PostEditUndo()
 	}
 
 	GetOnActiveListChanged().Broadcast();
+
+	if (PreUndoBackup)
+	{
+		FPreUndoBackup::NofifyPageValueChanges(this, TemplatePages, PreUndoBackup->TemplatePages);
+		FPreUndoBackup::NofifyPageValueChanges(this, InstancedPages, PreUndoBackup->InstancedPages);
+		PreUndoBackup.Reset();
+	}
 }
 #endif
 
@@ -1684,7 +1737,7 @@ void UAvaRundown::NotifyPageRemoteControlValueChanged(int32 InPageId, EAvaPlayab
 		// will only set the value of the entity if it changed.
 		PushRuntimeRemoteControlValues(InPageId, true);
 	}
-	OnPagesChanged.Broadcast(this, {InPageId}, EAvaRundownPageChanges::RemoteControlValues);
+	OnPagesChanged.Broadcast(this, GetPage(InPageId), EAvaRundownPageChanges::RemoteControlValues);
 }
 
 #if WITH_EDITOR

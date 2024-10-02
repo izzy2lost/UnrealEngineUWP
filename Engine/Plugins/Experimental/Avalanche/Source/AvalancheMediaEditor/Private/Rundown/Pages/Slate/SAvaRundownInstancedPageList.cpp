@@ -140,27 +140,68 @@ void SAvaRundownInstancedPageList::Refresh()
 		if (PageListReference.Type == EAvaRundownPageListType::Instance)
 		{
 			const TArray<FAvaRundownPage>& Pages = Rundown->GetInstancedPages().Pages;
+			const int32 VisiblePageCount = VisiblePageIds.IsEmpty() ? Pages.Num() : VisiblePageIds.Num();
 			
-			PageViews.Reset(Pages.Num());
-
-			for (const FAvaRundownPage& Page : Pages)
+			if (PageViews.Num() != VisiblePageCount)
 			{
-				if (IsPageVisible(Page))
+				PageViews.Reset(Pages.Num());
+
+				for (const FAvaRundownPage& Page : Pages)
 				{
-					PageViews.Emplace(MakeShared<FAvaRundownInstancedPageViewImpl>(Page.GetPageId(), Rundown, SharedThis(this)));
+					if (IsPageVisible(Page))
+					{
+						PageViews.Emplace(MakeShared<FAvaRundownInstancedPageViewImpl>(Page.GetPageId(), Rundown, SharedThis(this)));
+					}
+				}
+			}
+			else
+			{
+				// Number of page didn't change, just refresh ids.
+				int32 PageViewIndex = 0;
+				for (const FAvaRundownPage& Page : Pages)
+				{
+					if (IsPageVisible(Page))
+					{
+						if (FAvaRundownPageViewImpl* PageView = PageViews[PageViewIndex]->CastTo<FAvaRundownPageViewImpl>())
+						{
+							PageView->RefreshPageId(Page.GetPageId());
+						}
+						++PageViewIndex;
+					}
 				}
 			}
 		}
 		else if (Rundown->IsValidSubList(PageListReference))
 		{
 			const FAvaRundownSubList& SubList = Rundown->GetSubList(PageListReference);
-			PageViews.Reset(SubList.PageIds.Num());
-			
-			for (const int32 PageId : SubList.PageIds)
+			const int32 VisiblePageCount = VisiblePageIds.IsEmpty() ? SubList.PageIds.Num() : VisiblePageIds.Num();
+
+			if (SubList.PageIds.Num() != VisiblePageCount)
 			{
-				if (IsPageVisible(PageId))
+				PageViews.Reset(SubList.PageIds.Num());
+			
+				for (const int32 PageId : SubList.PageIds)
 				{
-					PageViews.Emplace(MakeShared<FAvaRundownInstancedPageViewImpl>(PageId, Rundown, SharedThis(this)));
+					if (IsPageVisible(PageId))
+					{
+						PageViews.Emplace(MakeShared<FAvaRundownInstancedPageViewImpl>(PageId, Rundown, SharedThis(this)));
+					}
+				}
+			}
+			else
+			{
+				// Number of page didn't change, just refresh ids.
+				int32 PageViewIndex = 0;
+				for (const int32 PageId : SubList.PageIds)
+				{
+					if (IsPageVisible(PageId))
+					{
+						if (FAvaRundownPageViewImpl* PageView = PageViews[PageViewIndex]->CastTo<FAvaRundownPageViewImpl>())
+						{
+							PageView->RefreshPageId(PageId);
+						}
+						++PageViewIndex;
+					}
 				}
 			}
 		}

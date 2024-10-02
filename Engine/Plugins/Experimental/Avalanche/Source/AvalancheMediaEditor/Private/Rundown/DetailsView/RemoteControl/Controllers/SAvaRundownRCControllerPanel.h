@@ -90,6 +90,7 @@ private:
 		TSharedPtr<IPropertyRowGenerator> PropertyRowGenerator;
 		TWeakObjectPtr<URemoteControlPreset> PresetWeak;
 		SAvaRundownRCControllerPanel* ParentPanel = nullptr;
+		TSet<FProperty*> OngoingPropertyChanges;
 
 		FPropertyRowGeneratorWrapper(SAvaRundownRCControllerPanel* InParentPanel);
 		virtual ~FPropertyRowGeneratorWrapper();

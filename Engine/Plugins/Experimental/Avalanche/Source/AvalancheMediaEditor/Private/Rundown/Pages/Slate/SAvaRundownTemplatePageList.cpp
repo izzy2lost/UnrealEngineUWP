@@ -59,14 +59,35 @@ void SAvaRundownTemplatePageList::Refresh()
 			return;
 		}
 
-		const FAvaRundownPageCollection& PageCollection = Rundown->GetTemplatePages();
-		PageViews.Reset(PageCollection.Pages.Num());
-
-		for (const FAvaRundownPage& Page : PageCollection.Pages)
+		const TArray<FAvaRundownPage>& Pages = Rundown->GetTemplatePages().Pages;
+		const int32 VisiblePageCount = VisiblePageIds.IsEmpty() ? Pages.Num() : VisiblePageIds.Num();
+			
+		if (PageViews.Num() != VisiblePageCount)
 		{
-			if (IsPageVisible(Page))
+			PageViews.Reset(Pages.Num());
+
+			for (const FAvaRundownPage& Page : Pages)
 			{
-				PageViews.Emplace(MakeShared<FAvaRundownTemplatePageViewImpl>(Page.GetPageId(), Rundown, SharedThis(this)));
+				if (IsPageVisible(Page))
+				{
+					PageViews.Emplace(MakeShared<FAvaRundownTemplatePageViewImpl>(Page.GetPageId(), Rundown, SharedThis(this)));
+				}
+			}
+		}
+		else
+		{
+			// Number of page didn't change, just refresh ids.
+			int32 PageViewIndex = 0;
+			for (const FAvaRundownPage& Page : Pages)
+			{
+				if (IsPageVisible(Page))
+				{
+					if (FAvaRundownPageViewImpl* PageView = PageViews[PageViewIndex]->CastTo<FAvaRundownPageViewImpl>())
+					{
+						PageView->RefreshPageId(Page.GetPageId());
+					}
+					++PageViewIndex;
+				}
 			}
 		}
 

@@ -12,8 +12,6 @@
 #include "RemoteControlEntity.h"
 #include "RemoteControlField.h"
 #include "RemoteControlPreset.h"
-#include "Rundown/DetailsView/RemoteControl/Properties/AvaRundownPageRemoteControlWidgetUtils.h"
-#include "Widgets/Layout/SScissorRectBox.h"
 #include "Widgets/SNullWidget.h"
 #include "Widgets/Text/STextBlock.h"
 
@@ -24,6 +22,7 @@ void SAvaRundownRCPropertyItemRow::Construct(const FArguments& InArgs, TSharedRe
 {
 	ItemPtrWeak = InRowItem;
 	PropertyPanelWeak = InPropertyPanel;
+	NotifyHook = InPropertyPanel->GetNotifyHook();
 	Generator = nullptr;
 	ValueContainer = nullptr;
 	ValueWidget = nullptr;
@@ -112,6 +111,7 @@ TSharedRef<SWidget> SAvaRundownRCPropertyItemRow::CreateValue()
 			if ((FieldPtr->FieldType == EExposedFieldType::Property) && (Objects.Num() > 0))
 			{
 				FPropertyRowGeneratorArgs Args;
+				Args.NotifyHook = NotifyHook.Get();
 				Generator = FModuleManager::GetModuleChecked<FPropertyEditorModule>("PropertyEditor").CreatePropertyRowGenerator(Args);
 				Generator->SetObjects({Objects[0]});
 
