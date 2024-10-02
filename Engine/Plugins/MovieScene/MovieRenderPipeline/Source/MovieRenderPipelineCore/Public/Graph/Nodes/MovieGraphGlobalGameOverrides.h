@@ -219,6 +219,7 @@ private:
 	int32 PreviousSkipRedundantTransformUpdate;
 	int32 PreviousChaosClothUseTimeStepSmoothing;
 	int32 PreviousSkipWaterInfoTextureRenderWhenWorldRenderingDisabled;
+	int32 PreviousNaniteVSMInvalidateOnLODDelta;
 
 #if WITH_EDITOR
 	int32 PreviousGeoCacheStreamerShowNotification;
