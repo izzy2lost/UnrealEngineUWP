@@ -208,14 +208,12 @@ ENGINE_API uint32 GetDefaultMSAACount(const FStaticFeatureLevel InFeatureLevel, 
 			if (InFeatureLevel == ERHIFeatureLevel::ES3_1)
 			{
 				bool bMobilePixelProjectedReflection = IsUsingMobilePixelProjectedReflection(ShaderPlatform);
-				
-				bool bIsFullDepthPrepassEnabled = MobileUsesFullDepthPrepass(ShaderPlatform);
 
-				bRendererSupportMSAA = bRHISupportsMSAA && !bMobilePixelProjectedReflection && !bIsFullDepthPrepassEnabled;
+				bRendererSupportMSAA = bRHISupportsMSAA && !bMobilePixelProjectedReflection;
 
 				if (!bRendererSupportMSAA)
 				{
-					FailedReason = FString::Printf(TEXT("RHISupportsMSAA %d, MobilePixelProjectedReflection %d, MobileFullDepthPrepass %d"), bRHISupportsMSAA ? 1 : 0, bMobilePixelProjectedReflection ? 1 : 0, bIsFullDepthPrepassEnabled ? 1 : 0);
+					FailedReason = FString::Printf(TEXT("RHISupportsMSAA %d, MobilePixelProjectedReflection %d"), bRHISupportsMSAA ? 1 : 0, bMobilePixelProjectedReflection ? 1 : 0);
 				}
 			}
 			else
