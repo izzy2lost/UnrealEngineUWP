@@ -26,21 +26,36 @@ namespace UnrealToolbox
 			InitializeComponent();
 
 			_serviceProvider = serviceProvider;
-
-			foreach (ITrayAppPlugin plugin in _serviceProvider.GetServices<ITrayAppPlugin>())
-			{
-				if(plugin.HasSettingsPage())
-				{
-					string typeName = plugin.GetType().FullName!;
-					_navView.MenuItems.Add(new NavigationViewItem() { Content = plugin.Name, IconSource = plugin.Icon, Tag = typeName });
-					_typeToPlugin.Add(typeName, plugin);
-				}
-			}
-
-			_navView.SelectedItem = _navView.MenuItems[0];
 			_navView.SelectionChanged += NavView_SelectionChanged;
 
-			NavView_UpdateContent();
+			Refresh();
+		}
+
+		public void Refresh()
+		{
+			if (_serviceProvider != null)
+			{
+				object? selectedItemContent = (_navView.SelectedItem as NavigationViewItem)?.Content;
+
+				_typeToPlugin.Clear();
+
+				_navView.MenuItems.Clear();
+				_navView.MenuItems.Add(new NavigationViewItem() { Content = "General", IconSource = new SymbolIconSource() { Symbol = Symbol.Settings }, Tag = typeof(GeneralSettingsPage).FullName });
+
+				foreach (ITrayAppPlugin plugin in _serviceProvider.GetServices<ITrayAppPlugin>())
+				{
+					if (plugin.HasSettingsPage())
+					{
+						string typeName = plugin.GetType().FullName!;
+						_navView.MenuItems.Add(new NavigationViewItem() { Content = plugin.Name, IconSource = plugin.Icon, Tag = typeName });
+						_typeToPlugin.Add(typeName, plugin);
+					}
+				}
+
+				_navView.SelectedItem = _navView.MenuItems.FirstOrDefault(x => Object.Equals((x as NavigationViewItem)?.Content, selectedItemContent)) ?? _navView.MenuItems[0];
+
+				NavView_UpdateContent();
+			}
 		}
 
 		protected override void OnGotFocus(GotFocusEventArgs e)

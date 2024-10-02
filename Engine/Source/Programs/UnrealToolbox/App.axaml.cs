@@ -77,6 +77,7 @@ namespace UnrealToolbox
 			_pausedIcon = (WindowIcon)Resources["StatusPaused"]!;
 			_errorIcon = (WindowIcon)Resources["StatusError"]!;
 
+			RefreshPlugins();
 			UpdateMenu();
 
 			ToolCatalog toolCatalog = _serviceProvider.GetRequiredService<ToolCatalog>();
@@ -98,15 +99,20 @@ namespace UnrealToolbox
 		private void WaitForEvents()
 		{
 			using EventWaitHandle closeEvent = new EventWaitHandle(false, EventResetMode.AutoReset, Program.CloseEventName);
+			using EventWaitHandle refreshEvent = new EventWaitHandle(false, EventResetMode.AutoReset, Program.RefreshEventName);
 			using EventWaitHandle settingsEvent = new EventWaitHandle(false, EventResetMode.AutoReset, Program.SettingsEventName);
-			for(; ;)
+			for (; ;)
 			{
-				int index = WaitHandle.WaitAny(new[] { closeEvent, settingsEvent, _settingsThreadStop! });
+				int index = WaitHandle.WaitAny(new[] { closeEvent, refreshEvent, settingsEvent, _settingsThreadStop! });
 				if (index == 0)
 				{
 					Dispatcher.UIThread.Post(() => CloseMainThread());
 				}
 				else if (index == 1)
+				{
+					Dispatcher.UIThread.Post(() => RefreshPlugins());
+				}
+				else if (index == 2)
 				{
 					Dispatcher.UIThread.Post(() => OpenSettings());
 				}
@@ -221,13 +227,23 @@ namespace UnrealToolbox
 			Process.Start(startInfo);
 		}
 
+		private void RefreshPlugins()
+		{
+			bool update = false;
+			foreach (ITrayAppPlugin plugin in _serviceProvider.GetServices<ITrayAppPlugin>())
+			{
+				update |= plugin.Refresh();
+			}
+			if (update)
+			{
+				UpdateMenu();
+				_settingsWindow?.Refresh();
+			}
+		}
+
 		private void TrayIcon_Click(object? sender, EventArgs e)
 		{
-			foreach(ITrayAppPlugin plugin in _serviceProvider.GetServices<ITrayAppPlugin>())
-			{
-				plugin.Refresh();
-			}
-
+			RefreshPlugins();
 			OpenSettings();
 		}
 

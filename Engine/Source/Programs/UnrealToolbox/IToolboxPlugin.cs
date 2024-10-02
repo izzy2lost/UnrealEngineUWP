@@ -40,7 +40,8 @@ namespace UnrealToolbox
 		/// <summary>
 		/// Refresh the state of this plugin. Called when the application is activated or focussed.
 		/// </summary>
-		void Refresh();
+		/// <returns>True if the plugin status has changed, and the context menu needs to be rebuilt</returns>
+		bool Refresh();
 
 		/// <summary>
 		/// Get the current status of this plugin

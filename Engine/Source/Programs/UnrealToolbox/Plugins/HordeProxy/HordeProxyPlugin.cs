@@ -83,9 +83,8 @@ namespace UnrealToolbox.Plugins.HordeProxy
 			await _serverTask.DisposeAsync();
 		}
 
-		public void Refresh()
-		{
-		}
+		public bool Refresh()
+			=> false;
 
 		void OnStateChanged()
 		{

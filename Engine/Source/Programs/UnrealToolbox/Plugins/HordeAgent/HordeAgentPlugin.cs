@@ -84,12 +84,18 @@ namespace UnrealToolbox.Plugins.HordeAgent
 			_tickPauseStateTask = BackgroundTask.StartNew(ctx => TickPauseStateAsync(ctx));
 		}
 
-		public void Refresh()
+		public bool Refresh()
 		{
 			if (OperatingSystem.IsWindows())
 			{
-				IsEnabled = Registry.GetValue("HKEY_LOCAL_MACHINE\\SOFTWARE\\Epic Games\\Horde\\Agent", "Installed", null) != null;
+				bool enabled = ((Registry.GetValue("HKEY_LOCAL_MACHINE\\SOFTWARE\\Epic Games\\Horde\\Agent", "Installed", null) as int?) ?? 0) != 0;
+				if (enabled != IsEnabled)
+				{
+					IsEnabled = enabled;
+					return true;
+				}
 			}
+			return false;
 		}
 
 		static JsonSerializerOptions GetJsonSerializerOptions()

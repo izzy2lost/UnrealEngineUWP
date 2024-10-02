@@ -13,6 +13,7 @@ namespace UnrealToolbox
 	{
 		const string MutexName = "UnrealToolbox-Mutex";
 		public const string CloseEventName = "UnrealToolbox-Close";
+		public const string RefreshEventName = "UnrealToolbox-Refresh"; // Note: this event is set by InstallerCustomActions when agent is installed.
 		public const string SettingsEventName = "UnrealToolbox-Settings";
 
 		public static SelfUpdateState? Update { get; private set; }
@@ -46,6 +47,12 @@ namespace UnrealToolbox
 			if (args.Any(x => x.Equals("-Close", StringComparison.OrdinalIgnoreCase)))
 			{
 				closeEvent.Set();
+			}
+
+			using EventWaitHandle refreshEvent = new EventWaitHandle(false, EventResetMode.AutoReset, RefreshEventName);
+			if (args.Any(x => x.Equals("-Refresh", StringComparison.OrdinalIgnoreCase)))
+			{
+				refreshEvent.Set();
 			}
 
 			using EventWaitHandle settingsEvent = new EventWaitHandle(false, EventResetMode.AutoReset, SettingsEventName);
