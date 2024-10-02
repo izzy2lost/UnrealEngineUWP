@@ -161,4 +161,5 @@ private:
 	int32 PreviousSkipRedundantTransformUpdate;
 	int32 PreviousChaosClothUseTimeStepSmoothing;
 	int32 PreviousSkipWaterInfoTextureRenderWhenWorldRenderingDisabled;
+	int32 PreviousNaniteVSMInvalidateOnLODDelta;
 };
