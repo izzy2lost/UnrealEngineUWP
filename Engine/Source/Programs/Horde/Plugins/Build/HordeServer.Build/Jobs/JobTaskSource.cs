@@ -886,6 +886,9 @@ namespace HordeServer.Jobs
 			List<AclClaimConfig> claims = new List<AclClaimConfig>();
 			claims.Add(HordeClaims.AgentRoleClaim);
 			claims.Add(new AclClaimConfig(HordeClaimTypes.Lease, leaseId.ToString()));
+			claims.Add(new AclClaimConfig(HordeClaimTypes.LeaseStream, streamConfig.Id.ToString()));
+			claims.Add(new AclClaimConfig(HordeClaimTypes.LeaseProject, streamConfig.ProjectConfig.Id.ToString()));
+			claims.Add(new AclClaimConfig(HordeClaimTypes.LeaseTemplate, job.TemplateId.ToString()));
 			claims.AddRange(job.Claims);
 
 			// Encode the payload

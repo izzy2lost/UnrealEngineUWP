@@ -90,6 +90,21 @@ namespace HordeServer.Utilities
 		public const string Lease = Prefix + "lease";
 
 		/// <summary>
+		/// Claim identifying an agent as executing a lease in a particular stream
+		/// </summary>
+		public const string LeaseStream = Prefix + "lease-stream";
+
+		/// <summary>
+		/// Claim identifying an agent as executing a lease in a particular project
+		/// </summary>
+		public const string LeaseProject = Prefix + "lease-project";
+
+		/// <summary>
+		/// Claim identifying an agent as executing a lease in a particular job template
+		/// </summary>
+		public const string LeaseTemplate = Prefix + "lease-template";
+
+		/// <summary>
 		/// Claim allowing a certain namespace and/or path to be read from. See <see cref="WriteNamespace"/>.
 		/// </summary>
 		public const string ReadNamespace = Prefix + "read-namespace";
