@@ -233,14 +233,6 @@ void EyeAdaptationCS(uint2 DispatchThreadId : SV_DispatchThreadID)
 	RWEyeAdaptationBuffer[0] = OutData0;
 	RWEyeAdaptationBuffer[1] = float4(AverageLocalExposure, 0.0f, 0.0f, 0.0f);
 }
-
-RWTexture2D<float4> RWEyeAdaptationTexture;
-
-[numthreads(1, 1, 1)]
-void CopyEyeAdaptationToTextureCS(uint2 DispatchThreadId : SV_DispatchThreadID)
-{
-	RWEyeAdaptationTexture[DispatchThreadId] = EyeAdaptationBuffer[0];
-}
 #endif
 
 void BasicEyeAdaptationSetupPS(
