@@ -214,4 +214,32 @@ UNiagaraNodeFunctionCall* Utilities::CreateDataInterfaceFunctionNode(const TSubc
 	return nullptr;
 }
 
+UNiagaraNodeFunctionCall* Utilities::CreateFunctionCallNode(UNiagaraScript* FunctionScript, UNiagaraGraph* Graph)
+{
+	if (FunctionScript)
+	{
+		UNiagaraNodeFunctionCall* FuncNode = NewObject<UNiagaraNodeFunctionCall>(Graph);
+		FuncNode->FunctionScript = FunctionScript;
+		FuncNode->SelectedScriptVersion = FunctionScript->GetExposedVersion().VersionGuid;
+		FuncNode->SetFlags(RF_Transactional);
+		Graph->AddNode(FuncNode, false, false);
+
+		FuncNode->CreateNewGuid();
+		FuncNode->PostPlacedNewNode();
+		FuncNode->AllocateDefaultPins();
+		return FuncNode;
+	}
+	return nullptr;
+}
+
+void Utilities::SetDefaultBinding(UNiagaraGraph* Graph, const FName& VarName, const FName& DefaultBinding)
+{
+	if (UNiagaraScriptVariable* ScriptVariable = Graph->GetScriptVariable(VarName))
+	{
+		ScriptVariable->DefaultMode = ENiagaraDefaultMode::Binding;
+		ScriptVariable->DefaultBinding.SetName(DefaultBinding);
+		Graph->ScriptVariableChanged(ScriptVariable->Variable);
+	}
+}
+
 #undef LOCTEXT_NAMESPACE

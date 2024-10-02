@@ -99,7 +99,7 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Data Channel")
 	ENiagaraDataChannelAllocationMode AllocationMode = ENiagaraDataChannelAllocationMode::Static;
 
-	/** How many elements to allocate for writing per frame? Usage is defendant on AllocationMode. TODO: Allow allocation count to be controlled dynamically from script? */
+	/** How many elements to allocate for writing per frame? Usage depends on AllocationMode. TODO: Allow allocation count to be controlled dynamically from script? */
 	UPROPERTY(EditAnywhere, Category = "Data Channel", meta = (EditCondition="AllocationMode == ENiagaraDataChannelAllocationMode::Static"))
 	uint32 AllocationCount = 0;
 

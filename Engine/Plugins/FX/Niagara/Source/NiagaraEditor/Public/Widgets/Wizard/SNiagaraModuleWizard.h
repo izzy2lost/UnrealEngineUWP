@@ -119,5 +119,20 @@ namespace UE::Niagara::Wizard
 		NIAGARAEDITOR_API UEdGraphPin* AddWriteParameterPin(const FNiagaraTypeDefinition& Type, const FName& Name, UNiagaraNodeParameterMapSet* MapSetNode);
 		NIAGARAEDITOR_API TSharedRef<IDetailsView> CreateDetailsView();
 		NIAGARAEDITOR_API UNiagaraNodeFunctionCall* CreateDataInterfaceFunctionNode(const TSubclassOf<UNiagaraDataInterface>& DataInterfaceClass, const FName& FunctionName, UNiagaraGraph* Graph);
+		NIAGARAEDITOR_API UNiagaraNodeFunctionCall* CreateFunctionCallNode(UNiagaraScript* FunctionScript, UNiagaraGraph* Graph);
+
+		template <typename T>
+		NIAGARAEDITOR_API void SetDefaultValue(UNiagaraGraph* Graph, const FName& VarName, const FNiagaraTypeDefinition& TypeDef, T Value)
+		{
+			if (UNiagaraScriptVariable* ScriptVariable = Graph->GetScriptVariable(VarName))
+			{
+				// create temp var for data storage
+				FNiagaraVariable Var(TypeDef, FName("Var"));
+				Var.SetValue(Value);
+				ScriptVariable->SetDefaultValueData(Var.GetData());
+				Graph->ScriptVariableChanged(ScriptVariable->Variable);
+			}
+		}
+		NIAGARAEDITOR_API void SetDefaultBinding(UNiagaraGraph* Graph, const FName& VarName, const FName& DefaultBinding);
 	}
 }
