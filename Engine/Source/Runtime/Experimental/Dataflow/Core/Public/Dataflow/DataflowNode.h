@@ -204,6 +204,9 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	/** Override this method to provide custom serialization for this node. */
 	virtual void Serialize(FArchive& Ar) {}
+	/** Override this method to provide custom post-serialization for this node. This method will be called after Serialize. It is also called after copy-paste with
+	 ArchiveState IsLoading. */
+	virtual void PostSerialize(const FArchive& Ar) {}
 
 	/** Override this method to provide custom reconnections when a node inputs has been deprecated and removed. */
 	virtual FDataflowInput* RedirectSerializedInput(const FName& MissingInputName) { return nullptr; }
@@ -678,7 +681,8 @@ public:																				\
 		UScriptStruct* const Struct = TYPE::StaticStruct();							\
 		Struct->SerializeTaggedProperties(Ar, (uint8*)this,							\
 		Struct, nullptr);															\
-		Serialize(Ar);}																\
+		Serialize(Ar);																\
+		PostSerialize(Ar);}															\
 	virtual FName GetDisplayName() const override { return TYPE::StaticDisplay(); }	\
 	virtual FName GetCategory() const override { return TYPE::StaticCategory(); }	\
 	virtual FString GetTags() const override { return TYPE::StaticTags(); }			\

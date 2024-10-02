@@ -54,7 +54,7 @@ private:
 	virtual bool CanRemovePin() const override { return CollectionLods.Num() > NumInitialCollectionLods; }
 	virtual TArray<UE::Dataflow::FPin> GetPinsToRemove() const override;
 	virtual void OnPinRemoved(const UE::Dataflow::FPin& Pin) override;
-	virtual void Serialize(FArchive& Ar) override;
+	virtual void PostSerialize(const FArchive& Ar) override;
 	//~ End FDataflowNode interface
 
 	TArray<TSharedRef<FManagedArrayCollection>> GetCleanedCollectionLodValues(UE::Dataflow::FContext& Context) const;
@@ -125,7 +125,7 @@ private:
 	virtual bool CanRemovePin() const override { return NumLods > 1; }
 	virtual TArray<UE::Dataflow::FPin> GetPinsToRemove() const override;
 	virtual void OnPinRemoved(const UE::Dataflow::FPin& Pin) override;
-	virtual void Serialize(FArchive& Ar) override;
+	virtual void PostSerialize(const FArchive& Ar) override;
 	//~ End FDataflowNode interface
 
 	TArray<const FManagedArrayCollection*> GetCollectionLods() const;

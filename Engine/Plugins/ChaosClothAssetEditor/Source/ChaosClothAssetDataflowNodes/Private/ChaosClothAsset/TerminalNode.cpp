@@ -328,7 +328,7 @@ UE::Dataflow::TConnectionReference<FManagedArrayCollection> FChaosClothAssetTerm
 	return { &CollectionLods[Index], Index, &CollectionLods };
 }
 
-void FChaosClothAssetTerminalNode_v2::Serialize(FArchive& Ar)
+void FChaosClothAssetTerminalNode_v2::PostSerialize(const FArchive& Ar)
 {
 	// because we add pins we need to make sure we restore them when loading
 	// to make sure they can get properly reconnected
@@ -696,7 +696,7 @@ TArray<TSharedRef<FManagedArrayCollection>> FChaosClothAssetTerminalNode::GetCle
 	return CollectionLodValues;
 }
 
-void FChaosClothAssetTerminalNode::Serialize(FArchive& Ar)
+void FChaosClothAssetTerminalNode::PostSerialize(const FArchive& Ar)
 {
 	// because we add pins we need to make sure we restore them when loading
 	// to make sure they can get properly reconnected

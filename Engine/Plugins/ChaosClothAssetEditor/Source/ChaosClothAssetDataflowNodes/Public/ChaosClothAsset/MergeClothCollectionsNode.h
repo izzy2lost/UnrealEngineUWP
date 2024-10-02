@@ -37,7 +37,7 @@ private:
 	virtual bool CanRemovePin() const override { return Collections.Num() > NumInitialOptionalInputs; }
 	virtual TArray<UE::Dataflow::FPin> GetPinsToRemove() const override;
 	virtual void OnPinRemoved(const UE::Dataflow::FPin& Pin) override;
-	virtual void Serialize(FArchive& Ar) override;
+	virtual void PostSerialize(const FArchive& Ar) override;
 	//~ End FDataflowNode interface
 
 
@@ -93,7 +93,7 @@ private:
 	virtual bool CanRemovePin() const override { return NumInputs > NumInitialOptionalInputs; }
 	virtual TArray<UE::Dataflow::FPin> GetPinsToRemove() const override;
 	virtual void OnPinRemoved(const UE::Dataflow::FPin& Pin) override;
-	virtual void Serialize(FArchive& Ar) override;
+	virtual void PostSerialize(const FArchive& Ar) override;
 	//~ End FDataflowNode interface
 
 	TArray<const FManagedArrayCollection*> GetCollections() const;

@@ -523,7 +523,7 @@ void FChaosClothAssetProxyDeformerNode_v2::OnPinRemoved(const UE::Dataflow::FPin
 	return Super::OnPinRemoved(Pin);
 }
 
-void FChaosClothAssetProxyDeformerNode_v2::Serialize(FArchive& Ar)
+void FChaosClothAssetProxyDeformerNode_v2::PostSerialize(const FArchive& Ar)
 {
 	// Restore the pins when re-loading so they can get properly reconnected
 	if (Ar.IsLoading())
@@ -719,7 +719,7 @@ void FChaosClothAssetProxyDeformerNode::OnPinRemoved(const UE::Dataflow::FPin& P
 	return Super::OnPinRemoved(Pin);
 }
 
-void FChaosClothAssetProxyDeformerNode::Serialize(FArchive& Ar)
+void FChaosClothAssetProxyDeformerNode::PostSerialize(const FArchive& Ar)
 {
 	// Restore the pins when re-loading so they can get properly reconnected
 	if (Ar.IsLoading())

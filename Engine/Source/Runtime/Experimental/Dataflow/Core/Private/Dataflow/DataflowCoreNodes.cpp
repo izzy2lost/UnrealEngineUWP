@@ -181,7 +181,7 @@ void FDataflowSelectNode::OnPinRemoved(const UE::Dataflow::FPin& Pin)
 	return Super::OnPinRemoved(Pin);
 }
 
-void FDataflowSelectNode::Serialize(FArchive& Ar)
+void FDataflowSelectNode::PostSerialize(const FArchive& Ar)
 {
 	if (Ar.IsLoading())
 	{

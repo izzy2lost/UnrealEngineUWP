@@ -93,7 +93,7 @@ private:
 	virtual bool CanRemovePin() const override { return Inputs.Num() > NumInitialInputs; }
 	virtual TArray<UE::Dataflow::FPin> GetPinsToRemove() const override;
 	virtual void OnPinRemoved(const UE::Dataflow::FPin& Pin) override;
-	virtual void Serialize(FArchive& Ar) override;
+	virtual void PostSerialize(const FArchive& Ar) override;
 
 	UE::Dataflow::TConnectionReference<FDataflowAnyType> GetConnectionReference(int32 Index) const;
 

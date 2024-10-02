@@ -63,7 +63,7 @@ private:
 	virtual bool CanRemovePin() const override { return SelectionFilterSets.Num() > NumInitialSelectionFilterSets; }
 	virtual TArray<UE::Dataflow::FPin> GetPinsToRemove() const override;
 	virtual void OnPinRemoved(const UE::Dataflow::FPin& Pin) override;
-	virtual void Serialize(FArchive& Ar) override;
+	virtual void PostSerialize(const FArchive& Ar) override;
 	//~ End FDataflowNode interface
 
 	TArray<TPair<FName, FName>> GetSelectionFilterNames(UE::Dataflow::FContext& Context) const;
@@ -179,7 +179,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	virtual bool CanRemovePin() const override { return NumFilterSets > NumInitialOptionalInputs; }
 	virtual TArray<UE::Dataflow::FPin> GetPinsToRemove() const override;
 	virtual void OnPinRemoved(const UE::Dataflow::FPin& Pin) override;
-	virtual void Serialize(FArchive& Ar) override;
+	virtual void PostSerialize(const FArchive& Ar) override;
 	//~ End FDataflowNode interface
 
 	TArray<FName> GetSelectionFilterNames(UE::Dataflow::FContext& Context) const;
