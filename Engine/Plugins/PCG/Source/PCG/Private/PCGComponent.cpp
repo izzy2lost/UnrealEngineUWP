@@ -1768,7 +1768,7 @@ void UPCGComponent::PostLoad()
 	}
 #endif
 
-	if (!SchedulingPolicy || IsManagedByRuntimeGenSystem())
+	if (!IsValid(SchedulingPolicy))
 	{
 		RefreshSchedulingPolicy();
 	}
