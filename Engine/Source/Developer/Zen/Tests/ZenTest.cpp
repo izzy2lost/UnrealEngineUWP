@@ -23,15 +23,16 @@ TEST_CASE("Zen::ZenServerInterface", "[Zen][Basic]")
 	FString DefaultDataPath = FPaths::ConvertRelativePathToFull(FPaths::Combine(DataPathRoot, "Default"));
 	IFileManager::Get().DeleteDirectory(*DataPathRoot, false, true);
 
-	SECTION("Basic AutoLaunch and Shutdown")
+	SECTION("Basic AutoLaunch and Shutdown (copy)")
 	{
-		for (int Iteration = 0; Iteration < 2; ++Iteration)
+		for (int Iteration = 0; Iteration < 4; ++Iteration)
 		{
 			FServiceSettings ZenTestServiceSettings;
 			FServiceAutoLaunchSettings& ZenTestAutoLaunchSettings = ZenTestServiceSettings.SettingsVariant.Get<FServiceAutoLaunchSettings>();
 			ZenTestAutoLaunchSettings.DataPath = DefaultDataPath;
 			ZenTestAutoLaunchSettings.ExtraArgs = DefaultArgs;
 			ZenTestAutoLaunchSettings.DesiredPort = DefaultTestPort;
+			ZenTestAutoLaunchSettings.InstallMode = FServiceAutoLaunchSettings::EInstallMode::Copy;
 
 			{
 				FScopeZenService ScopeZenService(MoveTemp(ZenTestServiceSettings));
@@ -48,15 +49,42 @@ TEST_CASE("Zen::ZenServerInterface", "[Zen][Basic]")
 		}
 	}
 
-	SECTION("Overlapping AutoLaunch and Shutdown")
+	SECTION("Basic AutoLaunch and Shutdown (link)")
 	{
-		for (int Iteration = 0; Iteration < 3; ++Iteration)
+		for (int Iteration = 0; Iteration < 4; ++Iteration)
 		{
 			FServiceSettings ZenTestServiceSettings;
 			FServiceAutoLaunchSettings& ZenTestAutoLaunchSettings = ZenTestServiceSettings.SettingsVariant.Get<FServiceAutoLaunchSettings>();
 			ZenTestAutoLaunchSettings.DataPath = DefaultDataPath;
 			ZenTestAutoLaunchSettings.ExtraArgs = DefaultArgs;
 			ZenTestAutoLaunchSettings.DesiredPort = DefaultTestPort;
+			ZenTestAutoLaunchSettings.InstallMode = FServiceAutoLaunchSettings::EInstallMode::Link;
+
+			{
+				FScopeZenService ScopeZenService(MoveTemp(ZenTestServiceSettings));
+				FZenServiceInstance& ZenInstance = ScopeZenService.GetInstance();
+				uint16 AutoLaunchedPort = ZenInstance.GetAutoLaunchedPort();
+				uint16 DetectedPort = 0;
+				CHECK(ZenInstance.IsServiceReady());
+
+				CHECK(IsLocalServiceRunning(*DefaultDataPath, &DetectedPort));
+				CHECK(DetectedPort == AutoLaunchedPort);
+				CHECK(StopLocalService(*DefaultDataPath));
+				CHECK(!IsLocalServiceRunning(*DefaultDataPath));
+			}
+		}
+	}
+
+	SECTION("Overlapping AutoLaunch and Shutdown (copy)")
+	{
+		for (int Iteration = 0; Iteration < 11; ++Iteration)
+		{
+			FServiceSettings ZenTestServiceSettings;
+			FServiceAutoLaunchSettings& ZenTestAutoLaunchSettings = ZenTestServiceSettings.SettingsVariant.Get<FServiceAutoLaunchSettings>();
+			ZenTestAutoLaunchSettings.DataPath = DefaultDataPath;
+			ZenTestAutoLaunchSettings.ExtraArgs = DefaultArgs;
+			ZenTestAutoLaunchSettings.DesiredPort = DefaultTestPort;
+			ZenTestAutoLaunchSettings.InstallMode = FServiceAutoLaunchSettings::EInstallMode::Copy;
 
 			{
 				FScopeZenService ScopeZenService(MoveTemp(ZenTestServiceSettings));
@@ -73,15 +101,94 @@ TEST_CASE("Zen::ZenServerInterface", "[Zen][Basic]")
 		CHECK(!IsLocalServiceRunning(*DefaultDataPath));
 	}
 
-	SECTION("Overlapping AutoLaunch and Shutdown With DataPath Shared And Differing Args")
+	SECTION("Overlapping AutoLaunch and Shutdown (link)")
 	{
-		for (int Iteration = 0; Iteration < 3; ++Iteration)
+		for (int Iteration = 0; Iteration < 11; ++Iteration)
+		{
+			FServiceSettings ZenTestServiceSettings;
+			FServiceAutoLaunchSettings& ZenTestAutoLaunchSettings = ZenTestServiceSettings.SettingsVariant.Get<FServiceAutoLaunchSettings>();
+			ZenTestAutoLaunchSettings.DataPath = DefaultDataPath;
+			ZenTestAutoLaunchSettings.ExtraArgs = DefaultArgs;
+			ZenTestAutoLaunchSettings.DesiredPort = DefaultTestPort;
+			ZenTestAutoLaunchSettings.InstallMode = FServiceAutoLaunchSettings::EInstallMode::Link;
+
+			{
+				FScopeZenService ScopeZenService(MoveTemp(ZenTestServiceSettings));
+				FZenServiceInstance& ZenInstance = ScopeZenService.GetInstance();
+				uint16 AutoLaunchedPort = ZenInstance.GetAutoLaunchedPort();
+				uint16 DetectedPort = 0;
+				CHECK(ZenInstance.IsServiceReady());
+
+				CHECK(IsLocalServiceRunning(*DefaultDataPath, &DetectedPort));
+				CHECK(DetectedPort == AutoLaunchedPort);
+			}
+		}
+		CHECK(StopLocalService(*DefaultDataPath));
+		CHECK(!IsLocalServiceRunning(*DefaultDataPath));
+	}
+
+	SECTION("Overlapping AutoLaunch and Shutdown With DataPath Shared And Differing Args (copy)")
+	{
+		for (int Iteration = 0; Iteration < 11; ++Iteration)
 		{
 			FServiceSettings ZenTestServiceSettings;
 			FServiceAutoLaunchSettings& ZenTestAutoLaunchSettings = ZenTestServiceSettings.SettingsVariant.Get<FServiceAutoLaunchSettings>();
 			ZenTestAutoLaunchSettings.DataPath = DefaultDataPath;
 			ZenTestAutoLaunchSettings.ExtraArgs = *WriteToString<128>(DefaultArgs, TEXT(" --gc-interval-seconds "), (Iteration+1)*1000);
 			ZenTestAutoLaunchSettings.DesiredPort = DefaultTestPort;
+			ZenTestAutoLaunchSettings.InstallMode = FServiceAutoLaunchSettings::EInstallMode::Copy;
+
+			{
+				FScopeZenService ScopeZenService(MoveTemp(ZenTestServiceSettings));
+				FZenServiceInstance& ZenInstance = ScopeZenService.GetInstance();
+				uint16 AutoLaunchedPort = ZenInstance.GetAutoLaunchedPort();
+				uint16 DetectedPort = 0;
+				CHECK(ZenInstance.IsServiceReady());
+
+				CHECK(IsLocalServiceRunning(*DefaultDataPath, &DetectedPort));
+				CHECK(DetectedPort == AutoLaunchedPort);
+			}
+		}
+		CHECK(StopLocalService(*DefaultDataPath));
+		CHECK(!IsLocalServiceRunning(*DefaultDataPath));
+	}
+
+	SECTION("Overlapping AutoLaunch and Shutdown With DataPath Shared And Differing Args (link)")
+	{
+		for (int Iteration = 0; Iteration < 11; ++Iteration)
+		{
+			FServiceSettings ZenTestServiceSettings;
+			FServiceAutoLaunchSettings& ZenTestAutoLaunchSettings = ZenTestServiceSettings.SettingsVariant.Get<FServiceAutoLaunchSettings>();
+			ZenTestAutoLaunchSettings.DataPath = DefaultDataPath;
+			ZenTestAutoLaunchSettings.ExtraArgs = *WriteToString<128>(DefaultArgs, TEXT(" --gc-interval-seconds "), (Iteration + 1) * 1000);
+			ZenTestAutoLaunchSettings.DesiredPort = DefaultTestPort;
+			ZenTestAutoLaunchSettings.InstallMode = FServiceAutoLaunchSettings::EInstallMode::Link;
+
+			{
+				FScopeZenService ScopeZenService(MoveTemp(ZenTestServiceSettings));
+				FZenServiceInstance& ZenInstance = ScopeZenService.GetInstance();
+				uint16 AutoLaunchedPort = ZenInstance.GetAutoLaunchedPort();
+				uint16 DetectedPort = 0;
+				CHECK(ZenInstance.IsServiceReady());
+
+				CHECK(IsLocalServiceRunning(*DefaultDataPath, &DetectedPort));
+				CHECK(DetectedPort == AutoLaunchedPort);
+			}
+		}
+		CHECK(StopLocalService(*DefaultDataPath));
+		CHECK(!IsLocalServiceRunning(*DefaultDataPath));
+	}
+
+	SECTION("Overlapping AutoLaunch and Shutdown With DataPath Shared And Differing Args (alternating)")
+	{
+		for (int Iteration = 0; Iteration < 11; ++Iteration)
+		{
+			FServiceSettings ZenTestServiceSettings;
+			FServiceAutoLaunchSettings& ZenTestAutoLaunchSettings = ZenTestServiceSettings.SettingsVariant.Get<FServiceAutoLaunchSettings>();
+			ZenTestAutoLaunchSettings.DataPath = DefaultDataPath;
+			ZenTestAutoLaunchSettings.ExtraArgs = *WriteToString<128>(DefaultArgs, TEXT(" --gc-interval-seconds "), (Iteration + 1) * 1000);
+			ZenTestAutoLaunchSettings.DesiredPort = DefaultTestPort;
+			ZenTestAutoLaunchSettings.InstallMode = ((Iteration & 1) == 0) ? FServiceAutoLaunchSettings::EInstallMode::Copy : FServiceAutoLaunchSettings::EInstallMode::Link;
 
 			{
 				FScopeZenService ScopeZenService(MoveTemp(ZenTestServiceSettings));

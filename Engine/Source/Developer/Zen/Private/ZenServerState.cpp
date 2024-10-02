@@ -22,9 +22,73 @@
 #	include <sys/file.h>
 #	include <sys/mman.h>
 #	include <sys/sem.h>
+#	include <sys/stat.h>
+#	include <sys/sysctl.h>
 #endif
 
 DEFINE_LOG_CATEGORY_STATIC(LogZenServiceState, Log, All);
+
+#if PLATFORM_UNIX
+static char
+GetPidStatus(int Pid)
+{
+	TAnsiStringBuilder<128> StatPath;
+	StatPath.Appendf("/proc/%d/stat", Pid);
+	FILE* StatFile = fopen(*StatPath, "r");
+	if (StatFile)
+	{
+		char Buffer[5120];
+		int	 Size = fread(Buffer, 1, 5120 - 1, StatFile);
+		fclose(StatFile);
+		if (Size > 0)
+		{
+			Buffer[Size + 1] = 0;
+			char* ScanPtr = strrchr(Buffer, ')');
+			if (ScanPtr && ScanPtr[1] != '\0')
+			{
+				ScanPtr += 2;
+				char State = *ScanPtr;
+				return State;
+			}
+		}
+	}
+	return 0;
+}
+
+static bool
+IsZombieProcess(int pid)
+{
+	char Status = GetPidStatus(pid);
+	if (Status == 'Z' || Status == 0)
+	{
+		return true;
+	}
+	return false;
+}
+
+#endif	// ZEN_PLATFORM_LINUX
+
+#if PLATFORM_MAC
+static bool
+IsZombieProcess(int pid)
+{
+	struct kinfo_proc Info;
+	int				  Mib[4] = { CTL_KERN, KERN_PROC, KERN_PROC_PID, pid };
+	size_t			  InfoSize = sizeof Info;
+
+	int Res = sysctl(Mib, 4, &Info, &InfoSize, NULL, 0);
+	if (Res != 0)
+	{
+		return false;
+	}
+	if (Info.kp_proc.p_stat == SZOMB)
+	{
+		// Zombie process
+		return true;
+	}
+	return false;
+}
+#endif	// PLATFORM_MAC
 
 // Native functions to interact with a process using a process id
 // We don't use UE's own OpenProcess as they try to open processes with PROCESS_ALL_ACCESS
@@ -73,6 +137,10 @@ bool ZenServerState::IsProcessRunning(uint32 Pid)
 	int Res = kill(pid_t(Pid), 0);
 	if (Res == 0)
 	{
+		if (IsZombieProcess(Pid))
+		{
+			return false;
+		}
 		return true;
 	}
 	int Error = errno;
