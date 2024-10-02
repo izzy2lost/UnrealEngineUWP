@@ -207,6 +207,8 @@ void SRCSignatureTree::DeleteSelectedPanelItems()
 
 	FScopedTransaction Transaction(LOCTEXT("RemoveSelectedItems", "Remove Selected Items"));
 	DeleteItemsFromLogicPanel<FRCSignatureTreeItemBase>(RootItem->GetChildrenMutable(), SelectedItems);
+
+	RootItem->GetSelection()->ClearSelection();
 }
 
 void SRCSignatureTree::Reset()
