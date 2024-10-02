@@ -85,15 +85,15 @@ void UMVVMK2Node_IsConditionValid::ExpandNode(FKismetCompilerContext& CompilerCo
 	// Casting subsytem.result into MVVMSubsystem
 	CallGetSubsystemNode->GetReturnValuePin()->PinType = CallCompareFloatValuesNode->FindPinChecked(UEdGraphSchema_K2::PN_Self)->PinType;
 	// subsystem.result to CompareFloatValues.target
-	check(Schema->TryCreateConnection(CallGetSubsystemNode->GetReturnValuePin(), CallCompareFloatValuesNode->FindPinChecked(UEdGraphSchema_K2::PN_Self)));
+	ensure(Schema->TryCreateConnection(CallGetSubsystemNode->GetReturnValuePin(), CallCompareFloatValuesNode->FindPinChecked(UEdGraphSchema_K2::PN_Self)));
 	// CompareFloatValues.result to branch.condition
-	check(Schema->TryCreateConnection(CallCompareFloatValuesNode->FindPinChecked(UEdGraphSchema_K2::PN_ReturnValue), BranchNode->GetConditionPin()));
+	ensure(Schema->TryCreateConnection(CallCompareFloatValuesNode->FindPinChecked(UEdGraphSchema_K2::PN_ReturnValue), BranchNode->GetConditionPin()));
 	CompilerContext.MovePinLinksToIntermediate(*GetOperationPin(), *CallCompareFloatValuesNode->FindPinChecked(FName("Operation")));
 	CompilerContext.MovePinLinksToIntermediate(*GetValuePin(), *CallCompareFloatValuesNode->FindPinChecked(FName("Value")));
 	CompilerContext.MovePinLinksToIntermediate(*GetCompareValuePin(), *CallCompareFloatValuesNode->FindPinChecked(FName("CompareValue")));
 	CompilerContext.MovePinLinksToIntermediate(*GetCompareMaxValuePin(), *CallCompareFloatValuesNode->FindPinChecked(FName("CompareMaxValue")));
 	// connect compare.then to branch.exec
-	check(Schema->TryCreateConnection(CallCompareFloatValuesNode->GetThenPin(), BranchNode->GetExecPin()));
+	ensure(Schema->TryCreateConnection(CallCompareFloatValuesNode->GetThenPin(), BranchNode->GetExecPin()));
 
 	// move this.exec to compare.exec
 	CompilerContext.MovePinLinksToIntermediate(*GetExecPin(), *CallCompareFloatValuesNode->GetExecPin());
