@@ -1451,9 +1451,10 @@ namespace mu
 			// TODO: 
 			// MeshResult.MeshOp has some modifiers applied already: the ones applied before other operations directly in the mesh constant generation. 
 			// This is not what was happening before the refactor  so use MeshResult.BaseMeshOp. This is another case of ambiguity of order of modifiers 
-			// that whould be fixed with the general ordering design.
-			//Ptr<ASTOp> CurrentMeshToProjectOp = MeshResult.MeshOp;
-			Ptr<ASTOp> CurrentMeshToProjectOp = MeshResult.BaseMeshOp;
+			// that whould be fixed with the general ordering design. 
+			// Actually use the MeshOp, otherwise the projector will only project to the first option if the mesh operation is a switch. 
+			Ptr<ASTOp> CurrentMeshToProjectOp = MeshResult.MeshOp;
+			//Ptr<ASTOp> CurrentMeshToProjectOp = MeshResult.BaseMeshOp;
 
             if (projectorResult.type == PROJECTOR_TYPE::WRAPPING)
             {
