@@ -1247,9 +1247,10 @@ void FIOSPlatformMisc::RegisterForRemoteNotifications()
 									  int32 types = (int32)granted;
                                       if (granted)
                                       {
-                                          UIApplication* application = [UIApplication sharedApplication];
-                                          [application registerForRemoteNotifications];
-                                          
+										  dispatch_sync(dispatch_get_main_queue(), ^{
+											  UIApplication* application = [UIApplication sharedApplication];
+											  [application registerForRemoteNotifications];  
+										  });
                                       }
 									  FFunctionGraphTask::CreateAndDispatchWhenReady([types]()
 																					 {

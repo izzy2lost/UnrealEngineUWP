@@ -245,16 +245,19 @@ void FMetalViewport::Resize(uint32 InSizeX, uint32 InSizeY, bool bInIsFullscreen
 	// (even though Apple's HDR displays are P3)
 	// and its compositor will do the conversion.
 	{
-		IOSAppDelegate* AppDelegate = [IOSAppDelegate GetDelegate];
-		FIOSView* IOSView = AppDelegate.IOSView;
-		CAMetalLayer* MetalLayer = (CAMetalLayer*) IOSView.layer;
-		
-		if (MetalFormat != (MTL::PixelFormat) MetalLayer.pixelFormat)
-		{
-			MetalLayer.pixelFormat = (MTLPixelFormat) MetalFormat;
-		}
-		
-		[IOSView UpdateRenderWidth:InSizeX andHeight:InSizeY];
+		dispatch_sync(dispatch_get_main_queue(), ^{
+			IOSAppDelegate* AppDelegate = [IOSAppDelegate GetDelegate];
+			FIOSView* IOSView = AppDelegate.IOSView;
+			
+			CAMetalLayer* MetalLayer = (CAMetalLayer*) IOSView.layer;
+			
+			if (MetalFormat != (MTL::PixelFormat) MetalLayer.pixelFormat)
+			{
+				MetalLayer.pixelFormat = (MTLPixelFormat) MetalFormat;
+			}
+			
+			[IOSView UpdateRenderWidth:InSizeX andHeight:InSizeY];
+		});
 	}
 #endif
 
