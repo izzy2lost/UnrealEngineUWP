@@ -959,7 +959,7 @@ void  FElectraTextureSample::CopyFromExternalTextureVulkan(FRHICommandListImmedi
 			}
 			else
 			{
-				ColorSpaceMtx = FMatrix44f(Working.GetXYZToRgb().GetTransposed() * GetGamutToXYZMatrix());
+				ColorSpaceMtx = UE::Color::Transpose<float>(UE::Color::FColorSpaceTransform(GetSourceColorSpace(), Working));
 			}
 	
 			float NF = GetHDRNitsNormalizationFactor();
@@ -1093,7 +1093,7 @@ bool FElectraTextureSample::ConvertCpuOutputPath(FRHICommandListImmediate& RHICm
 
 	// Setup conversion from Rec2020 to current working color space
 	const UE::Color::FColorSpace& Working = UE::Color::FColorSpace::GetWorking();
-	FMatrix44f ColorSpaceMtx = FMatrix44f(Working.GetXYZToRgb().GetTransposed() * GetGamutToXYZMatrix());
+	FMatrix44f ColorSpaceMtx = UE::Color::Transpose<float>(UE::Color::FColorSpaceTransform(GetSourceColorSpace(), Working));
 	if (GetEncodingType() == UE::Color::EEncoding::ST2084)
 	{
 		// Normalize output (e.g. 80 or 100 nits == 1.0)

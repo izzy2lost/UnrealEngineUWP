@@ -28,18 +28,18 @@ namespace UE::MediaIOCore
 			if (bIsSRGBInput)
 			{
 				Encoding = UE::Color::EEncoding::sRGB;
-				ColorSpace = UE::Color::EColorSpace::sRGB;
+				ColorSpaceType = UE::Color::EColorSpace::sRGB;
 			}
 			else
 			{
 				Encoding = UE::Color::EEncoding::Linear;
-				ColorSpace = UE::Color::EColorSpace::sRGB;
+				ColorSpaceType = UE::Color::EColorSpace::sRGB;
 			}
 		}
 
-		FColorFormatArgs(UE::Color::EEncoding InEncoding, UE::Color::EColorSpace InColorSpace)
+		FColorFormatArgs(UE::Color::EEncoding InEncoding, UE::Color::EColorSpace InColorSpaceType)
 			: Encoding(InEncoding)
-			, ColorSpace(InColorSpace)
+			, ColorSpaceType(InColorSpaceType)
 		{
 		}
 		
@@ -48,7 +48,7 @@ namespace UE::MediaIOCore
 		UE::Color::EEncoding Encoding = UE::Color::EEncoding::Linear;
 
 		/** Color space of the texture. */
-		UE::Color::EColorSpace ColorSpace = UE::Color::EColorSpace::sRGB;
+		UE::Color::EColorSpace ColorSpaceType = UE::Color::EColorSpace::sRGB;
 	};
 }
 
@@ -314,11 +314,7 @@ public:
 
 	virtual bool IsOutputSrgb() const override;
 	
-	virtual FMatrix44d GetGamutToXYZMatrix() const override;
-	virtual FVector2d GetWhitePoint() const override;
-	virtual FVector2d GetDisplayPrimaryRed() const override;
-	virtual FVector2d GetDisplayPrimaryGreen() const override;
-	virtual FVector2d GetDisplayPrimaryBlue() const override;
+	virtual const UE::Color::FColorSpace& GetSourceColorSpace() const override;
 	virtual UE::Color::EEncoding GetEncodingType() const override;
 	virtual float GetHDRNitsNormalizationFactor() const override;
 	
@@ -457,7 +453,7 @@ protected:
 	UE::Color::EEncoding Encoding = UE::Color::EEncoding::Linear;
 
 	/** Color space enum of the incoming texture. */
-	UE::Color::EColorSpace ColorSpace = UE::Color::EColorSpace::sRGB;
+	UE::Color::EColorSpace ColorSpaceType = UE::Color::EColorSpace::sRGB;
 
 	/** Color space structure of the incoming texture. Used for retrieving chromaticities. */
 	UE::Color::FColorSpace ColorSpaceStruct = UE::Color::FColorSpace(UE::Color::EColorSpace::sRGB);

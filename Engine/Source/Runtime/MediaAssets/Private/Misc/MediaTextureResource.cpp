@@ -902,13 +902,8 @@ bool FMediaTextureResource::RequiresConversion(const TSharedPtr<IMediaTextureSam
 	}
 
 	// Color space different?
-	const UE::Color::FColorSpace& Working = OverrideColorSpace.IsValid() ? *OverrideColorSpace : UE::Color::FColorSpace::GetWorking();
-	const float Tolerance = 1.e-7f;
-	if (Sample->ShouldApplyColorConversion() &&
-		(!Sample->GetDisplayPrimaryRed().Equals(Working.GetRedChromaticity(), Tolerance) ||
-		!Sample->GetDisplayPrimaryGreen().Equals(Working.GetGreenChromaticity(), Tolerance) ||
-		!Sample->GetDisplayPrimaryBlue().Equals(Working.GetBlueChromaticity(), Tolerance) ||
-		!Sample->GetWhitePoint().Equals(Working.GetWhiteChromaticity(), Tolerance)))
+	const UE::Color::FColorSpace& DestinationCS = OverrideColorSpace.IsValid() ? *OverrideColorSpace : UE::Color::FColorSpace::GetWorking();
+	if (Sample->ShouldApplyColorConversion() && !Sample->GetSourceColorSpace().Equals(DestinationCS))
 	{
 		// Yes! We need to convert...
 		return true;
@@ -1028,15 +1023,16 @@ void FMediaTextureResource::ConvertSample(FRHICommandListImmediate& RHICmdList, 
 
 void FMediaTextureResource::GetColorSpaceConversionMatrixForSample(const TSharedPtr<IMediaTextureSample, ESPMode::ThreadSafe> Sample, FMatrix44f& ColorSpaceMtx)
 {
-	const UE::Color::FColorSpace& Working = OverrideColorSpace.IsValid() ? *OverrideColorSpace : UE::Color::FColorSpace::GetWorking();
+	const UE::Color::FColorSpace& DestinationCS = OverrideColorSpace.IsValid() ? *OverrideColorSpace : UE::Color::FColorSpace::GetWorking();
 	
-	if (Sample->GetMediaTextureSampleColorConverter())
+	if (Sample->GetMediaTextureSampleColorConverter() || Sample->GetSourceColorSpace().Equals(DestinationCS))
 	{
 		ColorSpaceMtx = FMatrix44f::Identity;
 	}
 	else
 	{
-		ColorSpaceMtx = FMatrix44f(Working.GetXYZToRgb().GetTransposed() * Sample->GetGamutToXYZMatrix());
+		// Apply the color space transformation from source to destination (including the Bradford chromatic adaptation).
+		ColorSpaceMtx = UE::Color::Transpose<float>(UE::Color::FColorSpaceTransform(Sample->GetSourceColorSpace(), DestinationCS));
 	}
 	
 	float NF = Sample->GetHDRNitsNormalizationFactor();
@@ -1112,14 +1108,14 @@ void FMediaTextureResource::GetColorSpaceConversionMatrixForSample(const TShared
 						FIntPoint TexDim = InputTexture->GetSizeXY();
 						TempSRV0 = RHICmdList.CreateShaderResourceView(InputTexture, 0, 1, PF_G8);								// note: RHI does provide "magic" to select Y vs. UV planes based on the pixel format (D3D/DXGI)
 						TempSRV1 = RHICmdList.CreateShaderResourceView(InputTexture, 0, 1, PF_R8G8);
-						SetShaderParametersLegacyPS(RHICmdList, ConvertShader, TexDim, TempSRV0, TempSRV1, OutputDim, YUVMtx, Sample->GetEncodingType(), ColorSpaceMtx, SampleFormat == EMediaTextureSampleFormat::CharNV21);
+						SetShaderParametersLegacyPS(RHICmdList, ConvertShader, TexDim, TempSRV0, TempSRV1, OutputDim, YUVMtx, Sample->GetEncodingType(), ColorSpaceMtx, SampleFormat == EMediaTextureSampleFormat::CharNV21, Sample->GetToneMapMethod());
 					}
 					else
 					{
 						TShaderMapRef<FNV12ConvertAsBytesPS> ConvertShader(ShaderMap);
 						GraphicsPSOInit.BoundShaderState.PixelShaderRHI = ConvertShader.GetPixelShader();
 						SetGraphicsPipelineState(RHICmdList, GraphicsPSOInit, 0);
-						SetShaderParametersLegacyPS(RHICmdList, ConvertShader, InputTexture, OutputDim, YUVMtx, Sample->GetEncodingType(), ColorSpaceMtx, SampleFormat == EMediaTextureSampleFormat::CharNV21);
+						SetShaderParametersLegacyPS(RHICmdList, ConvertShader, InputTexture, OutputDim, YUVMtx, Sample->GetEncodingType(), ColorSpaceMtx, SampleFormat == EMediaTextureSampleFormat::CharNV21, Sample->GetToneMapMethod());
 					}
 				}
 				break;
@@ -1140,7 +1136,7 @@ void FMediaTextureResource::GetColorSpaceConversionMatrixForSample(const TShared
 
 						FShaderResourceViewRHIRef Y_SRV = RHICmdList.CreateShaderResourceView(InputTexture, 0, 1, PF_G16);		// note: RHI does provide "magic" to select Y vs. UV planes based on the pixel format (D3D/DXGI)
 						FShaderResourceViewRHIRef UV_SRV = RHICmdList.CreateShaderResourceView(InputTexture, 0, 1, PF_G16R16);
-						SetShaderParametersLegacyPS(RHICmdList, ConvertShader, TexDim, Y_SRV, UV_SRV, OutputDim, YUVMtx, ColorSpaceMtx, Sample->GetEncodingType());
+						SetShaderParametersLegacyPS(RHICmdList, ConvertShader, TexDim, Y_SRV, UV_SRV, OutputDim, YUVMtx, ColorSpaceMtx, Sample->GetEncodingType(), Sample->GetToneMapMethod());
 					}
 					else
 					{
@@ -1148,7 +1144,7 @@ void FMediaTextureResource::GetColorSpaceConversionMatrixForSample(const TShared
 						GraphicsPSOInit.BoundShaderState.PixelShaderRHI = ConvertShader.GetPixelShader();
 						SetGraphicsPipelineState(RHICmdList, GraphicsPSOInit, 0);
 
-						SetShaderParametersLegacyPS(RHICmdList, ConvertShader, TexDim, InputTexture, OutputDim, YUVMtx, ColorSpaceMtx, Sample->GetEncodingType());
+						SetShaderParametersLegacyPS(RHICmdList, ConvertShader, TexDim, InputTexture, OutputDim, YUVMtx, ColorSpaceMtx, Sample->GetEncodingType(), Sample->GetToneMapMethod());
 					}
 				}
 				break;
@@ -1170,8 +1166,8 @@ void FMediaTextureResource::GetColorSpaceConversionMatrixForSample(const TShared
 					SetShaderParametersLegacyPS(RHICmdList, ConvertShader, InputTexture, OutputDim, YUVMtx, Sample->GetEncodingType(), ColorSpaceMtx,
 												SampleFormat!= EMediaTextureSampleFormat::CharYUY2 && SampleFormat != EMediaTextureSampleFormat::CharYVYU,	// Y or Cb first
 												InputTexture->GetFormat() == PF_B8G8R8A8,																	// ARGB vs. ABGR (memory order)
-												SampleFormat == EMediaTextureSampleFormat::CharYVYU															// Cb / Cr swap
-												);
+												SampleFormat == EMediaTextureSampleFormat::CharYVYU,														// Cb / Cr swap
+												Sample->GetToneMapMethod());
 				}
 				break;
 
@@ -1186,7 +1182,7 @@ void FMediaTextureResource::GetColorSpaceConversionMatrixForSample(const TShared
 					GraphicsPSOInit.BoundShaderState.PixelShaderRHI = ConvertShader.GetPixelShader();
 					SetGraphicsPipelineState(RHICmdList, GraphicsPSOInit, 0);
 					SetShaderParametersLegacyPS(RHICmdList, ConvertShader, InputTexture, OutputDim, YUVMtx, Sample->GetEncodingType(), ColorSpaceMtx,
-												true);
+												true, Sample->GetToneMapMethod());
 				}
 				break;
 
@@ -1205,7 +1201,7 @@ void FMediaTextureResource::GetColorSpaceConversionMatrixForSample(const TShared
 					FShaderResourceViewRHIRef SRV = RHICmdList.CreateShaderResourceView(InputTexture, 0, 1, (Sample->GetFormat() == EMediaTextureSampleFormat::Y416) ? PF_A16B16G16R16 : PF_A32B32G32R32F);
 
 					SetShaderParametersLegacyPS(RHICmdList, ConvertShader, SRV, YUVMtx, Sample->GetEncodingType(), ColorSpaceMtx,
-												InputTexture->GetFormat() == PF_A8R8G8B8);
+												InputTexture->GetFormat() == PF_A8R8G8B8, Sample->GetToneMapMethod());
 				}
 				break;
 
@@ -1238,7 +1234,7 @@ void FMediaTextureResource::GetColorSpaceConversionMatrixForSample(const TShared
 					TShaderMapRef<FRGBConvertPS> ConvertShader(ShaderMap);
 					GraphicsPSOInit.BoundShaderState.PixelShaderRHI = ConvertShader.GetPixelShader();
 					SetGraphicsPipelineState(RHICmdList, GraphicsPSOInit, 0);
-					SetShaderParametersLegacyPS(RHICmdList, ConvertShader, InputTexture, OutputDim, Encoding, ColorSpaceMtx);
+					SetShaderParametersLegacyPS(RHICmdList, ConvertShader, InputTexture, OutputDim, Encoding, ColorSpaceMtx, Sample->GetToneMapMethod());
 				}
 				break;
 
@@ -1252,7 +1248,7 @@ void FMediaTextureResource::GetColorSpaceConversionMatrixForSample(const TShared
 					SetGraphicsPipelineState(RHICmdList, GraphicsPSOInit, 0);
 					FShaderResourceViewRHIRef SRV = RHICmdList.CreateShaderResourceView(InputTexture, 0, 1, PF_R16G16B16A16_UINT);
 
-					SetShaderParametersLegacyPS(RHICmdList, ConvertShader, SRV, OutputDim, Sample->GetEncodingType(), ColorSpaceMtx);
+					SetShaderParametersLegacyPS(RHICmdList, ConvertShader, SRV, OutputDim, Sample->GetEncodingType(), ColorSpaceMtx, Sample->GetToneMapMethod());
 				}
 				break;
 
@@ -1291,7 +1287,7 @@ void FMediaTextureResource::GetColorSpaceConversionMatrixForSample(const TShared
 					TShaderMapRef<FRGBConvertPS> ConvertShader(ShaderMap);
 					GraphicsPSOInit.BoundShaderState.PixelShaderRHI = ConvertShader.GetPixelShader();
 					SetGraphicsPipelineState(RHICmdList, GraphicsPSOInit, 0);
-					SetShaderParametersLegacyPS(RHICmdList, ConvertShader, InputTexture, OutputDim, Encoding, ColorSpaceMtx);
+					SetShaderParametersLegacyPS(RHICmdList, ConvertShader, InputTexture, OutputDim, Encoding, ColorSpaceMtx, Sample->GetToneMapMethod());
 				}
 				break;
 
@@ -1328,7 +1324,7 @@ void FMediaTextureResource::GetColorSpaceConversionMatrixForSample(const TShared
 					TShaderMapRef<FYCoCgConvertPS> ConvertShader(ShaderMap);
 					GraphicsPSOInit.BoundShaderState.PixelShaderRHI = ConvertShader.GetPixelShader();
 					SetGraphicsPipelineState(RHICmdList, GraphicsPSOInit, 0);
-					SetShaderParametersLegacyPS(RHICmdList, ConvertShader, InputTexture, OutputDim, Encoding, ColorSpaceMtx);
+					SetShaderParametersLegacyPS(RHICmdList, ConvertShader, InputTexture, OutputDim, Encoding, ColorSpaceMtx, Sample->GetToneMapMethod());
 				}
 				break;
 
@@ -1341,7 +1337,7 @@ void FMediaTextureResource::GetColorSpaceConversionMatrixForSample(const TShared
 					TShaderMapRef<FVYUConvertPS> ConvertShader(ShaderMap);
 					GraphicsPSOInit.BoundShaderState.PixelShaderRHI = ConvertShader.GetPixelShader();
 					SetGraphicsPipelineState(RHICmdList, GraphicsPSOInit, 0);
-					SetShaderParametersLegacyPS(RHICmdList, ConvertShader, InputTexture, OutputDim, YUVMtx, Sample->GetEncodingType(), ColorSpaceMtx);
+					SetShaderParametersLegacyPS(RHICmdList, ConvertShader, InputTexture, OutputDim, YUVMtx, Sample->GetEncodingType(), ColorSpaceMtx, Sample->GetToneMapMethod());
 				}
 				break;
 

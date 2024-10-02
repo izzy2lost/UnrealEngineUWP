@@ -59,14 +59,13 @@ public:
 	virtual bool GetFullRange() const override;
 
 	virtual FMatrix44f GetSampleToRGBMatrix() const override;
-	virtual FMatrix44d GetGamutToXYZMatrix() const override;
-	virtual FVector2d GetWhitePoint() const override;
-	virtual FVector2d GetDisplayPrimaryRed() const override;
-	virtual FVector2d GetDisplayPrimaryGreen() const override;
-	virtual FVector2d GetDisplayPrimaryBlue() const override;
+	virtual const UE::Color::FColorSpace& GetSourceColorSpace() const override;
 	virtual UE::Color::EEncoding GetEncodingType() const override;
+	virtual float GetHDRNitsNormalizationFactor() const override;
 	virtual bool GetDisplayMasteringLuminance(float& OutMin, float& OutMax) const override;
+	virtual TOptional<UE::Color::FColorSpace> GetDisplayMasteringColorSpace() const override;
 	virtual bool GetMaxLuminanceLevels(uint16& OutCLL, uint16& OutFALL) const override;
+	virtual MediaShaders::EToneMapMethod GetToneMapMethod() const override;
 
 	virtual void SetTime(const FMediaTimeStamp& InTime);
 
@@ -92,9 +91,8 @@ protected:
 
 	/** Precomputed colorimetric data */
 	UE::Color::EEncoding ColorEncoding;
-	UE::Color::FColorSpace SampleColorSpace;
-	UE::Color::FColorSpace DisplayColorSpace;
-	bool bDisplayColorSpaceValid;
+	UE::Color::FColorSpace SourceColorSpace;
+	TOptional<UE::Color::FColorSpace> DisplayMasteringColorSpace;
 	float DisplayMasteringLuminanceMin;
 	float DisplayMasteringLuminanceMax;
 	uint16 MaxCLL;
