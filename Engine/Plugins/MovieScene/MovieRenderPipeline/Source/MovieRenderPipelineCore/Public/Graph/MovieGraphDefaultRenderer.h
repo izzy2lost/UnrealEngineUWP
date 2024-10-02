@@ -270,7 +270,6 @@ public:
 	virtual void SetupRenderingPipelineForShot(UMoviePipelineExecutorShot* InShot) override;
 	virtual void TeardownRenderingPipelineForShot(UMoviePipelineExecutorShot* InShot) override;
 	virtual UE::MovieGraph::FRenderTimeStatistics* GetRenderTimeStatistics(const int32 InFrameNumber);
-
 	// ~UMovieGraphRendererBase Interface
 
 	// UObject Interface
@@ -279,7 +278,7 @@ public:
 
 	void AddOutstandingRenderTask_AnyThread(UE::Tasks::FTask InTask);
 	/** Fetches information for the given camera index. Should be "-1" when not using multi-camera rendering, or [0, n] based on the shot's sidecar camera data when using multi-camera rendering. */
-	UE::MovieGraph::DefaultRenderer::FCameraInfo GetCameraInfo(UMovieGraphEvaluatedConfig* InConfig, const int32 InCameraIndex) const;
+	UE::MovieGraph::DefaultRenderer::FCameraInfo GetCameraInfo(const int32 InCameraIndex) const;
 	void SetHasRenderedFirstViewThisFrame(bool bInValue) { bHasRenderedFirstViewThisFrame = bInValue; }
 	bool GetHasRenderedFirstViewThisFrame() const { return bHasRenderedFirstViewThisFrame; }
 
@@ -287,7 +286,7 @@ public:
 	 * Gets the overscan value for the specified camera. First checks to see if any cached overscan value exists and returning it, and if
 	 * no cached value was found, gets the camera's live overscan value and caches it.
 	 */
-	float GetCameraOverscan(UMovieGraphEvaluatedConfig* InConfig, int32 InCameraIndex);
+	float GetCameraOverscan(int32 InCameraIndex);
 
 	/** Outputs a warning message regarding animated overscan to the MRQ log if one has not already been output  */
 	void WarnAboutAnimatedOverscan(float InInitialOverscan);

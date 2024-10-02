@@ -11,6 +11,7 @@
 #include "Graph/Nodes/MovieGraphRenderLayerNode.h"
 #include "MoviePipelineBlueprintLibrary.h"
 #include "MoviePipelineUtils.h"
+#include "CineCameraActor.h"
 
 #include "Misc/Paths.h"
 #include "HAL/FileManager.h"
@@ -576,41 +577,81 @@ FFrameNumber UMovieGraphBlueprintLibrary::GetCurrentShotFrameNumber(const UMovie
 	return FFrameNumber(-1);
 }
 
-float UMovieGraphBlueprintLibrary::GetCurrentFocusDistance(const UMovieGraphPipeline* InMovieGraphPipeline)
+float UMovieGraphBlueprintLibrary::GetCurrentFocusDistance(const UMovieGraphPipeline* InMovieGraphPipeline, int32 InCameraIndex)
 {
-	if (const UCineCameraComponent* CineCameraComponent = UMoviePipelineBlueprintLibrary::Utility_GetCurrentCineCamera(InMovieGraphPipeline->GetWorld()))
+	if (InCameraIndex == INDEX_NONE)
 	{
-		return CineCameraComponent->CurrentFocusDistance;
+		if (const UCineCameraComponent* CineCameraComponent = UMoviePipelineBlueprintLibrary::Utility_GetCurrentCineCamera(InMovieGraphPipeline->GetWorld()))
+		{
+			return CineCameraComponent->CurrentFocusDistance;
+		}
+	}
+	else if (UCineCameraComponent* CurrentCameraComponent = GetCurrentCineCamera(InMovieGraphPipeline, InCameraIndex))
+	{
+		return CurrentCameraComponent->CurrentFocusDistance;
 	}
 
 	return -1.f;
 }
 
-float UMovieGraphBlueprintLibrary::GetCurrentFocalLength(const UMovieGraphPipeline* InMovieGraphPipeline)
+float UMovieGraphBlueprintLibrary::GetCurrentFocalLength(const UMovieGraphPipeline* InMovieGraphPipeline, int32 InCameraIndex)
 {
-	if (const UCineCameraComponent* CineCameraComponent = UMoviePipelineBlueprintLibrary::Utility_GetCurrentCineCamera(InMovieGraphPipeline->GetWorld()))
+	if (InCameraIndex == INDEX_NONE)
 	{
-		return CineCameraComponent->CurrentFocalLength;
+		if (const UCineCameraComponent* CineCameraComponent = UMoviePipelineBlueprintLibrary::Utility_GetCurrentCineCamera(InMovieGraphPipeline->GetWorld()))
+		{
+			return CineCameraComponent->CurrentFocalLength;
+		}
+	}
+	else if (UCineCameraComponent* CurrentCameraComponent = GetCurrentCineCamera(InMovieGraphPipeline, InCameraIndex))
+	{
+		return CurrentCameraComponent->CurrentFocalLength;
 	}
 
 	return -1.f;
 }
 
-float UMovieGraphBlueprintLibrary::GetCurrentAperture(const UMovieGraphPipeline* InMovieGraphPipeline)
+float UMovieGraphBlueprintLibrary::GetCurrentAperture(const UMovieGraphPipeline* InMovieGraphPipeline, int32 InCameraIndex)
 {
-	if (const UCineCameraComponent* CineCameraComponent = UMoviePipelineBlueprintLibrary::Utility_GetCurrentCineCamera(InMovieGraphPipeline->GetWorld()))
+	if (InCameraIndex == INDEX_NONE)
 	{
-		return CineCameraComponent->CurrentAperture;
+		if (const UCineCameraComponent* CineCameraComponent = UMoviePipelineBlueprintLibrary::Utility_GetCurrentCineCamera(InMovieGraphPipeline->GetWorld()))
+		{
+			return CineCameraComponent->CurrentAperture;
+		}
+
+	}
+	else if (UCineCameraComponent* CurrentCameraComponent = GetCurrentCineCamera(InMovieGraphPipeline, InCameraIndex))
+	{
+		return CurrentCameraComponent->CurrentAperture;
 	}
 
 	return 0.f;
 }
 
-UCineCameraComponent* UMovieGraphBlueprintLibrary::GetCurrentCineCamera(const UMovieGraphPipeline* InMovieGraphPipeline)
+UCineCameraComponent* UMovieGraphBlueprintLibrary::GetCurrentCineCamera(const UMovieGraphPipeline* InMovieGraphPipeline, int32 InCameraIndex)
 {
-	if (UCineCameraComponent* CineCameraComponent = UMoviePipelineBlueprintLibrary::Utility_GetCurrentCineCamera(InMovieGraphPipeline->GetWorld()))
+	if (InCameraIndex == INDEX_NONE)
 	{
-		return CineCameraComponent;
+		if (UCineCameraComponent* CineCameraComponent = UMoviePipelineBlueprintLibrary::Utility_GetCurrentCineCamera(InMovieGraphPipeline->GetWorld()))
+		{
+			return CineCameraComponent;
+		}
+	}
+	else if (UMoviePipelineExecutorShot* CurrentShot = GetCurrentExecutorShot(InMovieGraphPipeline))
+	{
+		// If we're not rendering all cameras, InCameraIndex is -1.
+		const bool bRenderAllCameras = InCameraIndex >= 0;
+		TArray<UE::MovieGraph::FMinimalCameraInfo> MinimalCameraInfos = InMovieGraphPipeline->GetDataSourceInstance()->GetCameraInformation(CurrentShot, bRenderAllCameras);
+		if (!ensure(MinimalCameraInfos.IsValidIndex(InCameraIndex)))
+		{
+			return nullptr;
+		}
+
+		if (const ACineCameraActor* CineCameraActor = Cast<ACineCameraActor>(MinimalCameraInfos[InCameraIndex].ViewActor))
+		{
+			return CineCameraActor->GetCineCameraComponent();
+		}
 	}
 
 	return nullptr;

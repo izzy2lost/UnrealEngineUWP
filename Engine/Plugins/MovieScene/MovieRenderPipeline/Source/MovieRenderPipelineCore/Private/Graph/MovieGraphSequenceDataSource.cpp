@@ -366,15 +366,21 @@ void UMovieGraphSequenceDataSource::InitializeShot(const TObjectPtr<UMoviePipeli
 	JumpDataSource(InEvalTime);
 }
 
-TArray<FMinimalViewInfo> UMovieGraphSequenceDataSource::GetCameraInformation(UMoviePipelineExecutorShot* InShot, bool bIncludeSidecar) const
+TArray<UE::MovieGraph::FMinimalCameraInfo> UMovieGraphSequenceDataSource::GetCameraInformation(UMoviePipelineExecutorShot* InShot, bool bIncludeSidecar) const
 {
-	TArray<FMinimalViewInfo> OutInfo;
+	TArray<UE::MovieGraph::FMinimalCameraInfo> OutInfo;
 
 	if (!bIncludeSidecar)
 	{
 		if (const APlayerController* LocalPlayerController = GetOwningGraph()->GetWorld()->GetFirstPlayerController())
 		{
-			OutInfo.Add(LocalPlayerController->PlayerCameraManager->GetCameraCacheView());
+			FMinimalViewInfo ViewInfo = LocalPlayerController->PlayerCameraManager->GetCameraCacheView();
+
+			UE::MovieGraph::FMinimalCameraInfo MinimalInfo;
+			MinimalInfo.ViewActor = LocalPlayerController->GetViewTarget();
+			MinimalInfo.ViewInfo = ViewInfo;
+
+			OutInfo.Add(MinimalInfo);
 		}
 	}
 	else
@@ -390,10 +396,14 @@ TArray<FMinimalViewInfo> UMovieGraphSequenceDataSource::GetCameraInformation(UMo
 				UCameraComponent* BoundCamera = MovieSceneHelpers::CameraComponentFromRuntimeObject(BoundCameras[0].Get());
 				if (BoundCamera)
 				{
+
 					FMinimalViewInfo ViewInfo;
 					BoundCamera->GetCameraView(GetWorld()->GetDeltaSeconds(), ViewInfo);
 
-					OutInfo.Add(ViewInfo);
+					UE::MovieGraph::FMinimalCameraInfo MinimalInfo;
+					MinimalInfo.ViewActor = BoundCamera->GetTypedOuter<AActor>();
+					MinimalInfo.ViewInfo = ViewInfo;
+					OutInfo.Add(MinimalInfo);
 				}
 			}
 		}

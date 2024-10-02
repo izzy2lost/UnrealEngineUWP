@@ -184,11 +184,31 @@ public:
 	float PrevMaxUndilatedFrameTime;
 };
 
+namespace UE::MovieGraph
+{
+	/** 
+	* When fetching multiple cameras from the Data Source, we need to know both
+	* the rendering information (ViewInfo), but also who the renderering object
+	* is, which isn't stored in the ViewInfo.
+	*/
+	struct FMinimalCameraInfo
+	{
+		FMinimalCameraInfo()
+		: ViewActor(nullptr)
+		{}
+		
+		TWeakObjectPtr<AActor> ViewActor;
+		FMinimalViewInfo ViewInfo;
+	};
+}
+
 UCLASS(BlueprintType, Abstract)
 class MOVIERENDERPIPELINECORE_API UMovieGraphRendererBase : public UObject
 {
 	GENERATED_BODY()
 public:
+
+	
 	/** Get an array of image previews that are valid this frame. */
 	UFUNCTION(BlueprintCallable, Category = "Movie Graph")
 	virtual TArray<FMovieGraphImagePreviewData> GetPreviewData() const { return TArray<FMovieGraphImagePreviewData>(); }
@@ -198,6 +218,9 @@ public:
 	virtual void TeardownRenderingPipelineForShot(UMoviePipelineExecutorShot* InShot) {}
 	virtual UE::MovieGraph::FRenderTimeStatistics* GetRenderTimeStatistics(const int32 InFrameNumber) { return nullptr; }
 	
+	/** InCameraIndex can be -1 (for primary camera when not using multi-layer rendering) or 0...n for sidecar cameras. */
+	virtual UE::MovieGraph::FMinimalCameraInfo GetMinimalCameraInfo(const int32 InCameraIndex) const { return UE::MovieGraph::FMinimalCameraInfo(); }
+
 	UMovieGraphPipeline* GetOwningGraph() const;
 };
 
@@ -249,7 +272,7 @@ public:
 	virtual void UnmuteShot(const TObjectPtr<UMoviePipelineExecutorShot>& InShot) {}
 	virtual void ExpandShot(const TObjectPtr<UMoviePipelineExecutorShot>& InShot, const int32 InLeftDeltaFrames, const int32 InLeftDeltaFramesUserPoV,
 		const int32 InRightDeltaFrames, const bool bInPrepass) {}
-	virtual TArray<FMinimalViewInfo> GetCameraInformation(UMoviePipelineExecutorShot* InShot, bool bIncludeSidecar) const { return TArray<FMinimalViewInfo>(); }
+	virtual TArray<UE::MovieGraph::FMinimalCameraInfo> GetCameraInformation(UMoviePipelineExecutorShot* InShot, bool bIncludeSidecar) const { return TArray<UE::MovieGraph::FMinimalCameraInfo>(); }
 
 	UMovieGraphPipeline* GetOwningGraph() const;
 };
