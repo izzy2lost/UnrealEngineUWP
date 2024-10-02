@@ -94,7 +94,7 @@ TSharedRef<SWidget> SScriptableToolGroupSetPicker::GetChildWidget()
 
 	MenuBuilder.AddMenuEntry(
 		LOCTEXT("ScriptableToolGroupSetPicker_CreateNewTag", "Create New Tag"),
-		FText::GetEmpty(), FSlateIcon(FAppStyle::GetAppStyleSetName(), "Icons.X"),
+		FText::GetEmpty(), FSlateIcon(FAppStyle::GetAppStyleSetName(), "Icons.Plus"),
 		FUIAction(FExecuteAction::CreateRaw(this, &SScriptableToolGroupSetPicker::OnCreateNewTag))
 	);
 
