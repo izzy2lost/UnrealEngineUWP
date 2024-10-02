@@ -110,7 +110,8 @@ const TArray<EMaterialDomain> UDynamicMaterialModelEditorOnlyData::SupportedDoma
 {
 	EMaterialDomain::MD_Surface,
 	EMaterialDomain::MD_PostProcess,
-	EMaterialDomain::MD_DeferredDecal
+	EMaterialDomain::MD_DeferredDecal,
+	EMaterialDomain::MD_LightFunction
 };
 
 const TArray<EBlendMode> UDynamicMaterialModelEditorOnlyData::SupportedBlendModes =
@@ -242,33 +243,38 @@ void UDynamicMaterialModelEditorOnlyData::AssignPropertyAlphaValues()
 
 void UDynamicMaterialModelEditorOnlyData::OnDomainChanged()
 {
-	if (Domain == EMaterialDomain::MD_PostProcess)
+	switch (Domain)
 	{
-		const FDMUpdateGuard Guard;
-
-		// Post process only supports emissive.
-		UDMMaterialSlot* BaseColorSlot = GetSlotForMaterialProperty(EDMMaterialPropertyType::BaseColor);
-		UDMMaterialSlot* EmissiveSlot = GetSlotForMaterialProperty(EDMMaterialPropertyType::EmissiveColor);
-
-		if (!EmissiveSlot)
+		case EMaterialDomain::MD_PostProcess:
+		case EMaterialDomain::MD_LightFunction:
 		{
-			if (BaseColorSlot)
+			const FDMUpdateGuard Guard;
+
+			// Post process only supports emissive.
+			UDMMaterialSlot* BaseColorSlot = GetSlotForMaterialProperty(EDMMaterialPropertyType::BaseColor);
+			UDMMaterialSlot* EmissiveSlot = GetSlotForMaterialProperty(EDMMaterialPropertyType::EmissiveColor);
+
+			if (!EmissiveSlot)
 			{
-				EnsureSwapSlotMaterialProperty(EDMMaterialPropertyType::BaseColor, EDMMaterialPropertyType::EmissiveColor);
+				if (BaseColorSlot)
+				{
+					EnsureSwapSlotMaterialProperty(EDMMaterialPropertyType::BaseColor, EDMMaterialPropertyType::EmissiveColor);
+				}
+				else
+				{
+					AddSlotForMaterialProperty(EDMMaterialPropertyType::EmissiveColor);
+				}
 			}
-			else
-			{
-				AddSlotForMaterialProperty(EDMMaterialPropertyType::EmissiveColor);
-			}
+
+			SetShadingModel(EDMMaterialShadingModel::Unlit);
+			SetBlendMode(EBlendMode::BLEND_Opaque);
+			break;
 		}
 
-		SetShadingModel(EDMMaterialShadingModel::Unlit);
-		SetBlendMode(EBlendMode::BLEND_Opaque);
-	}
-	else if (Domain == EMaterialDomain::MD_DeferredDecal)
-	{
-		SetShadingModel(EDMMaterialShadingModel::DefaultLit);
-		SetBlendMode(EBlendMode::BLEND_Translucent);
+		case EMaterialDomain::MD_DeferredDecal:
+			SetShadingModel(EDMMaterialShadingModel::DefaultLit);
+			SetBlendMode(EBlendMode::BLEND_Translucent);
+			break;
 	}
 
 	RequestMaterialBuild();
@@ -450,7 +456,7 @@ void UDynamicMaterialModelEditorOnlyData::BuildMaterial(bool bInDirtyAssets)
 		}
 	);
 
-	if (Domain != EMaterialDomain::MD_PostProcess)
+	if (Domain != EMaterialDomain::MD_PostProcess && Domain != EMaterialDomain::MD_LightFunction)
 	{
 		/**
 		 * Generate opacity input based on base/emissive if it doesn't already have an input.
@@ -1262,7 +1268,8 @@ UDMMaterialSlot* UDynamicMaterialModelEditorOnlyData::AddSlot()
 
 UDMMaterialSlot* UDynamicMaterialModelEditorOnlyData::AddSlotForMaterialProperty(EDMMaterialPropertyType InType)
 {
-	if (InType == EDMMaterialPropertyType::EmissiveColor && Domain == EMaterialDomain::MD_PostProcess)
+	if (InType != EDMMaterialPropertyType::EmissiveColor 
+		&& (Domain == EMaterialDomain::MD_PostProcess || Domain == EMaterialDomain::MD_LightFunction))
 	{
 		return nullptr;
 	}

@@ -261,7 +261,7 @@ protected:
 	EDMState State;
 
 	UPROPERTY(EditInstanceOnly, BlueprintReadOnly, Category = "Material Designer", 
-		meta = (ValidEnumValues = "MD_Surface,MD_PostProcess,MD_DeferredDecal"))
+		meta = (ValidEnumValues = "MD_Surface,MD_PostProcess,MD_DeferredDecal,MD_LightFunction"))
 	TEnumAsByte<EMaterialDomain> Domain;
 
 	UPROPERTY(EditInstanceOnly, BlueprintReadOnly, Category = "Material Designer",
