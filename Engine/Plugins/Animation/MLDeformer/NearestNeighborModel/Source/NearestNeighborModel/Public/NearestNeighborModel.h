@@ -568,7 +568,7 @@ protected:
 	bool bUseFileCache = false;
 
 	/** Directory to save the intermediate results. */
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "File Cache", meta = (EditCondition = "bUseFileCache"))
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "File Cache", meta = (EditCondition = "bUseFileCache", EditConditionHides))
 	FString FileCacheDirectory = FPaths::ProjectIntermediateDir() + "NearestNeighborModel";
 
 	TOptional<FDateTime> CachedDeltasTimestamp;
