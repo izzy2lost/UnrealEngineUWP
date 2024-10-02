@@ -3,7 +3,9 @@
 #pragma once
 
 #include "AvaGeometryBaseModifier.h"
-#include "DynamicMesh/DynamicMesh3.h"
+#include "CEMeshBuilder.h"
+#include "Extensions/AvaRenderStateUpdateModifierExtension.h"
+#include "Extensions/AvaSceneTreeUpdateModifierExtension.h"
 #include "Templates/SubclassOf.h"
 #include "AvaDynamicMeshConverterModifier.generated.h"
 
@@ -43,9 +45,19 @@ struct FAvaDynamicMeshConverterModifierComponentState
 	explicit FAvaDynamicMeshConverterModifierComponentState() {}
 	explicit FAvaDynamicMeshConverterModifierComponentState(UPrimitiveComponent* InPrimitiveComponent);
 
+	friend uint32 GetTypeHash(const FAvaDynamicMeshConverterModifierComponentState& InItem)
+	{
+		return GetTypeHash(InItem.Component);
+	}
+
+	bool operator==(const FAvaDynamicMeshConverterModifierComponentState& InOther) const
+	{
+		return Component.IsValid() && Component == InOther.Component;
+	}
+
 	/** The component we are converting to dynamic mesh */
 	UPROPERTY()
-	TWeakObjectPtr<UPrimitiveComponent> Component = nullptr;
+	TWeakObjectPtr<UPrimitiveComponent> Component;
 
 	/** The default visibility of the actor converted component in game */
 	UPROPERTY()
@@ -63,12 +75,16 @@ struct FAvaDynamicMeshConverterModifierComponentState
 	UPROPERTY()
 	bool bComponentVisible = true;
 
-	/** The component converted dynamic mesh*/
-	UE::Geometry::FDynamicMesh3 Mesh;
+	/** Transform saved before mesh is converted */
+	UPROPERTY()
+	FTransform ActorRelativeTransform = FTransform::Identity;
 };
 
 UCLASS(MinimalAPI, BlueprintType)
-class UAvaDynamicMeshConverterModifier : public UAvaGeometryBaseModifier
+class UAvaDynamicMeshConverterModifier
+	: public UAvaGeometryBaseModifier
+	, public IAvaSceneTreeUpdateHandler
+	, public IAvaRenderStateUpdateHandler
 {
 	GENERATED_BODY()
 
@@ -144,8 +160,8 @@ protected:
 	//~ Begin UObject
 #if WITH_EDITOR
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
+
 	/** Export current dynamic mesh to static mesh asset */
-	UFUNCTION(CallInEditor, Category="DynamicMeshConverter")
 	virtual void ConvertToStaticMeshAsset();
 #endif
 	//~ End UObject
@@ -157,11 +173,25 @@ protected:
 	virtual void RestorePreState() override;
 	virtual void Apply() override;
 	virtual void OnModifierRemoved(EActorModifierCoreDisableReason InReason) override;
+	virtual bool IsModifierDirtyable() const override;
 	//~ End UActorModifierCoreBase
+
+	//~ Begin IAvaSceneTreeUpdateHandler
+	virtual void OnSceneTreeTrackedActorChanged(int32 InIdx, AActor* InPreviousActor, AActor* InNewActor) {}
+	virtual void OnSceneTreeTrackedActorChildrenChanged(int32 InIdx, const TSet<TWeakObjectPtr<AActor>>& InPreviousChildrenActors, const TSet<TWeakObjectPtr<AActor>>& InNewChildrenActors);
+	virtual void OnSceneTreeTrackedActorDirectChildrenChanged(int32 InIdx, const TArray<TWeakObjectPtr<AActor>>& InPreviousChildrenActors, const TArray<TWeakObjectPtr<AActor>>& InNewChildrenActors) {}
+	virtual void OnSceneTreeTrackedActorParentChanged(int32 InIdx, const TArray<TWeakObjectPtr<AActor>>& InPreviousParentActor, const TArray<TWeakObjectPtr<AActor>>& InNewParentActor) {}
+	virtual void OnSceneTreeTrackedActorRearranged(int32 InIdx, AActor* InRearrangedActor) {}
+	//~ End IAvaSceneTreeUpdateHandler
+
+	//~ Begin IAvaRenderStateUpdateHandler
+	virtual void OnRenderStateUpdated(AActor* InActor, UActorComponent* InComponent);
+	virtual void OnActorVisibilityChanged(AActor* InActor) {}
+	//~ End IAvaRenderStateUpdateHandler
 
 	void OnSourceActorChanged();
 
-	void ConvertComponents(TArray<FAvaDynamicMeshConverterModifierComponentState>& OutResults) const;
+	bool ConvertComponents(TArray<TWeakObjectPtr<UMaterialInterface>>& OutMaterialsWeak);
 	bool HasFlag(EAvaDynamicMeshConverterModifierType InFlag) const;
 
 	void AddDynamicMeshComponent();
@@ -174,10 +204,6 @@ protected:
 	void GetSkeletalMeshComponents(const TArray<AActor*>& InActors, TArray<USkeletalMeshComponent*>& OutComponents) const;
 	void GetBrushComponents(const TArray<AActor*>& InActors, TArray<UBrushComponent*>& OutComponents) const;
 	void GetProceduralMeshComponents(const TArray<AActor*>& InActors, TArray<UProceduralMeshComponent*>& OutComponents) const;
-
-	/** Triggers the update of the mesh */
-	UFUNCTION(CallInEditor, Category="DynamicMeshConverter")
-	void ConvertMesh();
 
 	/** What actor should we copy from, by default is self */
 	UPROPERTY(EditInstanceOnly, Setter="SetSourceActorWeak", Getter="GetSourceActorWeak", Category="DynamicMeshConverter", meta=(DisplayName="SourceActor", AllowPrivateAccess="true"))
@@ -212,13 +238,19 @@ protected:
 	UPROPERTY()
 	bool bComponentCreated = false;
 
+	/** Update interval to compare if a transform has changed in converted components, when value <= 0 then skipped */
+	UPROPERTY(EditInstanceOnly, Category="DynamicMeshConverter")
+	float TransformUpdateInterval = 0;
+
 	/** Components converted to dynamic mesh */
 	UPROPERTY()
-	TArray<FAvaDynamicMeshConverterModifierComponentState> ConvertedComponents;
+	TSet<FAvaDynamicMeshConverterModifierComponentState> ConvertedComponents;
 
-	/** Cached mesh to set state without reconverting again */
-	TOptional<UE::Geometry::FDynamicMesh3> ConvertedMesh;
+	UPROPERTY(Transient, DuplicateTransient, NonTransactional)
+	FCEMeshBuilder MeshBuilder;
 
-	/** Do we convert mesh on next execution */
-	bool bConvertMesh = false;
+	FAvaSceneTreeActor TrackedActor;
+
+	/** Time elasped since */
+	double LastTransformUpdateTime = 0;
 };

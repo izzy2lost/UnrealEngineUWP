@@ -27,6 +27,7 @@ public class AvalancheModifiers : ModuleRules
 				"Avalanche",
 				"AvalancheSceneTree",
 				"AvalancheShapes",
+				"ClonerEffectorMeshBuilder",
 				"DynamicMaterial",
 				"GeometryAlgorithms",
 				"GeometryFramework",
