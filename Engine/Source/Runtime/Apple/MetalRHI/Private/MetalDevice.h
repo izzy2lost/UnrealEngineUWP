@@ -113,19 +113,6 @@ public:
 	FMetalBufferPtr CreatePooledBuffer(FMetalPooledBufferArgs const& Args);
 	MTLEventPtr CreateEvent();
 	
-	void ReleaseBuffer(FMetalBufferPtr Buf);
-	void ReleaseObject(NS::Object* Obj);
-	void ReleaseTexture(MTLTexturePtr Texture);
-	void ReleaseFence(FMetalFence* Fence);
-    void ReleaseFunction(TFunction<void()>);
-	
-	void AddCommandBufferFence(TSharedPtr<FMetalCommandBufferFence, ESPMode::ThreadSafe> Fence);
-	void MarkForGarbageCollect()
-	{
-		bPendingGarbageCollect = true;
-	};
-	
-	void ClearFreeList();
 	void DrainHeap();
 	void GarbageCollect();
 	
@@ -238,32 +225,6 @@ private:
 	
 	/** GPU Frame Capture Manager */
 	FMetalCaptureManager* CaptureManager;
-	
-	/** Free lists for releasing objects only once it is safe to do so */
-	TSet<FMetalBufferPtr> UsedBuffers;
-	TSet<MTLTexturePtr> UsedTextures;
-	TSet<FMetalFence*> UsedFences;
-	TLockFreePointerListLIFO<FMetalFence> FenceFreeList;
-    TArray<TFunction<void()>> FunctionFreeList;
-	TSet<NS::Object*> ObjectFreeList;
-	
-	struct FMetalDelayedFreeList
-	{
-		bool IsComplete() const;
-		TArray<TSharedPtr<FMetalCommandBufferFence, ESPMode::ThreadSafe>> Fences;
-		TSet<FMetalBufferPtr> UsedBuffers;
-		TSet<MTLTexturePtr> UsedTextures;
-		TSet<FMetalFence*> FenceFreeList;
-		TSet<NS::Object*> ObjectFreeList;
-        TArray<TFunction<void()>> FunctionFreeList;
-#if METAL_DEBUG_OPTIONS
-		int32 DeferCount;
-#endif
-	};
-	
-	TArray<TSharedPtr<FMetalCommandBufferFence, ESPMode::ThreadSafe>> FreeListFences;
-	TArray<FMetalDelayedFreeList*> DelayedFreeLists;
-	bool bPendingGarbageCollect = false;
 	
     FMetalTempAllocator* UniformBufferAllocator;
 	FMetalTempAllocator* TransferBufferAllocator;

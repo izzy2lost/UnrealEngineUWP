@@ -230,7 +230,7 @@ void FMetalDynamicRHI::RHIReadSurfaceData(FRHITexture* TextureRHI, FIntRect Rect
 		
 		if (TempTexture)
 		{
-			Device->ReleaseTexture(TempTexture);
+			FMetalDynamicRHI::Get().DeferredDelete(TempTexture);
 		}
 	}
 	else
@@ -274,7 +274,7 @@ void FMetalDynamicRHI::RHIReadSurfaceData(FRHITexture* TextureRHI, FIntRect Rect
 		
 		ConvertSurfaceDataToFColor(Surface->GetDesc().Format, SizeX, SizeY, (uint8*)Buffer->Contents(), AlignedStride, OutDataPtr, InFlags);
 		
-		Device->ReleaseBuffer(Buffer);
+		FMetalDynamicRHI::Get().DeferredDelete(Buffer);
 	}
 }
 
@@ -388,7 +388,7 @@ void FMetalDynamicRHI::RHIReadSurfaceFloatData(FRHITexture* TextureRHI, FIntRect
 		FMemory::Memcpy(OutDataPtr, FloatBGRAData, FloatBGRADataSize);
 	}
 	
-	Device->ReleaseBuffer(Buffer);
+	FMetalDynamicRHI::Get().DeferredDelete(Buffer);
 }
 
 void FMetalDynamicRHI::RHIRead3DSurfaceFloatData(FRHITexture* TextureRHI,FIntRect InRect,FIntPoint ZMinMax,TArray<FFloat16Color>& OutData)
@@ -463,5 +463,5 @@ void FMetalDynamicRHI::RHIRead3DSurfaceFloatData(FRHITexture* TextureRHI,FIntRec
 		FMemory::Memcpy(OutDataPtr, FloatBGRAData, FloatBGRADataSize);
 	}
 	
-	Device->ReleaseBuffer(Buffer);
+	FMetalDynamicRHI::Get().DeferredDelete(Buffer);
 }

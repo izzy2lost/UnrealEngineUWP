@@ -12,6 +12,7 @@
 #include "MetalProfiler.h"
 #include "MetalRHIPrivate.h"
 #include "Misc/ConfigCacheIni.h"
+#include "MetalDynamicRHI.h"
 
 #if !UE_BUILD_SHIPPING
 #import "MetalThirdParty.h"
@@ -116,7 +117,6 @@ FMetalCommandBuffer* FMetalCommandQueue::CreateCommandBuffer(void)
     CmdBufferDesc->release();
                                                            
     FMetalCommandBuffer* CommandBuffer = new FMetalCommandBuffer(CmdBuffer);
-	Device.AddCommandBufferFence(CommandBuffer->GetCompletionFence());
     
 	INC_DWORD_STAT(STAT_MetalCommandBufferCreatedPerFrame);
 	return CommandBuffer;
@@ -134,10 +134,6 @@ void FMetalCommandQueue::CommitCommandBuffer(FMetalCommandBuffer* CommandBuffer)
 	{
 		CommandBuffer->GetMTLCmdBuffer()->waitUntilCompleted();
 	}
-    
-    Device.ReleaseFunction([CommandBuffer]() {
-        delete CommandBuffer;
-    });
 }
 
 FMetalFence* FMetalCommandQueue::CreateFence(NS::String* Label) const

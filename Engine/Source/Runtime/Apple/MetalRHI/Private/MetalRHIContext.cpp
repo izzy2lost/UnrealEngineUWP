@@ -17,12 +17,8 @@ void METALRHI_API SafeReleaseMetalObject(NS::Object* Object)
 {
 	if(GIsMetalInitialized && GDynamicRHI && Object)
 	{
-		FMetalRHICommandContext* Context = static_cast<FMetalRHICommandContext*>(RHIGetDefaultContext());
-		if(Context)
-		{
-			Context->GetDevice().ReleaseObject(Object);
-			return;
-		}
+		FMetalDynamicRHI::Get().DeferredDelete(Object);
+		return;
 	}
 	Object->release();
 }

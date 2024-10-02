@@ -7,6 +7,7 @@
 #include "MetalRHI.h"
 #include "MetalDynamicRHI.h"
 #include "MetalRHIPrivate.h"
+#include "MetalCommandBuffer.h"
 #include "Misc/MessageDialog.h"
 #include "Modules/ModuleManager.h"
 #include "RenderUtils.h"
@@ -54,6 +55,7 @@ static TAutoConsoleVariable<bool> CVarEnableMetalPSOFileCacheWhenPrecachingActiv
 	TEXT("true: Allow both PSO file cache and precaching."),
 	ECVF_RenderThreadSafe | ECVF_ReadOnly);
 
+extern int32 GMetalResourcePurgeOnDelete;
 
 static void ValidateTargetedRHIFeatureLevelExists(EShaderPlatform Platform)
 {
@@ -1428,9 +1430,6 @@ bool FMetalDynamicRHI::RHIGetAvailableResolutions(FScreenResolutionArray& Resolu
 void FMetalDynamicRHI::RHIFlushResources()
 {
     MTL_SCOPED_AUTORELEASE_POOL;
-    
-	Device->MarkForGarbageCollect();
-	Device->ClearFreeList();
 	Device->DrainHeap();
 }
 
@@ -1477,6 +1476,7 @@ uint16 FMetalDynamicRHI::RHIGetPlatformTextureMaxSampleCount()
 void FMetalDynamicRHI::RHIBlockUntilGPUIdle()
 {
 	Device->WaitForGPUIdle();
+	ProcessDeferredDeleteQueue();
 }
 
 uint32 FMetalDynamicRHI::RHIGetGPUFrameCycles(uint32 GPUIndex)
@@ -1513,6 +1513,115 @@ public:
 };
 
 static TLockFreePointerListUnordered<FMetalRHIUploadContext, PLATFORM_CACHE_LINE_SIZE> MetalUploadContextPool;
+
+void FMetalDynamicRHI::ProcessDeferredDeleteQueue()
+{
+	uint32 Index = 0;
+	while(Index < DeferredDeleteQueue.Num())
+	{
+		FDeferredDeleteData& Data = DeferredDeleteQueue[Index];
+		
+		bool bFencesReady = true;
+		for (TSharedPtr<FMetalCommandBufferFence, ESPMode::ThreadSafe> Fence : Data.WaitFences)
+		{
+			bFencesReady &= Fence->Wait(0);
+		}
+		
+		if(!bFencesReady)
+		{
+			Index++;
+			break;
+		}
+		
+		for(FMetalDeferredDeleteObject& Object : Data.DeferredDeleteObjects)
+		{	
+			switch (Object.Storage.GetIndex())
+			{
+				case FMetalDeferredDeleteObject::TObjectStorage::IndexOfType<NS::Object*>():
+				{
+					Object.Storage.Get<NS::Object*>()->release();
+					break;
+				}
+				case FMetalDeferredDeleteObject::TObjectStorage::IndexOfType<FMetalBufferPtr>():
+				{
+					FMetalBufferPtr Buffer = Object.Storage.Get<FMetalBufferPtr>();
+					
+					Buffer->MarkDeleted();
+					
+#if METAL_DEBUG_OPTIONS
+					MTL::Buffer* MTLBuffer = Buffer->GetMTLBuffer();
+					if (GMetalResourcePurgeOnDelete && !MTLBuffer->heap() &&
+						Buffer->GetOffset() == 0 && Buffer->GetLength() == MTLBuffer->length())
+					{
+						MTLBuffer->setPurgeableState(MTL::PurgeableStateEmpty);
+					}
+#endif
+					break;
+				}
+				case FMetalDeferredDeleteObject::TObjectStorage::IndexOfType<MTLTexturePtr>():
+				{
+					MTLTexturePtr Texture = Object.Storage.Get<MTLTexturePtr>();
+					
+					if (!Texture->buffer() && !Texture->parentTexture())
+					{
+#if METAL_DEBUG_OPTIONS
+						if (GMetalResourcePurgeOnDelete && !Texture->heap())
+						{
+							Texture->setPurgeableState(MTL::PurgeableStateEmpty);
+						}
+#endif
+						Device->GetResourceHeap().ReleaseTexture(nullptr, Texture);
+					}
+					break;
+				}
+#if PLATFORM_SUPPORTS_BINDLESS_RENDERING
+				case FMetalDeferredDeleteObject::TObjectStorage::IndexOfType<FRHIDescriptorHandle>():
+				{
+					FRHIDescriptorHandle Handle = Object.Storage.Get<FRHIDescriptorHandle>();
+					
+					FMetalBindlessDescriptorManager* BindlessDescriptorManager = Device->GetBindlessDescriptorManager();
+					check(BindlessDescriptorManager);
+	
+					BindlessDescriptorManager->FreeDescriptor(Handle);
+					
+					break;
+				}
+#endif
+				case FMetalDeferredDeleteObject::TObjectStorage::IndexOfType<FMetalFence*>():
+				{
+					FMetalFence* Fence = Object.Storage.Get<FMetalFence*>();
+					FMetalFencePool::Get().ReleaseFence(Fence);
+					
+					break;
+				}
+				case FMetalDeferredDeleteObject::TObjectStorage::IndexOfType<TUniqueFunction<void()>*>():
+				{
+					TUniqueFunction<void()>* Func = Object.Storage.Get<TUniqueFunction<void()>*>();
+					(*Func)();
+					delete Func;
+					
+					break;
+				}
+				default:
+				{
+					checkNoEntry();
+				}
+			}
+		}
+		
+		DeferredDeleteQueue.RemoveAt(Index, EAllowShrinking::No);
+	}
+}
+
+void FMetalDynamicRHI::RHIProcessDeleteQueue()
+{
+	FDeferredDeleteData NewData;	
+	GatherDeferredDeleteObjects(NewData.DeferredDeleteObjects, NewData.WaitFences);
+	
+	DeferredDeleteQueue.Add(MoveTemp(NewData));
+	
+	ProcessDeferredDeleteQueue();
+}
 
 void FMetalDynamicRHI::RHIFinalizeContext(FRHIFinalizeContextArgs&& Args, TRHIPipelineArray<IRHIPlatformCommandList*>& Output)
 {
@@ -1573,6 +1682,7 @@ void FMetalDynamicRHI::RHISubmitCommandLists(FRHISubmitCommandListsArgs&& Args)
 		{
 			if(CommandBuffer)
 			{
+				AddDeferredDeleteFence(CommandBuffer->GetCompletionFence());
 				Device->GetCommandQueue().CommitCommandBuffer(CommandBuffer);
 			}
 		}

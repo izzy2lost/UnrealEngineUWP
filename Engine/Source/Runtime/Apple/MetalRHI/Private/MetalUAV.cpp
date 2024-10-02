@@ -34,11 +34,11 @@ void FMetalResourceViewBase::Invalidate()
 		switch (GetMetalType())
 		{
 		case EMetalType::TextureView:
-			Device.ReleaseTexture(Storage.Get<MTLTexturePtr>());
+			FMetalDynamicRHI::Get().DeferredDelete(Storage.Get<MTLTexturePtr>());
 			break;
 
 		case EMetalType::BufferView:
-			Device.ReleaseBuffer(Storage.Get<FBufferView>().Buffer);
+			FMetalDynamicRHI::Get().DeferredDelete(Storage.Get<FBufferView>().Buffer);
 			break;
                 
         case EMetalType::TextureBufferBacked:
@@ -46,12 +46,12 @@ void FMetalResourceViewBase::Invalidate()
 			// If it is a buffer we don't own the resource
 			if (View.bIsBuffer)
 			{
-				Device.ReleaseTexture(View.Texture);
+				FMetalDynamicRHI::Get().DeferredDelete(View.Texture);
 			}
 			else
 			{
-				Device.ReleaseBuffer(View.Buffer);
-				Device.ReleaseTexture(View.Texture);
+				FMetalDynamicRHI::Get().DeferredDelete(View.Buffer);
+				FMetalDynamicRHI::Get().DeferredDelete(View.Texture);
 			}
             break;
 		}
@@ -651,7 +651,7 @@ void FMetalUnorderedAccessView::ClearUAVWithBlitEncoder(TRHICommandList_Recursiv
 		}
 
 		Context.CopyFromBufferToBuffer(Temp, 0, Buffer, Info.OffsetInBytes, Size);
-		Device.ReleaseBuffer(Temp);
+		FMetalDynamicRHI::Get().DeferredDelete(Temp);
 	});
 }
 #endif // UE_METAL_RHI_SUPPORT_CLEAR_UAV_WITH_BLIT_ENCODER
@@ -810,7 +810,7 @@ void FMetalRHICommandContext::RHICopyToStagingBuffer(FRHIBuffer* SourceBufferRHI
     {
         if (ReadbackBuffer)
         {
-            Device.ReleaseBuffer(ReadbackBuffer);
+			FMetalDynamicRHI::Get().DeferredDelete(ReadbackBuffer);
         }
         FMetalPooledBufferArgs ArgsCPU(&Device, NumBytes, BUF_Dynamic, MTL::StorageModeShared);
         ReadbackBuffer = Device.CreatePooledBuffer(ArgsCPU);

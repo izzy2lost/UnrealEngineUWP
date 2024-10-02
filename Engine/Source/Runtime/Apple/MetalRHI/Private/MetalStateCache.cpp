@@ -13,6 +13,7 @@
 #include "MetalBindlessDescriptors.h"
 #include "RHIShaderParametersShared.h"
 #include "MetalResourceCollection.h"
+#include "MetalDynamicRHI.h"
 
 #if PLATFORM_MAC
 	#ifndef UINT128_MAX
@@ -315,8 +316,6 @@ void FMetalStateCache::Reset()
 		
 		if(BindlessDescriptorManager->IsSupported())
 		{
-			BindlessDescriptorManager->Reset();
-			
 			for (uint32 i = 0; i < UE_ARRAY_COUNT(VertexBufferVAs); i++)
 			{
 				VertexBufferVAs[i].addr = 0;
@@ -336,7 +335,7 @@ void FMetalStateCache::Reset()
 			// Free temporary allocations
 			for (FMetalBufferPtr TemporaryBuffer : TemporaryBuffers)
 			{
-				Device.ReleaseBuffer(TemporaryBuffer);
+				FMetalDynamicRHI::Get().DeferredDelete(TemporaryBuffer);
 			}
 			TemporaryBuffers.Reset();
 			UniformBufferVAs.Reset();

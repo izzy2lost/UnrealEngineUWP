@@ -19,8 +19,6 @@ struct FMetalDescriptorHeap
 
     void                            Init(const int32 HeapSize);
 
-    void                            Reset();
-
     FRHIDescriptorHandle            ReserveDescriptor();
     void                            FreeDescriptor(FRHIDescriptorHandle DescriptorHandle);
     uint32                          GetFreeResourceIndex();
@@ -33,11 +31,6 @@ struct FMetalDescriptorHeap
 	
     FCriticalSection                FreeListCS;
     TQueue<uint32>                  FreeList;
-    uint32                          DeferredDeletionListIndex;
-
-    static constexpr int32 NumPendingFrame = 3;
-
-    TQueue<FRHIDescriptorHandle>    DeferredDeletionList[NumPendingFrame];
 
     std::atomic<uint32>             PeakDescriptorCount;
     struct IRDescriptorTableEntry*  Descriptors;
@@ -66,9 +59,8 @@ public:
                             ~FMetalBindlessDescriptorManager();
 
     void                    Init();
-    void                    Reset();
 
-    FRHIDescriptorHandle     ReserveDescriptor(ERHIDescriptorHeapType InType);
+    FRHIDescriptorHandle    ReserveDescriptor(ERHIDescriptorHeapType InType);
     void                    FreeDescriptor(FRHIDescriptorHandle DescriptorHandle);
 
     void                    BindSampler(FRHIDescriptorHandle DescriptorHandle, MTL::SamplerState* Sampler);

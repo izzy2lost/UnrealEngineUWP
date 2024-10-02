@@ -320,12 +320,9 @@ FMetalSamplerState::FMetalSamplerState(FMetalDevice& MetalDevice, const FSampler
 FMetalSamplerState::~FMetalSamplerState()
 {
 #if PLATFORM_SUPPORTS_BINDLESS_RENDERING
-    FMetalBindlessDescriptorManager* BindlessDescriptorManager = Device.GetBindlessDescriptorManager();
-    check(BindlessDescriptorManager);
-
 	if(IsMetalBindlessEnabled())
 	{
-		BindlessDescriptorManager->FreeDescriptor(BindlessHandle);
+		FMetalDynamicRHI::Get().DeferredDelete(BindlessHandle);
 	}
 #endif
 }

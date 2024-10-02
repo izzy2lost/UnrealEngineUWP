@@ -3,6 +3,7 @@
 #include "MetalTempAllocator.h"
 #include "MetalDevice.h"
 #include "MetalRHIPrivate.h"
+#include "MetalDynamicRHI.h"
 #include "MetalProfiler.h"
 
 FMetalTempAllocator::FMetalTempAllocator(FMetalDevice& InDevice, uint32_t InMinAllocationSize, uint32_t InTargetAllocationLimit, uint32_t InAlignment)
@@ -72,7 +73,7 @@ void FMetalTempAllocator::Cleanup()
 	Buffers.RemoveAll([](const FTempBufferInfo& TempBuffer) { return TempBuffer.Offset != 0; });
 	
 	// Ensure that buffers are re-added to the pool when fences are complete (if we are below the target limit)
-	Device.ReleaseFunction([this, OldBuffers]()
+	FMetalDynamicRHI::Get().DeferredDelete([this, OldBuffers]()
 	{
 		FScopeLock lock(&AllocatorLock);
 		for(const FTempBufferInfo& Buffer : OldBuffers)

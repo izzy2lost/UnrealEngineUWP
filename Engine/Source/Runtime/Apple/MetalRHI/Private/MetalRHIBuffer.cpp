@@ -330,7 +330,7 @@ void FMetalRHIBuffer::ReleaseBuffers()
 		check(Buffer);
 		
 		METAL_INC_DWORD_STAT_BY(MemFreed, Buffer->GetLength(), GetUsage());
-		Device.ReleaseBuffer(Buffer);
+		FMetalDynamicRHI::Get().DeferredDelete(Buffer);
 	}
 } 
 
@@ -514,7 +514,7 @@ void FMetalRHIBuffer::Unlock(FRHICommandListBase& RHICmdList)
 				UploadContext.EnqueueFunction([&InDevice=Device, Size=LockSize, Dest=CurrentBuffer, InTransferBuffer=TransferBuffer](FMetalRHICommandContext* Context)
 				{
 					Context->CopyFromBufferToBuffer(InTransferBuffer, 0, Dest, 0, Size);
-					InDevice.ReleaseBuffer(InTransferBuffer);
+					FMetalDynamicRHI::Get().DeferredDelete(InTransferBuffer);
 				});
 				
 				TransferBuffer = nullptr;
@@ -539,7 +539,7 @@ void FMetalRHIBuffer::Unlock(FRHICommandListBase& RHICmdList)
 			if(TransferBuffer)
 			{
 				check(Mode == MTL::StorageModePrivate);
-				Device.ReleaseBuffer(TransferBuffer);
+				FMetalDynamicRHI::Get().DeferredDelete(TransferBuffer);
 				TransferBuffer = nullptr;
 			}
 		}
@@ -590,7 +590,7 @@ void FMetalRHIBuffer::ReleaseOwnership()
     if(TransferBuffer)
     {
         METAL_INC_DWORD_STAT_BY(MemFreed, TransferBuffer->GetLength(), GetUsage());
-		Device.ReleaseBuffer(TransferBuffer);
+		FMetalDynamicRHI::Get().DeferredDelete(TransferBuffer);
     }
     
 	ReleaseBuffers();
@@ -601,13 +601,13 @@ void FMetalRHIBuffer::ReleaseOwnership()
         auto ReleaseFunction = [ReleaseData=Data](){
             delete ReleaseData;
         };
-        Device.ReleaseFunction(ReleaseFunction);
+		FMetalDynamicRHI::Get().DeferredDelete(ReleaseFunction);
     }
 
 #if METAL_RHI_RAYTRACING
     if (EnumHasAnyFlags(GetUsage(), BUF_AccelerationStructure))
     {
-        Device.ReleaseObject(AccelerationStructureHandle);
+        Device.DeferredDelete(AccelerationStructureHandle);
         AccelerationStructureHandle = nullptr;
     }
 #endif // METAL_RHI_RAYTRACING
