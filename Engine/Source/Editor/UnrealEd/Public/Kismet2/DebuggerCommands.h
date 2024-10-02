@@ -98,13 +98,16 @@ public:
 	/** SIE & PIE controls */
 	TSharedPtr<FUICommandInfo> ResumePlaySession;
 	TSharedPtr<FUICommandInfo> PausePlaySession;
+	TSharedPtr<FUICommandInfo> ResumePIESession;
 	TSharedPtr<FUICommandInfo> SingleFrameAdvance;
 	TSharedPtr<FUICommandInfo> TogglePlayPauseOfPlaySession;
 	TSharedPtr<FUICommandInfo> StopPlaySession;
 	TSharedPtr<FUICommandInfo> LateJoinSession;
+	TSharedPtr<FUICommandInfo> PlayPossess;
 	TSharedPtr<FUICommandInfo> PossessEjectPlayer;
 	TSharedPtr<FUICommandInfo> ShowCurrentStatement;
 	TSharedPtr<FUICommandInfo> GetMouseControl;
+	TSharedPtr<FUICommandInfo> SimulatePauseEject;
 
 	/** BP Debugging controls */
 	TSharedPtr<FUICommandInfo> AbortExecution;
@@ -154,6 +157,7 @@ public:
 
 	static UNREALED_API bool IsInSIE_AndRunning();
 	static UNREALED_API bool IsInPIE_AndRunning();
+	static UNREALED_API bool IsInPIE_AndPaused();
 
 	static UNREALED_API bool HasPlayWorld();
 	static UNREALED_API bool HasPlayWorldAndPaused();
