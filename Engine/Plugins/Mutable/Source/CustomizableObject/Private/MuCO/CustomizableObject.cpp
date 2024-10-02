@@ -71,7 +71,7 @@ TAutoConsoleVariable<int32> CVarPackagedDataBytesLimitOverride(
 
 TAutoConsoleVariable<bool> CVarMutableUseBulkData(
 	TEXT("Mutable.UseBulkData"),
-	false,
+	true,
 	TEXT("Switch between .utoc/.ucas (FBulkData) and .mut files (CookAdditionalFiles).\n")
 	TEXT("True - Use FBulkData to store streamable data.\n")
 	TEXT("False - Use Mut files to store streamable data\n"));
