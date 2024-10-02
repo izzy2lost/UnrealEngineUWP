@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "LiveLinkOpenVRModule.h"
+#include "HAL/FileManager.h"
 #include "HAL/PlatformProcess.h"
 #include "Interfaces/IPluginManager.h"
 #include "Logging/StructuredLog.h"
@@ -44,8 +45,9 @@ vr::IVRSystem* FLiveLinkOpenVRModule::GetVrSystem()
 
 bool FLiveLinkOpenVRModule::LoadOpenVRLibrary()
 {
-	const TCHAR* const OpenVRSdkVer = TEXT("OpenVRv1_5_17");
 	const FString PluginBaseDir = IPluginManager::Get().FindPlugin(TEXT("LiveLinkOpenVR"))->GetBaseDir();
+
+	const TCHAR* const OpenVRSdkVer = TEXT("OpenVRv1_5_17");
 	FString OpenVRSdkRoot = FString::Printf(TEXT("%s/Source/ThirdParty/OpenVR/%s"), *PluginBaseDir, OpenVRSdkVer);
 
 #if PLATFORM_WINDOWS
@@ -71,7 +73,7 @@ bool FLiveLinkOpenVRModule::LoadOpenVRLibrary()
 
 	if (!OpenVRDLLHandle)
 	{
-		UE_LOG(LogLiveLinkOpenVR, Log, TEXT("Failed to load OpenVR library."));
+		UE_LOGFMT(LogLiveLinkOpenVR, Log, "Failed to load OpenVR library.");
 		return false;
 	}
 
@@ -83,6 +85,14 @@ bool FLiveLinkOpenVRModule::LoadOpenVRLibrary()
 		VrSystem = nullptr;
 		UnloadOpenVRLibrary();
 		return false;
+	}
+
+	FString ManifestPath = FPaths::Combine(PluginBaseDir, "Config", "livelinkopenvr_action_manifest.json");
+	ManifestPath = IFileManager::Get().ConvertToAbsolutePathForExternalAppForRead(*ManifestPath);
+	const vr::EVRInputError InputError = vr::VRInput()->SetActionManifestPath(TCHAR_TO_UTF8(*ManifestPath));
+	if (InputError != vr::EVRInputError::VRInputError_None)
+	{
+		UE_LOGFMT(LogLiveLinkOpenVR, Error, "IVRInput::SetActionManifestPath failed with result {InputError}", InputError);
 	}
 
 	return true;

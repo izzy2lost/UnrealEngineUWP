@@ -8,7 +8,6 @@
 #include "LiveLinkOpenVRTypes.h"
 
 
-
 class FLiveLinkOpenVRSource
 	: public ILiveLinkSource
 	, public FRunnable
@@ -21,7 +20,7 @@ public:
 
 	//~ Begin ILiveLinkSource interface
 	virtual void ReceiveClient(ILiveLinkClient* InClient, FGuid InSourceGuid) override;
-	virtual void InitializeSettings(ULiveLinkSourceSettings* Settings) override;
+	virtual void InitializeSettings(ULiveLinkSourceSettings* InSettings) override;
 	virtual void Update() override { }
 
 	virtual bool IsSourceStillValid() const override;
@@ -43,7 +42,7 @@ public:
 	virtual void Exit() override { }
 	//~ End FRunnable interface
 
-	void Send(FLiveLinkFrameDataStruct* FrameDataToSend, FName SubjectName);
+	void Send(FLiveLinkFrameDataStruct&& InFrameData, FName InSubjectName);
 
 private:
 	// Callback when the a livelink subject has been added
@@ -81,8 +80,13 @@ private:
 	// frame counter for data
 	int64 FrameCounter = 0;
 
-	// Update rate (in Hz) at which to read the tracking data for each device
-	std::atomic<uint32> LocalUpdateRateInHz;
+	TWeakObjectPtr<ULiveLinkOpenVRSourceSettings> Settings;
+
+	// Atomic copies of UObject fields updated on change notification
+	std::atomic<bool> bTrackTrackers_AnyThread;
+	std::atomic<bool> bTrackControllers_AnyThread;
+	std::atomic<bool> bTrackHMDs_AnyThread;
+	std::atomic<uint32> LocalUpdateRateInHz_AnyThread;
 
 	// Delegate for when the LiveLink client has ticked
 	FDelegateHandle OnSubjectAddedDelegate;
