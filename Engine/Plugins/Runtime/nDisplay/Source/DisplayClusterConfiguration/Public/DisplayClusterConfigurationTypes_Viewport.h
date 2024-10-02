@@ -268,28 +268,30 @@ public:
 	UPROPERTY()
 	bool bShouldUseParentViewportRenderFamily = false;
 
-	// Multiply all viewports RTT size's for whole cluster by this value
-	UPROPERTY(BlueprintReadWrite, Category = NDisplay, meta = (DisplayName = "Global Viewport RTT Size Multiplier", ClampMin = "0.05", UIMin = "0.05", ClampMax = "10", UIMax = "10"))
+	// Multiplies the RTT size of all viewports within nDisplay by this value.
+	UPROPERTY(BlueprintReadWrite, Category = NDisplay, meta = (DisplayName = "Global RTT Size Multiplier", ClampMin = "0.05", UIMin = "0.05", ClampMax = "10", UIMax = "10"))
 	float ClusterRenderTargetRatioMult = 1.f;
 
-	// Multiply inner frustum RTT size's for whole cluster by this value
+	// Multiplies the RTT size of the ICVFX Inner Frustum viewports by this value.
 	UPROPERTY(BlueprintReadWrite, Category = NDisplay, meta = (DisplayName = "Inner Frustum RTT Size Multiplier", ClampMin = "0.05", UIMin = "0.05", ClampMax = "10", UIMax = "10"))
 	float ClusterICVFXInnerViewportRenderTargetRatioMult = 1.f;
 
-	// Multiply outer viewports RTT size's for whole cluster by this value
-	UPROPERTY(BlueprintReadWrite, Category = NDisplay, meta = (DisplayName = "Outer Viewport RTT Size Multiplier", ClampMin = "0.05", UIMin = "0.05", ClampMax = "10", UIMax = "10"))
+	// Multiplies the RTT size of the viewports by this value.
+	// (Excluding ICVFX internal viewports such as Inner frustum, LightCards, Chromakey, etc.)
+	UPROPERTY(BlueprintReadWrite, Category = NDisplay, meta = (DisplayName = "Viewports RTT Size Multiplier", ClampMin = "0.05", UIMin = "0.05", ClampMax = "10", UIMax = "10"))
 	float ClusterICVFXOuterViewportRenderTargetRatioMult = 1.f;
 
-	// Multiply all buffer ratios for whole cluster by this value
-	UPROPERTY(BlueprintReadWrite, Category = NDisplay, meta = (DisplayName = "Global Viewport Screen Percentage Multiplier", ClampMin = "0.05", UIMin = "0.05", ClampMax = "10", UIMax = "10"))
+	// Multiplies all screen percentages within nDisplay by this value.
+	UPROPERTY(BlueprintReadWrite, Category = NDisplay, meta = (DisplayName = "Global Screen Percentage Multiplier", ClampMin = "0.05", UIMin = "0.05", ClampMax = "10", UIMax = "10"))
 	float ClusterBufferRatioMult = 1.f;
 
-	// Multiply inner frustums buffer ratios for whole cluster by this value
+	// Multiplies the screen percentage for all ICVFX Inner Frustum viewports by this value.
 	UPROPERTY(BlueprintReadWrite, Category = NDisplay, meta = (DisplayName = "Inner Frustum Screen Percentage Multiplier", ClampMin = "0.05", UIMin = "0.05", ClampMax = "10", UIMax = "10"))
 	float ClusterICVFXInnerFrustumBufferRatioMult = 1.f;
 
-	// Multiply the screen percentage for all viewports in the cluster by this value.
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = NDisplay, meta = (DisplayName = "Viewport Screen Percentage Multiplier", ClampMin = "0.05", UIMin = "0.05", ClampMax = "10", UIMax = "1"))
+	// Multiplies the screen percentage for viewports by this value.
+	// (Excluding ICVFX internal viewports such as Inner Frustum, LightCards and Chromakey.)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = NDisplay, meta = (DisplayName = "Viewports Screen Percentage Multiplier", ClampMin = "0.05", UIMin = "0.05", ClampMax = "10", UIMax = "1"))
 	float ClusterICVFXOuterViewportBufferRatioMult = 1.f;
 
 	// Allow warpblend render

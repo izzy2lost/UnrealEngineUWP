@@ -34,6 +34,8 @@
 
 #include "SceneViewExtension.h"
 
+#include "LegacyScreenPercentageDriver.h"
+
 #include "DisplayClusterRootActor.h"
 
 #include "Misc/DisplayClusterLog.h"
@@ -775,7 +777,10 @@ bool FDisplayClusterViewportManager::ShouldRenderFinalColor() const
 	return !Configuration->GetRenderFrameSettings().IsPostProcessDisabled();
 }
 
-void FDisplayClusterViewportManager::ConfigureViewFamily(const FDisplayClusterRenderFrameTarget& InFrameTarget, const FDisplayClusterRenderFrameTargetViewFamily& InFrameViewFamily, FSceneViewFamilyContext& ViewFamily)
+void FDisplayClusterViewportManager::ConfigureViewFamily(
+	const FDisplayClusterRenderFrameTarget& InFrameTarget,
+	const FDisplayClusterRenderFrameTargetViewFamily& InFrameViewFamily,
+	FSceneViewFamilyContext& ViewFamily)
 {
 	// Note: EngineShowFlags should have already been configured in CreateViewFamilyConstructionValues.
 	ViewFamily.SceneCaptureCompositeMode = ESceneCaptureCompositeMode::SCCM_Overwrite;
@@ -792,6 +797,117 @@ void FDisplayClusterViewportManager::ConfigureViewFamily(const FDisplayClusterRe
 	for (FSceneViewExtensionRef& ViewExt : ViewFamily.ViewExtensions)
 	{
 		ViewExt->SetupViewFamily(ViewFamily);
+	}
+}
+
+void FDisplayClusterViewportManager::PostConfigureViewFamily(
+	const FDisplayClusterRenderFrameTarget& InFrameTarget,
+	const FDisplayClusterRenderFrameTargetViewFamily& InFrameViewFamily,
+	FSceneViewFamilyContext& ViewFamily,
+	const TArray<FSceneView*>& Views,
+	const EDisplayClusterViewportRenderingFlags InRenderingFlags,
+	const float InDPIScale
+)
+{
+#if WITH_EDITOR
+	if (GIsEditor)
+	{
+		// Force enable view family show flag for HighDPI derived's screen percentage.
+		ViewFamily.EngineShowFlags.ScreenPercentage = true;
+	}
+#endif
+
+	// Force screen percentage show flag to be turned off if not supported.
+	if (!ViewFamily.SupportsScreenPercentage())
+	{
+		ViewFamily.EngineShowFlags.ScreenPercentage = false;
+	}
+
+	const float DisplayClusterScreenPercentage = FMath::Max(0.01f, InFrameViewFamily.CustomBufferRatio);
+
+	// Get DPIDerivedResolutionFraction value:
+	float DPIDerivedResolutionFraction = 1.0f;
+	{
+#if WITH_EDITOR
+		// Automatically compute secondary resolution fraction from DPI.
+		// When in high res screenshot do not modify screen percentage based on dpi scale
+		if (GIsEditor && !GIsHighResScreenshot)
+		{
+			static auto CVarEditorViewportHighDPIPtr = IConsoleManager::Get().FindConsoleVariable(TEXT("r.Editor.Viewport.HighDPI"));
+
+			if (CVarEditorViewportHighDPIPtr && CVarEditorViewportHighDPIPtr->GetInt() == 0)
+			{
+				DPIDerivedResolutionFraction = FMath::Min(1.0f / InDPIScale, 1.0f);
+			}
+		}
+#endif
+	}
+
+	// Setup the screen percentage and upscaling method for the view family.
+	if (ViewFamily.EngineShowFlags.ScreenPercentage)
+	{
+		// Set up secondary resolution fraction for the view family.
+		{
+			static IConsoleVariable* CVarCustomSecondaryScreenPercentage =
+				IConsoleManager::Get().FindConsoleVariable(TEXT("r.SecondaryScreenPercentage.GameViewport"), false);
+			const float CustomSecondaryScreenPercentage = CVarCustomSecondaryScreenPercentage ?
+				CVarCustomSecondaryScreenPercentage->GetFloat() : -1.f;
+
+			if (CustomSecondaryScreenPercentage > 0.0)
+			{
+				// Override secondary resolution fraction with CVar.
+				ViewFamily.SecondaryViewFraction = FMath::Min(CustomSecondaryScreenPercentage / 100.0f, 1.0f);
+			}
+			else
+			{
+				ViewFamily.SecondaryViewFraction = DPIDerivedResolutionFraction;
+			}
+
+			check(ViewFamily.SecondaryViewFraction > 0.0f);
+		}
+
+		// nDisplay cannot use the dynamic resolution feature because it uses multiple viewports (view families) in a single frame.
+		const bool bUsesDynamicResolution = false;
+
+		// If a screen percentage interface was not set by dynamic resolution, then create one matching legacy behavior.
+		if (ViewFamily.GetScreenPercentageInterface() == nullptr)
+		{
+			float GlobalResolutionFraction = 1.0f;
+			float SecondaryScreenPercentage = ViewFamily.SecondaryViewFraction;
+
+			if (ViewFamily.EngineShowFlags.ScreenPercentage)
+			{
+				// Get global view fraction set by r.ScreenPercentage.
+				GlobalResolutionFraction = DisplayClusterScreenPercentage;
+
+				// We need to split the screen percentage if below 0.5 because TAA upscaling only works well up to 2x.
+				if (GlobalResolutionFraction < 0.5f)
+				{
+					SecondaryScreenPercentage = 2.0f * GlobalResolutionFraction;
+					GlobalResolutionFraction = 0.5f;
+				}
+			}
+
+			ViewFamily.SetScreenPercentageInterface(new FLegacyScreenPercentageDriver(
+				ViewFamily, GlobalResolutionFraction));
+
+			ViewFamily.SecondaryViewFraction = SecondaryScreenPercentage;
+		}
+
+		check(ViewFamily.GetScreenPercentageInterface() != nullptr);
+
+		// Change screen percentage method to raw output when doing dynamic resolution with VR if not using TAA upsample.
+		if (EnumHasAnyFlags(InRenderingFlags, EDisplayClusterViewportRenderingFlags::StereoRendering)
+			&& bUsesDynamicResolution)
+		{
+			for (FSceneView* View : Views)
+			{
+				if (View->PrimaryScreenPercentageMethod == EPrimaryScreenPercentageMethod::SpatialUpscale)
+				{
+					View->PrimaryScreenPercentageMethod = EPrimaryScreenPercentageMethod::RawOutput;
+				}
+			}
+		}
 	}
 }
 

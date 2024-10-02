@@ -106,7 +106,7 @@ void UDisplayClusterBlueprint::UpdateSummaryProperty()
 
 	Lines.Add(FString::Printf(TEXT("Sync Policy: %s"), *ConfigData->Cluster->Sync.RenderSyncPolicy.Type));
 	Lines.Add(FString::Printf(TEXT("Follow Local Player Camera: %s"), ConfigData->bFollowLocalPlayerCamera ? TEXT("Yes") : TEXT("No")));
-	Lines.Add(FString::Printf(TEXT("Viewport Screen Percentage Multiplier: %.2f"), ConfigData->RenderFrameSettings.ClusterBufferRatioMult));
+	Lines.Add(FString::Printf(TEXT("Viewports Screen %% Multiplier: %.2f"), ConfigData->RenderFrameSettings.ClusterICVFXOuterViewportBufferRatioMult));
 
 	Lines.Add(TEXT(""));
 
