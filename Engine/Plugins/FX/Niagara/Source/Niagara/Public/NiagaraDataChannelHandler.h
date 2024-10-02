@@ -14,7 +14,7 @@ Some more complex handlers may want to divide up the scene in various different 
 #include "NiagaraDataChannelPublic.h"
 #include "NiagaraDataChannelHandler.generated.h"
 
-UCLASS(Experimental, abstract, BlueprintType, MinimalAPI)
+UCLASS(abstract, BlueprintType, MinimalAPI)
 class UNiagaraDataChannelHandler : public UObject
 {
 public:

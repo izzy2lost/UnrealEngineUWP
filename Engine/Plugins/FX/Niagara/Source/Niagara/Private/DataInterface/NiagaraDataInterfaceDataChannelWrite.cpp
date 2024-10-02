@@ -77,7 +77,6 @@ namespace NDIDataChannelWriteLocal
 			Sig.Description = LOCTEXT("NumFunctionDescription", "Returns the number of instances allocated for writing in the bound NDC buffer. Writes at an index beyond this will fail.");
 #endif
 			Sig.bMemberFunction = true;
-			Sig.bExperimental = true;
 			Sig.AddInput(FNiagaraVariable(FNiagaraTypeDefinition(UNiagaraDataInterfaceDataChannelWrite::StaticClass()), TEXT("DataChannel interface")));
 			Sig.AddOutput(FNiagaraVariable(FNiagaraTypeDefinition::GetIntDef(), TEXT("Num")));
 		}
@@ -95,7 +94,6 @@ namespace NDIDataChannelWriteLocal
 			Sig.Description = LOCTEXT("AllocateFunctionDescription", "Adds an amount to allocated into the bound NDC data for the given emitter to write into.");
 #endif
 			Sig.bMemberFunction = true;
-			Sig.bExperimental = true;
 			Sig.bRequiresExecPin = true;
 			Sig.ModuleUsageBitmask = ENiagaraScriptUsageMask::Emitter | ENiagaraScriptUsageMask::System;
 			Sig.AddInput(FNiagaraVariable(FNiagaraTypeDefinition(UNiagaraDataInterfaceDataChannelWrite::StaticClass()), TEXT("DataChannel interface")));
@@ -119,7 +117,6 @@ namespace NDIDataChannelWriteLocal
 #endif
 			Sig.bMemberFunction = true;
 			Sig.bRequiresExecPin = true;
-			Sig.bExperimental = true;
 			Sig.bSupportsGPU = false;//Cannot use direct index writes on GPU as we write into one shared buffer with all DIs using the same NDC data.
 			Sig.AddInput(FNiagaraVariable(FNiagaraTypeDefinition(UNiagaraDataInterfaceDataChannelWrite::StaticClass()), TEXT("DataChannel interface")));
 			Sig.AddInput(EmitVar, LOCTEXT("ExecuteAppendFlagTooltip", "If true then the append is executed, if false then the append call is skipped"));
@@ -145,7 +142,6 @@ namespace NDIDataChannelWriteLocal
 #endif
 			Sig.bMemberFunction = true;
 			Sig.bRequiresExecPin = true;
-			Sig.bExperimental = true;
 			Sig.AddInput(FNiagaraVariable(FNiagaraTypeDefinition(UNiagaraDataInterfaceDataChannelWrite::StaticClass()), TEXT("DataChannel interface")));
 			Sig.AddInput(EmitVar, LOCTEXT("ExecuteAppendFlagTooltip", "If true then the append is executed, if false then the append call is skipped"));
 			Sig.AddOutput(FNiagaraVariable(FNiagaraTypeDefinition::GetBoolDef(), TEXT("Success")));
