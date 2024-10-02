@@ -697,8 +697,10 @@ void FGroomRBFDeformer::GetRBFDeformedGroomAsset(const UGroomAsset* InGroomAsset
 
 		// Use the vertices positions from the HairDescription instead of the GroomAsset since the latter
 		// may contain decimated or auto-generated guides depending on the import settings
+		// When building the hair description groups, do not add control points at the end of each curves, 
+		// as this would make cause a mismatch ordering of the flatten CP's position vs. the hair description CP's positions
 		FHairDescriptionGroups HairDescriptionGroups;
-		FGroomBuilder::BuildHairDescriptionGroups(InGroomAsset->GetHairDescription(), HairDescriptionGroups);
+		FGroomBuilder::BuildHairDescriptionGroups(InGroomAsset->GetHairDescription(), HairDescriptionGroups, false /*bAllowAddEndControlPoint*/);
 
 		TArray<FRBFDeformedPositions> DeformedPositions;
 		DeformedPositions.SetNum(NumGroups);
