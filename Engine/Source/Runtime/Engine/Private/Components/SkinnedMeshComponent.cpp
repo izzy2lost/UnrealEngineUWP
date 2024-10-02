@@ -4967,6 +4967,11 @@ bool USkinnedMeshComponent::IsUsingSkinWeightProfile() const
 
 	if (USkinnedAsset* Asset = GetSkinnedAsset())
 	{
+		if (Asset->IsCompiling())
+		{
+			return false;
+		}
+
 		if (const FSkinWeightProfilesData* ProfileData = Asset->GetSkinWeightProfilesData(GetPredictedLODLevel()))
 		{
 			return ProfileData->IsDefaultOverridden() || ProfileData->IsStaticOverridden();
@@ -4994,6 +4999,12 @@ TArray<FName> USkinnedMeshComponent::GetCurrentSkinWeightProfileLayerNames() con
 
 	if (USkinnedAsset* Asset = GetSkinnedAsset())
 	{
+		if (Asset->IsCompiling())
+		{
+			//Return an array with name none entry
+			return { NAME_None };
+		}
+
 		if (const FSkinWeightProfilesData* ProfileData = Asset->GetSkinWeightProfilesData(GetPredictedLODLevel()))
 		{
 			if( ProfileData->IsDefaultOverridden() || ProfileData->IsStaticOverridden())
