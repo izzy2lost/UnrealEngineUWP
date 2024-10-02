@@ -258,7 +258,7 @@ private:
 	/** Cached FRenderParams, used when JustInTimeRender() gets called. */
 	TUniquePtr<FRenderParams> JustInTimeRenderParams;
 
-	/** Colorspace to override standard proejct "working color space' */
+	/** Destination colorspace to override standard project "working color space'. Used primarily by Slate which remains sRGB-only. */
 	TUniquePtr<UE::Color::FColorSpace> OverrideColorSpace;
 
 	/** Used to keep track of whether we should re-create the output target because the intermediate target has changed. */

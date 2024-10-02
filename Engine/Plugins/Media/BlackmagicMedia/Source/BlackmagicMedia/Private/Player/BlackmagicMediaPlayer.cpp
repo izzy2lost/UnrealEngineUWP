@@ -329,21 +329,21 @@ namespace BlackmagicMediaPlayerHelpers
 		
 					if (MediaPlayer->bOverrideSourceColorSpace)
 					{
-						ColorFormat.ColorSpace = (UE::Color::EColorSpace) MediaPlayer->OverrideSourceColorSpace;
+						ColorFormat.ColorSpaceType = (UE::Color::EColorSpace) MediaPlayer->OverrideSourceColorSpace;
 					}
 					else
 					{
 						switch (HDROptions.Gamut)
 						{
 						case EBlackmagicHDRMetadataGamut::Rec709:
-							ColorFormat.ColorSpace = UE::Color::EColorSpace::sRGB;
+							ColorFormat.ColorSpaceType = UE::Color::EColorSpace::sRGB;
 							break;
 						case EBlackmagicHDRMetadataGamut::Rec2020:
-							ColorFormat.ColorSpace = UE::Color::EColorSpace::Rec2020;
+							ColorFormat.ColorSpaceType = UE::Color::EColorSpace::Rec2020;
 							break;
 						default:
 							checkNoEntry();
-							ColorFormat.ColorSpace = UE::Color::EColorSpace::sRGB;
+							ColorFormat.ColorSpaceType = UE::Color::EColorSpace::sRGB;
 							break;
 						}
 					}

@@ -153,7 +153,16 @@ enum class EMediaOrientation
 	CW270
 };
 
-static constexpr float kMediaSample_HDR_NitsNormalizationFactor = 1.0f / 100.0f;
+namespace MediaTextureSample
+{
+	/* This the reference white level for mapping UE scene-referred colors to nits (see TonemapCommon.ush). */
+	static constexpr float kLinearToNitsScale_UE = 100.0f;
+
+	/* This the reference white level for mapping SDR 1.0 to nits, as defined by ITU-R Report BT.2408. */
+	static constexpr float kLinearToNitsScale_BT2408 = 203.0f;
+}
+
+static constexpr float kMediaSample_HDR_NitsNormalizationFactor = 1.0f / MediaTextureSample::kLinearToNitsScale_UE;
 
 /**
  * Interface for media texture samples.
@@ -424,36 +433,39 @@ public:
 		return FMatrix44f(MediaShaders::YuvToRgbRec709Scaled * Pre);	// assumes sRGB & video range
 	}
 
-	/**
-	 * Get Colorspace conversion matrix to convert to CIE1931 XYZ space
-	 *
-	 * @return Conversion Matrix
-	 */
+	/*
+	* Get sample source color space (defaults to the sRGB/Rec709 gamut)
+	*/
+	virtual const UE::Color::FColorSpace& GetSourceColorSpace() const
+	{
+		return UE::Color::FColorSpace::GetSRGB();
+	}
+
+	UE_DEPRECATED(5.5, "GetGamutToXYZMatrix is deprecated, please use GetSourceColorSpace instead.")
 	virtual FMatrix44d GetGamutToXYZMatrix() const
 	{
 		return FMatrix44d(GamutToXYZMatrix(EDisplayColorGamut::sRGB_D65));
 	}
 
-	/**
-	 * Get white point of color space of the data contain in the sample
-	 *
-	 * @return White point
-	 */
+	UE_DEPRECATED(5.5, "GetWhitePoint is deprecated, please use GetSourceColorSpace instead.")
 	virtual FVector2d GetWhitePoint() const
 	{
 		return UE::Color::GetWhitePoint(UE::Color::EWhitePoint::CIE1931_D65);
 	}
 
+	UE_DEPRECATED(5.5, "GetDisplayPrimaryRed is deprecated, please use GetMasteringDisplayColorSpace instead.")
 	virtual FVector2d GetDisplayPrimaryRed() const
 	{
 		return FVector2d(0.64, 0.33);
 	}
 
+	UE_DEPRECATED(5.5, "GetDisplayPrimaryGreen is deprecated, please use GetMasteringDisplayColorSpace instead.")
 	virtual FVector2d GetDisplayPrimaryGreen() const
 	{
 		return FVector2d(0.30, 0.60);
 	}
 
+	UE_DEPRECATED(5.5, "GetDisplayPrimaryBlue is deprecated, please use GetMasteringDisplayColorSpace instead.")
 	virtual FVector2d GetDisplayPrimaryBlue() const
 	{
 		return FVector2d(0.15, 0.06);
@@ -484,11 +496,27 @@ public:
 	}
 
 	/**
+	 * Get display mastering color space
+	 */
+	virtual TOptional<UE::Color::FColorSpace> GetDisplayMasteringColorSpace() const
+	{
+		return TOptional<UE::Color::FColorSpace>();
+	}
+
+	/**
 	 * Get maximum luminance information
 	 */
 	virtual bool GetMaxLuminanceLevels(uint16& OutCLL, uint16& OutFALL) const
 	{
 		return false;
+	}
+
+	/**
+	 * Get an optional tonemapping method, for application on HDR inputs.
+	 */
+	virtual MediaShaders::EToneMapMethod GetToneMapMethod() const
+	{
+		return MediaShaders::EToneMapMethod::None;
 	}
 
 	/**

@@ -644,21 +644,21 @@ bool FAjaMediaPlayer::OnInputFrameReceived(const AJA::AJAInputFrameData& InInput
 		
 		if (bOverrideSourceColorSpace)
 		{
-			ColorFormat.ColorSpace = (UE::Color::EColorSpace) OverrideSourceColorSpace;
+			ColorFormat.ColorSpaceType = (UE::Color::EColorSpace) OverrideSourceColorSpace;
 		}
 		else
 		{
 			switch (HDROptions.Gamut)
 			{
 			case EAjaHDRMetadataGamut::Rec709:
-				ColorFormat.ColorSpace = UE::Color::EColorSpace::sRGB;
+				ColorFormat.ColorSpaceType = UE::Color::EColorSpace::sRGB;
 				break;
 			case EAjaHDRMetadataGamut::Rec2020:
-				ColorFormat.ColorSpace = UE::Color::EColorSpace::Rec2020;
+				ColorFormat.ColorSpaceType = UE::Color::EColorSpace::Rec2020;
 				break;
 			default:
 				checkNoEntry();
-				ColorFormat.ColorSpace = UE::Color::EColorSpace::sRGB;
+				ColorFormat.ColorSpaceType = UE::Color::EColorSpace::sRGB;
 				break;
 			}
 		}

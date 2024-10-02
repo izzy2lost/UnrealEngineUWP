@@ -121,8 +121,8 @@ bool FMediaIOCoreTextureSampleBase::SetProperties(uint32 InStride, uint32 InWidt
 	Duration = FTimespan(ETimespan::TicksPerSecond * InFrameRate.AsInterval());
 	Timecode = InTimecode;
 	Encoding = InColorFormatArgs.Encoding;
-	ColorSpace = InColorFormatArgs.ColorSpace;
-	ColorSpaceStruct = UE::Color::FColorSpace(ColorSpace);
+	ColorSpaceType = InColorFormatArgs.ColorSpaceType;
+	ColorSpaceStruct = UE::Color::FColorSpace(ColorSpaceType);
 
 	return true;
 }
@@ -226,7 +226,7 @@ void FMediaIOCoreTextureSampleBase::CopyConfiguration(const TSharedPtr<FMediaIOC
 	Time = SourceSample->Time;
 	Timecode = SourceSample->Timecode;
 	Encoding = SourceSample->Encoding;
-	ColorSpace = SourceSample->ColorSpace;
+	ColorSpaceType = SourceSample->ColorSpaceType;
 	ColorSpaceStruct = SourceSample->ColorSpaceStruct;
 	ColorConversionSettings = SourceSample->ColorConversionSettings;
 	CachedOCIOResources = SourceSample->CachedOCIOResources;
@@ -348,7 +348,7 @@ void FMediaIOCoreTextureSampleBase::ShutdownPoolable()
 
 const FMatrix& FMediaIOCoreTextureSampleBase::GetYUVToRGBMatrix() const
 {
-	switch (ColorSpace)
+	switch (ColorSpaceType)
 	{
 	case UE::Color::EColorSpace::sRGB:
 		return MediaShaders::YuvToRgbRec709Scaled;
@@ -368,29 +368,9 @@ bool FMediaIOCoreTextureSampleBase::IsOutputSrgb() const
 	return Encoding == UE::Color::EEncoding::sRGB;
 }
 
-FMatrix44d FMediaIOCoreTextureSampleBase::GetGamutToXYZMatrix() const
+const UE::Color::FColorSpace& FMediaIOCoreTextureSampleBase::GetSourceColorSpace() const
 {
-	return ColorSpaceStruct.GetRgbToXYZ().GetTransposed();
-}
-
-FVector2d FMediaIOCoreTextureSampleBase::GetWhitePoint() const
-{
-	return ColorSpaceStruct.GetWhiteChromaticity();
-}
-
-FVector2d FMediaIOCoreTextureSampleBase::GetDisplayPrimaryRed() const
-{
-	return ColorSpaceStruct.GetRedChromaticity();
-}
-
-FVector2d FMediaIOCoreTextureSampleBase::GetDisplayPrimaryGreen() const
-{
-	return ColorSpaceStruct.GetGreenChromaticity();
-} 
-
-FVector2d FMediaIOCoreTextureSampleBase::GetDisplayPrimaryBlue() const
-{
-	return ColorSpaceStruct.GetBlueChromaticity();
+	return ColorSpaceStruct;
 }
 
 UE::Color::EEncoding FMediaIOCoreTextureSampleBase::GetEncodingType() const
@@ -409,7 +389,7 @@ UE::Color::EColorSpace FMediaIOCoreTextureSampleBase::GetColorSpaceType() const
 	{
 		return UE::Color::EColorSpace::None;
 	}
-	return ColorSpace;
+	return ColorSpaceType;
 }
 
 float FMediaIOCoreTextureSampleBase::GetHDRNitsNormalizationFactor() const
@@ -419,5 +399,5 @@ float FMediaIOCoreTextureSampleBase::GetHDRNitsNormalizationFactor() const
     	return 1.0f;
     }
 	
-	return (GetEncodingType() == UE::Color::EEncoding::sRGB || GetEncodingType() == UE::Color::EEncoding::Linear) ? 1.0f : kMediaSample_HDR_NitsNormalizationFactor;
+	return IMediaTextureSample::GetHDRNitsNormalizationFactor();
 }
