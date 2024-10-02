@@ -596,14 +596,41 @@ namespace HordeServer.Notifications.Sinks
 		#region Job step complete
 
 		/// <inheritdoc/>
-		public async Task NotifyJobStepCompleteAsync(IUser slackUser, IJob job, IJobStepBatch batch, IJobStep step, INode node, List<ILogEventData> jobStepEventData, CancellationToken cancellationToken)
+		public async Task NotifyJobStepCompleteAsync(IEnumerable<IUser> usersToNotify, IJob job, IJobStepBatch batch, IJobStep step, INode node, List<ILogEventData> jobStepEventData, CancellationToken cancellationToken)
 		{
-			_logger.LogInformation("Sending Slack notification for job {JobId}, batch {BatchId}, step {StepId}, outcome {Outcome} to {SlackUser} ({UserId})", job.Id, batch.Id, step.Id, step.Outcome, slackUser.Name, slackUser.Id);
-
-			string? slackUserId = await GetSlackUserIdAsync(slackUser, cancellationToken);
-			if (slackUserId != null)
+			if (step.Error == JobStepError.TimedOut)
 			{
-				await SendJobStepCompleteMessageAsync(slackUserId, job, step, node, jobStepEventData, cancellationToken);
+				if (_settings.JobNotificationChannel != null)
+				{
+					BuildConfig buildConfig = _buildConfig.CurrentValue;
+					if (buildConfig.TryGetStream(job.StreamId, out StreamConfig? streamConfig))
+					{
+						foreach (string channel in _settings.JobNotificationChannel.Split(';'))
+						{
+							Uri jobStepLink = new Uri($"{_serverInfo.DashboardUrl}job/{job.Id}?step={step.Id}");
+							Uri jobStepLogLink = new Uri($"{_serverInfo.DashboardUrl}log/{step.LogId}");
+
+							SlackAttachment attachment = new SlackAttachment();
+							attachment.FallbackText = $"{streamConfig.Name} - {GetJobChangeText(job)} - {job.Name} - {node.Name} - {step.Outcome}";
+							attachment.Color = ErrorColor;
+							attachment.AddSection($"*<{jobStepLink}|{streamConfig.Name} - {GetJobChangeText(job)} - {job.Name} - {node.Name}>*");
+							attachment.AddSection($"*Job Step Aborted due to Timeout*");
+
+							await SendMessageAsync($"#{channel}", attachment, cancellationToken);
+						}
+					}
+				}
+			}
+
+			foreach (IUser slackUser in usersToNotify)
+			{
+				_logger.LogInformation("Sending Slack notification for job {JobId}, batch {BatchId}, step {StepId}, outcome {Outcome} to {SlackUser} ({UserId})", job.Id, batch.Id, step.Id, step.Outcome, slackUser.Name, slackUser.Id);
+
+				string? slackUserId = await GetSlackUserIdAsync(slackUser, cancellationToken);
+				if (slackUserId != null)
+				{
+					await SendJobStepCompleteMessageAsync(slackUserId, job, step, node, jobStepEventData, cancellationToken);
+				}
 			}
 		}
 

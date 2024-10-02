@@ -688,6 +688,7 @@ namespace HordeServer.Notifications
 				jobStepEventData.Add(eventData);
 			}
 
+			List<IUser> filteredUsersToNotify = new List<IUser>();
 			foreach (IUser slackUser in usersToNotify)
 			{
 				if (job.PreflightCommitId != null)
@@ -697,8 +698,11 @@ namespace HordeServer.Notifications
 						continue;
 					}
 				}
-				EnqueueTasks((sink, ctx) => sink.NotifyJobStepCompleteAsync(slackUser, job, batch, step, node, jobStepEventData, ctx));
+				filteredUsersToNotify.Add(slackUser);
 			}
+
+			EnqueueTasks((sink, ctx) => sink.NotifyJobStepCompleteAsync(filteredUsersToNotify, job, batch, step, node, jobStepEventData, ctx));
+
 			_logger.LogDebug("Finished sending notifications for step {JobId}:{BatchId}:{StepId}", job.Id, batchId, stepId);
 		}
 

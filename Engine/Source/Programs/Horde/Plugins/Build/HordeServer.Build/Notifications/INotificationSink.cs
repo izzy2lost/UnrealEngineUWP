@@ -52,7 +52,7 @@ namespace HordeServer.Notifications
 		/// <summary>
 		/// Send notifications that a job step has completed
 		/// </summary>
-		/// <param name="user">User to notify</param>
+		/// <param name="usersToNotify">Users to notify</param>
 		/// <param name="job">The job containing the step</param>
 		/// <param name="batch">Unique id of the batch</param>
 		/// <param name="step">The step id</param>
@@ -60,7 +60,7 @@ namespace HordeServer.Notifications
 		/// <param name="jobStepEventData"></param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Async task</returns>
-		Task NotifyJobStepCompleteAsync(IUser user, IJob job, IJobStepBatch batch, IJobStep step, INode node, List<ILogEventData> jobStepEventData, CancellationToken cancellationToken);
+		Task NotifyJobStepCompleteAsync(IEnumerable<IUser> usersToNotify, IJob job, IJobStepBatch batch, IJobStep step, INode node, List<ILogEventData> jobStepEventData, CancellationToken cancellationToken);
 
 		/// <summary>
 		/// Send notifications that a job step has completed
