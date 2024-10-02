@@ -185,7 +185,7 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "InstallerCustomActions", "I
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "UnrealToolbox", "..\UnrealToolbox\UnrealToolbox.csproj", "{C30C14C0-1531-4FFC-81E9-CBB09EECF2B5}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UnrealBuildTool.Tests", "..\Shared\UnrealBuildTool.Tests\UnrealBuildTool.Tests.csproj", "{01F04890-45B1-403B-9A68-6617F1F58349}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UnrealBuildTool.Tests", "..\UnrealBuildTool.Tests\UnrealBuildTool.Tests.csproj", "{01F04890-45B1-403B-9A68-6617F1F58349}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
