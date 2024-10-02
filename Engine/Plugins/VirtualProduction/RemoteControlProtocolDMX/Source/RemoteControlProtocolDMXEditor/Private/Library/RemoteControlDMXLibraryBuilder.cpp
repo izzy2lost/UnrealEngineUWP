@@ -76,6 +76,24 @@ namespace UE::RemoteControl::DMX
 			{
 				AutoAssignFixturePatches(PostEditChangePropertyPatches);
 			}
+			else
+			{
+				// Auto assign new patches
+				TArray<TSharedRef<FRemoteControlDMXControlledPropertyPatch>> NewPropertyPatches;
+				Algo::TransformIf(PostEditChangePropertyPatches, NewPropertyPatches,
+					[this](const TSharedRef<FRemoteControlDMXControlledPropertyPatch>& PropertyPatch)
+					{
+						return
+							PropertyPatch->GetFixturePatch() &&
+							!PreviousFixturePatches.Contains(PropertyPatch->GetFixturePatch());
+					},
+					[this](const TSharedRef<FRemoteControlDMXControlledPropertyPatch>& PropertyPatch)
+					{
+						return PropertyPatch;
+					});
+
+				AutoAssignFixturePatches(NewPropertyPatches);
+			}
 
 			RemoveObsoleteFixturesFromDMXLibrary(PostEditChangePropertyPatches);
 		}

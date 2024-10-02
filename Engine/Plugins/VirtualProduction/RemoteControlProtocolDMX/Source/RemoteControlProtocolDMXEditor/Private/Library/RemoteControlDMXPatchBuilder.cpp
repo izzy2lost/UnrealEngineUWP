@@ -317,6 +317,7 @@ namespace UE::RemoteControl::DMX
 			FDMXFixtureMode NewMode;
 			NewMode.ModeName = TEXT("RemoteControl");
 
+			TMap<FName, int32> AttributeNameToCountMap;
 			for (const TSharedRef<FRemoteControlDMXControlledProperty>& Property : DMXControlledProperties)
 			{
 				for (const TSharedRef<TStructOnScope<FRemoteControlProtocolEntity>>& Entity : Property->GetEntities())
@@ -334,25 +335,34 @@ namespace UE::RemoteControl::DMX
 							return MaxFunctionPtr ? MaxFunctionPtr->GetLastChannel() + 1 : 1;
 						}();
 
-						FDMXFixtureFunction NewFunction;
-						NewFunction.FunctionName = Property->ExposedProperty->FieldPathInfo.ToString();
-						NewFunction.Attribute = DMXEntity->ExtraSetting.AttributeName;
-						NewFunction.Channel = NextFreeChannel;
-						NewFunction.DataType = DMXEntity->ExtraSetting.DataType;
-						NewFunction.bUseLSBMode = DMXEntity->ExtraSetting.bUseLSB;
+					const int32 AttributeCount = AttributeNameToCountMap.FindOrAdd(DMXEntity->ExtraSetting.AttributeName, 1)++;
+					const FName AttributeName = AttributeCount == 0 ?
+						DMXEntity->ExtraSetting.AttributeName :
+						*FString::Printf(TEXT("%s%i"), *DMXEntity->ExtraSetting.AttributeName.ToString(), AttributeCount);
 
-						// Addopt the attribute name from the DMX entity
-						NewFunction.Attribute = DMXEntity->ExtraSetting.AttributeName;
+					FDMXFixtureFunction NewFunction;
+					NewFunction.Attribute = AttributeName;
+					NewFunction.FunctionName = Property->ExposedProperty->FieldPathInfo.ToString();
+					NewFunction.Channel = NextFreeChannel;
+					NewFunction.DataType = DMXEntity->ExtraSetting.DataType;
+					NewFunction.bUseLSBMode = DMXEntity->ExtraSetting.bUseLSB;
 
-						const int32 FunctionIndex = NewMode.Functions.Add(NewFunction);
+					// Addopt the attribute name from the DMX entity
+					NewFunction.Attribute = DMXEntity->ExtraSetting.AttributeName;
 
-						// Remember the function index from the fixture function
-						DMXEntity->ExtraSetting.FunctionIndex = FunctionIndex;
+					const int32 FunctionIndex = NewMode.Functions.Add(NewFunction);
+
+					// Remember the function index from the fixture function
+					DMXEntity->ExtraSetting.FunctionIndex = FunctionIndex;
 				}
 			}
 
 			// Get or create the fixture type
-			if (!InOutFixtureType)
+			if (InOutFixtureType && !InOutFixtureType->Modes.IsEmpty())
+			{
+				InOutFixtureType->Modes[0] = NewMode;
+			}
+			else
 			{
 				// Create a new fixture type
 				FDMXEntityFixtureTypeConstructionParams FixtureTypeConstructionParams;
