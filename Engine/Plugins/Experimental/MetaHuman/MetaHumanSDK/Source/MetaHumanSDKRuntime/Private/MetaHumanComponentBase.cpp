@@ -93,13 +93,15 @@ void UMetaHumanComponentBase::SetFollowBody(USkeletalMeshComponent* SkelMeshComp
 
 void UMetaHumanComponentBase::RunAndInitPostAnimBP(USkeletalMeshComponent* SkelMeshComponent, TSubclassOf<UAnimInstance> AnimInstance, bool bRunAsOverridePostAnimBP, bool bReinitAnimInstances) const
 {
-	if (bRunAsOverridePostAnimBP)
+	if (USkeletalMesh* SkeletalMesh = SkelMeshComponent->GetSkeletalMeshAsset(); IsValid(SkeletalMesh))
 	{
-		SkelMeshComponent->SetOverridePostProcessAnimBP(AnimInstance, bReinitAnimInstances);
-	}
-	else
-	{
-		if (USkeletalMesh* SkeletalMesh = SkelMeshComponent->GetSkeletalMeshAsset(); IsValid(SkeletalMesh))
+		if (bRunAsOverridePostAnimBP)
+		{
+			// Check if the Skeletal Mesh set in the component is valid as SetOverridePostProcessAnimBP
+			// calls InitializeAnimScriptInstance and check if the mesh is valid
+			SkelMeshComponent->SetOverridePostProcessAnimBP(AnimInstance, bReinitAnimInstances);
+		}
+		else
 		{
 			SkeletalMesh->SetPostProcessAnimBlueprint(AnimInstance);
 
