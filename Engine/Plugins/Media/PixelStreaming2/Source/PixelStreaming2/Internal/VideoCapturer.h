@@ -54,10 +54,12 @@ namespace UE::PixelStreaming2
 		TSharedPtr<FPixelCaptureCapturerMultiFormat> FrameCapturer;
 		FDelegateHandle								 CaptureCompleteHandle;
 		FDelegateHandle								 SimulcastEnabledChangedHandle;
+		FDelegateHandle								 CaptureUseFenceChangedHandle;
 		FDelegateHandle								 FramePushedHandle;
 
 		void CreateFrameCapturer();
 		void OnSimulcastEnabledChanged(IConsoleVariable* Var);
+		void OnCaptureUseFenceChanged(IConsoleVariable* Var);
 		void OnCaptureComplete();
 		void OnFrame(const IPixelCaptureInputFrame& InputFrame);
 	};

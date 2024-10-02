@@ -153,6 +153,14 @@ public:
 		))
 	FString SignallingURL;
 
+	static TAutoConsoleVariable<bool> CVarCaptureUseFence;
+	UPROPERTY(config, EditAnywhere, Category = "PixelStreaming", meta = (
+		ConsoleVariable = "PixelStreaming2.CaptureUseFence",
+		DisplayName = "Capture Using Fence",
+		ToolTip = "Whether the texture copy we do during image capture should use a fence or not (non-fenced is faster but less safe)."
+		))
+	bool CaptureUseFence = false;
+
 	static TAutoConsoleVariable<bool> CVarDebugDumpAudio;
 
 	// Begin Cursor Settings
@@ -611,6 +619,9 @@ public:
 
 		DECLARE_TS_MULTICAST_DELEGATE_OneParam(FOnSimulcastEnabledChanged, IConsoleVariable*);
 		FOnSimulcastEnabledChanged OnSimulcastEnabledChanged;
+
+		DECLARE_TS_MULTICAST_DELEGATE_OneParam(FOnCaptureUseFenceChanged, IConsoleVariable*);
+		FOnCaptureUseFenceChanged OnCaptureUseFenceChanged;
 
 		DECLARE_TS_MULTICAST_DELEGATE_OneParam(FOnWebRTCFpsChanged, IConsoleVariable*);
 		FOnWebRTCFpsChanged OnWebRTCFpsChanged;
