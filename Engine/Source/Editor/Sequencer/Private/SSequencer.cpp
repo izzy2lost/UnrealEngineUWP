@@ -2865,6 +2865,21 @@ void SSequencer::UpdateLayoutTree()
 			NodePathToRename.Empty();
 		}
 
+		// Isolate binding object guids after the tree view is refreshed and the new tracks are created
+		if (!NewNodePathsToIsolate.IsEmpty())
+		{
+			for (const TViewModelPtr<IOutlinerExtension>& OutlinerItem : Sequencer->GetNodeTree()->GetRootNode()->GetDescendantsOfType<IOutlinerExtension>())
+			{
+				const FString ItemPath = IOutlinerExtension::GetPathName(OutlinerItem);
+				if (NewNodePathsToIsolate.Contains(ItemPath))
+				{
+					Sequencer->GetFilterBar()->IsolateTracks({ OutlinerItem }, true);
+					NewNodePathsToIsolate.Remove(ItemPath);
+				}
+			}
+			NewNodePathsToIsolate.Empty();
+		}
+
 		if (Sequencer->GetFocusedMovieSceneSequence())
 		{
 			bool bAnyChanged = false;

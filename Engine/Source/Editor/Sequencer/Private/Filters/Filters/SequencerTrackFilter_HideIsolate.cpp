@@ -101,6 +101,19 @@ void FSequencerTrackFilter_HideIsolate::HideTracks(const TSet<TWeakViewModelPtr<
 	BroadcastChangedEvent();
 }
 
+void FSequencerTrackFilter_HideIsolate::UnhideTracks(const TSet<TWeakViewModelPtr<IOutlinerExtension>>& InTracks)
+{
+	for (const TWeakViewModelPtr<IOutlinerExtension>& TrackModekWeak : InTracks)
+	{
+		if (const TViewModelPtr<IOutlinerExtension> TrackModel = TrackModekWeak.Pin())
+		{
+			HiddenTracks.Remove(TrackModel);
+		}
+	}
+
+	BroadcastChangedEvent();
+}
+
 void FSequencerTrackFilter_HideIsolate::IsolateTracks(const TSet<TWeakViewModelPtr<IOutlinerExtension>>& InTracks, const bool bInAddToExisting)
 {
 	if (!bInAddToExisting)

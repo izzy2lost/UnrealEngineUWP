@@ -5882,6 +5882,19 @@ bool FSequencer::OnRequestNodeDeleted( TSharedRef<FViewModel> NodeToBeDeleted, c
 	if (IDeletableExtension* Deletable = NodeToBeDeleted->CastThis<IDeletableExtension>())
 	{
 		Deletable->Delete();
+
+		const TViewModelPtr<IOutlinerExtension> OutlinerItem = NodeToBeDeleted->CastThisShared<IOutlinerExtension>();
+
+		if (FilterBar->HasIsolatedTracks())
+		{
+			FilterBar->UnisolateTracks({ OutlinerItem });
+		}
+
+		if (FilterBar->HasHiddenTracks())
+		{
+			FilterBar->UnhideTracks({ OutlinerItem });
+		}
+
 		return true;
 	}
 
@@ -9193,6 +9206,8 @@ void FixSortingOrders(FMovieSceneBinding* InBinding, UMovieScene* MovieScene)
 
 void FSequencer::OnAddBinding(const FGuid& ObjectBinding, UMovieScene* MovieScene)
 {
+	using namespace UE::Sequencer;
+
 	FMovieSceneBinding* Binding = MovieScene->FindBinding(ObjectBinding);
 	if (Binding)
 	{
@@ -9200,6 +9215,19 @@ void FSequencer::OnAddBinding(const FGuid& ObjectBinding, UMovieScene* MovieScen
 	}
 
 	NodeTree->SortAllNodesAndDescendants();
+
+	if (FilterBar->HasIsolatedTracks())
+	{
+		for (const TViewModelPtr<IObjectBindingExtension>& ObjectBindingItem : NodeTree->GetRootNode()->GetDescendantsOfType<IObjectBindingExtension>())
+		{
+			if (ObjectBinding == ObjectBindingItem->GetObjectGuid())
+			{
+				const FString NewNodePath = IOutlinerExtension::GetPathName(ObjectBindingItem);
+				SequencerWidget->AddNewNodePathsToIsolate({ NewNodePath });
+				break;
+			}
+		}
+	}
 }
 
 void FSequencer::OnAddTrack(const TWeakObjectPtr<UMovieSceneTrack>&InTrack, const FGuid & ObjectBinding)
@@ -9253,6 +9281,11 @@ void FSequencer::OnAddTrack(const TWeakObjectPtr<UMovieSceneTrack>&InTrack, cons
 	ThrobSectionSelection();
 
 	NodeTree->SortAllNodesAndDescendants();
+
+	if (FilterBar->HasIsolatedTracks())
+	{
+		SequencerWidget->AddNewNodePathsToIsolate({ NewNodePath });
+	}
 }
 
 
