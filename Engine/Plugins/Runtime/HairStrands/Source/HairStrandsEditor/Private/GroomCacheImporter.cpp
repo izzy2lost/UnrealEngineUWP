@@ -141,7 +141,9 @@ TArray<UGroomCache*> FGroomCacheImporter::ImportGroomCache(const FString& Source
 			if (Translator->Translate(FrameIndex * AnimInfo.SecondsPerFrame, FrameHairDescription, HairImportContext.ImportOptions->ConversionSettings))
 			{
 				FHairDescriptionGroups HairDescriptionGroups;
-				if (!FGroomBuilder::BuildHairDescriptionGroups(FrameHairDescription, HairDescriptionGroups))
+				// Do not add extra control points at the end of curve when hair strip geometry is enabled. This is because groom cache data are 
+				// serialize within the uasset (i.e. do not used intermediate cached/build data), and need the asset to be compatible with or without hair strip geometry.
+				if (!FGroomBuilder::BuildHairDescriptionGroups(FrameHairDescription, HairDescriptionGroups, false /*bAllowAddEndControlPoint*/))
 				{
 					bSuccess = false;
 					break;

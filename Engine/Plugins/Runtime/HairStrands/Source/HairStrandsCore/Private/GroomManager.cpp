@@ -1059,11 +1059,14 @@ static void RunHairStrandsInterpolation_Guide(
 					ShaderMap,
 					InstanceData.Instance->RegisteredIndex,
 					InstanceData.Instance->Guides.RestResource->GetPointCount(),
+					InstanceData.Instance->Guides.RestResource->GetCurveCount(),
 					InterpolationFactor,
 					1.f /*MaxHairRadius*/,
 					CacheResources0,
 					CacheResources1,
 					RegisterAsSRV(GraphBuilder, InstanceData.Instance->Guides.RestResource->PositionBuffer),
+					RegisterAsSRV(GraphBuilder, InstanceData.Instance->Guides.RestResource->CurveBuffer),
+					RegisterAsSRV(GraphBuilder, InstanceData.Instance->Strands.RestResource->PointToCurveBuffer),
 					RegisterAsSRV(GraphBuilder, InstanceData.Instance->Guides.DeformedResource->GetPositionOffsetBuffer(FHairStrandsDeformedResource::EFrameType::Current)),
 					RegisterAsUAV(GraphBuilder, InstanceData.Instance->Guides.DeformedResource->GetBuffer(FHairStrandsDeformedResource::Current)));
 			}
@@ -1541,11 +1544,14 @@ static void RunHairStrandsInterpolation_Strands(
 					ShaderMap,
 					InstanceData.Instance->RegisteredIndex,
 					InstanceData.ActivePointCount,
+					InstanceData.ActiveCurveCount,
 					InterpolationFactor,
 					InstanceData.Instance->Strands.Modifier.HairWidth * 0.5f /*InMaxHairRadius*/,
 					CacheResources0,
 					CacheResources1,
 					RegisterAsSRV(GraphBuilder, InstanceData.Instance->Strands.RestResource->PositionBuffer),
+					RegisterAsSRV(GraphBuilder, InstanceData.Instance->Strands.RestResource->CurveBuffer),
+					RegisterAsSRV(GraphBuilder, InstanceData.Instance->Strands.RestResource->PointToCurveBuffer),
 					RegisterAsSRV(GraphBuilder, InstanceData.Instance->Strands.DeformedResource->GetPositionOffsetBuffer(FHairStrandsDeformedResource::EFrameType::Current)),
 					InstanceData.RDGResources.PositionUAV);
 			}
