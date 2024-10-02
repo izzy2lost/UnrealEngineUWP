@@ -240,6 +240,9 @@ public:
 	virtual bool CanAffectVisibilityLayer() const override;
 	virtual void GetRenderDependencies(TSet<UObject*>& OutDependencies) const override;
 
+	// UActorComponent
+	virtual TStructOnScope<FActorComponentInstanceData> GetComponentInstanceData() const override;
+
 	// UObject
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 #endif

@@ -3,6 +3,7 @@
 #include "LandscapeTextureBackedRenderTarget.h"
 #include "Engine/Texture2D.h"
 #include "Engine/World.h"
+#include "LandscapeDataAccess.h"
 #include "LandscapePatchUtil.h" // CopyTextureOnRenderThread
 #include "LandscapePatchLogging.h" 
 #include "RenderGraphBuilder.h"
@@ -33,6 +34,23 @@ namespace LandscapeTextureBackedRenderTargetLocals
 
 		return Texture;
 	}
+
+	// Copied from CameraCalibrationUtilsPrivate.cpp
+	void ClearTexture(UTexture2D* Texture, FColor ClearColor)
+	{
+		if (Texture)
+		{
+			TArray<FColor> Pixels;
+			Pixels.Init(ClearColor, Texture->GetSizeX() * Texture->GetSizeY());
+
+			void* TextureData = Texture->GetPlatformData()->Mips[0].BulkData.Lock(LOCK_READ_WRITE);
+
+			FMemory::Memcpy(TextureData, Pixels.GetData(), Pixels.Num() * sizeof(FColor));
+
+			Texture->GetPlatformData()->Mips[0].BulkData.Unlock();
+			Texture->UpdateResource();
+		}
+	}
 #endif // WITH_EDITOR
 }
 
@@ -62,7 +80,7 @@ void ULandscapeTextureBackedRenderTargetBase::PostLoad()
 	{
 		InternalTexture->ConditionalPostLoad();
 
-		ReinitializeRenderTarget();
+		ReinitializeRenderTarget(/*bClear*/ false);
 
 		CopyBackFromInternalTexture();
 	}
@@ -102,7 +120,19 @@ void ULandscapeTextureBackedRenderTargetBase::PostEditImport()
 
 	if (!bUseInternalTextureOnly && IsValid(InternalTexture))
 	{
-		ReinitializeRenderTarget();
+		ReinitializeRenderTarget(/*bClear*/ false);
+
+		CopyBackFromInternalTexture();
+	}
+}
+
+void ULandscapeTextureBackedRenderTargetBase::PostEditUndo()
+{
+	Super::PostEditUndo();
+
+	if (!bUseInternalTextureOnly && IsValid(InternalTexture))
+	{
+		ReinitializeRenderTarget(/*bClear*/ false);
 
 		CopyBackFromInternalTexture();
 	}
@@ -136,7 +166,7 @@ void ULandscapeTextureBackedRenderTargetBase::SetUseInternalTextureOnly(bool bUs
 
 		if (IsValid(InternalTexture)) // if initialized
 		{
-			ReinitializeRenderTarget();
+			ReinitializeRenderTarget(/*bClear*/ !bCopyExisting);
 
 			if (bCopyExisting)
 			{
@@ -192,7 +222,7 @@ void ULandscapeTextureBackedRenderTargetBase::Initialize()
 	}
 	else
 	{
-		ReinitializeRenderTarget();
+		ReinitializeRenderTarget(/*bClear*/ true);
 	}
 #endif // WITH_EDITOR
 }
@@ -237,6 +267,20 @@ ETextureRenderTargetFormat ULandscapeWeightTextureBackedRenderTarget::GetRenderT
 ETextureSourceFormat ULandscapeWeightTextureBackedRenderTarget::GetInternalTextureFormat()
 {
 	return bUseAlphaChannel ? ETextureSourceFormat::TSF_BGRA8 : ETextureSourceFormat::TSF_G8;
+}
+
+void ULandscapeWeightTextureBackedRenderTarget::Initialize()
+{
+#if WITH_EDITOR
+	using namespace LandscapeTextureBackedRenderTargetLocals;
+
+	Super::Initialize();
+
+	if (bUseInternalTextureOnly && ensure(InternalTexture))
+	{
+		ClearTexture(InternalTexture, FColor::White);
+	}
+#endif // WITH_EDITOR
 }
 
 void ULandscapeWeightTextureBackedRenderTarget::CopyToInternalTexture()
@@ -355,6 +399,21 @@ void ULandscapeHeightTextureBackedRenderTarget::SetFormat(ETextureRenderTargetFo
 		RenderTarget->RenderTargetFormat = GetRenderTargetFormat();
 		RenderTarget->InitAutoFormat(SizeX, SizeY);
 		RenderTarget->UpdateResourceImmediate();
+	}
+#endif // WITH_EDITOR
+}
+
+void ULandscapeHeightTextureBackedRenderTarget::Initialize()
+{
+#if WITH_EDITOR
+	using namespace LandscapeTextureBackedRenderTargetLocals;
+	Super::Initialize();
+
+	const FColor LandscapeNativeMidHeightColor = LandscapeDataAccess::PackHeight(LandscapeDataAccess::MidValue);
+
+	if (bUseInternalTextureOnly && ensure(InternalTexture))
+	{
+		ClearTexture(InternalTexture, LandscapeNativeMidHeightColor);
 	}
 #endif // WITH_EDITOR
 }
@@ -524,7 +583,7 @@ bool ULandscapeTextureBackedRenderTargetBase::IsCopyingBackAndForthAllowed()
 		&& FApp::CanEverRender();
 }
 
-void ULandscapeTextureBackedRenderTargetBase::ReinitializeRenderTarget()
+void ULandscapeTextureBackedRenderTargetBase::ReinitializeRenderTarget(bool bClear)
 {
 	if (!IsValid(RenderTarget))
 	{
@@ -538,5 +597,5 @@ void ULandscapeTextureBackedRenderTargetBase::ReinitializeRenderTarget()
 	}
 	RenderTarget->RenderTargetFormat = GetRenderTargetFormat();
 	RenderTarget->InitAutoFormat(SizeX, SizeY);
-	RenderTarget->UpdateResourceImmediate(false);
+	RenderTarget->UpdateResourceImmediate(bClear);
 }

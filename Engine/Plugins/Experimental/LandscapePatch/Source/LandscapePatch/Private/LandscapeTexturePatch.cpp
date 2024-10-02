@@ -1116,6 +1116,60 @@ void ULandscapeTexturePatch::GetRenderDependencies(TSet<UObject*>& OutDependenci
 	}
 }
 
+TStructOnScope<FActorComponentInstanceData> ULandscapeTexturePatch::GetComponentInstanceData() const
+{
+	// There are currently various issues with blueprints and instanced sub objects, and
+	//  one of them causes undo to be severely broken for transactable instanced objects
+	//  inside a blueprint actor component: UE-225445
+	// As it happens, one workaround is to not have the objects be transactable. So for
+	//  now, we temporarily make all instanced objects not transactable while doing instance
+	//  data serialization (when it theoretically shouldn't matter anyway).
+
+	auto SetObjectTransactionalFlag = [](UObject* Object, bool bOn)
+	{
+		if (!Object)
+		{
+			return;
+		}
+		if (bOn)
+		{
+			Object->SetFlags(RF_Transactional);
+		}
+		else
+		{
+			Object->ClearFlags(RF_Transactional);
+		}
+	};
+	auto SetInternalDataTransactionalFlags = [&SetObjectTransactionalFlag](TObjectPtr<ULandscapeTextureBackedRenderTargetBase> InternalData, bool bOn)
+	{
+		if (!InternalData)
+		{
+			return;
+		}
+		SetObjectTransactionalFlag(InternalData, bOn);
+		SetObjectTransactionalFlag(InternalData->GetRenderTarget(), bOn);
+		SetObjectTransactionalFlag(InternalData->GetInternalTexture(), bOn);
+	};
+	auto SetAllInternalDataTransactionalFlags = [this, &SetObjectTransactionalFlag, &SetInternalDataTransactionalFlags](bool bOn)
+	{
+		SetInternalDataTransactionalFlags(HeightInternalData, bOn);
+		for (const TObjectPtr<ULandscapeWeightPatchTextureInfo>& WeightPatch : WeightPatches)
+		{
+			if (IsValid(WeightPatch))
+			{
+				SetObjectTransactionalFlag(WeightPatch, bOn);
+				SetInternalDataTransactionalFlags(WeightPatch->InternalData, bOn);
+			}
+		}
+	};
+	
+	SetAllInternalDataTransactionalFlags(false);
+	TStructOnScope<FActorComponentInstanceData> ToReturn = Super::GetComponentInstanceData();
+	SetAllInternalDataTransactionalFlags(true);
+
+	return ToReturn;
+}
+
 #endif
 
 void ULandscapeTexturePatch::SnapToLandscape()
