@@ -14,7 +14,7 @@ namespace UnrealToolbox
 	{
 		class HordeClientLifetime : IAsyncDisposable
 		{
-			readonly TaskCompletionSource _refZeroTcs = new TaskCompletionSource();
+			readonly TaskCompletionSource _refZeroTcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
 			readonly Task<IHordeClient?> _clientTask;
 			int _refCount;

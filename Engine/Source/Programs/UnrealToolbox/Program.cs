@@ -47,12 +47,14 @@ namespace UnrealToolbox
 			if (args.Any(x => x.Equals("-Close", StringComparison.OrdinalIgnoreCase)))
 			{
 				closeEvent.Set();
+				return 0;
 			}
 
 			using EventWaitHandle refreshEvent = new EventWaitHandle(false, EventResetMode.AutoReset, RefreshEventName);
 			if (args.Any(x => x.Equals("-Refresh", StringComparison.OrdinalIgnoreCase)))
 			{
 				refreshEvent.Set();
+				return 0;
 			}
 
 			using EventWaitHandle settingsEvent = new EventWaitHandle(false, EventResetMode.AutoReset, SettingsEventName);
