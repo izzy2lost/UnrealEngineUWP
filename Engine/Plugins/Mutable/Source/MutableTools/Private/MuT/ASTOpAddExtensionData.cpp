@@ -78,7 +78,12 @@ void ASTOpAddExtensionData::Link(FProgram& Program, FLinkerOptions*)
 	OP::InstanceAddExtensionDataArgs Args;
 	FMemory::Memset(Args, 0);
 
-	check(Instance->linkedAddress);
+	if (!Instance || !Instance->linkedAddress)
+	{
+		// Can happen if there's no reference skeletal mesh in the first component
+		return;
+	}
+
 	Args.Instance = Instance->linkedAddress;
 
 	check(ExtensionData->linkedAddress);
