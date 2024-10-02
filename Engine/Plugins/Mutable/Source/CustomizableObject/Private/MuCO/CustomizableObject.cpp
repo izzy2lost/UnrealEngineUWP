@@ -86,6 +86,13 @@ TAutoConsoleVariable<int32> CVarMutableDerivedDataCacheUsage(
 	TEXT("2 - Default. Allow cache requests to query and store records and values in any caches."),
 	ECVF_Default);
 
+
+TAutoConsoleVariable<bool> CVarMutableAsyncCook(
+	TEXT("Mutable.CookAsync"),
+	false,
+	TEXT("True - Customizable Objects will be compiled asynchronously during cook.\n")
+	TEXT("False - Sync compilation.\n"));
+
 #endif
 
 #if WITH_EDITORONLY_DATA
@@ -1043,7 +1050,7 @@ void UCustomizableObjectPrivate::CompileForTargetPlatform(UCustomizableObject& C
 		return;
 	}
 
-	const bool bAsync = false; // TODO PERE
+	const bool bAsync = CVarMutableAsyncCook.GetValueOnAnyThread();
 
 	TSharedRef<FCompilationRequest> CompileRequest = MakeShared<FCompilationRequest>(CustomizableObject, bAsync);
 	FCompilationOptions& Options = CompileRequest->GetCompileOptions();

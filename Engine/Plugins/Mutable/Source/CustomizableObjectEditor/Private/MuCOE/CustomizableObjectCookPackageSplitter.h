@@ -13,6 +13,7 @@ public:
 	/** ICookPackageSplitter interface */
 	static bool ShouldSplit(UObject* SplitData);
 	static FString GetSplitterDebugName() { return TEXT("FCustomizableObjectCookPackageSplitter"); }
+	static bool RequiresCachedCookedPlatformDataBeforeSplit() { return true; }
 
 	virtual TArray<ICookPackageSplitter::FGeneratedPackage> GetGenerateList(
 		const UPackage* OwnerPackage,
