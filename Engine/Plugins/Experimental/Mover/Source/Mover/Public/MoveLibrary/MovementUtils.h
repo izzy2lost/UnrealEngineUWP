@@ -6,6 +6,9 @@
 #include "MoverSimulationTypes.h"
 #include "MoverDataModelTypes.h"
 #include "Components/PrimitiveComponent.h"
+#include "Engine/Blueprint.h" // For gathering CDO info from a BP
+#include "Engine/SCS_Node.h" // For gathering CDO info from a BP
+#include "Engine/SimpleConstructionScript.h" // For gathering CDO info from a BP
 
 #include "MovementUtils.generated.h"
 
@@ -116,6 +119,10 @@ public:
 	// JAH TODO: Make sure all 'out' parameters are last in the param list and marked as "Out"
 	// JAH TODO: separate out the public-facing ones from the internally-used ones and make all public-facing ones BlueprintCallable
 
+	// Gets CDO component type - useful for getting original values
+	template <class ComponentType>
+	static const ComponentType* GetOriginalComponentType(const AActor* MoverCompOwner);
+	
 	/** Checks whether a given velocity is exceeding a maximum speed, with some leeway to account for numeric imprecision */
 	UFUNCTION(BlueprintCallable, Category = Mover)
 	static bool IsExceedingMaxSpeed(const FVector& Velocity, float InMaxSpeed);
@@ -141,6 +148,17 @@ public:
 	*/
 	UFUNCTION(BlueprintCallable, Category = Mover)
 	static FVector ConstrainToPlane(const FVector& Vector, const FPlane& MovementPlane, bool bMaintainMagnitude=true);
+
+	/** Project a vector onto the floor defined by the gravity direction. */
+	UFUNCTION(BlueprintCallable, Category = Mover)
+	static FVector ProjectToGravityFloor(const FVector& Vector, const FVector& UpDirection) { return FVector::VectorPlaneProject(Vector, -UpDirection); }
+
+	/** Returns the component of the vector in the gravity-space vertical direction.  */
+	UFUNCTION(BlueprintCallable, Category = Mover)
+	static FVector GetGravityVerticalComponent(const FVector& Vector, const FVector& UpDirection) { return Vector.Dot(-UpDirection) * -UpDirection; }
+
+	/** Set the vertical component of the vector to the given value in the gravity-space vertical direction. */
+	static void SetGravityVerticalComponent(FVector& Vector, const FVector::FReal VerticalValue, const FVector& UpDirection) { Vector = ProjectToGravityFloor(Vector, UpDirection) - VerticalValue * -UpDirection; }
 
 	// Surface sliding
 
@@ -194,3 +212,49 @@ public:
 	static bool TryMoveUpdatedComponent_Internal(const FMovingComponentSet& MovingComps, const FVector& Delta, const FQuat& NewRotation, bool bSweep, EMoveComponentFlags MoveComponentFlags, FHitResult* OutHit, ETeleportType Teleport);
 
 };
+
+template <class ComponentType>
+const ComponentType* UMovementUtils::GetOriginalComponentType(const AActor* MoverCompOwner)
+{
+	const ComponentType* OriginalComponent = nullptr;
+
+	if (MoverCompOwner)
+	{
+		if (const AActor* OwnerCDO = Cast<AActor>(MoverCompOwner->GetClass()->GetDefaultObject()))
+		{
+			// Check if native CDO has Capsule component
+			OriginalComponent = OwnerCDO->FindComponentByClass<ComponentType>();
+
+			// check if it comes from a BP
+			if (!OriginalComponent)
+			{
+				if (const UBlueprintGeneratedClass* OwnerClassAsBP = Cast<UBlueprintGeneratedClass>(OwnerCDO->GetClass()))
+				{
+					TArray<const UBlueprintGeneratedClass*> BlueprintClasses;
+					UBlueprintGeneratedClass::GetGeneratedClassesHierarchy(OwnerClassAsBP, BlueprintClasses);
+					for (const UBlueprintGeneratedClass* BlueprintClass : BlueprintClasses)
+					{
+						if (BlueprintClass->SimpleConstructionScript)
+						{
+							// Check Simple construction script
+							const TArray<USCS_Node*>& SCSNodes = BlueprintClass->SimpleConstructionScript->GetAllNodes();
+							for (USCS_Node* SCSNode : SCSNodes)
+							{
+								if (SCSNode)
+								{
+									if (const ComponentType* BPComponent = Cast<ComponentType>(SCSNode->ComponentTemplate))
+									{
+										OriginalComponent = BPComponent;
+										break;
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	return OriginalComponent;
+}

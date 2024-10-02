@@ -246,12 +246,12 @@ void AMoverExamplesCharacter::OnProduceInput(float DeltaMs, FMoverInputCmdContex
 		if (bOrientRotationToMovement)
 		{
 			// set the intent to the actors movement direction
-			CharacterInputs.OrientationIntent = CharacterInputs.GetMoveInput();
+			CharacterInputs.OrientationIntent = CharacterInputs.GetMoveInput().GetSafeNormal();
 		}
 		else
 		{
 			// set intent to the the control rotation - often a player's camera rotation
-			CharacterInputs.OrientationIntent = CharacterInputs.ControlRotation.Vector();
+			CharacterInputs.OrientationIntent = CharacterInputs.ControlRotation.Vector().GetSafeNormal();
 		}
 
 		LastAffirmativeMoveInput = CharacterInputs.GetMoveInput();
