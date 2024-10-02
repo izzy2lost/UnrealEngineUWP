@@ -465,7 +465,6 @@ namespace UE::DMX::Private
 			ViewMode = bExpand ? EDMXControlConsoleEditorViewMode::Expanded : EDMXControlConsoleEditorViewMode::Collapsed;
 
 			constexpr bool bNotifyExpansionStateChange = false;
-			FaderGroupController->Modify();
 			FaderGroupController->SetIsExpanded(bExpand, bNotifyExpansionStateChange);
 		}
 	}
