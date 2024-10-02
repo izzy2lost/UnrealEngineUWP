@@ -1896,7 +1896,8 @@ int FDynamicMeshEditor::FindOrCreateDuplicateGroup(int TriangleID, FMeshIndexMap
 void FDynamicMeshEditor::AppendMesh(const FDynamicMesh3* AppendMesh,
 	FMeshIndexMappings& IndexMapsOut, 
 	TFunction<FVector3d(int, const FVector3d&)> PositionTransform,
-	TFunction<FVector3d(int, const FVector3d&)> NormalTransform)
+	TFunction<FVector3d(int, const FVector3d&)> NormalTransform,
+	bool bReverseOrientation)
 {
 	// todo: handle this case by making a copy?
 	check(AppendMesh != Mesh);
@@ -2106,6 +2107,17 @@ void FDynamicMeshEditor::AppendMesh(const FDynamicMesh3* AppendMesh,
 				FDynamicMeshAttributeBase* ToAttrib = Mesh->Attributes()->GetAttachedAttribute(AttribPair.Key);
 				ToAttrib->CopyThroughMapping(AttribPair.Value.Get(), IndexMapsOut);
 			}
+		}
+	}
+
+	// Flip tri orientations if requested, after all appends -- note we do this after mapping across all the attributes, as that logic assumes triangle vertices have matching vertex order
+	if (bReverseOrientation)
+	{
+		const TMap<int32, int32>& ReverseTriMap = TriangleMap.GetReverseMap();
+		for (const TPair<int32, int32> KV : ReverseTriMap)
+		{
+			int32 NewTID = KV.Key;
+			Mesh->ReverseTriOrientation(NewTID);
 		}
 	}
 }
