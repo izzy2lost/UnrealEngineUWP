@@ -215,8 +215,9 @@ class PCG_API UPCGSettings : public UPCGSettingsInterface
 {
 	GENERATED_BODY()
 
-	friend class FPCGSettingsObjectCrc32;
+	friend class FPCGSettingsObjectCrc;
 	friend class UPCGSettingsInterface;
+	friend struct FPCGContext;
 
 public:
 	// ~Begin UPCGData interface

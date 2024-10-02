@@ -21,6 +21,7 @@
 #include "Metadata/Accessors/PCGAttributeAccessorHelpers.h"
 #include "Metadata/Accessors/IPCGAttributeAccessor.h"
 
+#include "Misc/Crc.h"
 #include "Serialization/ArchiveObjectCrc32.h"
 #include "UObject/ObjectSaveContext.h"
 #include "UObject/FortniteMainBranchObjectVersion.h"
@@ -54,18 +55,27 @@ namespace PCGSettings
 }
 
 /** Custom Crc computation that ignores properties that will not affect the computed result of a node. */
-class FPCGSettingsObjectCrc32 : public FArchiveObjectCrc32
+class FPCGSettingsObjectCrc : public FArchiveObjectCrc32
 {
 public:
+	static FPCGCrc PCGCrc(const UPCGSettings* PCGSettings)
+	{
+		// If Settings has an original, use it to get a unique Id
+		const UPCGSettings* OriginalSettings = PCGSettings->OriginalSettings ? PCGSettings->OriginalSettings : PCGSettings;
+				
+		// If Settings is not transient, use its Object Path as a unique Id (this allows persistent Crcs)
+		const bool bSkipUID = !OriginalSettings->GetPackage()->HasAnyPackageFlags(PKG_TransientFlags) && OriginalSettings->GetPackage() != GetTransientPackage();
+		const uint32 SettingsPathOrUIDCrc = bSkipUID ? FCrc::StrCrc32(*OriginalSettings->GetPathName()) : FCrc::TypeCrc32(OriginalSettings->GetStableUID());
+				
+		FPCGSettingsObjectCrc Ar;
+		uint32 ArCrc = Ar.Crc32(const_cast<UPCGSettings*>(PCGSettings), SettingsPathOrUIDCrc);
+		return FPCGCrc(ArCrc);
+	}
+
 #if WITH_EDITOR
 	virtual bool ShouldSkipProperty(const FProperty* InProperty) const override
 	{
-		// Currently we rely on the 'UID' property getting included in the Crc. An example of this are asset settings
-		// for which we avoid doing a full data CRC and instead rely on including hte UID. This property is transient
-		// and will only serialize if IsPersistent() is false (see tests in FProperty::ShouldSerializeValue()).
-		ensure(!IsPersistent());
-
-		// Omit CRC'ing data collections here as it is very slow. Rely instead on UID.
+		// Omit CRC'ing data collections here as it is very slow. Rely instead on UID/ObjectPath.
 		const FStructProperty* StructProperty = CastField<FStructProperty>(InProperty);
 		if (StructProperty && StructProperty->Struct && StructProperty->Struct->IsChildOf(FPCGDataCollection::StaticStruct()))
 		{
@@ -73,7 +83,8 @@ public:
 		}
 
 		const bool bSkip = InProperty && (
-			InProperty->GetFName() == GET_MEMBER_NAME_CHECKED(UPCGSettings, DebugSettings)
+			InProperty->GetFName() == GET_MEMBER_NAME_CHECKED(UPCGSettings, UID)
+			|| InProperty->GetFName() == GET_MEMBER_NAME_CHECKED(UPCGSettings, DebugSettings)
 			|| InProperty->GetFName() == GET_MEMBER_NAME_CHECKED(UPCGSettings, DeterminismSettings)
 			|| InProperty->GetFName() == GET_MEMBER_NAME_CHECKED(UPCGSettings, bDebug)
 			|| InProperty->GetFName() == GET_MEMBER_NAME_CHECKED(UPCGSettings, Category)
@@ -306,10 +317,7 @@ bool UPCGSettings::operator==(const UPCGSettings& Other) const
 	}
 	else
 	{
-		FPCGSettingsObjectCrc32 Ar;
-		uint32 ThisCrc = Ar.Crc32(const_cast<UPCGSettings*>(this));
-		uint32 OtherCrc = Ar.Crc32(const_cast<UPCGSettings*>(&Other));
-		return ThisCrc == OtherCrc;
+		return FPCGSettingsObjectCrc::PCGCrc(this) == FPCGSettingsObjectCrc::PCGCrc(&Other);
 	}
 }
 
@@ -1142,9 +1150,7 @@ void UPCGSettings::FixingOverridableParamPropertyClass(FPCGSettingsOverridablePa
 
 void UPCGSettings::CacheCrc()
 {
-	FPCGSettingsObjectCrc32 Ar;
-	const uint32 CrcValue = Ar.Crc32(const_cast<UPCGSettings*>(this));
-	CachedCrc = FPCGCrc(CrcValue);
+	CachedCrc = FPCGSettingsObjectCrc::PCGCrc(this);
 }
 
 TArray<FPCGPinProperties> UPCGSettings::DefaultPointInputPinProperties() const

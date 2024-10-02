@@ -360,6 +360,8 @@ private:
 #endif // WITH_EDITOR
 	
 private:
+	void CancelGeneration(UPCGComponent* Component, bool bCleanupUnusedResources);
+
 	UPCGData* GetPCGData(FPCGTaskId InGraphExecutionTaskId);
 	UPCGData* GetInputPCGData(FPCGTaskId InGraphExecutionTaskId);
 	UPCGData* GetActorPCGData(FPCGTaskId InGraphExecutionTaskId);

@@ -752,7 +752,7 @@ void UPCGComponent::PostCleanupGraph()
 	PCGComponent::BroadcastDynamicDelegate(OnPCGGraphCleanedExternal, this);
 }
 
-void UPCGComponent::OnProcessGraphAborted(bool bQuiet)
+void UPCGComponent::OnProcessGraphAborted(bool bQuiet, bool bCleanupUnusedResources)
 {
 	if (!bQuiet)
 	{
@@ -764,7 +764,10 @@ void UPCGComponent::OnProcessGraphAborted(bool bQuiet)
 	ResetIgnoredChangeOrigins(/*bLogIfAnyPresent=*/false);
 #endif
 
-	CleanupUnusedManagedResources();
+	if (bCleanupUnusedResources)
+	{
+		CleanupUnusedManagedResources();
+	}
 
 	CurrentGenerationTask = InvalidPCGTaskId;
 	CurrentCleanupTask = InvalidPCGTaskId; // this is needed to support cancellation
@@ -2625,14 +2628,16 @@ void UPCGComponent::Refresh(EPCGChangeType ChangeType, bool bCancelExistingRefre
 			CurrentRefreshTask = InvalidPCGTaskId;
 		}
 
+		const bool bScheduleRefresh = CurrentRefreshTask == InvalidPCGTaskId && CurrentCleanupTask == InvalidPCGTaskId;
+
 		if (bNeedToCancelCurrentTasks)
 		{
-			Subsystem->CancelGeneration(this);
+			Subsystem->CancelGeneration(this, /*bCleanupManagedResources=*/!bScheduleRefresh);
 		}
 
 		// Calling a new refresh here might not be sufficient; if the current component was generating but was not previously generated,
 		// then the bGenerated flag will be false, which will prevent a subsequent update here
-		if (CurrentRefreshTask == InvalidPCGTaskId && CurrentCleanupTask == InvalidPCGTaskId)
+		if (bScheduleRefresh)
 		{
 			CurrentRefreshTask = Subsystem->ScheduleRefresh(this, bGenerationWasInProgress);
 		}
