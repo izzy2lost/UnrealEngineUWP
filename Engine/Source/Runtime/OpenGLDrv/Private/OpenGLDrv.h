@@ -572,59 +572,6 @@ public:
 #else
 	#define RHITHREAD_GLTRACE_BLOCKING 
 #endif
-#define RHITHREAD_GLCOMMAND_PROLOGUE() auto GLCommand= [&]() {
-
-#define RHITHREAD_GLCOMMAND_EPILOGUE_RETURN(x) };\
-		if (RHICmdList.Bypass() ||  !IsRunningRHIInSeparateThread() || IsInRHIThread())\
-		{\
-			return GLCommand();\
-		}\
-		else\
-		{\
-			x ReturnValue = (x)0;\
-			ALLOC_COMMAND_CL(RHICmdList, FRHICommandGLCommand)([&ReturnValue, GLCommand = MoveTemp(GLCommand)]() { ReturnValue = GLCommand(); }); \
-			RHITHREAD_GLTRACE_BLOCKING;\
-			RHICmdList.GetAsImmediate().ImmediateFlush(EImmediateFlushType::FlushRHIThread);\
-			return ReturnValue;\
-		}\
-
-#define RHITHREAD_GLCOMMAND_EPILOGUE_GET_RETURN(x) };\
-		x ReturnValue = (x)0;\
-		if (RHICmdList.Bypass() ||  !IsRunningRHIInSeparateThread() || IsInRHIThread() )\
-		{\
-			ReturnValue = GLCommand();\
-		}\
-		else\
-		{\
-			ALLOC_COMMAND_CL(RHICmdList, FRHICommandGLCommand)([&ReturnValue, GLCommand = MoveTemp(GLCommand)]() { ReturnValue = GLCommand(); }); \
-			RHITHREAD_GLTRACE_BLOCKING;\
-			RHICmdList.GetAsImmediate().ImmediateFlush(EImmediateFlushType::FlushRHIThread);\
-		}\
-
-
-#define RHITHREAD_GLCOMMAND_EPILOGUE() };\
-		if (ShouldRunGLRenderContextOpOnThisThread(RHICmdList))\
-		{\
-			return GLCommand();\
-		}\
-		else\
-		{\
-			ALLOC_COMMAND_CL(RHICmdList, FRHICommandGLCommand)( MoveTemp(GLCommand) ); \
-			RHITHREAD_GLTRACE_BLOCKING;\
-			RHICmdList.GetAsImmediate().ImmediateFlush(EImmediateFlushType::FlushRHIThread);\
-		}\
-
-#define RHITHREAD_GLCOMMAND_EPILOGUE_NORETURN() };\
-		if (ShouldRunGLRenderContextOpOnThisThread(RHICmdList))\
-		{\
-			GLCommand();\
-		}\
-		else\
-		{\
-			ALLOC_COMMAND_CL(RHICmdList, FRHICommandGLCommand)(  MoveTemp(GLCommand) ); \
-			RHITHREAD_GLTRACE_BLOCKING;\
-			RHICmdList.GetAsImmediate().ImmediateFlush(EImmediateFlushType::FlushRHIThread);\
-		}\
 
 	struct FTextureLockTracker
 	{
@@ -724,17 +671,12 @@ public:
 		FRHIGeometryShader* GeometryShaderRHI
 	) final override
 	{
-		return RHICreateBoundShaderState_internal(
-			VertexDeclarationRHI,
-			VertexShaderRHI,
-			PixelShaderRHI,
-			GeometryShaderRHI,
-			false);
+		checkNoEntry();
+		return nullptr;
 	}
 
 	void LinkComputeProgram(FRHIComputeShader* ComputeShaderRHI);
 
-	FBoundShaderStateRHIRef RHICreateBoundShaderState_OnThisThread(FRHIVertexDeclaration* VertexDeclaration, FRHIVertexShader* VertexShader, FRHIPixelShader* PixelShader, FRHIGeometryShader* GeometryShader, bool FromPSOFileCache);
 
 	virtual void RHIPostExternalCommandsReset() final override;
 
@@ -742,25 +684,7 @@ public:
 	GLuint GetOpenGLFramebuffer(uint32 NumSimultaneousRenderTargets, FOpenGLTexture** RenderTargets, const uint32* ArrayIndices, const uint32* MipmapLevels, FOpenGLTexture* DepthStencilTarget, int32 NumRenderingSamples);
 	
 private:
-
-	FBoundShaderStateRHIRef RHICreateBoundShaderState_internal(
-		FRHIVertexDeclaration* VertexDeclarationRHI,
-		FRHIVertexShader* VertexShaderRHI,
-		FRHIPixelShader* PixelShaderRHI,
-		FRHIGeometryShader* GeometryShaderRHI,
-		bool FromPSOFileCache
-	)
-	{
-		FRHICommandListImmediate& RHICmdList = FRHICommandListExecutor::GetImmediateCommandList();
-
-		RHITHREAD_GLCOMMAND_PROLOGUE()
-			return RHICreateBoundShaderState_OnThisThread(VertexDeclarationRHI,
-				VertexShaderRHI,
-				PixelShaderRHI,
-				GeometryShaderRHI,
-				FromPSOFileCache);
-		RHITHREAD_GLCOMMAND_EPILOGUE_RETURN(FBoundShaderStateRHIRef);
-	}
+	FBoundShaderStateRHIRef RHICreateBoundShaderState_Internal(FRHIVertexDeclaration* VertexDeclaration, FRHIVertexShader* VertexShader, FRHIPixelShader* PixelShader, FRHIGeometryShader* GeometryShader, bool FromPSOFileCache);
 
 	void PrepareGFXBoundShaderState(const FGraphicsPipelineStateInitializer& Initializer);
 

@@ -217,6 +217,7 @@ static TArray<FPooledGLUniformBuffer> SafeGLEmulatedUniformBufferPools[NUM_SAFE_
 // Delete the uniform buffer's GL resource
 static void ReleaseUniformBuffer(bool bEmulatedBufferData, GLuint Resource, uint32 AllocatedSize)
 {
+	VERIFY_GL_SCOPE();
 	if (bEmulatedBufferData)
 	{
 		UniformBufferDataFactory.Destroy(Resource);
@@ -224,14 +225,8 @@ static void ReleaseUniformBuffer(bool bEmulatedBufferData, GLuint Resource, uint
 	else
 	{
 		check(Resource);
-		auto DeleteGLBuffer = [=]() 
-		{
-			VERIFY_GL_SCOPE();
-			FOpenGL::DeleteBuffers(1, &Resource);
-			check(Resource != 0);
-		};
-
-		RunOnGLRenderContextThread(MoveTemp(DeleteGLBuffer));
+		FOpenGL::DeleteBuffers(1, &Resource);
+		check(Resource != 0);
 	}
 	OpenGLBufferStats::UpdateUniformBufferStats(AllocatedSize, false);
 }

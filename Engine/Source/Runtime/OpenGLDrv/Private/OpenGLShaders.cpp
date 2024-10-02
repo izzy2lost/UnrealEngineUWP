@@ -2773,7 +2773,7 @@ void FOpenGLDynamicRHI::PrepareGFXBoundShaderState(const FGraphicsPipelineStateI
 	}
 }
 
-FBoundShaderStateRHIRef FOpenGLDynamicRHI::RHICreateBoundShaderState_OnThisThread(
+FBoundShaderStateRHIRef FOpenGLDynamicRHI::RHICreateBoundShaderState_Internal(
 	FRHIVertexDeclaration* VertexDeclarationRHI,
 	FRHIVertexShader* VertexShaderRHI,
 	FRHIPixelShader* PixelShaderRHI,
