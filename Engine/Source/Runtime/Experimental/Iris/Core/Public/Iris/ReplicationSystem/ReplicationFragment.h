@@ -251,6 +251,12 @@ public:
 	/** Returns true when the netobject knows it won't contain any replicated properties or RPCs */
 	bool IsFragmentlessNetObject() const { return bIsAFragmentlessNetObject; }
 
+	/** Returns true if the fragments (or the lack of) were registered by the instance */
+	bool WasRegistered() const
+	{
+		return Fragments.Num() > 0 || bIsAFragmentlessNetObject;
+	}
+
 	/** Returns the number of fragments registered */
 	int32 NumFragments() const { return Fragments.Num(); }
 

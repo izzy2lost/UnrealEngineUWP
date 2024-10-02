@@ -28,6 +28,7 @@
 #include "Iris/ReplicationSystem/ReplicationConnections.h"
 #include "Iris/ReplicationSystem/ReplicationFragment.h"
 #include "Iris/ReplicationSystem/ReplicationFragmentInternal.h"
+#include "Iris/ReplicationSystem/ReplicationFragmentUtil.h"
 #include "Iris/ReplicationState/ReplicationStateDescriptorBuilder.h"
 #include "Iris/ReplicationState/ReplicationStateUtil.h"
 #include "Iris/ReplicationSystem/ReplicationSystem.h"
@@ -114,9 +115,13 @@ namespace UE::Net::Private
 {
 	void CallRegisterReplicationFragments(UObject* Object, FFragmentRegistrationContext& Context, EFragmentRegistrationFlags RegistrationFlags)
 	{
-#if UE_WITH_IRIS
 		Object->RegisterReplicationFragments(Context, RegistrationFlags);
-#endif
+
+		if (!Context.WasRegistered())
+		{
+			FReplicationFragmentUtil::CreateAndRegisterFragmentsForObject(Object, Context, RegistrationFlags);
+			ensure(Context.WasRegistered());
+		}
 	}
 
 	struct FReplicationInstanceProtocolDeleter
