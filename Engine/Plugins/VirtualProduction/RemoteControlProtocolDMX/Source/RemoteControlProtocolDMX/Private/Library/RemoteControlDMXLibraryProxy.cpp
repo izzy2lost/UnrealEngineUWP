@@ -15,6 +15,7 @@
 #include "RemoteControlField.h"
 #include "RemoteControlPreset.h"
 #include "RemoteControlProtocolDMX.h"
+#include "UObject/Package.h"
 #include "UObject/UObjectGlobals.h"
 
 #if WITH_EDITOR
@@ -95,21 +96,30 @@ void URemoteControlDMXLibraryProxy::Refresh()
 
 	URemoteControlDMXUserData* DMXUserData = Cast<URemoteControlDMXUserData>(GetOuter());
 	URemoteControlPreset* Preset = DMXUserData ? Cast<URemoteControlPreset>(DMXUserData->GetOuter()) : nullptr;
+
 	if (Preset)
 	{
 		UnbindOnFixturePatchesReceived();
 
 #if WITH_EDITOR
-		OnPrePropertyPatchesChanged.Broadcast(Preset);
+		// Only refresh editor when the preset is dirty, indicating it changed
+		const bool bIsDirty = Preset && Preset->GetPackage() && Preset->GetPackage()->IsDirty();
+		if (bIsDirty)
+		{
+			OnPrePropertyPatchesChanged.Broadcast(Preset);
+		}
 #endif 
 
 		UpdatePropertyPatches();
 		
 #if WITH_EDITOR
-		OnPostPropertyPatchesChanged.Broadcast();
-		
-		// Listen to DMX related property changes of entities in editor
-		UpdateEntitiesObserver();
+		if (bIsDirty)
+		{
+			OnPostPropertyPatchesChanged.Broadcast();
+
+			// Listen to DMX related property changes of entities in editor
+			UpdateEntitiesObserver();
+		}
 #endif 
 
 		BindOnFixturePatchesReceived();
