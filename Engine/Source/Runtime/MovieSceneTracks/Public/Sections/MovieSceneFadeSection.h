@@ -39,7 +39,7 @@ public:
 	FMovieSceneFloatChannel FloatCurve;
 
 	/** Fade color. */
-	UPROPERTY(EditAnywhere, Category="Fade", meta=(InlineColorPicker))
+	UPROPERTY(EditAnywhere, Category="Fade")
 	FLinearColor FadeColor;
 
 	/** Fade audio. */
