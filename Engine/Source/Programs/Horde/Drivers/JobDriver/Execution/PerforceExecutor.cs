@@ -131,7 +131,7 @@ namespace JobDriver.Execution
 				await _workspace.SyncAsync(perforce, Batch.Change, Batch.PreflightChange, null, cancellationToken);
 
 				// Remove any cached BuildGraph manifests
-				DirectoryReference manifestDir = DirectoryReference.Combine(_workspace.WorkspaceDir, "Engine", "Saved", "BuildGraph");
+				DirectoryReference manifestDir = DirectoryReference.Combine(_workspace.WorkspaceDir, $"{EnginePath}/Saved/BuildGraph");
 				if (DirectoryReference.Exists(manifestDir))
 				{
 					try
