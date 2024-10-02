@@ -36,6 +36,7 @@ protected:
 
 	TWeakPtr<const FAvaRundownRCPropertyItem> ItemPtrWeak;
 	TWeakPtr<SAvaRundownPageRemoteControlProps> PropertyPanelWeak;
+	TSharedPtr<FAvaRundownPageRCPropsNotifyHook> NotifyHook;
 	TSharedPtr<IPropertyRowGenerator> Generator;
 	TSharedPtr<SBox> ValueContainer;
 	TSharedPtr<SWidget> ValueWidget;

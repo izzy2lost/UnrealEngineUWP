@@ -944,11 +944,19 @@ UAvaRundown* FAvaRundownEditor::GetRundown() const
 	return AvaRundown.Get();
 }
 
-void FAvaRundownEditor::MarkAsModified()
+void FAvaRundownEditor::BeginModify()
 {
 	if (AvaRundown.IsValid())
 	{
-		AvaRundown->Modify();
+		AvaRundown->Modify(/*bAlwaysMarkDirty*/false);
+	}
+}
+
+void FAvaRundownEditor::MarkAsModified()
+{
+	if (AvaRundown.IsValid() && AvaRundown->CanModify())
+	{
+		AvaRundown->MarkPackageDirty();
 	}
 }
 

@@ -190,8 +190,6 @@ void SAvaRundownPageDetails::Construct(const FArguments& InArgs, const TSharedPt
 			]
 		]
 	];
-
-	ActivePageId = FAvaRundownPage::InvalidPageId;
 }
 
 SAvaRundownPageDetails::~SAvaRundownPageDetails()

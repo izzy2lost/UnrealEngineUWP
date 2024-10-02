@@ -333,6 +333,7 @@ public:
 	virtual void BeginDestroy() override;
 	virtual void PostLoad() override;
 #if WITH_EDITOR
+	virtual void PreEditUndo() override;
 	virtual void PostEditUndo() override;
 #endif
 	//~ End UObject Interface
@@ -789,4 +790,9 @@ protected:
 	mutable FOnCanClosePlaybackContext OnCanClosePlaybackContext;
 
 	TMap<FGuid, int32> SubListIndices;
+
+#if WITH_EDITOR
+	class FPreUndoBackup;
+	TPimplPtr<FPreUndoBackup> PreUndoBackup;
+#endif
 };

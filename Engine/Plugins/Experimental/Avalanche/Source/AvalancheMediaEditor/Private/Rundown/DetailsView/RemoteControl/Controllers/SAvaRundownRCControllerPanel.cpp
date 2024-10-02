@@ -292,7 +292,8 @@ void SAvaRundownRCControllerPanel::UpdateDefaultValuesAndRefresh(const TArray<in
 
 void SAvaRundownRCControllerPanel::OnRemoteControlControllerModified(URemoteControlPreset* InPreset, const TSet<FGuid>& InModifiedControllerIds)
 {
-	if (!IsValid(InPreset) || !HasRemoteControlPreset(InPreset))
+	// Note: Ignore changes from the RCP Transaction listener.
+	if (!IsValid(InPreset) || !HasRemoteControlPreset(InPreset) || GIsTransacting)
 	{
 		return;
 	}
@@ -472,10 +473,20 @@ void SAvaRundownRCControllerPanel::FPropertyRowGeneratorWrapper::NotifyPostChang
 	
 	if (URemoteControlPreset* Preset = PresetWeak.Get())
 	{
+		const TSharedPtr<FAvaRundownEditor> RundownEditor = ParentPanel ? ParentPanel->RundownEditorWeak.Pin() : nullptr;
+
+		// Only capture a modification when scrubbing starts.
+		if (!OngoingPropertyChanges.Contains(InPropertyThatChanged) && RundownEditor)
+		{
+			OngoingPropertyChanges.Add(InPropertyThatChanged);
+			RundownEditor->BeginModify();
+		}
+
 		Preset->OnModifyController(InPropertyChangedEvent);
 		if (ParentPanel && InPropertyChangedEvent.ChangeType & EPropertyChangeType::ValueSet)
 		{
 			ParentPanel->UpdatePageSummary(true);
+			OngoingPropertyChanges.Remove(InPropertyThatChanged);
 		}
 	}
 }
