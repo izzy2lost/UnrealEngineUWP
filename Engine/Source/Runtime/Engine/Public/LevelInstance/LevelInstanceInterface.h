@@ -58,6 +58,8 @@ class ILevelInstanceInterface
 	virtual ELevelInstanceRuntimeBehavior GetDefaultRuntimeBehavior() const = 0;
 
 	virtual TSubclassOf<AActor> GetEditorPivotClass() const { return nullptr; }
+	
+	virtual void AdjustPivotOnCreation() { }
 
 	ENGINE_API virtual bool SupportsPartialEditorLoading() const;
 #endif

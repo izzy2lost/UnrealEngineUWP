@@ -1526,6 +1526,7 @@ ILevelInstanceInterface* ULevelInstanceSubsystem::CreateLevelInstanceFrom(const 
 	ILevelInstanceInterface* NewLevelInstance = CastChecked<ILevelInstanceInterface>(NewLevelInstanceActor);
 	NewLevelInstance->SetWorldAsset(WorldPtr);
 	NewLevelInstanceActor->SetActorLocation(LevelInstanceLocation);
+	NewLevelInstance->AdjustPivotOnCreation();
 	NewLevelInstanceActor->SetActorLabel(WorldPtr.GetAssetName());
 
 	// Actors were moved and kept their World positions so when saving we want their positions to actually be relative to the LevelInstance Actor
