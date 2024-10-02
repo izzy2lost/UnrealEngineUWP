@@ -53,7 +53,10 @@ void FIOSApplication::InitializeWindow( const TSharedRef< FGenericWindow >& InWi
 	const TSharedPtr< FIOSWindow > ParentWindow = StaticCastSharedPtr< FIOSWindow >( InParent );
 
 	Windows.Add( Window );
-	Window->Initialize( this, InDefinition, ParentWindow, bShowImmediately );
+	
+	dispatch_sync(dispatch_get_main_queue(), ^{
+		Window->Initialize( this, InDefinition, ParentWindow, bShowImmediately );
+	});
 }
 
 void FIOSApplication::SetMessageHandler( const TSharedRef< FGenericApplicationMessageHandler >& InMessageHandler )
@@ -130,7 +133,11 @@ void FIOSApplication::PollGameDeviceState( const float TimeDelta )
 
 FPlatformRect FIOSApplication::GetWorkArea( const FPlatformRect& CurrentWindow ) const
 {
-	return FIOSWindow::GetScreenRect();
+	__block FPlatformRect Rect;
+	dispatch_sync(dispatch_get_main_queue(), ^{
+		Rect = FIOSWindow::GetScreenRect();
+	});
+	return Rect;
 }
 
 static TAutoConsoleVariable<float> CVarSafeZone_Landscape_Left(TEXT("SafeZone.Landscape.Left"), -1.0f, TEXT("Safe Zone - Landscape - Left"));
@@ -145,12 +152,17 @@ UIEdgeInsets CachedInsets;
 
 void FDisplayMetrics::RebuildDisplayMetrics(FDisplayMetrics& OutDisplayMetrics)
 {
-	const FPlatformRect& Rect = FIOSWindow::GetScreenRect();
-	const FIOSView *View = [[IOSAppDelegate GetDelegate] IOSView];
-	[View CalculateContentScaleFactor:Rect.Right ScreenHeight:Rect.Bottom];
+	__block FPlatformRect Rect;
+	__block CGFloat ContentScaleFactor;
+	dispatch_sync(dispatch_get_main_queue(), ^{
+		Rect = FIOSWindow::GetScreenRect();
+		const FIOSView *View = [[IOSAppDelegate GetDelegate] IOSView];
+		[View CalculateContentScaleFactor:Rect.Right ScreenHeight:Rect.Bottom];
+		ContentScaleFactor = View.contentScaleFactor;
+	});
 	
 	// Get screen rect
-	OutDisplayMetrics.PrimaryDisplayWorkAreaRect = FIOSWindow::GetScreenRect();
+	OutDisplayMetrics.PrimaryDisplayWorkAreaRect = Rect;
 	OutDisplayMetrics.VirtualDisplayRect = OutDisplayMetrics.PrimaryDisplayWorkAreaRect;
 
     // Total screen size of the primary monitor
@@ -193,7 +205,7 @@ void FDisplayMetrics::RebuildDisplayMetrics(FDisplayMetrics& OutDisplayMetrics)
     OutDisplayMetrics.TitleSafePaddingSize.W = Inset_Bottom;
     
     //scale the thing
-    OutDisplayMetrics.TitleSafePaddingSize *= View.contentScaleFactor;
+	OutDisplayMetrics.TitleSafePaddingSize *= ContentScaleFactor;
     
     OutDisplayMetrics.ActionSafePaddingSize = OutDisplayMetrics.TitleSafePaddingSize;
 #endif
@@ -203,8 +215,10 @@ void FDisplayMetrics::RebuildDisplayMetrics(FDisplayMetrics& OutDisplayMetrics)
 void FIOSApplication::CacheDisplayMetrics()
 {
 #if !PLATFORM_TVOS
-    CachedInsets = [[[[UIApplication sharedApplication] delegate] window] safeAreaInsets];
-    CachedOrientation = [[[[[UIApplication sharedApplication] delegate] window] windowScene] interfaceOrientation];
+	dispatch_sync(dispatch_get_main_queue(), ^{
+		CachedInsets = [[[[UIApplication sharedApplication] delegate] window] safeAreaInsets];
+		CachedOrientation = [[[[[UIApplication sharedApplication] delegate] window] windowScene] interfaceOrientation];
+	});
 #endif
 }
 
@@ -216,17 +230,16 @@ TSharedRef< FGenericWindow > FIOSApplication::MakeWindow()
 #if !PLATFORM_TVOS
 void FIOSApplication::OrientationChanged(UIInterfaceOrientation orientation)
 {
-	// this is called on the IOS thread. It turns out that it's possible for the resolution to change AGAIN by the time the game
-	// thread processes the resize, so we queue up the current size from the ios thread, send that to the RHI to resize to that
-	// (and no longer checking if it matches current frame size, because it may not). If another resize happens, that new size
-	// will get queued up here and sent to RHI, so eventually the size will be correct
-	FPlatformRect WindowRect = FIOSWindow::GetScreenRect();
-	int32 WindowWidth = WindowRect.Right - WindowRect.Left;
-	int32 WindowHeight = WindowRect.Bottom - WindowRect.Top;
-
 	// queue up the size as we see it now all the way to the RHI 
 	[FIOSAsyncTask CreateTaskWithBlock : ^ bool(void)
 	 {
+		__block FPlatformRect WindowRect;
+		dispatch_sync(dispatch_get_main_queue(), ^{
+			WindowRect = FIOSWindow::GetScreenRect();
+		});
+		int32 WindowWidth = WindowRect.Right - WindowRect.Left;
+		int32 WindowHeight = WindowRect.Bottom - WindowRect.Top;
+		
 	 	FIOSApplication* App = [IOSAppDelegate GetDelegate].IOSApplication;
 	 
 		App->GetMessageHandler()->OnSizeChanged(App->Windows[0],WindowWidth,WindowHeight, false);

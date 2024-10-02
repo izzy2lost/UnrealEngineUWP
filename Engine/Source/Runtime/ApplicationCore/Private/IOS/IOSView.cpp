@@ -338,7 +338,13 @@ MTL::Device* GMetalDevice = nullptr;
 
 - (id<CAMetalDrawable>)MakeDrawable
 {
-    return [(CAMetalLayer*)self.layer nextDrawable];
+	__block CAMetalLayer* MetalLayer = nil;
+	dispatch_sync(dispatch_get_main_queue(), ^{
+		MetalLayer = (CAMetalLayer*)[self layer];
+	});
+	// this call cannot be made on the MainThread
+	// thus requiring the code above to MainThreadCall here
+	return [MetalLayer nextDrawable];
 }
 
 - (void)DestroyFramebuffer

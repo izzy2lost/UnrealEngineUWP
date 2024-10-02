@@ -501,7 +501,11 @@ static IOSAppDelegate* CachedDelegate = nil;
 
 -(bool)IsIdleTimerEnabled
 {
-	return ([UIApplication sharedApplication].idleTimerDisabled == NO);
+	__block BOOL Result;
+	dispatch_sync(dispatch_get_main_queue(), ^{
+		Result = ([UIApplication sharedApplication].idleTimerDisabled == NO);
+	});
+	return Result;
 }
 
 -(void)DeferredEnableIdleTimer
