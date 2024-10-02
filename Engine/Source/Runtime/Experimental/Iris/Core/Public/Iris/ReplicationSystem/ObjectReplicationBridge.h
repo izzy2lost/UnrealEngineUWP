@@ -497,4 +497,6 @@ private:
 
 protected:
 	bool bSuppressCreateInstanceFailedEnsure = false;
+private:
+	TMap<FObjectKey, bool> ArchetypesAlreadyPrinted;
 };
