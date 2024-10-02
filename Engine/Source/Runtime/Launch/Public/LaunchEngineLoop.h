@@ -10,6 +10,7 @@
 
 class FEngineService;
 class FTraceService;
+class FPendingCleanupObjects;
 class ISessionService;
 class FSlateRenderer;
 
@@ -121,6 +122,9 @@ public:
 	/** Advances the main loop. */
 	virtual void Tick() override;
 
+	/** Removes references to any objects pending cleanup by deleting them. */
+	virtual void ClearPendingCleanupObjects() override;
+
 #endif // WITH_ENGINE
 
 	/** RHI post-init initialization */
@@ -169,6 +173,13 @@ protected:
 	
 	/** Holds the number of cycles in the last frame. */
 	uint32 LastFrameCycles;
+
+#if WITH_ENGINE
+
+	/** Holds the objects which need to be cleaned up when the rendering thread finishes the previous frame. */
+	FPendingCleanupObjects* PendingCleanupObjects;
+
+#endif //WITH_ENGINE
 
 private:
 

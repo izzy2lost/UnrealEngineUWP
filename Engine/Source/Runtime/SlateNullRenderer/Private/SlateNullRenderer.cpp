@@ -5,7 +5,7 @@
 #include "Rendering/ShaderResourceManager.h"
 #include "Rendering/SlateDrawBuffer.h"
 #if UE_SLATE_NULL_RENDERER_WITH_ENGINE
-#include "RenderingThread.h"
+#include "UnrealEngine.h"
 #endif
 
 
@@ -144,6 +144,9 @@ void FSlateNullRenderer::ClearScenes()
 void FSlateNullRenderer::Sync() const
 {
 #if UE_SLATE_NULL_RENDERER_WITH_ENGINE
-	FFrameEndSync::Sync();
+	// Sync game and render thread. Either total sync or allowing one frame lag.
+	static FFrameEndSync FrameEndSync;
+	static auto CVarAllowOneFrameThreadLag = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.OneFrameThreadLag"));
+	FrameEndSync.Sync(CVarAllowOneFrameThreadLag->GetValueOnAnyThread() != 0);
 #endif
 }

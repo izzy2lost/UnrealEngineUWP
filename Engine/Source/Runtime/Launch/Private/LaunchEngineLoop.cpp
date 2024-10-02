@@ -4346,6 +4346,9 @@ int32 FEngineLoop::PreInitPostStartupScreen(const TCHAR* CmdLine)
 	}
 #endif // !UE_BUILD_SHIPPING
 
+	// initialize the pointer, as it is deleted before being assigned in the first frame
+	PendingCleanupObjects = nullptr;
+
 	// Initialize profile visualizers.
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 	FModuleManager::Get().LoadModule(TEXT("ProfileVisualizer"));
@@ -4988,8 +4991,7 @@ void FEngineLoop::Exit()
 	TRACE_CPUPROFILER_EVENT_SCOPE(FEngineLoop::Exit);
 	TRACE_BOOKMARK(TEXT("EngineLoop.Exit"));
 
-	// Flush render commands to delete any pending FDeferredCleanupInterface objects.
-	FlushRenderingCommands();
+	ClearPendingCleanupObjects();
 
 	GIsRunning	= 0;
 	GLogConsole	= nullptr;
@@ -6065,14 +6067,25 @@ void FEngineLoop::Tick()
 			TotalTickTime += FApp::GetDeltaTime();
 		}
 
-		// This could be perhaps moved down to get greater parallelism
-		// Sync game and render/RHI threads.
-		FFrameEndSync::Sync();
+		// Find the objects which need to be cleaned up the next frame.
+		FPendingCleanupObjects* PreviousPendingCleanupObjects = PendingCleanupObjects;
+		PendingCleanupObjects = GetPendingCleanupObjects();
+
+		{
+			SCOPE_CYCLE_COUNTER(STAT_FrameSyncTime);
+			// this could be perhaps moved down to get greater parallelism
+			// Sync game and render thread. Either total sync or allowing one frame lag.
+			static FFrameEndSync FrameEndSync;
+			static auto CVarAllowOneFrameThreadLag = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.OneFrameThreadLag"));
+			FrameEndSync.Sync( CVarAllowOneFrameThreadLag->GetValueOnGameThread() != 0 );
+		}
 
 		// tick core ticker, threads & deferred commands
 		{
 			SCOPE_CYCLE_COUNTER(STAT_DeferredTickTime);
 			CSV_SCOPED_TIMING_STAT_EXCLUSIVE(DeferredTickTime);
+			// Delete the objects which were enqueued for deferred cleanup before the previous frame.
+			delete PreviousPendingCleanupObjects;
 
 #if WITH_COREUOBJECT
 			DeleteLoaders(); // destroy all linkers pending delete
@@ -6155,6 +6168,14 @@ void FEngineLoop::Tick()
 		FEmbeddedCommunication::AllowSleep(TEXT("FirstTicks"));
 	}
 #endif
+}
+
+
+void FEngineLoop::ClearPendingCleanupObjects()
+{
+	FlushRenderingCommands();
+	delete PendingCleanupObjects;
+	PendingCleanupObjects = nullptr;
 }
 
 #endif // WITH_ENGINE
