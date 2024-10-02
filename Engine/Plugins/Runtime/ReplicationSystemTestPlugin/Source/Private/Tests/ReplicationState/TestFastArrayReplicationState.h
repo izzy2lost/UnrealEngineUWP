@@ -85,6 +85,8 @@ struct FTestFastArrayReplicationState_FastArray : public FTestFastArrayReplicati
 {
 	GENERATED_BODY()
 
+	bool bHitDerivedPostReplicatedReceive = false;
+
 	FTestFastArrayReplicationState_FastArray() : FTestFastArrayReplicationState_FastArraySerializer()
 	{
 	}
@@ -92,6 +94,12 @@ struct FTestFastArrayReplicationState_FastArray : public FTestFastArrayReplicati
 	bool NetDeltaSerialize(FNetDeltaSerializeInfo & DeltaParms)
 	{
 		return FFastArraySerializer::FastArrayDeltaSerialize<FTestFastArrayReplicationState_FastArrayItem, FTestFastArrayReplicationState_FastArray>(Items, DeltaParms, *this);
+	}
+
+	void PostReplicatedReceive(const FFastArraySerializer::FPostReplicatedReceiveParameters& Parameters)
+	{
+		Super::PostReplicatedReceive(Parameters);
+		bHitDerivedPostReplicatedReceive = true;
 	}
 };
 

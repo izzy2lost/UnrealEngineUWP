@@ -352,6 +352,13 @@ namespace EpicGames.UHT.Exporters.CodeGen
 				// To fulfill that requirement the struct should be derived from FFastArraySerializer and have a single replicated TArrayProperty
 				if (scriptStructObj.IsChildOf(FastArraySerializer))
 				{
+					// If Super is a valid fastarray we mark this struct as a FastArrayProperty as well
+					if (scriptStructObj.Super != null && ObjectInfos[scriptStructObj.Super.ObjectTypeIndex].FastArrayProperty != null)
+					{
+						objectInfo.FastArrayProperty = ObjectInfos[scriptStructObj.Super.ObjectTypeIndex].FastArrayProperty;
+					}
+
+					// A valid fastarray cannot have any additional replicated properties.
 					foreach (UhtType child in scriptStructObj.Children)
 					{
 						if (child is UhtProperty property)
