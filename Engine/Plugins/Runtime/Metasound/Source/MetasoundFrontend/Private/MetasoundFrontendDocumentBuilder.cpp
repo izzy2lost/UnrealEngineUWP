@@ -8,6 +8,7 @@
 #include "Algo/NoneOf.h"
 #include "Algo/Sort.h"
 #include "Algo/Transform.h"
+#include "AudioParameter.h"
 #include "Interfaces/MetasoundFrontendInterfaceBindingRegistry.h"
 #include "Interfaces/MetasoundFrontendInterfaceRegistry.h"
 #include "MetasoundAssetBase.h"
@@ -87,6 +88,85 @@ namespace Metasound::Frontend
 				break;
 			}
 
+			return false;
+		}
+
+		bool NameContainsInterfaceNamespace(FName VertexName, FMetasoundFrontendInterface* OutInterface)
+		{
+			using namespace Metasound::Frontend;
+
+			FName InterfaceNamespace;
+			FName ParamName;
+			Audio::FParameterPath::SplitName(VertexName, InterfaceNamespace, ParamName);
+
+			FMetasoundFrontendInterface FoundInterface;
+			if (!InterfaceNamespace.IsNone() && ISearchEngine::Get().FindInterfaceWithHighestVersion(InterfaceNamespace, FoundInterface))
+			{
+				if (OutInterface)
+				{
+					*OutInterface = MoveTemp(FoundInterface);
+				}
+				return true;
+			}
+
+			if (OutInterface)
+			{
+				*OutInterface = { };
+			}
+			return false;
+		}
+
+		bool IsInterfaceInput(FName InputName, FName TypeName, FMetasoundFrontendInterface* OutInterface)
+		{
+			FMetasoundFrontendInterface Interface;
+			if (NameContainsInterfaceNamespace(InputName, &Interface))
+			{
+				auto IsInput = [&InputName, &TypeName](const FMetasoundFrontendClassInput& InterfaceInput)
+				{
+					return InputName == InterfaceInput.Name && InterfaceInput.TypeName == TypeName;
+				};
+
+				if (Interface.Inputs.ContainsByPredicate(IsInput))
+				{
+					if (OutInterface)
+					{
+						*OutInterface = MoveTemp(Interface);
+					}
+					return true;
+				}
+			}
+
+			if (OutInterface)
+			{
+				*OutInterface = { };
+			}
+			return false;
+		}
+
+		bool IsInterfaceOutput(FName OutputName, FName TypeName, FMetasoundFrontendInterface* OutInterface)
+		{
+			FMetasoundFrontendInterface Interface;
+			if (NameContainsInterfaceNamespace(OutputName, &Interface))
+			{
+				auto IsOutput = [&OutputName, &TypeName](const FMetasoundFrontendClassInput& InterfaceOutput)
+				{
+					return OutputName == InterfaceOutput.Name && InterfaceOutput.TypeName == TypeName;
+				};
+
+				if (Interface.Outputs.ContainsByPredicate(IsOutput))
+				{
+					if (OutInterface)
+					{
+						*OutInterface = MoveTemp(Interface);
+					}
+					return true;
+				}
+			}
+
+			if (OutInterface)
+			{
+				*OutInterface = { };
+			}
 			return false;
 		}
 
@@ -440,14 +520,24 @@ namespace Metasound::Frontend
 					}
 				}
 
-				// Iterate through sorted map in sequence, slotting in new locations after existing swapped nodes with predefined locations.
+				// Iterate through sorted map in sequence, slotting in new locations after
+				// existing swapped nodes with predefined locations relative to one another.
 				for (TPair<int32, FMetasoundFrontendNode*>& Pair : SortOrderToNode)
 				{
 					FMetasoundFrontendNode* Node = Pair.Value;
 					const FName NodeName = Node->Name;
 					if (AddedNames.Contains(NodeName))
 					{
-						Node->Style.Display.Locations.Add(FGuid::NewGuid(), NextLocation);
+						bool bAddedLocation = false;
+						for (TPair<FGuid, FVector2D>& LocationPair : Node->Style.Display.Locations)
+						{
+							bAddedLocation = true;
+							LocationPair.Value = NextLocation;
+						}
+						if (!bAddedLocation)
+						{
+							Node->Style.Display.Locations.Add(FGuid::NewGuid(), NextLocation);
+						}
 						NextLocation += DisplayStyle::NodeLayout::DefaultOffsetY;
 					}
 					else
@@ -1032,6 +1122,16 @@ const FMetasoundFrontendNode* FMetaSoundFrontendDocumentBuilder::AddGraphInput(c
 			DocumentBuilderPrivate::SetDefaultLiteralOnInputNode(InOutNode, InClassInput);
 		};
 
+#if WITH_EDITORONLY_DATA
+		bool bIsRequired = false;
+		FMetasoundFrontendInterface Interface;
+		if (DocumentBuilderPrivate::IsInterfaceInput(InClassInput.Name, InClassInput.TypeName, &Interface))
+		{
+			FText RequiredText;
+			bIsRequired = Interface.IsMemberInputRequired(InClassInput.Name, RequiredText);
+		}
+#endif // WITH_EDITORONLY_DATA
+
 		// Must add input node to all paged graphs to maintain API parity for all page implementations
 		FMetasoundFrontendNode* NewNode = nullptr;
 		RootGraph.IterateGraphPages([&](const FMetasoundFrontendGraph& Graph)
@@ -1042,6 +1142,17 @@ const FMetasoundFrontendNode* FMetaSoundFrontendDocumentBuilder::AddGraphInput(c
 			{
 				NewNode = NewPageNode;
 			}
+
+#if WITH_EDITORONLY_DATA
+			if (bIsRequired)
+			{
+				// LocationGuid corresponds with the assigned editor graph node guid when dynamically created.
+				// This is added if this is an interface member that is required to force page to create visual
+				// representation that can inform the user of its required state.
+				FGuid LocationGuid = FDocumentIDGenerator::Get().CreateVertexID(Document);
+				SetNodeLocation(NewNode->GetID(), FVector2D::ZeroVector, &LocationGuid, &Graph.PageID);
+			}
+#endif // WITH_EDITORONLY_DATA
 
 			// Remove the default literal on the node added during the "FinalizeNode" call. This matches how 
 			// nodes are serialized in editor. The default literals are only stored on the FMetasoundFrontendClassInputs.
@@ -1106,6 +1217,16 @@ const FMetasoundFrontendNode* FMetaSoundFrontendDocumentBuilder::AddGraphOutput(
 			DocumentBuilderPrivate::SetNodeAndVertexNames(InOutNode, InClassOutput);
 		};
 
+#if WITH_EDITORONLY_DATA
+		bool bIsRequired = false;
+		FMetasoundFrontendInterface Interface;
+		if (DocumentBuilderPrivate::IsInterfaceOutput(InClassOutput.Name, InClassOutput.TypeName, &Interface))
+		{
+			FText RequiredText;
+			bIsRequired = Interface.IsMemberOutputRequired(InClassOutput.Name, RequiredText);
+		}
+#endif // WITH_EDITORONLY_DATA
+
 		bool bAddedNodes = true;
 		FMetasoundFrontendNode* NewNodeToReturn = nullptr;
 		FMetasoundFrontendDocument& Document = GetDocumentChecked();
@@ -1117,6 +1238,18 @@ const FMetasoundFrontendNode* FMetaSoundFrontendDocumentBuilder::AddGraphOutput(
 			{
 				NewNodeToReturn = NewNode;
 			}
+
+#if WITH_EDITORONLY_DATA
+			if (bIsRequired)
+			{
+				// LocationGuid corresponds with the assigned editor graph node guid when dynamically created.
+				// This is added if this is an interface member that is required to force page to create visual
+				// representation that can inform the user of its required state.
+				FGuid LocationGuid = FDocumentIDGenerator::Get().CreateVertexID(Document);
+				SetNodeLocation(NewNode->GetID(), FVector2D::ZeroVector, &LocationGuid, &Graph.PageID);
+			}
+#endif // WITH_EDITORONLY_DATA
+
 			bAddedNodes &= NewNode != nullptr;
 		});
 
