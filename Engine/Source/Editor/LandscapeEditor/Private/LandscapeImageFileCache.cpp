@@ -8,6 +8,19 @@
 #include "IDirectoryWatcher.h"
 
 
+template <>
+FLandscapeImageFileCache::CacheType& FLandscapeImageFileCache::ChooseCache<uint8>()
+{
+	return CachedImages[Cache8];
+}
+
+template <>
+FLandscapeImageFileCache::CacheType& FLandscapeImageFileCache::ChooseCache<uint16>()
+{
+	return CachedImages[Cache16];
+}
+
+
 FLandscapeImageFileCache::FLandscapeImageFileCache()
 {
 	ULandscapeSettings* Settings = GetMutableDefault<ULandscapeSettings>();
@@ -240,16 +253,4 @@ void FLandscapeImageFileCache::Trim()
 	{
 		Remove(Filename);
 	}
-}
-
-template <>
-FLandscapeImageFileCache::CacheType& FLandscapeImageFileCache::ChooseCache<uint8>()
-{
-	return CachedImages[Cache8];
-}
-
-template <>
-FLandscapeImageFileCache::CacheType& FLandscapeImageFileCache::ChooseCache<uint16>()
-{
-	return CachedImages[Cache16];
 }
