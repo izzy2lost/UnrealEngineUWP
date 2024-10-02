@@ -5,6 +5,7 @@
 =============================================================================*/
 
 #include "Mac/MacCriticalSection.h"
+#include "HAL/PlatformTime.h"
 #include "Misc/App.h"
 #include "Misc/DateTime.h"
 #include "Apple/PreAppleSystemHeaders.h"
