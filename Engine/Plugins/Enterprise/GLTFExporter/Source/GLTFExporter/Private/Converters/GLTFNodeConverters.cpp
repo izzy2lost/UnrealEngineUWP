@@ -15,6 +15,7 @@
 #include "Engine/SkeletalMeshSocket.h"
 #include "GameFramework/Pawn.h"
 
+#include "LandscapeStreamingProxy.h"
 #include "LandscapeComponent.h"
 #include "GLTFMeshUtilities.h"
 #include "Components/InstancedStaticMeshComponent.h"
@@ -37,6 +38,13 @@ FGLTFJsonNode* FGLTFActorConverter::Convert(const AActor* Actor)
 		return nullptr;
 	}
 #endif
+
+	if (const ALandscapeStreamingProxy* LevelInstanceEditorInstanceActor = Cast<ALandscapeStreamingProxy>(Actor))
+	{
+		//The actual object that it is proxied to will be iterated through as well. To avoid duplications we won't include the Proxy.
+		return nullptr;
+	}
+	
 
 	const USceneComponent* RootComponent = Actor->GetRootComponent();
 	FGLTFJsonNode* RootNode = Builder.AddUniqueNode(RootComponent);
@@ -89,6 +97,12 @@ FGLTFJsonNode* FGLTFComponentConverter::Convert(const USceneComponent* SceneComp
 		return nullptr;
 	}
 #endif
+
+	if (const ALandscapeStreamingProxy* LevelInstanceEditorInstanceActor = Cast<ALandscapeStreamingProxy>(Owner))
+	{
+		//The actual object that it is proxied to will be iterated through as well. To avoid duplications we won't include the Proxy.
+		return nullptr;
+	}
 
 	if (!Builder.IsSelectedActor(Owner))
 	{

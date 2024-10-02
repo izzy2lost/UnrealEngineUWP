@@ -92,19 +92,16 @@ void FGLTFJsonMesh::WriteObject(IGLTFJsonWriter& Writer) const
 		Writer.Write(TEXT("name"), Name);
 	}
 
-	if (HasValue())
+	Writer.SetIdentifier(TEXT("primitives"));
+	Writer.StartArray();
+	for (const FGLTFJsonPrimitive& Primitive : Primitives)
 	{
-		Writer.SetIdentifier(TEXT("primitives"));
-		Writer.StartArray();
-		for (const FGLTFJsonPrimitive& Primitive : Primitives)
+		if (Primitive.HasValue())
 		{
-			if (Primitive.HasValue())
-			{
-				Writer.Write(Primitive);
-			}
+			Writer.Write(Primitive);
 		}
-		Writer.EndArray();
 	}
+	Writer.EndArray();
 }
 
 bool FGLTFJsonMesh::HasValue() const

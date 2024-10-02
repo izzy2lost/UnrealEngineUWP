@@ -942,7 +942,6 @@ void FGLTFDelayedLandscapeTask::Process()
 			CDI.GetWeightmapTextureData(AllocInfo.LayerInfo, CompVisData);
 		}
 	}
-	CompVisData.AddZeroed((ComponentSizeQuads + 1) * (ComponentSizeQuads + 1));
 
 	if (CompVisData.Num() > 0)
 	{
@@ -986,10 +985,13 @@ void FGLTFDelayedLandscapeTask::Process()
 		}
 	}
 
-	JsonPrimitive.Attributes.Position = Builder.AddUniquePositionAccessor(PositionBuffer);
-	JsonPrimitive.Attributes.Normal = Builder.AddUniqueNormalAccessor(Normals);
-	JsonPrimitive.Attributes.TexCoords.AddUninitialized(1);
-	JsonPrimitive.Attributes.TexCoords[0] = Builder.AddUniqueUVAccessor(UV);
-	JsonPrimitive.Indices = Builder.AddUniqueIndexAccessor(Indices, JsonMesh->Name);
-	JsonPrimitive.Material = Builder.AddUniqueMaterial(&LandscapeMaterial);
+	if (Indices.Num())
+	{
+		JsonPrimitive.Attributes.Position = Builder.AddUniquePositionAccessor(PositionBuffer);
+		JsonPrimitive.Attributes.Normal = Builder.AddUniqueNormalAccessor(Normals);
+		JsonPrimitive.Attributes.TexCoords.AddUninitialized(1);
+		JsonPrimitive.Attributes.TexCoords[0] = Builder.AddUniqueUVAccessor(UV);
+		JsonPrimitive.Indices = Builder.AddUniqueIndexAccessor(Indices, JsonMesh->Name);
+		JsonPrimitive.Material = Builder.AddUniqueMaterial(&LandscapeMaterial);
+	}
 }
