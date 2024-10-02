@@ -26,6 +26,8 @@ DECLARE_DELEGATE(FCustomizableObjectInstanceUsageUpdatedDelegate);
 UCLASS(Blueprintable, BlueprintType, ClassGroup = (CustomizableObject), meta = (BlueprintSpawnableComponent))
 class CUSTOMIZABLEOBJECT_API UCustomizableObjectInstanceUsage : public UObject
 {
+	friend UCustomizableObjectInstanceUsagePrivate;
+	
 public:
 	GENERATED_BODY()
 
@@ -105,6 +107,16 @@ private:
 	/** Only used if the ComponentIndex is INDEX_NONE. */
 	UPROPERTY()
 	FName UsedComponentName;
+	
+	// Used to replace the SkeletalMesh of the parent component by the ReferenceSkeletalMesh or the generated SkeletalMesh 
+	bool bUsedPendingSetSkeletalMesh = false;
+
+	// Used to avoid replacing the SkeletalMesh of the parent component by the ReferenceSkeletalMesh if bPendingSetSkeletalMesh is true
+	UPROPERTY()
+	bool bUsedSkipSetReferenceSkeletalMesh = false;
+
+	UPROPERTY()
+	bool bUsedSkipSetSkeletalMeshOnAttach = false;
 	
 	UPROPERTY()
 	TObjectPtr<UCustomizableObjectInstanceUsagePrivate> Private;

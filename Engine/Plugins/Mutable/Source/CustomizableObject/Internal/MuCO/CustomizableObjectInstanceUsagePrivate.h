@@ -65,14 +65,4 @@ public:
 
 	// Returns true if the NetMode of the associated UCustomizableSkeletalComponent (or the associated SkeletalMeshComponent if the former does not exist) is equal to InNetMode
 	bool IsNetMode(ENetMode InNetMode) const;
-	
-	// Used to replace the SkeletalMesh of the parent component by the ReferenceSkeletalMesh or the generated SkeletalMesh 
-	bool bUsedPendingSetSkeletalMesh = false;
-
-	// Used to avoid replacing the SkeletalMesh of the parent component by the ReferenceSkeletalMesh if bPendingSetSkeletalMesh is true
-	UPROPERTY()
-	bool bUsedSkipSetReferenceSkeletalMesh = false;
-
-	UPROPERTY()
-	bool bUsedSkipSetSkeletalMeshOnAttach = false;
 };

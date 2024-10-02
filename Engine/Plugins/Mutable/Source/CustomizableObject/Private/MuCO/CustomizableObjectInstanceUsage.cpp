@@ -148,11 +148,11 @@ void UCustomizableObjectInstanceUsagePrivate::SetPendingSetSkeletalMesh(bool bIs
 {
 	if (GetPublic()->CustomizableSkeletalComponent)
 	{
-		GetPublic()->CustomizableSkeletalComponent->GetPrivate()->bPendingSetSkeletalMesh = bIsActive;
+		GetPublic()->CustomizableSkeletalComponent->GetPrivate()->PendingSetSkeletalMesh() = bIsActive;
 	}
 	else
 	{
-		bUsedPendingSetSkeletalMesh = bIsActive;
+		GetPublic()->bUsedPendingSetSkeletalMesh = bIsActive;
 	}
 }
 
@@ -161,11 +161,11 @@ bool UCustomizableObjectInstanceUsagePrivate::GetPendingSetSkeletalMesh() const
 {
 	if (GetPublic()->CustomizableSkeletalComponent)
 	{
-		return GetPublic()->CustomizableSkeletalComponent->GetPrivate()->bPendingSetSkeletalMesh;
+		return GetPublic()->CustomizableSkeletalComponent->GetPrivate()->PendingSetSkeletalMesh();
 	}
 	else
 	{
-		return bUsedPendingSetSkeletalMesh;
+		return GetPublic()->bUsedPendingSetSkeletalMesh;
 	}
 }
 
@@ -208,7 +208,7 @@ void UCustomizableObjectInstanceUsage::SetSkipSetReferenceSkeletalMesh(bool bSki
 	}
 	else
 	{
-		GetPrivate()->bUsedSkipSetReferenceSkeletalMesh = bSkip;
+		bUsedSkipSetReferenceSkeletalMesh = bSkip;
 	}
 }
 
@@ -221,7 +221,7 @@ bool UCustomizableObjectInstanceUsage::GetSkipSetReferenceSkeletalMesh() const
 	}
 	else
 	{
-		return GetPrivate()->bUsedSkipSetReferenceSkeletalMesh;
+		return bUsedSkipSetReferenceSkeletalMesh;
 	}
 }
 
@@ -234,7 +234,7 @@ void UCustomizableObjectInstanceUsage::SetSkipSetSkeletalMeshOnAttach(bool bSkip
 	}
 	else
 	{
-		GetPrivate()->bUsedSkipSetSkeletalMeshOnAttach = bSkip;
+		bUsedSkipSetSkeletalMeshOnAttach = bSkip;
 	}
 }
 
@@ -247,7 +247,7 @@ bool UCustomizableObjectInstanceUsage::GetSkipSetSkeletalMeshOnAttach() const
 	}
 	else
 	{
-		return GetPrivate()->bUsedSkipSetSkeletalMeshOnAttach;
+		return bUsedSkipSetSkeletalMeshOnAttach;
 	}
 }
 

@@ -23,12 +23,12 @@ UCustomizableSkeletalComponentPrivate::UCustomizableSkeletalComponentPrivate()
 
 void UCustomizableSkeletalComponentPrivate::CreateCustomizableObjectInstanceUsage()
 {
-	if (CustomizableObjectInstanceUsage)
+	if (GetPublic()->CustomizableObjectInstanceUsage)
 	{
 		// CustomizableObjectInstanceUsage may already exist if duplicated from an existing Customizable Skeletal Component
-		if (CustomizableObjectInstanceUsage->GetPrivate()->GetCustomizableSkeletalComponent() != GetPublic())
+		if (GetPublic()->CustomizableObjectInstanceUsage->GetPrivate()->GetCustomizableSkeletalComponent() != GetPublic())
 		{
-			CustomizableObjectInstanceUsage = nullptr;
+			GetPublic()->CustomizableObjectInstanceUsage = nullptr;
 		}
 	}
 
@@ -37,10 +37,10 @@ void UCustomizableSkeletalComponentPrivate::CreateCustomizableObjectInstanceUsag
 		RootActor->HasAnyFlags(RF_ClassDefaultObject) :
 		false;
 
-	if (!CustomizableObjectInstanceUsage && !HasAnyFlags(RF_ClassDefaultObject) && !bIsDefaultActor)
+	if (!GetPublic()->CustomizableObjectInstanceUsage && !HasAnyFlags(RF_ClassDefaultObject) && !bIsDefaultActor)
 	{
-		CustomizableObjectInstanceUsage = NewObject<UCustomizableObjectInstanceUsage>(this, TEXT("InstanceUsage"), RF_Transient);
-		CustomizableObjectInstanceUsage->GetPrivate()->SetCustomizableSkeletalComponent(GetPublic());
+		GetPublic()->CustomizableObjectInstanceUsage = NewObject<UCustomizableObjectInstanceUsage>(this, TEXT("InstanceUsage"), RF_Transient);
+		GetPublic()->CustomizableObjectInstanceUsage->GetPrivate()->SetCustomizableSkeletalComponent(GetPublic());
 	}
 }
 
@@ -72,18 +72,18 @@ void UCustomizableSkeletalComponent::PostEditChangeProperty(FPropertyChangedEven
 
 void UCustomizableSkeletalComponentPrivate::Callbacks() const
 {
-	if (CustomizableObjectInstanceUsage)
+	if (GetPublic()->CustomizableObjectInstanceUsage)
 	{
-		CustomizableObjectInstanceUsage->GetPrivate()->Callbacks();
+		GetPublic()->CustomizableObjectInstanceUsage->GetPrivate()->Callbacks();
 	}
 }
 
 
 USkeletalMesh* UCustomizableSkeletalComponentPrivate::GetSkeletalMesh() const
 {
-	if (CustomizableObjectInstanceUsage)
+	if (GetPublic()->CustomizableObjectInstanceUsage)
 	{
-		return CustomizableObjectInstanceUsage->GetPrivate()->GetSkeletalMesh();
+		return GetPublic()->CustomizableObjectInstanceUsage->GetPrivate()->GetSkeletalMesh();
 	}
 
 	return nullptr;
@@ -92,36 +92,36 @@ USkeletalMesh* UCustomizableSkeletalComponentPrivate::GetSkeletalMesh() const
 
 void UCustomizableSkeletalComponentPrivate::SetSkeletalMesh(USkeletalMesh* SkeletalMesh)
 {
-	if (CustomizableObjectInstanceUsage)
+	if (GetPublic()->CustomizableObjectInstanceUsage)
 	{
-		CustomizableObjectInstanceUsage->GetPrivate()->SetSkeletalMesh(SkeletalMesh);
+		GetPublic()->CustomizableObjectInstanceUsage->GetPrivate()->SetSkeletalMesh(SkeletalMesh);
 	}
 }
 
 
 void UCustomizableSkeletalComponentPrivate::SetPhysicsAsset(UPhysicsAsset* PhysicsAsset)
 {
-	if (CustomizableObjectInstanceUsage)
+	if (GetPublic()->CustomizableObjectInstanceUsage)
 	{
-		CustomizableObjectInstanceUsage->GetPrivate()->SetPhysicsAsset(PhysicsAsset);
+		GetPublic()->CustomizableObjectInstanceUsage->GetPrivate()->SetPhysicsAsset(PhysicsAsset);
 	}
 }
 
 
 void UCustomizableSkeletalComponentPrivate::SetPendingSetSkeletalMesh(bool bIsActive)
 {
-	if (CustomizableObjectInstanceUsage)
+	if (GetPublic()->CustomizableObjectInstanceUsage)
 	{
-		CustomizableObjectInstanceUsage->GetPrivate()->SetPendingSetSkeletalMesh(bIsActive);
+		GetPublic()->CustomizableObjectInstanceUsage->GetPrivate()->SetPendingSetSkeletalMesh(bIsActive);
 	}
 }
 
 
 USkeletalMesh* UCustomizableSkeletalComponentPrivate::GetAttachedSkeletalMesh() const
 {
-	if (CustomizableObjectInstanceUsage)
+	if (GetPublic()->CustomizableObjectInstanceUsage)
 	{
-		return CustomizableObjectInstanceUsage->GetPrivate()->GetAttachedSkeletalMesh();
+		return GetPublic()->CustomizableObjectInstanceUsage->GetPrivate()->GetAttachedSkeletalMesh();
 	}
 
 	return nullptr;
@@ -174,30 +174,30 @@ bool UCustomizableSkeletalComponent::GetSkipSetReferenceSkeletalMesh() const
 
 void UCustomizableSkeletalComponent::SetSkipSetSkeletalMeshOnAttach(bool bSkip)
 {
-	GetPrivate()->bSkipSkipSetSkeletalMeshOnAttach = bSkip;
+	bSkipSkipSetSkeletalMeshOnAttach = bSkip;
 }
 
 
 bool UCustomizableSkeletalComponent::GetSkipSetSkeletalMeshOnAttach() const
 {
-	return GetPrivate()->bSkipSkipSetSkeletalMeshOnAttach;
+	return bSkipSkipSetSkeletalMeshOnAttach;
 }
 
 
 void UCustomizableSkeletalComponent::UpdateSkeletalMeshAsync(bool bNeverSkipUpdate)
 {
-	if (GetPrivate()->CustomizableObjectInstanceUsage)
+	if (CustomizableObjectInstanceUsage)
 	{
-		GetPrivate()->CustomizableObjectInstanceUsage->UpdateSkeletalMeshAsync(bNeverSkipUpdate);
+		CustomizableObjectInstanceUsage->UpdateSkeletalMeshAsync(bNeverSkipUpdate);
 	}
 }
 
 
 void UCustomizableSkeletalComponent::UpdateSkeletalMeshAsyncResult(FInstanceUpdateDelegate Callback, bool bIgnoreCloseDist, bool bForceHighPriority)
 {
-	if (GetPrivate()->CustomizableObjectInstanceUsage)
+	if (CustomizableObjectInstanceUsage)
 	{
-		GetPrivate()->CustomizableObjectInstanceUsage->UpdateSkeletalMeshAsyncResult(Callback, bIgnoreCloseDist, bForceHighPriority);
+		CustomizableObjectInstanceUsage->UpdateSkeletalMeshAsyncResult(Callback, bIgnoreCloseDist, bForceHighPriority);
 	}
 }
 
@@ -219,12 +219,18 @@ const UCustomizableSkeletalComponentPrivate* UCustomizableSkeletalComponent::Get
 #if WITH_EDITOR
 void UCustomizableSkeletalComponentPrivate::EditorUpdateComponent()
 {
-	if (CustomizableObjectInstanceUsage)
+	if (GetPublic()->CustomizableObjectInstanceUsage)
 	{
-		CustomizableObjectInstanceUsage->GetPrivate()->EditorUpdateComponent();
+		GetPublic()->CustomizableObjectInstanceUsage->GetPrivate()->EditorUpdateComponent();
 	}
 }
 #endif
+
+
+bool& UCustomizableSkeletalComponentPrivate::PendingSetSkeletalMesh()
+{
+	return GetPublic()->bPendingSetSkeletalMesh;	
+}
 
 
 UCustomizableSkeletalComponent* UCustomizableSkeletalComponentPrivate::GetPublic()

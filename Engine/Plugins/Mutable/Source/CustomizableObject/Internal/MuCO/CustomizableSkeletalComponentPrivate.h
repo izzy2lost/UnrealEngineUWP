@@ -37,17 +37,10 @@ public:
 	void EditorUpdateComponent();
 #endif
 
+	bool& PendingSetSkeletalMesh();
+	
 	UCustomizableSkeletalComponent* GetPublic();
 	
 	const UCustomizableSkeletalComponent* GetPublic() const;
-	
-	// Used to replace the SkeletalMesh of the parent component by the ReferenceSkeletalMesh or the generated SkeletalMesh 
-	bool bPendingSetSkeletalMesh = false;
-
-	UPROPERTY()
-	bool bSkipSkipSetSkeletalMeshOnAttach = false;
-
-	UPROPERTY(Transient)
-	TObjectPtr<UCustomizableObjectInstanceUsage> CustomizableObjectInstanceUsage;
 };
 

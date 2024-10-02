@@ -16,6 +16,8 @@ DECLARE_DELEGATE(FCustomizableSkeletalComponentUpdatedDelegate);
 UCLASS(Blueprintable, BlueprintType, ClassGroup = (CustomizableObject), meta = (BlueprintSpawnableComponent))
 class CUSTOMIZABLEOBJECT_API UCustomizableSkeletalComponent : public USceneComponent
 {
+	friend UCustomizableSkeletalComponentPrivate;
+
 public:
 	GENERATED_BODY()
 	
@@ -39,6 +41,15 @@ public:
 	FCustomizableSkeletalComponentUpdatedDelegate UpdatedDelegate;
 
 private:
+	// Used to replace the SkeletalMesh of the parent component by the ReferenceSkeletalMesh or the generated SkeletalMesh 
+	bool bPendingSetSkeletalMesh = false;
+
+	UPROPERTY()
+	bool bSkipSkipSetSkeletalMeshOnAttach = false;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UCustomizableObjectInstanceUsage> CustomizableObjectInstanceUsage;
+	
 	UPROPERTY()
 	TObjectPtr<UCustomizableSkeletalComponentPrivate> Private;
 
