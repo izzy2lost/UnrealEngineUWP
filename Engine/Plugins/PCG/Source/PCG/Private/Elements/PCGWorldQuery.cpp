@@ -134,28 +134,10 @@ bool FPCGWorldRayHitQueryElement::ExecuteInternal(FPCGContext* Context) const
 	UWorld* World = Context->SourceComponent->GetWorld();
 
 	UPCGWorldRayHitData* Data = FPCGContext::NewObject_AnyThread<UPCGWorldRayHitData>(Context);
-	Data->Initialize(World, Transform, /*InBounds=*/FBox(EForceInit::ForceInit), LocalBounds);
 	Data->QueryParams = QueryParams;
 	Data->QueryParams.Initialize();
 	Data->OriginatingComponent = Context->SourceComponent;
-
-	if (Data->QueryParams.bGetReferenceToActorHit && Data->Metadata)
-	{
-		Data->Metadata->FindOrCreateAttribute(PCGPointDataConstants::ActorReferenceAttribute, FSoftObjectPath(), /*bAllowInterpolation=*/false, /*bOverrideParent=*/false);
-	}
-	else
-	{
-		Data->QueryParams.bGetReferenceToActorHit = false;
-	}
-
-	if (Data->QueryParams.bGetReferenceToPhysicalMaterial && Data->Metadata)
-	{
-		Data->Metadata->FindOrCreateAttribute(PCGWorldQueryConstants::PhysicalMaterialReferenceAttribute, FSoftObjectPath(), /*bAllowInterpolation=*/false, /*bOverrideParent=*/false);
-	}
-	else
-	{
-		Data->QueryParams.bGetReferenceToPhysicalMaterial = false;
-	}
+	Data->Initialize(World, Transform, /*InBounds=*/FBox(EForceInit::ForceInit), LocalBounds);
 
 	bool bHasLandscapeMetadata = false;
 	if (QueryParams.bApplyMetadataFromLandscape && Data->Metadata)
@@ -182,7 +164,7 @@ bool FPCGWorldRayHitQueryElement::ExecuteInternal(FPCGContext* Context) const
 					return OtherActorBounds.Intersect(Data->Bounds);
 				};
 			}
-	
+
 			TArray<AActor*> LandscapeActors = PCGActorSelector::FindActors(ActorSelector, Context->SourceComponent.Get(), BoundsCheck, SelfIgnoreCheck);
 			for (AActor* Landscape : LandscapeActors)
 			{
