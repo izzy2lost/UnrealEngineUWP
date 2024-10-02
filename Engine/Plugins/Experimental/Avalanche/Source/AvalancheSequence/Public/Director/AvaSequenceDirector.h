@@ -3,6 +3,8 @@
 #pragma once
 
 #include "LevelSequenceDirector.h"
+#include "UObject/WeakInterfacePtr.h"
+#include "UObject/WeakObjectPtrTemplates.h"
 #include "AvaSequenceDirector.generated.h"
 
 class IAvaSequencePlaybackObject;
@@ -40,9 +42,7 @@ private:
 
 	void UpdatePlaybackObject();
 
-	UPROPERTY()
-	TObjectPtr<UAvaSequencePlayer> SequencePlayer;
+	TWeakObjectPtr<UAvaSequencePlayer> SequencePlayerWeak;
 
-	UPROPERTY()
-	TScriptInterface<IAvaSequencePlaybackObject> PlaybackObject;
+	TWeakInterfacePtr<IAvaSequencePlaybackObject> PlaybackObjectInterfaceWeak;
 };

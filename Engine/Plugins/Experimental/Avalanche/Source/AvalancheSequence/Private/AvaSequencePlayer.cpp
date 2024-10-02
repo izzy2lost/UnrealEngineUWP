@@ -86,6 +86,8 @@ void UAvaSequencePlayer::SetPlaySettings(const FAvaSequencePlayParams& InPlaySet
 
 	SetTimeRange(StartTimeSeconds, DurationSeconds);
 
+	bTearDownOnFinished = InPlaySettings.AdvancedSettings.bTearDownOnFinished;
+
 	PlaybackSettings = FMovieSceneSequencePlaybackSettings();
 	PlaybackSettings.PlayRate = InPlaySettings.AdvancedSettings.PlaybackSpeed;
 	PlaybackSettings.LoopCount.Value = InPlaySettings.AdvancedSettings.LoopCount;
@@ -226,4 +228,9 @@ void UAvaSequencePlayer::NotifySequencePaused()
 void UAvaSequencePlayer::NotifySequenceFinished()
 {
 	OnSequenceFinishedDelegate.Broadcast(this, GetAvaSequence());
+
+	if (bTearDownOnFinished)
+	{
+		TearDown();
+	}
 }

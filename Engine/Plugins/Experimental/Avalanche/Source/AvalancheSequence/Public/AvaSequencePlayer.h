@@ -95,4 +95,6 @@ private:
 	TSharedPtr<IAvaSequenceController> SequenceController;
 
 	TWeakObjectPtr<ULevel> PlaybackLevelWeak;
+
+	bool bTearDownOnFinished = false;
 };
