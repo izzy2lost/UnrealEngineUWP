@@ -1017,7 +1017,7 @@ void UPoseAsset::PreSave(FObjectPreSaveContext ObjectSaveContext)
 #if WITH_EDITOR
 	if (!ObjectSaveContext.IsProceduralSave())
 	{
-		UpdateRetargetSourceAsset();
+		UpdateRetargetSourceAssetData();
 	}
 #endif // WITH_EDITOR
 	Super::PreSave(ObjectSaveContext);
@@ -1364,11 +1364,13 @@ void UPoseAsset::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEv
 	if (PropertyChangedEvent.Property)
 	{
 		bool bConvertToAdditivePose = false;
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		if (PropertyChangedEvent.Property->GetFName() == GET_MEMBER_NAME_CHECKED(UPoseAsset, RetargetSourceAsset))
 		{
 			bConvertToAdditivePose = true;
-			UpdateRetargetSourceAsset();
+			UpdateRetargetSourceAssetData();
 		}
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 		if (PropertyChangedEvent.Property->GetFName() == GET_MEMBER_NAME_CHECKED(UPoseAsset, RetargetSource))
 		{
@@ -1805,9 +1807,28 @@ bool UPoseAsset::RemoveInvalidTracks()
 }
 
 #if WITH_EDITORONLY_DATA
-void UPoseAsset::UpdateRetargetSourceAsset()
+void UPoseAsset::SetRetargetSourceAsset(USkeletalMesh* InRetargetSourceAsset)
 {
+	if (InRetargetSourceAsset != nullptr && InRetargetSourceAsset->HasAnyFlags(RF_Transient))
+	{
+		UE_LOG(LogAnimation, Error, TEXT("Error, Transient asset [%s] can not be assigned as Retarget Source for Pose Asset [%s]. Please, use a non transient asset as retarget surce.")
+			, *(InRetargetSourceAsset->GetFullName())
+			, *GetFullName());
+		ensure(false);
+		return;
+	}
+
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	RetargetSourceAsset = InRetargetSourceAsset;
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+}
+
+void UPoseAsset::UpdateRetargetSourceAssetData()
+{
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	USkeletalMesh* SourceReferenceMesh = RetargetSourceAsset.LoadSynchronous();
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	
 	const USkeleton* MySkeleton = GetSkeleton();
 	if (SourceReferenceMesh && MySkeleton)
 	{

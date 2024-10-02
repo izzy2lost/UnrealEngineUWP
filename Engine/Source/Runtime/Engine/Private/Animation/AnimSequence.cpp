@@ -984,7 +984,7 @@ void UAnimSequence::PreSave(FObjectPreSaveContext ObjectSaveContext)
 
 	if (!ObjectSaveContext.IsProceduralSave())
 	{
-		UpdateRetargetSourceAsset();
+		UpdateRetargetSourceAssetData();
 	}
 
 	if (ObjectSaveContext.IsDeterminismDebug())
@@ -1169,10 +1169,12 @@ void UAnimSequence::PostEditChangeProperty(FPropertyChangedEvent& PropertyChange
 
 	if(PropertyChangedEvent.Property)
 	{
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		if (PropertyChangedEvent.Property->GetFName() == GET_MEMBER_NAME_CHECKED(UAnimSequence, RetargetSourceAsset))
 		{
-			UpdateRetargetSourceAsset();
+			UpdateRetargetSourceAssetData();
 		}
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 		const bool bChangedRefFrameIndex = PropertyChangedEvent.Property->GetFName() == GET_MEMBER_NAME_CHECKED(UAnimSequence, RefFrameIndex);
 
@@ -1955,9 +1957,28 @@ void UAnimSequence::UpdateCompressedCurveName(const FName& OldCurveName, const F
 #endif // WITH_EDITOR
 
 #if WITH_EDITORONLY_DATA
-void UAnimSequence::UpdateRetargetSourceAsset()
+void UAnimSequence::SetRetargetSourceAsset(USkeletalMesh* InRetargetSourceAsset)
 {
+	if (InRetargetSourceAsset != nullptr && InRetargetSourceAsset->HasAnyFlags(RF_Transient))
+	{
+		UE_LOG(LogAnimation, Error, TEXT("Error, Transient asset [%s] can not be assigned as Retarget Source for AnimSequence [%s]. Please, use a non transient asset as retarget surce.")
+			, *(InRetargetSourceAsset->GetFullName())
+			, *GetFullName());
+		ensure(false);
+		return;
+	}
+
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	RetargetSourceAsset = InRetargetSourceAsset;
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+}
+
+void UAnimSequence::UpdateRetargetSourceAssetData()
+{
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	USkeletalMesh* SourceReferenceMesh = RetargetSourceAsset.LoadSynchronous();
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
 	const USkeleton* MySkeleton = GetSkeleton();
 	if (SourceReferenceMesh && MySkeleton)
 	{
