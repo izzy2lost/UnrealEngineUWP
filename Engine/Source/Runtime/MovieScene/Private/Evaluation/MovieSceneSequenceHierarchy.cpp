@@ -101,7 +101,7 @@ FMovieSceneSubSequenceData::FMovieSceneSubSequenceData(const UMovieSceneSubSecti
 		PostRollRange = TRange<FFrameNumber>(PostRollStart, PostRollEnd);
 	}
 
-	Condition = MovieSceneHelpers::GetSequenceCondition(InSubSection.GetTypedOuter<UMovieSceneTrack>(), &InSubSection);
+	Condition = MovieSceneHelpers::GetSequenceCondition(InSubSection.GetTypedOuter<UMovieSceneTrack>(), &InSubSection, true);
 }
 
 UMovieSceneSequence* FMovieSceneSubSequenceData::GetSequence() const

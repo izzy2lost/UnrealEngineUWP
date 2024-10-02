@@ -75,7 +75,7 @@ bool UMovieSceneMaterialParameterCollectionTrack::PopulateEvaluationFieldImpl(co
 				SectionMetaData.Flags = Entry.Flags;
 				if (Entry.Section)
 				{
-					SectionMetaData.Condition = MovieSceneHelpers::GetSequenceCondition(this, Entry.Section);
+					SectionMetaData.Condition = MovieSceneHelpers::GetSequenceCondition(this, Entry.Section, true);
 				}
 				if (ParameterSection)
 				{

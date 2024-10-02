@@ -51,6 +51,7 @@ class UK2Node;
 class UMovieSceneFolder;
 class UMovieSceneSection;
 class UMovieSceneTrack;
+class UMovieSceneGroupCondition;
 namespace UE { namespace MovieScene { class ISequenceDataEventHandler; } }
 struct FMovieSceneChannelMetaData;
 struct FMovieSceneTimeController;
@@ -1194,6 +1195,12 @@ public:
 	 */
 	MOVIESCENE_API void RemoveTag(const FName& TagToRemove);
 
+	/* Called during compilation to add a new generated condition to store in the movie scene. */
+	void AddGeneratedCondition(UMovieSceneGroupCondition* InGeneratedCondition) { GeneratedConditions.Add(InGeneratedCondition); }
+
+	/* Called by the compiler to empty the list of generated conditions*/
+	void ResetGeneratedConditions() { GeneratedConditions.Reset(); }
+
 protected:
 
 	/**
@@ -1303,6 +1310,10 @@ private:
 	/** The set of user-marked frames */
 	UPROPERTY()
 	TArray<FMovieSceneMarkedFrame> MarkedFrames;
+
+	/* List of compiler generated group conditions, stored here to prevent garbage collection. */
+	UPROPERTY()
+	TArray<TObjectPtr<UMovieSceneGroupCondition>> GeneratedConditions;
 
 #if WITH_EDITORONLY_DATA
 

@@ -1050,7 +1050,7 @@ UObject* MovieSceneHelpers::GetResolutionContext(UMovieSceneSequence* Sequence, 
 	return ResolutionContext;
 }
 
-const UMovieSceneCondition* MovieSceneHelpers::GetSequenceCondition(const UMovieSceneTrack* Track, const UMovieSceneSection* Section)
+const UMovieSceneCondition* MovieSceneHelpers::GetSequenceCondition(const UMovieSceneTrack* Track, const UMovieSceneSection* Section, bool bFromCompilation)
 {
 	TArray<UMovieSceneCondition*, TInlineAllocator<1>> Conditions;
 
@@ -1093,13 +1093,17 @@ const UMovieSceneCondition* MovieSceneHelpers::GetSequenceCondition(const UMovie
 	{
 		// Generate a group condition. During compilation this will get referenced by the entity metadata, otherwise this is considered a temporary and the caller
 		// is responsible for holding a reference to this condition.
-		UObject* Outer = Section ? Section->GetTypedOuter<UMovieScene>() : Track ? Track->GetTypedOuter<UMovieScene>() : nullptr;
-		check(Outer);
-		UMovieSceneGroupCondition* GroupCondition = NewObject<UMovieSceneGroupCondition>(Outer);
+		UMovieScene* MovieScene = Section ? Section->GetTypedOuter<UMovieScene>() : Track ? Track->GetTypedOuter<UMovieScene>() : nullptr;
+		check(MovieScene);
+		UMovieSceneGroupCondition* GroupCondition = NewObject<UMovieSceneGroupCondition>(MovieScene);
 		for (UMovieSceneCondition* Condition : Conditions)
 		{
 			FMovieSceneConditionContainer& ConditionContainer = GroupCondition->SubConditions.AddDefaulted_GetRef();
 			ConditionContainer.Condition = Condition;
+		}
+		if (bFromCompilation)
+		{
+			MovieScene->AddGeneratedCondition(GroupCondition);
 		}
 		return GroupCondition;
 	}
