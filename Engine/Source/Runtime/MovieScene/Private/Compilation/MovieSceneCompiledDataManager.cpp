@@ -879,6 +879,13 @@ void UMovieSceneCompiledDataManager::Compile(FMovieSceneCompiledDataID DataID, U
 	Params.TemplateGenerator.Reset(&Entry);
 	Params.NetworkMask = InNetworkMask;
 
+	// Clear list of generated conditions
+	UMovieScene* MovieScene = Sequence->GetMovieScene();
+	if (ensure(MovieScene))
+	{
+		MovieScene->ResetGeneratedConditions();
+	}
+
 	// ---------------------------------------------------------------------------------------------------
 	// Step 1 - Always ensure the hierarchy information is completely up to date first
 	FMovieSceneSequenceHierarchy NewHierarchy;
@@ -899,8 +906,6 @@ void UMovieSceneCompiledDataManager::Compile(FMovieSceneCompiledDataID DataID, U
 	TSet<FGuid> GatheredSignatures;
 
 	{
-		UMovieScene* MovieScene = Sequence->GetMovieScene();
-
 		if (ensure(MovieScene))
 		{
 			for (const FMovieSceneMarkedFrame& Mark : MovieScene->GetMarkedFrames())
@@ -1482,7 +1487,7 @@ void UMovieSceneCompiledDataManager::GatherTrack(const FMovieSceneBinding* Objec
 				MetaData.bEvaluateInSequencePreRoll  = Track->EvalOptions.bEvaluateInPreroll;
 				MetaData.bEvaluateInSequencePostRoll = Track->EvalOptions.bEvaluateInPostroll;
 				
-				MetaData.Condition = MovieSceneHelpers::GetSequenceCondition(Track, Entry.Section);
+				MetaData.Condition = MovieSceneHelpers::GetSequenceCondition(Track, Entry.Section, true);
 
 				if (!EntityProvider->PopulateEvaluationField(EffectiveRange, MetaData, &FieldBuilder))
 				{

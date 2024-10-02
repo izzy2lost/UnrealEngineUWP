@@ -284,8 +284,9 @@ public:
 	/* Given a movie scene track and an optional section inside it, returns an optional single condition that needs to be evaluated.
 	* If multiple conditions exist in the given scope (for example a track condition, a track row condition for the row the section is on, and a section),
 	* a UMovieSceneGroupCondition will be generated, and the caller is responsible for holding a reference to this new UObject.
+	* If bFromCompilation is true, then any generated conditions will be stored on the movie scene.
 	*/
-	static MOVIESCENE_API const UMovieSceneCondition* GetSequenceCondition(const UMovieSceneTrack* Track, const UMovieSceneSection* Section);
+	static MOVIESCENE_API const UMovieSceneCondition* GetSequenceCondition(const UMovieSceneTrack* Track, const UMovieSceneSection* Section, bool bFromCompilation=false);
 	
 	/* Helper function for evaluating a condition in a movie scene, taking advantage of any cacheing that may apply. */
 	static MOVIESCENE_API bool EvaluateSequenceCondition(const FGuid& BindingID, const FMovieSceneSequenceID& SequenceID, const UMovieSceneCondition* Condition, UObject* ConditionOwnerObject, TSharedRef<const UE::MovieScene::FSharedPlaybackState> SharedPlaybackState);
