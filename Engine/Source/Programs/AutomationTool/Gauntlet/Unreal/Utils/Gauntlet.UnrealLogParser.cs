@@ -293,14 +293,14 @@ namespace Gauntlet
 	{
 		protected List<UnrealLog.LogEntry> LogEvents { get; private set; }
 
-		private List<string> UnidentifiedLogLevels { get; set; }
+		private HashSet<string> UnidentifiedLogLevels { get; set; }
 
 		private ILogStreamReader LogReader { get; set; }
 
 		public UnrealLogStreamParser()
 		{
 			LogEvents = new();
-			UnidentifiedLogLevels = new List<string>();
+			UnidentifiedLogLevels = new HashSet<string>();
 			LogReader = null;
 		}
 
@@ -320,6 +320,15 @@ namespace Gauntlet
 		}
 
 		/// <summary>
+		/// Return true if the internal log reader was set.
+		/// </summary>
+		/// <returns></returns>
+		public bool IsAttachedToLogReader()
+		{
+			return LogReader != null;
+		}
+
+		/// <summary>
 		/// Clear aggregated log events 
 		/// </summary>
 		public void Clear()
@@ -335,7 +344,7 @@ namespace Gauntlet
 		/// <returns>The number of line parsed</returns>
 		public int ReadStream(int LineOffset = -1, bool bClearAggregatedLines = true)
 		{
-			if (LogReader == null)
+			if (!IsAttachedToLogReader())
 			{
 				throw new AutomationException("Internal Log reader is not set. Use SetLogReader() to set it.");
 			}
