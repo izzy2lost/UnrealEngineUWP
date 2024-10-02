@@ -807,27 +807,38 @@ UEdGraphPin* FKismetCompilerUtilities::GenerateAssignmentNodes(class FKismetComp
 					// Some types require a connection for assignment (e.g. arrays).
 					continue;
 				}
-				else if (!bIsClassInputPinLinked)
+				// If the property is not editable in blueprint, always check the native CDO to handle cases like Instigator properly
+				else if (!bIsClassInputPinLinked || Property->HasAnyPropertyFlags(CPF_DisableEditOnTemplate) || !Property->HasAnyPropertyFlags(CPF_Edit))
 				{
 					// We don't want to generate an assignment node unless the default value 
 					// differs from the value in the CDO:
 					FString DefaultValueAsString;
 
-					if (FBlueprintCompilationManager::GetDefaultValue(ForClass, Property, DefaultValueAsString))
+					if (!FBlueprintCompilationManager::GetDefaultValue(ForClass, Property, DefaultValueAsString))
 					{
-						if (Schema->DoesDefaultValueMatch(*OrgPin, DefaultValueAsString))
+						if (ForClass->ClassDefaultObject)
 						{
-							continue;
+							FBlueprintEditorUtils::PropertyValueToString(Property, (uint8*)ForClass->ClassDefaultObject.Get(), DefaultValueAsString);
 						}
 					}
-					else if (ForClass->ClassDefaultObject)
-					{
-						FBlueprintEditorUtils::PropertyValueToString(Property, (uint8*)ForClass->ClassDefaultObject.Get(), DefaultValueAsString);
 
-						if (DefaultValueAsString == OrgPin->GetDefaultAsString())
-						{
-							continue;
-						}
+					// First check the string representation of the default value
+					if (Schema->DoesDefaultValueMatch(*OrgPin, DefaultValueAsString))
+					{
+						continue;
+					}
+
+					FString UseDefaultValue;
+					TObjectPtr<UObject> UseDefaultObject = nullptr;
+					FText UseDefaultText;
+					constexpr bool bPreserveTextIdentity = true;
+
+					// Next check if the converted default value would be the same to handle cases like None for object pointers
+					Schema->GetPinDefaultValuesFromString(OrgPin->PinType, OrgPin->GetOwningNodeUnchecked(), DefaultValueAsString, UseDefaultValue, UseDefaultObject, UseDefaultText, bPreserveTextIdentity);
+
+					if (OrgPin->DefaultValue.Equals(UseDefaultValue, ESearchCase::CaseSensitive) && OrgPin->DefaultObject == UseDefaultObject && OrgPin->DefaultTextValue.IdenticalTo(UseDefaultText))
+					{
+						continue;
 					}
 				}
 			}
