@@ -6588,11 +6588,11 @@ void UCustomizableInstancePrivate::BuildMaterials(const TSharedRef<FUpdateContex
 													if (MutableMipDataProviderFactory)
 													{
 														MutableMipDataProviderFactory->CustomizableObjectInstance = Public;
-														check(LODIndex < 256 && ObjectComponentIndex < 256 && ImageIndex < 256);
+														check(LODIndex < 256 && InstanceComponentIndex < 256 && ImageIndex < 256);
 														MutableMipDataProviderFactory->ImageRef.ImageID = Image.ImageID;
 														MutableMipDataProviderFactory->ImageRef.SurfaceId = Surface.SurfaceId;
 														MutableMipDataProviderFactory->ImageRef.LOD = uint8(Image.BaseLOD);
-														MutableMipDataProviderFactory->ImageRef.Component = uint8(ObjectComponentIndex);
+														MutableMipDataProviderFactory->ImageRef.Component = uint8(InstanceComponentIndex);
 														MutableMipDataProviderFactory->ImageRef.Image = uint8(ImageIndex);
 														MutableMipDataProviderFactory->ImageRef.BaseMip = uint8(Image.BaseMip);
 														MutableMipDataProviderFactory->UpdateContext = UpdateContext;

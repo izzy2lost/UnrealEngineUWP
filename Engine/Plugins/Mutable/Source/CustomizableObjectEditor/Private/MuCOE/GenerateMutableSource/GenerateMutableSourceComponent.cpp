@@ -139,7 +139,7 @@ mu::Ptr<mu::NodeComponent> GenerateMutableSourceComponent(const UEdGraphPin* Pin
 		}
 		
 		mu::Ptr<mu::NodeComponentNew> NodeComponentNew = new mu::NodeComponentNew();
-		NodeComponentNew->Id = GenerationContext.ComponentNames.Add(TypedComponentMesh->ComponentName);
+		NodeComponentNew->Id = GenerationContext.ComponentNames.Find(TypedComponentMesh->ComponentName);
 		NodeComponentNew->SetMessageContext(Node);
 		
 		Result = NodeComponentNew;
@@ -235,8 +235,7 @@ mu::Ptr<mu::NodeComponent> GenerateMutableSourceComponent(const UEdGraphPin* Pin
 
 		// Create the component node
 		mu::Ptr<mu::NodeComponentNew> ComponentNode = new mu::NodeComponentNew;
-		ComponentNode->Id = GenerationContext.ComponentNames.Num();
-		GenerationContext.ComponentNames.Add(TypedComponentPassthroughMesh->ComponentName);
+		ComponentNode->Id = GenerationContext.ComponentNames.Find(TypedComponentPassthroughMesh->ComponentName);
 
 		// Create a LOD for each pass-through mesh LOD.
 		const FSkeletalMeshModel* Model = SkeletalMesh->GetImportedModel();
@@ -531,6 +530,8 @@ void FirstPass(UCustomizableObjectNodeComponentMesh& Node, FMutableGraphGenerati
 
 	// Make sure the Skeleton from the reference mesh is added to the list of referenced Skeletons.
 	GenerationContext.ReferencedSkeletons.Add(RefSkeleton);
+
+	GenerationContext.ComponentNames.Add(Node.ComponentName);
 
 	// Add reference meshes to the participating objects
 	GenerationContext.AddParticipatingObject(*RefSkeletalMesh);
