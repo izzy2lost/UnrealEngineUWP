@@ -2245,6 +2245,235 @@ void UAssetToolsImpl::GetAllAdvancedCopySources(FName SelectedPackage, FAdvanced
 	}
 }
 
+namespace 
+{
+bool SplitLongPackageName(FStringView LongPackageName, FStringView& PackageRoot, FStringView& PackagePath, FStringView& PackageName)
+{
+	if (LongPackageName.IsEmpty() || LongPackageName[0] != TEXT('/'))
+	{
+		return false;
+	}
+
+	PackageRoot = FStringView(LongPackageName.GetData() + 1); // + 1 to skip the leading '/'
+	int32 SeparatorPos;
+	if (!PackageRoot.FindChar(TEXT('/'), SeparatorPos))
+	{
+		return false;
+	}
+	PackageRoot.LeftInline(SeparatorPos);
+
+	const int32 PackagePathOffset = PackageRoot.Len() + 2; // + 2 for the leading and trailing '/'
+	if (LongPackageName.Len() < PackagePathOffset || !LongPackageName.FindLastChar(TEXT('/'), SeparatorPos))
+	{
+		return false;
+	}
+
+	// May be empty. If the PackageName is off the root there is no PackagePath
+	const int32 PackagePathLen = SeparatorPos - (PackagePathOffset - 1);
+	check(PackagePathLen >= 0);
+	PackagePath = FStringView(LongPackageName.GetData() + PackagePathOffset, PackagePathLen - !!PackagePathLen);
+
+	const int32 PackageNameOffset = PackagePathOffset + PackagePath.Len() + !PackagePath.IsEmpty();
+	PackageName = FStringView(LongPackageName.GetData() + PackageNameOffset, LongPackageName.Len() - PackageNameOffset);
+
+	return true;
+}
+
+TMap<FString, FString> AllSourceAndDestPackages(const TMap<FString, FString>& SourceAndDestPackages)
+{
+	// Paths under the __External root drop the package root, so create mappings, per plugin, 
+	// we can leverage when handling those cases where the package path may have been remapped
+	TMap<FString, TMap<FString, FString>> PluginExternalMappings;
+	for (const TPair<FString, FString>& SrcDstPair : SourceAndDestPackages)
+	{
+		const FString& Src = SrcDstPair.Key;
+		const FString& Dst = SrcDstPair.Value;
+
+		FStringView SrcPackageRoot;
+		FStringView SrcPackagePath;
+		FStringView SrcPackageName;
+		SplitLongPackageName(Src, SrcPackageRoot, SrcPackagePath, SrcPackageName);
+
+		FStringView DstPackageRoot;
+		FStringView DstPackagePath;
+		FStringView DstPackageName;
+		SplitLongPackageName(Dst, DstPackageRoot, DstPackagePath, DstPackageName);
+
+		TMap<FString, FString>& ExternalMappings = PluginExternalMappings.FindOrAddByHash(GetTypeHash(SrcPackageRoot), FString(SrcPackageRoot));
+		FStringView SrcPath = SrcPackagePath.IsEmpty() ? SrcPackageName : SrcPackagePath;
+		FStringView DstPath = DstPackagePath.IsEmpty() ? DstPackageName : DstPackagePath;
+		ExternalMappings.Add(FString(SrcPath), FString(DstPath));
+
+		// if there is a path
+		if (!SrcPackagePath.IsEmpty())
+		{
+			// add the local path/asset for the case of maps (which we cannot tell at this point)
+			ExternalMappings.Add(FString(SrcPath.GetData()), FString(DstPath.GetData()));
+		}
+	}
+
+	TMap<FString, FString> Result;
+	IAssetRegistry& Registry = *IAssetRegistry::Get();
+
+	TArray< TTuple<FString, FString> > ToProcess;
+	Algo::Copy(SourceAndDestPackages, ToProcess);
+
+	TStringBuilder<NAME_SIZE> SrcDependencyBuilder;
+	while (ToProcess.Num())
+	{
+		TTuple<FString, FString> Package = ToProcess.Pop();
+
+		if (Result.Contains(Package.Key))
+		{
+			continue;
+		}
+
+		// Become a patching name even if it doesn't have a file.
+		Result.Add({ Package.Key, Package.Value });
+
+		TArray<FName> Dependencies;
+		if (!Registry.GetDependencies(FName(*Package.Key), Dependencies))
+		{
+			continue;
+		}
+
+		FStringView SrcPackageRoot = FPackageName::SplitPackageNameRoot(Package.Key, nullptr);
+		FStringView DstPackageRoot = FPackageName::SplitPackageNameRoot(Package.Value, nullptr);
+		for (const FName Dependency : Dependencies)
+		{
+			Dependency.ToString(SrcDependencyBuilder);
+			FStringView SrcDependency = SrcDependencyBuilder.ToView();
+
+			if (SourceAndDestPackages.FindByHash(GetTypeHash(SrcDependency), SrcDependency))
+			{
+				// We already handled this mapping
+				continue;
+			}
+
+			FStringView SrcDependencyPackageRoot;
+			FStringView SrcDependencyPackagePath;
+			FStringView SrcDependencyPackageName;
+			SplitLongPackageName(SrcDependency, SrcDependencyPackageRoot, SrcDependencyPackagePath, SrcDependencyPackageName);
+			check(!SrcDependencyPackageRoot.IsEmpty());
+
+			// Only consider dependency paths that are for the same package as our src->dst mapping
+			// If the src mapping doesn't begin with a '/' the package name will be empty, since the path isn't a package path
+			if (SrcDependencyPackageRoot != SrcPackageRoot)
+			{
+				continue;
+			}
+
+			TStringBuilder<NAME_SIZE> DstDependencyString;
+
+			// Special handling for external references. The __External[Actors__|Objects__] directory is always under the package root, may contain an
+			// arbitrary amount of subdirs but then ends with two hash subdirs. The path between the __External[Actors__|Objects__] and the two hash dirs
+			// may need remapping so we look at our external mappings to do so.
+			bool bHasExternalActorDir = SrcDependencyPackagePath.StartsWith(FPackagePath::GetExternalActorsFolderName());
+			bool bHasExternalObjectsDir = !bHasExternalActorDir && SrcDependencyPackagePath.StartsWith(FPackagePath::GetExternalObjectsFolderName());
+			if (bHasExternalActorDir || bHasExternalObjectsDir)
+			{
+				int32 RightPartStartPos;
+				if (!SrcDependencyPackagePath.FindChar(TEXT('/'), RightPartStartPos))
+				{
+					// This is a path to only the special directory, skip it no remapping is needed
+					continue;
+				}
+				RightPartStartPos++; // Skip past the '/'
+
+				// Find the start of the two hash dirs
+				// e.g. __ExternalActors__/path/of/interest/A/A9, we only want 'path/of/interest'
+				FStringView ExternalPackagePath(SrcDependencyPackagePath.GetData() + RightPartStartPos, SrcDependencyPackagePath.Len() - RightPartStartPos);
+				int32 HashDirStartPos = 0;
+				int NumHashDirsToStrip = 2;
+				while (NumHashDirsToStrip--)
+				{
+					if (ExternalPackagePath.FindLastChar(TEXT('/'), HashDirStartPos))
+					{
+						ExternalPackagePath.LeftChopInline(ExternalPackagePath.Len() - HashDirStartPos);
+					}
+				}
+
+				// Our __External[Actors|Objects]__ path is malformed
+				if (HashDirStartPos == INDEX_NONE)
+				{
+					continue;
+				}
+
+				const int32 HashPathOffset = RightPartStartPos + HashDirStartPos;
+				FStringView HashPath(SrcDependencyPackagePath.GetData() + HashPathOffset, SrcDependencyPackagePath.Len() - HashPathOffset);
+				const TMap<FString, FString>* ExternalMappings = PluginExternalMappings.FindByHash(GetTypeHash(SrcPackageRoot), SrcPackageRoot);
+				if (!ExternalMappings)
+				{
+					// We have no mapping for this dependency's external actors/objects
+					continue;
+				}
+				const FString* DstExternalPackagePath = ExternalMappings->FindByHash(GetTypeHash(ExternalPackagePath), ExternalPackagePath);
+								
+				DstDependencyString.AppendChar(TEXT('/'));
+				DstDependencyString.Append(DstPackageRoot);
+				DstDependencyString.AppendChar(TEXT('/'));
+				DstDependencyString.Append(bHasExternalActorDir ? FPackagePath::GetExternalActorsFolderName() : FPackagePath::GetExternalObjectsFolderName());
+				DstDependencyString.AppendChar(TEXT('/'));
+				DstDependencyString.Append(DstExternalPackagePath ? *DstExternalPackagePath : ExternalPackagePath);
+				DstDependencyString.Append(HashPath); // HashPath already contains the leading '/'
+				DstDependencyString.AppendChar(TEXT('/'));
+				DstDependencyString.Append(SrcDependencyPackageName);
+			}
+			else
+			{ 
+				// We aren't handling a special directory so replace the package root
+				DstDependencyString.AppendChar(TEXT('/'));
+				DstDependencyString.Append(DstPackageRoot);
+				DstDependencyString.AppendChar(TEXT('/'));
+
+				if (!SrcDependencyPackagePath.IsEmpty())
+				{
+					DstDependencyString.Append(SrcDependencyPackagePath);
+					DstDependencyString.AppendChar(TEXT('/'));
+				}
+
+				DstDependencyString.Append(SrcDependencyPackageName);
+			}
+
+			// If a dep start with the package name, then we are going to copy the asset.
+			// but we need to recurse on this asset as it may have sub dependencies we don't know of yet.
+			ToProcess.Add({ FString(SrcDependency), DstDependencyString.ToString()});
+		}
+	}
+
+	return Result;
+}
+
+// Returns the index of the '_' character found preceding a series of numbers at the end 
+// of a string (i.e. FName number syntax 'namestring_111'). The index is the equivalent to the "PlainString" length.
+// If the string is a malformed numbered FName then INDEX_NONE is returned.
+int32 EndsWithStrippableNumber(const FStringView Name)
+{
+	// Walk backwards verifying we have only numbers until we find a '_'
+	int32 Pos = Name.Len();
+	while (Pos--)
+	{
+		// Uses sign conversion to check if Name[Pos] is within the inclusive bounds of 0->9
+		if ((uint32)(TEXT('9') - Name[Pos]) > (TEXT('9') - TEXT('0')))
+		{
+			// If we didn't find a number, so exit the loop. 
+			// The Name was a numbered name if the non-number we just found 
+			// is '_' but we must ensure we aren't looking at a name
+			// that looks like "_123" (which would be an invalid FName) or "somename_"
+			if (Name[Pos] != TEXT('_') || Pos == 0 || Pos == Name.Len() - 1)
+			{
+				return INDEX_NONE;
+			}
+
+			return Pos;
+		}
+	}
+
+	// If we get here, the whole Name is a number
+	return INDEX_NONE;
+}
+}
+
 bool UAssetToolsImpl::AdvancedCopyPackages(
 	const TMap<FString, FString>& SourceAndDestPackages,
 	const bool bForceAutosave,
@@ -2281,19 +2510,72 @@ bool UAssetToolsImpl::AdvancedCopyPackages(
 		{
 			TRACE_CPUPROFILER_EVENT_SCOPE(AdvancedCopyPackages.HeaderPatching);
 
-			FAssetHeaderPatcher::FContext PatcherContext(SourceAndDestPackages);
-			FAssetHeaderPatcher Patcher(MoveTemp(PatcherContext));
+			std::atomic<int32> PatchAssetsCompletedCount = 0;
+			UE::Tasks::FTaskEvent PatchAssetsCompletionTask{ UE_SOURCE_LOCATION };
 
-			int32 NumFilesToPatch = 0;
-			int32 PatchAssetsCompletedCount = 0;
-			UE::Tasks::FTask PatchAssetsCompletionTask = Patcher.PatchAsync(&NumFilesToPatch, &PatchAssetsCompletedCount);
-		
-			LoopProgress = MakeUnique<FScopedSlowTask>(static_cast<float>(NumFilesToPatch), LOCTEXT("AdvancedCopyPackages.ReplacingAssetReferences", "Replacing Asset References..."));
+			TMap<FString, FString> ToCopyAndPatchPackages = AllSourceAndDestPackages(SourceAndDestPackages);
+			TMap<FString, FString> PatchingPatterns = GetAdditionalPatchCopyMappings(SourceAndDestPackages);
+			PatchingPatterns.Append(ToCopyAndPatchPackages);
+
+			// Construct all filenames
+			TMap<FString, FString> ToCopyAndPatchFiles;
+			ToCopyAndPatchFiles.Reserve(ToCopyAndPatchPackages.Num());
+			for (const TTuple<FString, FString>& Package : ToCopyAndPatchPackages)
+			{
+				const FString& PackageName = Package.Key;
+				const FString& DestPackage = Package.Value;
+				FString SrcFilename;
+
+				if (FPackageName::IsVersePackage(PackageName))
+				{
+					// Verse packages are not header patchable.
+					// They are also not Packages as far as DoesPackageExist tells me.
+					// But they are real files that in template copying have already been done, so we dont want a warning message.
+					continue;
+				}
+
+				if (FPackageName::DoesPackageExist(PackageName, &SrcFilename))
+				{
+					FString DestFilename = FPackageName::LongPackageNameToFilename(DestPackage, FString(FPathViews::GetExtension(SrcFilename, true)));
+					ToCopyAndPatchFiles.Add({ MoveTemp(SrcFilename), MoveTemp(DestFilename) });
+				} 
+				else
+				{
+					UE_LOG(LogAssetTools, Warning, TEXT("{%s} package does not exist, and will not be copied."), *PackageName);
+				}
+			}
+
+			LoopProgress = MakeUnique<FScopedSlowTask>(static_cast<float>(ToCopyAndPatchFiles.Num()), LOCTEXT("AdvancedCopyPackages.ReplacingAssetReferences", "Replacing Asset References..."));
 			LoopProgress->MakeDialog();
 
+			TSet<FString> ErroredFiles;
+			FCriticalSection  ErroredFilesLock;
+
+			// Spawn tasks (Scatter)
+			for (const TTuple<FString, FString>& Filename : ToCopyAndPatchFiles)
+			{
+				const FString& SrcFilename = Filename.Key;
+				const FString& DestFilename = Filename.Value;
+
+				UE::Tasks::FTask PatcherTask = UE::Tasks::Launch(UE_SOURCE_LOCATION,
+					[&PatchAssetsCompletedCount, &PatchingPatterns, InSrcFilename = SrcFilename, InDestFilename = DestFilename, &ErroredFilesLock, &ErroredFiles] () 
+					{
+						FAssetHeaderPatcher::EResult Result = FAssetHeaderPatcher::DoPatch(InSrcFilename, InDestFilename, PatchingPatterns, /* bBespokeSearchInUse */false);
+						if (Result != FAssetHeaderPatcher::EResult::Success) 
+						{
+							FScopeLock Lock(&ErroredFilesLock);
+							ErroredFiles.Add(InSrcFilename);
+						}
+						PatchAssetsCompletedCount.fetch_add(1, std::memory_order_relaxed);
+					});
+				PatchAssetsCompletionTask.AddPrerequisites(PatcherTask);
+			}
+
+			// Gather
+			PatchAssetsCompletionTask.Trigger();
 			while (!PatchAssetsCompletionTask.Wait(FTimespan::FromSeconds(0.5)))
 			{
-				LoopProgress->CompletedWork = (float)std::atomic_ref(PatchAssetsCompletedCount).load(std::memory_order_relaxed);
+				LoopProgress->CompletedWork = (float)PatchAssetsCompletedCount.load(std::memory_order_relaxed);
 				LoopProgress->TickProgress();
 			}
 
@@ -2301,18 +2583,22 @@ bool UAssetToolsImpl::AdvancedCopyPackages(
 			// And reporting to the user
 			FMessageLog AdvancedCopyLog("AssetTools");
 
-			bool bHasErrors = Patcher.HasErrors();
-			TMap<FString, FAssetHeaderPatcher::EResult> ErroredFiles;
+			bool bHasErrors = ErroredFiles.Num() != 0;
+
 			if (bHasErrors)
 			{
-				ErroredFiles = Patcher.GetErrorFiles();
 				AdvancedCopyLog.NewPage(LOCTEXT("AdvancedCopyPackages_SourceControlErrorsListPage", "Revision Control Errors"));
 			}
 
 			// reporting files with copy errors and filtering successful ones
-			for (const auto& FilenameAndResult : ErroredFiles)
+			for (const TTuple<FString, FString>& Filename : ToCopyAndPatchFiles)
 			{			
-				AdvancedCopyLog.Error(FText::Format(LOCTEXT("AdvancedCopyPackages_CouldNotProcessError", "{0} could not be processed: {1}"), FText::FromString(FilenameAndResult.Key), FText::FromString(*LexToString(FilenameAndResult.Value))));
+				if (ErroredFiles.Contains(Filename.Key))
+				{
+					AdvancedCopyLog.Error(FText::Format(LOCTEXT("AdvancedCopyPackages_CouldNotProcessError", "{0} could not be processed"), FText::FromString(*Filename.Key)));
+					continue;
+				}
+				SuccessfullyCopiedDestinationFiles.Add(Filename.Value);
 			}
 
 			if (SuccessfullyCopiedDestinationFiles.Num() > 0
@@ -2629,6 +2915,250 @@ bool UAssetToolsImpl::AdvancedCopyPackages(const FAdvancedCopyParams& CopyParams
 	}
 	
 	return bResult;
+}
+
+/** Copies a file, patching internal references without performing a de-serialization. This is a blocking operation. returns true on successful copy */
+bool UAssetToolsImpl::PatchCopyPackageFile(const FString& SrcFile, const FString& DstFile, const TMap<FString, FString>& SearchForAndReplace) const
+{
+	FAssetHeaderPatcher::EResult Result = FAssetHeaderPatcher::DoPatch(SrcFile, DstFile, SearchForAndReplace, /* bBespokeSearchInUse */ true);
+	return (Result == FAssetHeaderPatcher::EResult::Success);
+}
+
+TMap<FString, FString> UAssetToolsImpl::GetPatchCopyMappingsForRootRename(
+	const FString& SrcRoot,
+	const FString& DstRoot,
+	const FString& SrcBaseDir,
+	const TArray<TPair<FString, FString>>& SourceAndDestFiles,
+	const TMap<FString, FString>& MountPointReplacements) const
+{
+	TMap<FString, FString> Result;
+	Result.Reserve(6 + SourceAndDestFiles.Num() + MountPointReplacements.Num()); // usually only 3, +6 just in case
+
+	{	// Plugin name patterns
+		FString SrcPath = FPaths::Combine(TEXT("/"), SrcRoot, SrcRoot);
+		FString DstPath = FPaths::Combine(TEXT("/"), DstRoot, SrcRoot);
+
+		FName SrcRootName = *SrcRoot;
+		if (SrcRootName.GetDisplayNameEntry()->GetNameLength() != SrcRoot.Len())
+		{
+			// SrcRoot has a '_$Number' tail, so it looks like a FName
+			// IE: SrcRoot = Src_1
+			FString ShortSrcRoot = SrcRootName.GetPlainNameString(); // Src
+			FString ShortSrcPath = FPaths::Combine(TEXT("/"), SrcRoot, ShortSrcRoot);
+
+			Result.Add(SrcPath + TEXT(".") + ShortSrcRoot, DstPath + TEXT(".") + SrcRoot);	// /Src_1/Src_1.Src -> /Dst/Src_1.Src_1
+			Result.Add(MoveTemp(ShortSrcPath), DstPath);							        // /Src_1/Src       -> /Dst/Src_1
+
+			// Root package patching has a special case for the GameFeatureData file,
+			// Specifically the PrimaryAssetName in it Tag Data inside the Asset Registry.
+			// This is the only place we need the Root -> Root rename so we target that Key inside that file explicitly
+			// with this name decoration which the FAssetHeaderPatcher will use for just this case.
+			Result.Add(TEXT("<GameFeatureData.PrimaryAssetName>") + ShortSrcRoot, DstRoot);	// <GameFeatureData.PrimaryAssetName>Src -> Dst (for matching in specific modes)
+		}
+
+		Result.Add(SrcPath + TEXT(".") + SrcRoot, DstPath + TEXT(".") + SrcRoot);	// /Src/Src.Src -> /Dst/Src.Src
+		Result.Add(MoveTemp(SrcPath), MoveTemp(DstPath));							// /Src/Src     -> /Dst/Src
+		Result.Add(TEXT("<GameFeatureData.PrimaryAssetName>") + SrcRoot, DstRoot);	// <GameFeatureData.PrimaryAssetName>Src -> Dst (for matching in specific modes)
+	}
+
+	const FString SourceContentPath = FPaths::Combine(SrcBaseDir, TEXT("Content"));
+
+	for (const TTuple<FString, FString>& SourceAndDest : SourceAndDestFiles)
+	{
+		const FString& SrcFileName = SourceAndDest.Key;
+
+		if (FPaths::IsUnderDirectory(SrcFileName, SourceContentPath))
+		{
+			if (FStringView RelativePkgPath; FPathViews::TryMakeChildPathRelativeTo(SrcFileName, SourceContentPath, RelativePkgPath))
+			{
+				RelativePkgPath = FPathViews::GetBaseFilenameWithPath(RelativePkgPath); // chop the extension
+				if (RelativePkgPath.Len() > 0 && !RelativePkgPath.EndsWith(TEXT("/")))
+				{
+					Result.Add(FPaths::Combine(TEXT("/"), SrcRoot, RelativePkgPath),
+						       FPaths::Combine(TEXT("/"), DstRoot, RelativePkgPath));
+				}
+			}
+		}
+	}
+
+	// Mount point replacements.
+	// In the case where a project has multiple plugins, they are represented as different package roots (mountpoints)
+	// So a Package my reference an asset, or object in a different mount point.
+	// We tag this information with '<Mountpoint>' so the header patcher can do a partial replacement (instead of the normal complete replacement)
+	// if the mount point is detected.
+	for (const TPair<FString, FString>& MountPair : MountPointReplacements)
+	{
+		Result.Add(TEXT("<Mountpoint>") + MountPair.Key, MountPair.Value);
+	}
+
+	return Result;
+}
+
+TMap<FString, FString> UAssetToolsImpl::GetAdditionalPatchCopyMappings(const TMap<FString, FString>& SourceAndDestPackages) const
+{
+	TMap<FString, FString> Result;
+
+	TStringBuilder<24> ExternalActorsFolderBuilder;
+	ExternalActorsFolderBuilder << FPackagePath::GetExternalActorsFolderName() << TEXT("/");
+	const FStringView ExternalActorsFolder = ExternalActorsFolderBuilder.ToView();
+
+	TStringBuilder<24> ExternalObjectsFolderBuilder;
+	ExternalObjectsFolderBuilder << FPackagePath::GetExternalObjectsFolderName() << TEXT("/");
+	const FStringView ExternalObjectsFolder = ExternalObjectsFolderBuilder.ToView();
+
+	TStringBuilder<NAME_SIZE> NameBuilder;
+	for (const TTuple<FString, FString>& Package : SourceAndDestPackages)
+	{
+		const FString& SrcNameString = Package.Key;
+		const FString& DstNameString = Package.Value;
+
+		FStringView DstPackageName = FPathViews::GetBaseFilename(DstNameString);
+		FStringView SrcPackageName;
+		{
+			FStringView SrcPackageRoot;
+			FStringView SrcPackagePath;
+			if (!ensure(SplitLongPackageName(SrcNameString, SrcPackageRoot, SrcPackagePath, SrcPackageName))
+				|| SrcPackagePath.StartsWith(ExternalActorsFolder)
+				|| SrcPackagePath.StartsWith(ExternalObjectsFolder))
+			{
+				continue;
+			}
+		}
+
+		// Path.ObjectName mapping
+		{
+			NameBuilder.Reset();
+			NameBuilder.Append(SrcNameString);
+			NameBuilder.AppendChar(TEXT('.'));
+			NameBuilder.Append(SrcPackageName);
+			FString SrcObjectName = NameBuilder.ToString();
+
+			NameBuilder.Reset();
+			NameBuilder.Append(DstNameString);
+			NameBuilder.AppendChar(TEXT('.'));
+			NameBuilder.Append(DstPackageName);
+			FString DstObjectName = NameBuilder.ToString();
+			Result.Add(MoveTemp(SrcObjectName), MoveTemp(DstObjectName));
+		}
+
+		// For package names with a '_[0-9]+' suffix: Add a mapping with the suffix stripped but 
+		// maintain the full long path provided.
+		// NameTable entries have this suffix removed and we won't match them otherwise.
+		{
+			int32 SrcNameStrPlainStringLen = EndsWithStrippableNumber(SrcNameString);				// PackageRoot_0/PackagePath_0/PackageName_0
+			if (SrcNameStrPlainStringLen != INDEX_NONE)
+			{
+				FStringView SrcNamePlainString(*SrcNameString, SrcNameStrPlainStringLen);			// PackageRoot_0/PackagePath_0/PackageName
+
+				// It's valid to rename a numbered name to a non-numbered name, 
+				// default to the original name and use the non-numbered name if found later
+				FStringView DstNamePlainString = DstNameString;
+				int32 DstNameStrPlainStringLen = EndsWithStrippableNumber(DstNameString);
+				if (DstNameStrPlainStringLen != INDEX_NONE)
+				{
+					DstNamePlainString.LeftInline(DstNameStrPlainStringLen);
+				}
+				Result.Add(FString(SrcNamePlainString), FString(DstNamePlainString));				// PackageRoot_0/PackagePath_0/PackageName => DstPackageRoot_0/DstPackagePath_0/DstPackageName
+
+				FStringView SrcShortPackageName = FPathViews::GetBaseFilename(SrcNamePlainString);	// PackageName
+				NameBuilder.Reset();
+				NameBuilder.Append(SrcNameString);
+				NameBuilder.AppendChar(TEXT('.'));
+				NameBuilder.Append(SrcShortPackageName);
+				FString SrcPathWithPlainObjectName = NameBuilder.ToString();
+
+				FStringView DstShortPackageName = FPathViews::GetBaseFilename(DstNamePlainString);	// PackageName
+				NameBuilder.Reset();
+				NameBuilder.Append(DstNameString);
+				NameBuilder.AppendChar(TEXT('.'));
+				NameBuilder.Append(DstShortPackageName);
+				FString DstPathWithObjectName = NameBuilder.ToString();
+				Result.Add(MoveTemp(SrcPathWithPlainObjectName), MoveTemp(DstPathWithObjectName));	// PackageRoot_0/PackagePath_0/PackageName_0.PackageName => DstPackageRoot_0/DstPackagePath_0/DstPackageName_0.DstPackageName
+			}
+		}
+
+		// VerseAssetPath mapping used in GatherableTextData
+		// e.g. /localhost/Some/Package/Path/PackageName/PackageObject (note the use of '/' instead of '.' for the top-level Package object)
+		{
+			// Using a constant to avoid pulling in, what would otherwise be, unnecessary dependencies
+			const TCHAR* VerseRoot = TEXT("/localhost");
+
+			NameBuilder.Reset();
+			NameBuilder.Append(VerseRoot);
+			NameBuilder.Append(SrcNameString);
+			NameBuilder.AppendChar(TEXT('/'));
+			NameBuilder.Append(SrcPackageName);
+			FString SrcObjectName = NameBuilder.ToString();
+
+			NameBuilder.Reset();
+			NameBuilder.Append(VerseRoot);
+			NameBuilder.Append(DstNameString);
+			NameBuilder.AppendChar(TEXT('/'));
+			NameBuilder.Append(DstPackageName);
+			FString DstObjectName = NameBuilder.ToString();
+			Result.Add(MoveTemp(SrcObjectName), MoveTemp(DstObjectName));
+		}
+
+		if (SrcPackageName != DstPackageName)
+		{
+			// PackageName (without PackageRoot or PackagePath) mapping (numbered suffix included)
+			{
+				Result.Add({ FString(SrcPackageName), FString(DstPackageName) });
+			}
+
+			// PackageName (without PackageRoot or PackagePath) mapping (numbered suffix excluded)
+			// NameTable entries have this suffix removed and we won't match them otherwise.
+			{
+				int32 SrcPackageNamePlainStringLen = EndsWithStrippableNumber(SrcPackageName);						// PackageName_0
+				if (SrcPackageNamePlainStringLen != INDEX_NONE)
+				{
+					FStringView SrcPlainPackageName(SrcPackageName.GetData(), SrcPackageNamePlainStringLen);
+
+					// It's valid to rename a numbered name to a non-numbered name, 
+					// default to the original name and use the non-numbered name if found later
+					FStringView DstPlainPackageName = DstPackageName;
+					int32 DstPackageNamePlainStringLen = EndsWithStrippableNumber(DstPackageName);
+					if (DstPackageNamePlainStringLen != INDEX_NONE)
+					{
+						DstPlainPackageName = FStringView(DstPackageName.GetData(), DstPackageNamePlainStringLen);
+					}
+					Result.Add(FString(SrcPlainPackageName), FString(DstPlainPackageName));							// PackageName => DstPackageName
+				}
+			}
+
+			// Compiled Blueprint class names
+			{
+				NameBuilder.Reset();
+				NameBuilder.Append(SrcPackageName);
+				NameBuilder.Append(TEXT("_C"));
+				FString SrcBlueprintClassName = NameBuilder.ToString();
+
+				NameBuilder.Reset();
+				NameBuilder.Append(DstPackageName);
+				NameBuilder.Append(TEXT("_C"));
+				FString DstBlueprintClassName = NameBuilder.ToString();
+				Result.Add(MoveTemp(SrcBlueprintClassName), MoveTemp(DstBlueprintClassName));
+			}
+
+			// Blueprint generated class default object
+			{
+				NameBuilder.Reset();
+				NameBuilder.Append(DEFAULT_OBJECT_PREFIX);
+				NameBuilder.Append(SrcPackageName);
+				NameBuilder.Append(TEXT("_C"));
+				FString SrcDefaultGeneratedBlueprintClassName = NameBuilder.ToString();
+
+				NameBuilder.Reset();
+				NameBuilder.Append(DEFAULT_OBJECT_PREFIX);
+				NameBuilder.Append(DstPackageName);
+				NameBuilder.Append(TEXT("_C"));
+				FString DstDefaultGeneratedBlueprintClassName = NameBuilder.ToString();
+				Result.Add(MoveTemp(SrcDefaultGeneratedBlueprintClassName), MoveTemp(DstDefaultGeneratedBlueprintClassName));
+			}
+		}
+	}
+
+	return Result;
 }
 
 bool UAssetToolsImpl::IsDiscoveringAssetsInProgress() const

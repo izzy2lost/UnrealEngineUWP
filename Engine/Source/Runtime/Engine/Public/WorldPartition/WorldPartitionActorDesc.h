@@ -68,7 +68,6 @@ private:
 
 struct FWorldPartitionAssetDataPatcher
 {
-	virtual ~FWorldPartitionAssetDataPatcher() {}
 	virtual bool DoPatch(FString& InOutString) = 0;
 	virtual bool DoPatch(FName& InOutName) = 0;
 	virtual bool DoPatch(FSoftObjectPath& InOutSoft) = 0;
