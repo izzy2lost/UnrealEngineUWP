@@ -12,6 +12,7 @@
 #include "CameraCalibrationUtilsPrivate.h"
 #include "DesktopPlatformModule.h"
 #include "Dom/JsonObject.h"
+#include "EngineAnalytics.h"
 #include "Framework/Application/SlateApplication.h"
 #include "HAL/FileManager.h"
 #include "IDesktopPlatform.h"
@@ -34,6 +35,25 @@ namespace UE::CameraCalibration::Private::LensDistortionTool
 {
 	static const FString SessionDateTimeField(TEXT("SessionDateTime"));
 	static const FString Version(TEXT("Version"));
+}
+
+namespace UE::LensDistortionToolAnalytics
+{
+	void RecordEvent(FLensCaptureSettings CaptureSettings, FLensSolverSettings SolverSettings, int32 DatasetSize)
+	{
+		if (FEngineAnalytics::IsAvailable())
+		{
+			TArray<FAnalyticsEventAttribute> EventAttributes;
+
+			EventAttributes.Add(FAnalyticsEventAttribute(TEXT("Pattern"), *UEnum::GetDisplayValueAsText(CaptureSettings.CalibrationPattern).ToString()));
+			EventAttributes.Add(FAnalyticsEventAttribute(TEXT("IsCameraTracked"), FString::Printf(TEXT("%d"), CaptureSettings.bIsCameraTracked ? 1 : 0)));
+			EventAttributes.Add(FAnalyticsEventAttribute(TEXT("IsCalibratorTracked"), FString::Printf(TEXT("%d"), CaptureSettings.bIsCalibratorTracked ? 1 : 0)));
+			EventAttributes.Add(FAnalyticsEventAttribute(TEXT("SolveNodalOffset"), FString::Printf(TEXT("%d"), SolverSettings.bSolveNodalOffset ? 1 : 0)));
+			EventAttributes.Add(FAnalyticsEventAttribute(TEXT("DatasetSize"), FString::Printf(TEXT("%d"), DatasetSize)));
+
+			FEngineAnalytics::GetProvider().RecordEvent(TEXT("CameraCalibration.DistortionCalibrationStarted"), EventAttributes);
+		}
+	}
 }
 
 void ULensDistortionTool::Initialize(TWeakPtr<FCameraCalibrationStepsController> InCameraCalibrationStepController)
@@ -533,6 +553,8 @@ void ULensDistortionTool::CalibrateLens()
 		FMessageDialog::Open(EAppMsgType::Ok, LOCTEXT("InvalidFocalLengthError", "Please enter a valid estimate for the focal length of the lens (in mm)."), TitleError);
 		return;
 	}
+
+	UE::LensDistortionToolAnalytics::RecordEvent(CaptureSettings, SolverSettings, Dataset.CalibrationRows.Num());
 
 	const FIntPoint ImageSize = LensFile->CameraFeedInfo.GetDimensions();
 

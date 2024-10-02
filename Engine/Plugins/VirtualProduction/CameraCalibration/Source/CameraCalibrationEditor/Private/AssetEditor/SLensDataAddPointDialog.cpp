@@ -5,6 +5,7 @@
 #include "CameraCalibrationSettings.h"
 #include "CameraCalibrationToolkit.h"
 #include "Curves/RichCurve.h"
+#include "EngineAnalytics.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "IDetailChildrenBuilder.h"
 #include "IDetailPropertyRow.h"
@@ -23,6 +24,21 @@
 #include "Widgets/Layout/SSplitter.h"
 
 #define LOCTEXT_NAMESPACE "LensDataAddPointDialog"
+
+namespace UE::LensAddDataAnalytics
+{
+	void RecordEvent(ELensDataCategory Category)
+	{
+		if (FEngineAnalytics::IsAvailable())
+		{
+			TArray<FAnalyticsEventAttribute> EventAttributes;
+
+			EventAttributes.Add(FAnalyticsEventAttribute(TEXT("Category"), *UEnum::GetDisplayValueAsText(Category).ToString()));
+
+			FEngineAnalytics::GetProvider().RecordEvent(TEXT("CameraCalibration.AddLensDataPoint"), EventAttributes);
+		}
+	}
+}
 
 /**
  * Instanced customization used to display the distortion parameters
@@ -235,6 +251,8 @@ FReply SLensDataAddPointDialog::OnAddDataPointClicked()
 	LensFile->Modify();
 
 	AddDataToLensFile();
+
+	UE::LensAddDataAnalytics::RecordEvent(SelectedCategory);
 
 	OnDataPointAdded.ExecuteIfBound();
 
