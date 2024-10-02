@@ -4,7 +4,6 @@
 
 #include "GameFramework/Info.h"
 #include "DaySequenceConditionSet.h"
-#include "DrawDebugHelpers.h"	// Defines ENABLE_DRAW_DEBUG
 #include "IDaySequencePlayer.h"
 #include "IMovieScenePlaybackClient.h"
 #include "MovieSceneBindingOwnerInterface.h"
@@ -14,11 +13,19 @@
 
 #include "DaySequenceActor.generated.h"
 
-namespace EEndPlayReason { enum Type : int; }
-
-#if ENABLE_DRAW_DEBUG
-class AHUD;
+#ifndef ROOT_SEQUENCE_RECONSTRUCTION_ENABLED
+	#define ROOT_SEQUENCE_RECONSTRUCTION_ENABLED WITH_EDITOR
 #endif
+
+#ifndef DAY_SEQUENCE_ENABLE_DRAW_DEBUG
+	#define DAY_SEQUENCE_ENABLE_DRAW_DEBUG !UE_BUILD_SHIPPING
+#endif
+
+#if DAY_SEQUENCE_ENABLE_DRAW_DEBUG
+	class AHUD;
+#endif
+
+namespace EEndPlayReason { enum Type : int; }
 
 class UCurveFloat;
 class UDaySequence;
@@ -33,16 +40,12 @@ class FDebugDisplayInfo;
 struct FDaySequenceCollectionEntry;
 struct FMovieSceneSequencePlaybackSettings;
 
-#ifndef ROOT_SEQUENCE_RECONSTRUCTION_ENABLED
-	#define ROOT_SEQUENCE_RECONSTRUCTION_ENABLED WITH_EDITOR
-#endif
-
 namespace UE::DaySequence
 {
 	struct FStaticTimeContributor;
 	struct FStaticTimeManager;
 
-#if ENABLE_DRAW_DEBUG
+#if DAY_SEQUENCE_ENABLE_DRAW_DEBUG
 	// This provides methods for determining if this debug entry should be shown and for getting a pointer to the debug data.
 	// Anything (Currently only DaySequenceModifierComponents) can submit one of these entries to a DaySequenceActor.
 	// The debug data can be printed in play with the command "showdebug DaySequence" if ShowCondition evaluates to true. 
@@ -287,13 +290,14 @@ public:
 	
 	void InvalidateMuteStates() const;
 	
-#if ENABLE_DRAW_DEBUG
+#if DAY_SEQUENCE_ENABLE_DRAW_DEBUG
 	const FName ShowDebug_GeneralCategory = "DaySequence";
 	const FName ShowDebug_SubSequenceCategory = "DaySequenceSubSequences";
 	
 	DECLARE_EVENT_OneParam(ADaySequenceActor, FOnDebugLevelChanged, int32)
 	FOnDebugLevelChanged& GetOnDebugLevelChanged() { return OnDebugLevelChanged; }
-
+	int32 GetDebugLevel() const { return CachedDebugLevel; }
+	
 	bool IsDebugCategoryRegistered(const FName& Category) const;
 	void RegisterDebugCategory(const FName& Category, UE::DaySequence::FDebugCategoryDrawFunction DrawFunction);
 
@@ -536,7 +540,7 @@ protected:
 	UFUNCTION()
 	void StopDaySequenceUpdateTimer();
 	
-#if ENABLE_DRAW_DEBUG
+#if DAY_SEQUENCE_ENABLE_DRAW_DEBUG
 	void OnShowDebugInfo(AHUD* HUD, UCanvas* Canvas, const FDebugDisplayInfo& DisplayInfo, float& YL, float& YPos);
 
 	// The keys in this map are debug categories. When a debug entry is registered, it is is added

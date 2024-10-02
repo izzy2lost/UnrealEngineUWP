@@ -24,7 +24,7 @@
 #include "UObject/UObjectThreadContext.h" // For FUObjectThreadContext
 #include "ProfilingDebugging/CsvProfiler.h"
 
-#if ENABLE_DRAW_DEBUG
+#if DAY_SEQUENCE_ENABLE_DRAW_DEBUG
 #include "Engine/Engine.h"	// GEngine
 #include "GameFramework/HUD.h"	// AHUD::OnShowDebugInfo
 #include "Engine/Canvas.h"	// UCanvas
@@ -46,13 +46,13 @@ ADaySequenceActor::FOnSubSectionRemovedEvent ADaySequenceActor::OnSubSectionRemo
 
 namespace UE::DaySequence
 {
-#if ENABLE_DRAW_DEBUG
+#if DAY_SEQUENCE_ENABLE_DRAW_DEBUG
 	FDaySequenceDebugEntry::FDaySequenceDebugEntry(FShowDebugDataConditionFunction InShowCondition, FGetDebugDataFunction InGetData)
 	: ShowCondition(InShowCondition)
 	, GetData(InGetData)
 	{}
 	
-	int32 GDaySequenceDebugLevel = 0;
+	int32 GDaySequenceDebugLevel = 2;
 	FAutoConsoleVariableRef CVarDaySequenceActorDebugLevel(
 		TEXT("DaySequence.DebugLevel"),
 		GDaySequenceDebugLevel,
@@ -123,7 +123,7 @@ ADaySequenceActor::ADaySequenceActor(const FObjectInitializer& Init)
 	bReplicatePlayback = true;
 	SetHidden(false);
 	
-#if ENABLE_DRAW_DEBUG
+#if DAY_SEQUENCE_ENABLE_DRAW_DEBUG
 	if (!IsTemplate())
 	{
 		AHUD::OnShowDebugInfo.AddUObject(this, &ADaySequenceActor::OnShowDebugInfo);
@@ -179,7 +179,7 @@ void ADaySequenceActor::Tick(float DeltaTime)
 	}
 #endif
 
-#if ENABLE_DRAW_DEBUG
+#if DAY_SEQUENCE_ENABLE_DRAW_DEBUG
 	if (UE::DaySequence::GDaySequenceDebugLevel != CachedDebugLevel)
 	{
 		OnDebugLevelChanged.Broadcast(UE::DaySequence::GDaySequenceDebugLevel);
@@ -545,13 +545,8 @@ void ADaySequenceActor::InitializeRootSequence()
 #if ROOT_SEQUENCE_RECONSTRUCTION_ENABLED
 	}
 #endif
-	
-	if (GetNetMode() == NM_DedicatedServer)
-	{
-		return;
-	}
 
-#if ENABLE_DRAW_DEBUG
+#if DAY_SEQUENCE_ENABLE_DRAW_DEBUG
 	for (TSharedPtr<UE::DaySequence::FDaySequenceDebugEntry> Entry : SubSectionDebugEntries)
 	{
 		UnregisterDebugEntry(Entry, ShowDebug_SubSequenceCategory);
@@ -559,6 +554,11 @@ void ADaySequenceActor::InitializeRootSequence()
 	
 	SubSectionDebugEntries.Empty();
 #endif
+	
+	if (GetNetMode() == NM_DedicatedServer)
+	{
+		return;
+	}
 	
 #if ROOT_SEQUENCE_RECONSTRUCTION_ENABLED
 	if (bInEditorWorld)
@@ -613,7 +613,7 @@ void ADaySequenceActor::InitializeRootSequence()
 	OnPostInitializeDaySequences.Broadcast(nullptr);
 #endif
 
-#if ENABLE_DRAW_DEBUG
+#if DAY_SEQUENCE_ENABLE_DRAW_DEBUG
 	if (!IsDebugCategoryRegistered(ShowDebug_SubSequenceCategory))
 	{
 		RegisterDebugCategory(ShowDebug_SubSequenceCategory,  OnShowDebugInfoDrawFunction);
@@ -793,7 +793,7 @@ UMovieSceneSubSection* ADaySequenceActor::InitializeDaySequence(const FDaySequen
 		UE_LOG(LogDaySequence, Warning, TEXT("Failed to create UDaySequenceTrack in ADaySequenceActor::InitializeDaySequence"));
 	}
 
-#if ENABLE_DRAW_DEBUG
+#if DAY_SEQUENCE_ENABLE_DRAW_DEBUG
 	if (SubSection)
 	{
         TSharedPtr<TMap<FString, FString>> DebugData = MakeShared<TMap<FString, FString>>();
@@ -803,7 +803,10 @@ UMovieSceneSubSection* ADaySequenceActor::InitializeDaySequence(const FDaySequen
         {
         	if (IsValid(SubSection))
         	{
-        		(*DebugData).FindOrAdd("Actor Name") = GetFName().ToString();
+        		(*DebugData).FindOrAdd("Actor") = GetFName().ToString();
+        		(*DebugData).FindOrAdd("Local Role") = StaticEnum<ENetRole>()->GetNameStringByValue(GetLocalRole());
+        		(*DebugData).FindOrAdd("Remote Role") = StaticEnum<ENetRole>()->GetNameStringByValue(GetRemoteRole());
+        		(*DebugData).FindOrAdd("Authority") = HasAuthority() ? "True" : "False";
         		(*DebugData).FindOrAdd("Sequence Name") = SubSection->GetSequence() ? SubSection->GetSequence()->GetFName().ToString() : "None";
         		(*DebugData).FindOrAdd("Mute State") = SubSection->IsActive() ? "Active" : "Muted";
         		(*DebugData).FindOrAdd("Hierarchical Bias") = FString::Printf(TEXT("%d"), SubSection->Parameters.HierarchicalBias);
@@ -1360,7 +1363,7 @@ FMovieSceneSequencePlaybackSettings ADaySequenceActor::GetPlaybackSettings(const
 	return Settings;
 }
 
-#if ENABLE_DRAW_DEBUG
+#if DAY_SEQUENCE_ENABLE_DRAW_DEBUG
 bool ADaySequenceActor::IsDebugCategoryRegistered(const FName& Category) const
 {
 	return DebugEntries.Find(Category) != nullptr;
@@ -1538,6 +1541,14 @@ void ADaySequenceActor::OnShowDebugInfo(AHUD* HUD, UCanvas* Canvas, const FDebug
 	{
 		return;
 	}
+
+#if WITH_EDITOR
+	// Necessary because we actually get called from a static delegate, so this can be called for editor & PIE actor which obfuscates the data.
+	if (const UWorld* World = GetWorld(); World && World->WorldType == EWorldType::Editor)
+	{
+		return;
+	}
+#endif
 
 	DebugEntries = DebugEntries.FilterByPredicate([](const TPair<FName, TPair<FDebugEntryArray, FDebugCategoryDrawFunction>>& Category) {
 		return !Category.Value.Key.IsEmpty();

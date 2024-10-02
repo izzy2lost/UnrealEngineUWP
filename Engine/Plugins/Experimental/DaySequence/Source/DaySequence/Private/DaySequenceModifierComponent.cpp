@@ -138,25 +138,8 @@ UDaySequenceModifierComponent::UDaySequenceModifierComponent(const FObjectInitia
 	BlendAmount = 100.f;
 	UserBlendWeight = 1.f;
 	InternalBlendWeight = 1.f;
-#if ENABLE_DRAW_DEBUG
+#if DAY_SEQUENCE_ENABLE_DRAW_DEBUG
 	DebugLevel = 0;
-	
-	// This gets captured by a lambda below so should continue living
-	TSharedPtr<TMap<FString, FString>> DebugData = MakeShared<TMap<FString, FString>>();
-	DebugEntry = MakeShared<UE::DaySequence::FDaySequenceDebugEntry>(
-	[this](){ return ShouldShowDebugInfo(); },
-	[this, DebugData]()
-	{
-		(*DebugData).FindOrAdd("Owner Name") = GetOwner()->GetFName().ToString();
-		(*DebugData).FindOrAdd("Component Enabled") = bIsComponentEnabled ? "True" : "False";
-		(*DebugData).FindOrAdd("Modifier Enabled") = bIsEnabled ? "True" : "False";
-		(*DebugData).FindOrAdd("Blend Weight") = FString::Printf(TEXT("%.5f"), GetBlendWeight());
-
-		const APlayerController* BlendTarget = WeakBlendTarget.Get();
-		(*DebugData).FindOrAdd("Blend Target" ) = BlendTarget ? BlendTarget->GetName() : "None";
-
-		return DebugData;
-	});
 #endif
 	
 	PrimaryComponentTick.bCanEverTick = false;
@@ -347,13 +330,34 @@ void UDaySequenceModifierComponent::BindToDaySequenceActor(ADaySequenceActor* Da
 		
 		DaySequenceActor->GetOnPostInitializeDaySequences().AddUObject(this, &UDaySequenceModifierComponent::ReinitializeSubSequence);
 		DaySequenceActor->GetOnDaySequenceUpdate().AddUObject(this, &UDaySequenceModifierComponent::DaySequenceUpdate);
-#if ENABLE_DRAW_DEBUG
+#if DAY_SEQUENCE_ENABLE_DRAW_DEBUG
 		if (!DaySequenceActor->IsDebugCategoryRegistered(ShowDebug_ModifierCategory))
 		{
 			DaySequenceActor->RegisterDebugCategory(ShowDebug_ModifierCategory, TargetActor->OnShowDebugInfoDrawFunction);
 		}
 		
 		DaySequenceActor->GetOnDebugLevelChanged().AddUObject(this, &UDaySequenceModifierComponent::OnDebugLevelChanged);
+		DebugLevel = DaySequenceActor->GetDebugLevel();
+	
+		// This gets captured by a lambda below so should continue living
+		TSharedPtr<TMap<FString, FString>> DebugData = MakeShared<TMap<FString, FString>>();
+		DebugEntry = MakeShared<UE::DaySequence::FDaySequenceDebugEntry>(
+		[this](){ return ShouldShowDebugInfo(); },
+		[this, DebugData]()
+		{
+			(*DebugData).FindOrAdd("Actor") = GetOwner()->GetFName().ToString();
+			(*DebugData).FindOrAdd("Local Role") = StaticEnum<ENetRole>()->GetNameStringByValue(GetOwner()->GetLocalRole());
+			(*DebugData).FindOrAdd("Remote Role") = StaticEnum<ENetRole>()->GetNameStringByValue(GetOwner()->GetRemoteRole());
+			(*DebugData).FindOrAdd("Component Enabled") = bIsComponentEnabled ? "True" : "False";
+			(*DebugData).FindOrAdd("Modifier Enabled") = bIsEnabled ? "True" : "False";
+			(*DebugData).FindOrAdd("Blend Weight") = FString::Printf(TEXT("%.5f"), GetBlendWeight());
+
+			const APlayerController* BlendTarget = WeakBlendTarget.Get();
+			(*DebugData).FindOrAdd("Blend Target" ) = BlendTarget ? BlendTarget->GetName() : "None";
+
+			return DebugData;
+		});
+		
 		DaySequenceActor->RegisterDebugEntry(DebugEntry, ShowDebug_ModifierCategory);
 #endif
 	}
@@ -373,9 +377,10 @@ void UDaySequenceModifierComponent::UnbindFromDaySequenceActor()
 	{
 		TargetActor->GetOnPostInitializeDaySequences().RemoveAll(this);
 		TargetActor->GetOnDaySequenceUpdate().RemoveAll(this);
-#if ENABLE_DRAW_DEBUG
+#if DAY_SEQUENCE_ENABLE_DRAW_DEBUG
 		TargetActor->GetOnDebugLevelChanged().RemoveAll(this);
 		TargetActor->UnregisterDebugEntry(DebugEntry, ShowDebug_ModifierCategory);
+		DebugEntry.Reset();
 #endif
 		TargetActor = nullptr;
 	}
@@ -406,7 +411,7 @@ void UDaySequenceModifierComponent::RemoveSubSequenceTrack()
 	}
 	SubSections.Empty();
 
-#if ENABLE_DRAW_DEBUG
+#if DAY_SEQUENCE_ENABLE_DRAW_DEBUG
 	if (TargetActor)
 	{
 		for (TSharedPtr<UE::DaySequence::FDaySequenceDebugEntry> Entry : SubSectionDebugEntries)
@@ -665,7 +670,7 @@ void UDaySequenceModifierComponent::ReinitializeSubSequence(ADaySequenceActor::F
 	}
 #endif
 	
-#if ENABLE_DRAW_DEBUG
+#if DAY_SEQUENCE_ENABLE_DRAW_DEBUG
 	if (TargetActor)
 	{
 		if (!TargetActor->IsDebugCategoryRegistered(TargetActor->ShowDebug_SubSequenceCategory))
@@ -800,16 +805,19 @@ UMovieSceneSubSection* UDaySequenceModifierComponent::InitializeDaySequence(cons
 	OnInvalidateMuteStates.AddWeakLambda(SubSection, SetSubTrackMuteState);
 	TargetActor->BindToConditionCallbacks(this, Entry.Conditions.Conditions, [this]() { InvalidateMuteStates(); });
 	
-#if ENABLE_DRAW_DEBUG
+#if DAY_SEQUENCE_ENABLE_DRAW_DEBUG	
 	// This gets captured by a lambda below so should continue living
 	TSharedPtr<TMap<FString, FString>> DebugData = MakeShared<TMap<FString, FString>>();
 	SubSectionDebugEntries.Emplace(MakeShared<UE::DaySequence::FDaySequenceDebugEntry>(
-	[this](){ return true; },
+	[this](){ return ShouldShowDebugInfo(); },
 	[this, DebugData, SubSection]()
 	{
 		if (IsValid(SubSection))
 		{
-			(*DebugData).FindOrAdd("Owner Name") = GetOwner()->GetFName().ToString();
+			(*DebugData).FindOrAdd("Actor") = GetOwner()->GetFName().ToString();
+			(*DebugData).FindOrAdd("Local Role") = StaticEnum<ENetRole>()->GetNameStringByValue(GetOwner()->GetLocalRole());
+			(*DebugData).FindOrAdd("Remote Role") = StaticEnum<ENetRole>()->GetNameStringByValue(GetOwner()->GetRemoteRole());
+			(*DebugData).FindOrAdd("Authority") = GetOwner()->HasAuthority() ? "True" : "False";
 			(*DebugData).FindOrAdd("Sequence Name") = SubSection->GetSequence() ? SubSection->GetSequence()->GetFName().ToString() : "None";
 			(*DebugData).FindOrAdd("Mute State") = SubSection->IsActive() ? "Active" : "Muted";
 			(*DebugData).FindOrAdd("Hierarchical Bias") = FString::Printf(TEXT("%d"), SubSection->Parameters.HierarchicalBias);
@@ -1075,7 +1083,7 @@ void UDaySequenceModifierComponent::InvalidateMuteStates() const
 	OnInvalidateMuteStates.Broadcast();
 }
 
-#if ENABLE_DRAW_DEBUG
+#if DAY_SEQUENCE_ENABLE_DRAW_DEBUG
 void UDaySequenceModifierComponent::OnDebugLevelChanged(int32 InDebugLevel)
 {
 	DebugLevel = InDebugLevel;
@@ -1083,6 +1091,11 @@ void UDaySequenceModifierComponent::OnDebugLevelChanged(int32 InDebugLevel)
 
 bool UDaySequenceModifierComponent::ShouldShowDebugInfo() const
 {
+	if (!TargetActor || TargetActor->GetNetMode() == NM_DedicatedServer)
+	{
+		return false;
+	}
+	
 	switch (DebugLevel)
 	{
 	case 0: return false;
