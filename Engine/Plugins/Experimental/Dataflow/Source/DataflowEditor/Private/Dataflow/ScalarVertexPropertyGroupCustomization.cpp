@@ -20,5 +20,3 @@ namespace UE::Dataflow
 		return GET_MEMBER_NAME_CHECKED(FDataflowCollectionAddScalarVertexPropertyNode, Collection);
 	}
 }  // End namespace UE::Chaos::ClothAsset
-
-#undef LOCTEXT_NAMESPACE
