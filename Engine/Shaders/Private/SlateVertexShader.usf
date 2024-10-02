@@ -39,10 +39,6 @@ VertexToPixelInterpolants Main(
 	VertexParameters.WorldPosition = WorldPosition.xyz;
 
 	VertexParameters.VertexColor = VOut.Color;
-
-	// Init primitive flags to a good default.
-	VertexParameters.SceneData.Primitive.Flags = GetDefaultPrimitiveSceneDataFlags();
-	VertexParameters.SceneData.Primitive.VisibilityFlags = GetDefaultPrimitiveVisibilityFlags();
 	VertexParameters.LWCData = MakeMaterialLWCData(VertexParameters);
 
 	bool bCalledEvaluateVertexMaterialAttributes = false;
@@ -120,7 +116,7 @@ VertexToPixelInterpolants Main(
 	}
 #endif
 
-	WorldPosition.xyz = GetMaterialWorldPositionOffset(VertexParameters);
+	WorldPosition.xyz = GetMaterialWorldPositionOffsetRaw(VertexParameters);
 #endif
 
 #endif // USE_MATERIALS
