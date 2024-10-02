@@ -983,6 +983,25 @@ int32 GetMultiprocessId()
 #endif
 }
 
+int GIsUsingZenPakFileStreaming = -1;
+
+bool IsUsingZenPakFileStreaming()
+{
+	if (GIsUsingZenPakFileStreaming == -1)
+	{
+		if (FParse::Param(FCommandLine::Get(), TEXT("ZenPak")))
+		{
+			GIsUsingZenPakFileStreaming = 1;
+		}
+		else
+		{
+			GIsUsingZenPakFileStreaming = 0;
+		}
+	}
+
+	return GIsUsingZenPakFileStreaming == 1;
+}
+
 }
 
 namespace UE::Private

@@ -3,6 +3,7 @@
 #include "InstallBundleSourceBulk.h"
 
 #include "DefaultInstallBundleManagerPrivate.h"
+#include "HAL/PlatformFileManager.h"
 #include "HAL/PlatformFile.h"
 #include "IPlatformFilePak.h"
 #include "InstallBundleManagerUtil.h"
@@ -270,13 +271,13 @@ void FInstallBundleSourceBulk::AsyncInit_MakeBundlesForBulkBuild()
 		
 		for (const FString& SearchDir : PakSearchDirs)
 		{
-			IPlatformFile::GetPlatformPhysical().FindFilesRecursively(*FoundFiles, *SearchDir, FileExtension);
+			FPlatformFileManager::Get().GetPlatformPhysical().FindFilesRecursively(*FoundFiles, *SearchDir, FileExtension);
 		}
 
 #if PLATFORM_IOS
 		// Only scan the root folder on IOS for shaderlibs.  Running this on windows is very expensive
 		// if the content dir contains loose assets which is common during development.
-		IPlatformFile::GetPlatformPhysical().FindFiles(*FoundFiles, *ContentDir, TEXT(".metallib"));
+		FPlatformFileManager::Get().GetPlatformPhysical().FindFiles(*FoundFiles, *ContentDir, TEXT(".metallib"));
 #endif // PLATFORM_IOS
 	},
 	[this, FoundFiles]()

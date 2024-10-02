@@ -1936,7 +1936,7 @@ FString FGenericPlatformMisc::LoadTextFileFromPlatformPackage(const FString& Rel
 {
 	FString Path = RootDir() / RelativePath;
 	FString Result;
-	if (FFileHelper::LoadFileToString(Result, &IPlatformFile::GetPlatformPhysical(), *Path))
+	if (FFileHelper::LoadFileToString(Result, &FPlatformFileManager::Get().GetPlatformPhysical(), *Path))
 	{
 		return Result;
 	}

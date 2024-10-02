@@ -3860,7 +3860,7 @@ public:
 		UE_LOG(LogPakFile, VeryVerbose, TEXT("FPakPlatformFile::OpenAsyncRead (FBypassPakAsyncReadFileHandle)[%016llX, %016llX) %s"), OffsetInPak, OffsetInPak + CompressedFileSize, Filename);
 		check(PakFileSize > 0 && OffsetInPak + CompressedFileSize <= PakFileSize && OffsetInPak >= 0);
 
-		LowerHandle = IPlatformFile::GetPlatformPhysical().OpenAsyncRead(*InPakFile->GetFilename());
+		LowerHandle = FPlatformFileManager::Get().GetPlatformPhysical().OpenAsyncRead(*InPakFile->GetFilename());
 	}
 	~FBypassPakAsyncReadFileHandle()
 	{

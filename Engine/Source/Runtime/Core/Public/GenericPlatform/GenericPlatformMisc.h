@@ -1265,8 +1265,6 @@ public:
 	 */
 	static CORE_API IPlatformCompression* GetPlatformCompression();
 
-	static CORE_API IWrappedFileHandle* CreateCompressedPlatformFileHandle(IFileHandle* InLowerLevelHandle);
-
 	/**
 	 * Returns the platform specific interface for communication with processes running on the host pc.
 	 * 
