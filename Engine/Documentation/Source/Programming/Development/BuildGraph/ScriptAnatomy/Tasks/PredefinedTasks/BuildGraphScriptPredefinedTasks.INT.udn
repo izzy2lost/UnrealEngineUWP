@@ -228,6 +228,7 @@ Spawns Docker and waits for it to complete.
 | DockerFile       | String    | Optional | Path to the Dockerfile. Uses the root of basedir if not specified.                                             |
 | DockerIgnoreFile | String    | Optional | Path to a .dockerignore. Will be copied to basedir if specified.                                               |
 | UseBuildKit      | Boolean   | Optional | Use BuildKit in Docker                                                                                         |
+| Ulimit           | String    | Optional | Set ulimit in build                                                                                            |
 | ProgressOutput   | String    | Optional | Type of progress output (--progress)                                                                           |
 | Tag              | String    | Optional | Tag for the image                                                                                              |
 | Target           | String    | Optional | Set the target build stage to build (--target)                                                                 |
