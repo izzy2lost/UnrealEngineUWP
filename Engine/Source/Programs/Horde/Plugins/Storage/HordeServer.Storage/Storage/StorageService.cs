@@ -376,6 +376,12 @@ namespace HordeServer.Storage
 			public List<GcNamespaceState> Namespaces { get; set; } = new List<GcNamespaceState>();
 			public bool Reset { get; set; }
 
+			public void DoReset()
+			{
+				LastImportBlobInfoId = ObjectId.Empty;
+				Reset = false;
+			}
+
 			public GcNamespaceState FindOrAddNamespace(NamespaceId namespaceId)
 			{
 				GcNamespaceState? namespaceState = Namespaces.FirstOrDefault(x => x.Id == namespaceId);
@@ -728,15 +734,6 @@ namespace HordeServer.Storage
 			using TelemetrySpan span = _tracer.StartActiveSpan($"{nameof(StorageService)}.{nameof(TickBlobsAsync)}");
 
 			GcState gcState = await _gcState.GetAsync(cancellationToken);
-			if (gcState.Reset)
-			{
-				_logger.LogInformation("Resetting scan for new blobs...");
-				gcState = await _gcState.UpdateAsync(x =>
-				{
-					x.Reset = false;
-					x.LastImportBlobInfoId = ObjectId.Empty;
-				}, cancellationToken);
-			}
 
 			DateTime ingestTimeUtc = _clock.UtcNow - TimeSpan.FromMinutes(30.0);
 
@@ -747,8 +744,15 @@ namespace HordeServer.Storage
 
 			// Compute missing import info, by searching for blobs with an ObjectId timestamp after the last import compute cycle
 			ObjectId latestInfoId = ObjectId.GenerateNewId(ingestTimeUtc);
-			while (!gcState.Reset)
+			for(; ;)
 			{
+				// Check for the reset flag being set
+				if (gcState.Reset)
+				{
+					_logger.LogInformation("Resetting scan for new blobs...");
+					gcState = await _gcState.UpdateAsync(x => x.DoReset(), cancellationToken);
+				}
+
 				// Fetch the next batch of blobs
 				List<BlobInfo> current = await _blobCollection.Find(x => x.Id > gcState.LastImportBlobInfoId && x.Id < latestInfoId).SortBy(x => x.Id).Limit(500).ToListAsync(cancellationToken);
 				if (current.Count == 0)
