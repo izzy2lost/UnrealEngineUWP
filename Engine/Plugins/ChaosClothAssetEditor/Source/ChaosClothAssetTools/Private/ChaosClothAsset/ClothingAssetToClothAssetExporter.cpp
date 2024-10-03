@@ -11,7 +11,7 @@
 #include "ToDynamicMesh.h"
 #include "Engine/SkinnedAssetCommon.h"
 #include "Engine/SkeletalMesh.h"
-#include "GeometryCollection/ManagedArraycollection.h"
+#include "GeometryCollection/ManagedArrayCollection.h"
 #include "Materials/Material.h"
 #include "Misc/MessageDialog.h"
 #include "ClothingAsset.h"

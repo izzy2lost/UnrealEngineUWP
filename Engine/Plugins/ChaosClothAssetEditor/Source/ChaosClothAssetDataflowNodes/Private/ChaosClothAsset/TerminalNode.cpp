@@ -5,7 +5,7 @@
 #include "ChaosClothAsset/ClothCollectionGroup.h"
 #include "ChaosClothAsset/ClothDataflowTools.h"
 #include "ChaosClothAsset/ClothGeometryTools.h"
-#include "ChaosClothAsset/ClothLODTransitionDataCache.h"
+#include "ChaosClothAsset/ClothLodTransitionDataCache.h"
 #include "ChaosClothAsset/CollectionClothFacade.h"
 #include "ChaosClothAsset/CollectionClothSelectionFacade.h"
 #include "Animation/Skeleton.h"
