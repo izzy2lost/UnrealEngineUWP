@@ -51,6 +51,8 @@ public:
 
 		DefaultMaterial = Cast<UMaterial>(StaticLoadObject(UMaterial::StaticClass(), NULL, TEXT("/Engine/BasicShapes/BasicShapeMaterial")));
 		VertexMaterial = Cast<UMaterial>(StaticLoadObject(UMaterial::StaticClass(), NULL, TEXT("/Engine/EditorMaterials/Dataflow/DataflowVertexMaterial")));
+		DefaultTwoSidedMaterial = Cast<UMaterial>(StaticLoadObject(UMaterial::StaticClass(), NULL, TEXT("/Engine/EditorMaterials/Dataflow/DataflowTwoSidedVertexMaterial")));
+
 		FSlateStyleRegistry::RegisterSlateStyle(*this);
 	}
 
@@ -63,6 +65,7 @@ public:
 	/** Default Rendering Material for Mesh surfaces */
 	UMaterial* DefaultMaterial = nullptr;
 	UMaterial* VertexMaterial = nullptr;
+	UMaterial* DefaultTwoSidedMaterial = nullptr;
 
 
 public:
