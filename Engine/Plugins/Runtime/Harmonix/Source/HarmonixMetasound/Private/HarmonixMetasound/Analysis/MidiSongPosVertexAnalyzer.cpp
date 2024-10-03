@@ -59,6 +59,7 @@ namespace HarmonixMetasound::Analysis
 		TSharedPtr<const FSongMapChain> MapChain = History->GetLatestMapsForProducer();
 
 		if (!MapChain->SongMaps || Clock.GetSongMapsChangedInBlock() ||
+			(LastClock.IsValid() && LastClock != Clock.AsWeak()) ||
 			Clock.GetFirstTickInLoop() != MapChain->FirstTickInLoop ||
 			Clock.GetLoopLengthTicks() != MapChain->LoopLengthTicks)
 		{
@@ -72,6 +73,8 @@ namespace HarmonixMetasound::Analysis
 			// could follow.)
 			History->UpdateMaps(Maps, Clock.GetFirstTickInLoop(), Clock.GetLoopLengthTicks());
 		}
+
+		LastClock = Clock.AsWeak();
 
 		LastMidiClockSongPos->CurrentSpeed = Clock.GetSpeedAtEndOfBlock();
 		LastMidiClockSongPos->CurrentTransportState = Clock.GetTransportStateAtStartOfBlock();
