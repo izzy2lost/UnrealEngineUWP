@@ -220,6 +220,8 @@ void USceneCaptureComponent::PostLoad()
 	{
 		RegisterDelegates();
 	}
+
+	UpdateShowFlags();
 }
 
 const TArray<FEngineShowFlagsSetting>& USceneCaptureComponent::GetShowFlagSettings() const
