@@ -752,9 +752,19 @@ void FDetailCategoryImpl::Tick(float DeltaTime)
 
 void FDetailCategoryImpl::RefreshTree(bool bRefilterCategory)
 {
-	bPendingRefresh = true;
-	bPendingRefreshNeedsRefilter = bRefilterCategory;
-	AddTickableNode(*this);
+	TSharedPtr<FDetailLayoutBuilderImpl> ParentLayout = GetParentLayoutImpl();
+
+	// If this is an external property node, refresh it directly since external objects' detail layout builder don't get ticked.
+	if (ParentLayout.IsValid() && ParentLayout->IsLayoutForExternalRoot())
+	{
+		RefreshTreeInternal(bRefilterCategory);
+	}
+	else
+	{
+		bPendingRefresh = true;
+		bPendingRefreshNeedsRefilter = bRefilterCategory;
+		AddTickableNode(*this);
+	}
 }
 
 void FDetailCategoryImpl::RefreshTreeInternal(bool bRefilterCategory)
