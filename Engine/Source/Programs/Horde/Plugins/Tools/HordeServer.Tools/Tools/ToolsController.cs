@@ -62,7 +62,7 @@ namespace HordeServer.Tools
 			}
 
 			IStorageBackend storageBackend = tool.GetStorageBackend();
-			return await StorageController.WriteBlobAsync(storageBackend, request, cancellationToken);
+			return await StorageController.WriteBlobAsync(storageBackend, null, request, cancellationToken);
 		}
 
 		/// <summary>

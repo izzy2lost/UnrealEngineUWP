@@ -105,17 +105,42 @@ namespace HordeServer.Storage
 				return Forbid(StorageAclAction.WriteBlobs, namespaceId);
 			}
 
-			return await WriteBlobAsync(storageBackend, request, cancellationToken);
+			return await WriteBlobAsync(storageBackend, null, request, cancellationToken);
+		}
+
+		/// <summary>
+		/// Uploads data to the storage service using a client-determined path.
+		/// </summary>
+		/// <param name="namespaceId">Namespace to fetch from</param>
+		/// <param name="request">Information about the blob to write</param>
+		/// <param name="locator">Location for the blob</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
+		[HttpPut]
+		[Route("/api/v1/storage/{namespaceId}/blobs/{*locator}")]
+		public async Task<ActionResult<WriteBlobResponse>> WriteBlobAsync(NamespaceId namespaceId, BlobLocator locator, WriteBlobRequest request, CancellationToken cancellationToken = default)
+		{
+			IStorageBackend? storageBackend = _storageService.TryCreateBackend(namespaceId);
+			if (storageBackend == null)
+			{
+				return NotFound(namespaceId);
+			}
+			if (!Authorize(namespaceId, StorageAclAction.WriteBlobs) && !HasPathClaim(User, HordeClaimTypes.WriteNamespace, namespaceId, request.Prefix ?? String.Empty))
+			{
+				return Forbid(StorageAclAction.WriteBlobs, namespaceId);
+			}
+
+			return await WriteBlobAsync(storageBackend, locator, request, cancellationToken);
 		}
 
 		/// <summary>
 		/// Writes a blob to storage. Exposed as a public utility method to allow other routes with their own authentication methods to wrap their own authentication/redirection.
 		/// </summary>
 		/// <param name="storageBackend">The backend to write to</param>
+		/// <param name="locator">Locator for the blob to write</param>
 		/// <param name="request">Information about the blob to write</param>
 		/// <param name="cancellationToken">Cancellation token</param>
 		/// <returns>Information about the written blob, or redirect information</returns>
-		public static async Task<ActionResult<WriteBlobResponse>> WriteBlobAsync(IStorageBackend storageBackend, WriteBlobRequest request, CancellationToken cancellationToken = default)
+		public static async Task<ActionResult<WriteBlobResponse>> WriteBlobAsync(IStorageBackend storageBackend, BlobLocator? locator, WriteBlobRequest request, CancellationToken cancellationToken = default)
 		{
 			IReadOnlyCollection<BlobLocator> imports = request.Imports ?? (IReadOnlyCollection<BlobLocator>)Array.Empty<BlobLocator>();
 			if (request.File == null)
@@ -131,8 +156,15 @@ namespace HordeServer.Storage
 			else
 			{
 				using Stream stream = request.File.OpenReadStream();
-				BlobLocator locator = await storageBackend.WriteBlobAsync(stream, imports, request.Prefix, cancellationToken);
-				return new WriteBlobResponse { Blob = locator.ToString(), SupportsRedirects = storageBackend.SupportsRedirects };
+				if (locator == null)
+				{
+					locator = await storageBackend.WriteBlobAsync(stream, imports, request.Prefix, cancellationToken);
+				}
+				else
+				{
+					await storageBackend.WriteBlobAsync(locator.Value, stream, imports, cancellationToken);
+				}
+				return new WriteBlobResponse { Blob = locator.ToString()!, SupportsRedirects = storageBackend.SupportsRedirects };
 			}
 		}
 

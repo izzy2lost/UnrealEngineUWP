@@ -127,7 +127,7 @@ namespace HordeServer.Logs
 			request.Prefix = $"{log.RefName}";
 
 			IStorageBackend storageBackend = _storageService.CreateBackend(log.NamespaceId);
-			return await StorageController.WriteBlobAsync(storageBackend, request, cancellationToken);
+			return await StorageController.WriteBlobAsync(storageBackend, null, request, cancellationToken);
 		}
 
 		/// <summary>

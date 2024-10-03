@@ -65,10 +65,20 @@ namespace EpicGames.Horde.Storage.Backends
 		}
 
 		/// <inheritdoc/>
+		public async Task WriteBlobAsync(BlobLocator locator, Stream stream, IReadOnlyCollection<BlobLocator>? imports, CancellationToken cancellationToken = default)
+		{
+			byte[] data = await stream.ReadAllBytesAsync(cancellationToken);
+			if (!_blobs.TryAdd(locator, data))
+			{
+				throw new InvalidOperationException($"Locator {locator} has already been written");
+			}
+		}
+
+		/// <inheritdoc/>
 		public async Task<BlobLocator> WriteBlobAsync(Stream stream, IReadOnlyCollection<BlobLocator>? imports, string? prefix = null, CancellationToken cancellationToken = default)
 		{
 			BlobLocator locator = StorageHelpers.CreateUniqueLocator(prefix);
-			_blobs[locator] = await stream.ReadAllBytesAsync(cancellationToken);
+			await WriteBlobAsync(locator, stream, imports, cancellationToken);
 			return locator;
 		}
 
@@ -77,7 +87,11 @@ namespace EpicGames.Horde.Storage.Backends
 			=> default;
 
 		/// <inheritdoc/>
-		public ValueTask<(BlobLocator, Uri)?> TryGetBlobWriteRedirectAsync(IReadOnlyCollection<BlobLocator>? imports = null, string? prefix = null, CancellationToken cancellationToken = default)
+		public ValueTask<Uri?> TryGetBlobWriteRedirectAsync(BlobLocator locator, IReadOnlyCollection<BlobLocator> imports, CancellationToken cancellationToken = default)
+			=> default;
+
+		/// <inheritdoc/>
+		public ValueTask<(BlobLocator, Uri)?> TryGetBlobWriteRedirectAsync(IReadOnlyCollection<BlobLocator> imports, string? prefix = null, CancellationToken cancellationToken = default)
 			=> default;
 
 		#endregion

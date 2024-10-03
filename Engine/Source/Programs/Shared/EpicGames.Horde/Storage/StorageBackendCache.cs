@@ -133,8 +133,14 @@ namespace EpicGames.Horde.Storage
 			public Task<BlobLocator> WriteBlobAsync(Stream stream, IReadOnlyCollection<BlobLocator> imports, string? prefix = null, CancellationToken cancellationToken = default) 
 				=> _inner.WriteBlobAsync(stream, imports, prefix, cancellationToken);
 
+			public Task WriteBlobAsync(BlobLocator locator, Stream stream, IReadOnlyCollection<BlobLocator> imports, CancellationToken cancellationToken = default)
+				=> _inner.WriteBlobAsync(locator, stream, imports, cancellationToken);
+
 			public ValueTask<Uri?> TryGetBlobReadRedirectAsync(BlobLocator locator, CancellationToken cancellationToken = default) 
 				=> _inner.TryGetBlobReadRedirectAsync(locator, cancellationToken);
+
+			public ValueTask<Uri?> TryGetBlobWriteRedirectAsync(BlobLocator locator, IReadOnlyCollection<BlobLocator> imports, CancellationToken cancellationToken = default)
+				=> _inner.TryGetBlobWriteRedirectAsync(locator, imports, cancellationToken);
 
 			public ValueTask<(BlobLocator, Uri)?> TryGetBlobWriteRedirectAsync(IReadOnlyCollection<BlobLocator> imports, string? prefix = null, CancellationToken cancellationToken = default) 
 				=> _inner.TryGetBlobWriteRedirectAsync(imports, prefix, cancellationToken);

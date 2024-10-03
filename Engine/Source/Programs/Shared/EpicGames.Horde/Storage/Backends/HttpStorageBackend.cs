@@ -137,13 +137,21 @@ namespace EpicGames.Horde.Storage.Backends
 		}
 
 		/// <inheritdoc/>
-		public async Task<BlobLocator> WriteBlobAsync(Stream stream, IReadOnlyCollection<BlobLocator>? imports, string? prefix = null, CancellationToken cancellationToken = default)
+		public Task WriteBlobAsync(BlobLocator locator, Stream stream, IReadOnlyCollection<BlobLocator>? imports, CancellationToken cancellationToken = default)
+			=> WriteBlobAsync(locator, stream, imports, null, cancellationToken);
+
+		/// <inheritdoc/>
+		public Task<BlobLocator> WriteBlobAsync(Stream stream, IReadOnlyCollection<BlobLocator>? imports, string? prefix = null, CancellationToken cancellationToken = default)
+			=> WriteBlobAsync(null, stream, imports, prefix, cancellationToken);
+
+		/// <inheritdoc/>
+		public async Task<BlobLocator> WriteBlobAsync(BlobLocator? locator, Stream stream, IReadOnlyCollection<BlobLocator>? imports, string? prefix = null, CancellationToken cancellationToken = default)
 		{
 			using StreamContent streamContent = new StreamContent(stream);
 
 			if (_supportsUploadRedirects)
 			{
-				WriteBlobResponse redirectResponse = await SendWriteRequestAsync(null, imports, prefix, cancellationToken);
+				WriteBlobResponse redirectResponse = await SendWriteRequestAsync(locator, null, imports, prefix, cancellationToken);
 				if (redirectResponse.UploadUrl != null)
 				{
 					using HttpClient uploadRedirectClient = _createUploadRedirectClient();
@@ -159,17 +167,19 @@ namespace EpicGames.Horde.Storage.Backends
 				}
 			}
 
-			WriteBlobResponse response = await SendWriteRequestAsync(streamContent, imports, prefix, cancellationToken);
+			WriteBlobResponse response = await SendWriteRequestAsync(null, streamContent, imports, prefix, cancellationToken);
 			_supportsUploadRedirects = response.SupportsRedirects ?? false;
 			_logger.LogDebug("Written {Locator} (direct)", response.Blob);
 			return new BlobLocator(response.Blob);
 		}
 
-		async Task<WriteBlobResponse> SendWriteRequestAsync(StreamContent? streamContent, IReadOnlyCollection<BlobLocator>? imports = null, string? prefix = null, CancellationToken cancellationToken = default)
+		async Task<WriteBlobResponse> SendWriteRequestAsync(BlobLocator? locator, StreamContent? streamContent, IReadOnlyCollection<BlobLocator>? imports = null, string? prefix = null, CancellationToken cancellationToken = default)
 		{
 			using (HttpClient httpClient = _createClient())
 			{
-				using (HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Post, $"{_basePath}/blobs"))
+				using (HttpRequestMessage request = (locator != null)
+					? new HttpRequestMessage(HttpMethod.Put, $"{_basePath}/blobs/{locator.Value}")
+					: new HttpRequestMessage(HttpMethod.Post, $"{_basePath}/blobs"))
 				{
 					using MultipartFormDataContent form = new MultipartFormDataContent();
 					if (streamContent != null)
@@ -215,11 +225,25 @@ namespace EpicGames.Horde.Storage.Backends
 		}
 
 		/// <inheritdoc/>
+		public async ValueTask<Uri?> TryGetBlobWriteRedirectAsync(BlobLocator locator, IReadOnlyCollection<BlobLocator> imports, CancellationToken cancellationToken = default)
+		{
+			if (_supportsUploadRedirects)
+			{
+				WriteBlobResponse redirectResponse = await SendWriteRequestAsync(locator, null, imports, null, cancellationToken);
+				if (redirectResponse.UploadUrl != null)
+				{
+					return redirectResponse.UploadUrl;
+				}
+			}
+			return null;
+		}
+
+		/// <inheritdoc/>
 		public async ValueTask<(BlobLocator, Uri)?> TryGetBlobWriteRedirectAsync(IReadOnlyCollection<BlobLocator>? imports = null, string? prefix = null, CancellationToken cancellationToken = default)
 		{
 			if (_supportsUploadRedirects)
 			{
-				WriteBlobResponse redirectResponse = await SendWriteRequestAsync(null, imports, prefix, cancellationToken);
+				WriteBlobResponse redirectResponse = await SendWriteRequestAsync(null, null, imports, prefix, cancellationToken);
 				if (redirectResponse.UploadUrl != null)
 				{
 					return (new BlobLocator(redirectResponse.Blob), redirectResponse.UploadUrl);
