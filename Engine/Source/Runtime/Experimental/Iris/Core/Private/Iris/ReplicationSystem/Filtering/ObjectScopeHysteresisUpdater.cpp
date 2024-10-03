@@ -85,7 +85,7 @@ void FObjectScopeHysteresisUpdater::Update(uint8 FramesSinceLastUpdate, TArray<F
 	TArray<FInternalNetRefIndex, TInlineAllocator<32>> ObjectsToRemoveFromUpdate;
 
 	const WordType* LocalIndicesData = UsedLocalIndices.GetData();
-	for (FLocalIndex ObjectIt = 0, ObjectEndIt = MaxLocalIndex, IndexOffset = 0; ObjectIt < ObjectEndIt; ObjectIt += WordBitCount, ++LocalIndicesData, IndexOffset += 32U)
+	for (FLocalIndex ObjectIt = 0, ObjectEndIt = UsedLocalIndices.GetNumBits(), IndexOffset = 0; ObjectIt < ObjectEndIt; ObjectIt += WordBitCount, ++LocalIndicesData, IndexOffset += 32U)
 	{
 		// Skip ranges with no objects to update
 		WordType LocalIndicesWord = *LocalIndicesData;
@@ -167,9 +167,6 @@ FObjectScopeHysteresisUpdater::FLocalIndex FObjectScopeHysteresisUpdater::GetOrC
 	LocalIndexToNetRefIndex[LocalIndex] = NetRefIndex;
 	NetRefIndexToLocalIndex.Add(NetRefIndex, LocalIndex);
 	ObjectsToUpdate.SetBit(NetRefIndex);
-	MaxLocalIndex = FPlatformMath::Max(MaxLocalIndex, LocalIndex + 1U);
-
-	ensureMsgf(MaxLocalIndex <= UsedLocalIndices.GetNumBits(), TEXT("MaxLocalIndex has grown beyond supported size. MaxLocalIndex: %u LocalIndex: %u Array sizes: %u"), MaxLocalIndex, LocalIndex, UsedLocalIndices.GetNumBits());
 
 	return LocalIndex;
 }
