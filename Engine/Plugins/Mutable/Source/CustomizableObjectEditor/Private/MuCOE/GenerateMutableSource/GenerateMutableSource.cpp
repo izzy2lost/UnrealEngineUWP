@@ -455,14 +455,11 @@ void FMutableGraphGenerationContext::AddParticipatingObjectChecked(const FName& 
 	}
 	else
 	{
-		checkCode
-		(
-			if (!bSkipParticipatingObjectsPass)
-			{
-				FGuid* Result = ParticipatingObjects.Find(PackageName);
-				check(Result && *Result == PackageGuid); // If this check is hit it means that this Participating Object is not being discovered in the Participating Objects pass.
-			}
-		)
+		if (!bSkipParticipatingObjectsPass)
+		{
+			FGuid* Result = ParticipatingObjects.Find(PackageName);
+			ensureAlwaysMsgf(Result, TEXT("Participating Object and Generate Source pass missatch. Asset mismatch: %s"), *PackageName.ToString());
+		}
 	}
 }
 
