@@ -331,7 +331,7 @@ void FSoftObjectPath::SerializePath(FArchive& Ar)
 {
 	bool bSerializeInternals = true;
 #if WITH_EDITOR
-	if (Ar.IsSaving())
+	if (Ar.IsSaving() && !(Ar.IsModifyingWeakAndStrongReferences() && Ar.IsObjectReferenceCollector()))
 	{
 		PreSavePath(false ? GReportSoftObjectPathRedirects : nullptr);
 	}
