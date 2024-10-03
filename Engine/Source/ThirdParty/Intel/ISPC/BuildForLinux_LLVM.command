@@ -2,7 +2,7 @@
 
 set -e
 
-LLVM_VERSION=16.0.5
+LLVM_VERSION=18.1.6
 
 UE_MODULE_LOCATION=`pwd`
 
