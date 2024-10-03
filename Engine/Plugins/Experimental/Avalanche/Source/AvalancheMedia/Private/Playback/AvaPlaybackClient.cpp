@@ -440,7 +440,7 @@ void FAvaPlaybackClient::RequestPlayableTransitionStop(const FGuid& InTransition
 
 void FAvaPlaybackClient::RequestBroadcast(const FString& InProfile, const FName& InChannel,
 											   const TArray<UMediaOutput*>& InRemoteMediaOutputs,
-											   EAvaBroadcastAction InAction)
+											   EAvaBroadcastAction InAction, const FString& InServerName)
 {
 	FAvaBroadcastRequest* Request = FMessageEndpoint::MakeMessage<FAvaBroadcastRequest>();
 	Request->Profile = InProfile;
@@ -496,16 +496,17 @@ void FAvaPlaybackClient::RequestBroadcast(const FString& InProfile, const FName&
 		}
 	}
 
-	const TArray<FMessageAddress> ServerAddressesForChannel = GetServerAddressesForChannel(InChannel);
+	const TArray<FMessageAddress> ServerAddresses = InServerName.IsEmpty() ?
+		GetServerAddressesForChannel(InChannel) : TArray<FMessageAddress>({ GetServerAddress(InServerName) });
 
 	// Also update the channel settings.
 	if (InAction == EAvaBroadcastAction::Start || InAction == EAvaBroadcastAction::UpdateConfig)
 	{
-		SendBroadcastChannelSettingsUpdate(ServerAddressesForChannel, UAvaBroadcast::Get().GetCurrentProfile().GetChannel(InChannel));
+		SendBroadcastChannelSettingsUpdate(ServerAddresses, UAvaBroadcast::Get().GetCurrentProfile().GetChannel(InChannel));
 	}
 
 	// Send to server(s) that have output for this channel.
-	SendRequest(Request, ServerAddressesForChannel);
+	SendRequest(Request, ServerAddresses);
 }
 
 bool FAvaPlaybackClient::IsMediaOutputRemoteFallback(const UMediaOutput* InMediaOutput)
@@ -1011,7 +1012,7 @@ void FAvaPlaybackClient::HandleBroadcastStatusMessage(const FAvaBroadcastStatus&
 					   TEXT("Playback Server: \"%s\" Channel: \"%s\" is missing outputs. Requesting configuration update."),
 					   *InMessage.ServerName, *InMessage.ChannelName);
 
-				RequestBroadcast(CurrentProfileName, ChannelName, RemoteOutputs, EAvaBroadcastAction::UpdateConfig);
+				RequestBroadcast(CurrentProfileName, ChannelName, RemoteOutputs, EAvaBroadcastAction::UpdateConfig, InMessage.ServerName);
 			}
 
 			// Note: this will broadcast to delegates which may then request states of media outputs.
@@ -1029,7 +1030,7 @@ void FAvaPlaybackClient::HandleBroadcastStatusMessage(const FAvaBroadcastStatus&
 				   *InMessage.ServerName, *InMessage.ChannelName);
 
 			// Request this channel be deleted.
-			RequestBroadcast(CurrentProfileName, ChannelName, {}, EAvaBroadcastAction::DeleteChannel);
+			RequestBroadcast(CurrentProfileName, ChannelName, {}, EAvaBroadcastAction::DeleteChannel, InMessage.ServerName);
 		}
 	}
 
@@ -1057,7 +1058,7 @@ void FAvaPlaybackClient::HandleBroadcastStatusMessage(const FAvaBroadcastStatus&
 				if (ServerInfo.GetBroadcastChannelInfo(Channel->GetChannelName().ToString()) == nullptr)
 				{
 					// The server is missing this channel, we need to update it's config.
-					RequestBroadcast(CurrentProfileName, Channel->GetChannelName(), RemoteOutputs, EAvaBroadcastAction::UpdateConfig);
+					RequestBroadcast(CurrentProfileName, Channel->GetChannelName(), RemoteOutputs, EAvaBroadcastAction::UpdateConfig, InMessage.ServerName);
 				}
 			}
 		}
