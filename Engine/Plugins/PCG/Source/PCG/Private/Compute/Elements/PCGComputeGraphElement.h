@@ -40,6 +40,9 @@ public:
 
 	/** Graph executed successfully. */
 	bool bExecutionSuccess = false;
+
+	/** Whether all required primitive proxies have been created. */
+	bool bPrimitiveProxiesValidated = false;
 };
 
 /** Executes a CF graph. Created by the compiler when collapsing GPU nodes rather than by a settings/node. */
