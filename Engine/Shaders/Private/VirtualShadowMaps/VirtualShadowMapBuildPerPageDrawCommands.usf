@@ -390,8 +390,8 @@ void CullPerPageDrawCommandsCs(uint3 GroupId : SV_GroupID, int GroupThreadIndex 
 		}
 		
 		StatsBufferInterlockedAdd(VSM_STAT_NON_NANITE_INSTANCES_DRAWN, ThreadTotalForAllViews);
-		StatsBufferInterlockedEnableFlags<true>(VSM_STAT_OVERFLOW_FLAGS, VSM_STAT_OVERFLOW_FLAG_MARKING_JOB_QUEUE, bMarkingJobQueueOverflow);
-		StatsBufferInterlockedEnableFlags<true>(VSM_STAT_OVERFLOW_FLAGS, VSM_STAT_OVERFLOW_FLAG_VISIBLE_INSTANCES, bVisibleInstancesOverflow);
+		StatsBufferInterlockedEnableFlags(VSM_STAT_OVERFLOW_FLAGS, VSM_STAT_OVERFLOW_FLAG_MARKING_JOB_QUEUE, bMarkingJobQueueOverflow, true);
+		StatsBufferInterlockedEnableFlags(VSM_STAT_OVERFLOW_FLAGS, VSM_STAT_OVERFLOW_FLAG_VISIBLE_INSTANCES, bVisibleInstancesOverflow, true);
 
 		// Accumulate total number of instances for each indirect argument, is also used to allocate space and output compact range of instances later
 		InterlockedAdd(DrawIndirectArgsBufferOut[Payload.IndirectArgIndex * INDIRECT_ARGS_NUM_WORDS + 1], ThreadTotalForAllViews);
