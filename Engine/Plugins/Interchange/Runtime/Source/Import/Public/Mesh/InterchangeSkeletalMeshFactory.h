@@ -14,9 +14,30 @@
 
 #include "InterchangeSkeletalMeshFactory.generated.h"
 
+class UInterchangeSceneNode;
 class UInterchangeSkeletalMeshFactoryNode;
 class USkeletalMesh;
 class USkeleton;
+
+namespace UE::Interchange
+{
+	//Get the mesh node context for each MeshUids
+	struct FMeshNodeContext
+	{
+		const UInterchangeMeshNode* MeshNode = nullptr;
+		const UInterchangeSceneNode* SceneNode = nullptr;
+		TOptional<FTransform> SceneGlobalTransform;
+		FInterchangeMeshPayLoadKey TranslatorPayloadKey;
+
+		//Return a new key with the translator key merge with the transform
+		FInterchangeMeshPayLoadKey GetTranslatorAndTransformPayloadKey() const;
+
+		FInterchangeMeshPayLoadKey GetMorphTargetAndTransformPayloadKey(const FInterchangeMeshPayLoadKey& MorphTargetKey) const;
+
+		//Return the translator key merge with the transform
+		FString GetUniqueId() const;
+	};
+} //UE::Interchange
 
 UCLASS(BlueprintType)
 class INTERCHANGEIMPORT_API UInterchangeSkeletalMeshFactory : public UInterchangeFactoryBase
@@ -31,6 +52,7 @@ public:
 		TArray<SkeletalMeshImportData::FMaterial> ImportedMaterials;
 		TArray<SkeletalMeshImportData::FBone> RefBonesBinary;
 #endif
+		TArray<UE::Interchange::FMeshNodeContext> MeshNodeContexts;
 		bool bUseTimeZeroAsBindPose = false;
 		bool bDiffPose = false;
 	};
