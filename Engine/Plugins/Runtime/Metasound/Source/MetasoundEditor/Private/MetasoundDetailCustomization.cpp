@@ -563,7 +563,7 @@ namespace Metasound::Editor
 			// Page Playing Icon
 			{
 				TAttribute<FText> ToolTip = LOCTEXT("MetaSound_ExecutingPageGraphTooltip", "Currently executing graph.");
-				TAttribute<EVisibility> Visibility = TAttribute<EVisibility>::CreateLambda([this, PageID = InEntryPageID]()
+				TAttribute<EVisibility> Visibility = TAttribute<EVisibility>::CreateSPLambda(AsShared(), [this, PageID = InEntryPageID]()
 				{
 					if (Builder.IsValid())
 					{

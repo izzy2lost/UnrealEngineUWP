@@ -4966,7 +4966,7 @@ namespace Metasound
 		{
 			if (PageStatsWidget.IsValid())
 			{
-				TAttribute<EVisibility> ExecVisibility = TAttribute<EVisibility>::CreateLambda([this, InPageID]()
+				TAttribute<EVisibility> ExecVisibility = TAttribute<EVisibility>::CreateSPLambda(AsShared(), [this, InPageID]()
 				{
 					using namespace Engine;
 					if (Builder.IsValid() && ShowPageGraphDetails())

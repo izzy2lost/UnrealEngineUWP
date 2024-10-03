@@ -1025,7 +1025,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 				IMetasoundEditorModule& EditorModule = FModuleManager::GetModuleChecked<IMetasoundEditorModule>("MetaSoundEditor");
 				LiteralCustomization = EditorModule.CreateMemberDefaultLiteralCustomization(*MemberClass, DefaultCategoryBuilder);
 
-				TAttribute<EVisibility> Visibility = TAttribute<EVisibility>::CreateLambda([this]()
+				TAttribute<EVisibility> Visibility = TAttribute<EVisibility>::CreateSPLambda(AsShared(), [this]()
 				{
 					return GetDefaultVisibility();
 				});
@@ -1648,16 +1648,16 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 					const UMetasoundEditorGraphInput* Input = Cast<UMetasoundEditorGraphInput>(MemberDefaultLiteral->FindMember());
 					if (Input)
 					{
-						Enabled = TAttribute<bool>::CreateLambda([this] { return !GetInputInheritsDefault(); });
+						Enabled = TAttribute<bool>::CreateSPLambda(AsShared(), [this] { return !GetInputInheritsDefault(); });
 						ResetOverride = FResetToDefaultOverride::Create(
-							FIsResetToDefaultVisible::CreateLambda([this](TSharedPtr<IPropertyHandle> /* PropertyHandle */) { return !GetInputInheritsDefault(); }),
-							FResetToDefaultHandler::CreateLambda([this](TSharedPtr<IPropertyHandle> /* PropertyHandle */) { SetInputInheritsDefault(); }));
+							FIsResetToDefaultVisible::CreateSPLambda(AsShared(), [this](TSharedPtr<IPropertyHandle> /* PropertyHandle */) { return !GetInputInheritsDefault(); }),
+							FResetToDefaultHandler::CreateSPLambda(AsShared(), [this](TSharedPtr<IPropertyHandle> /* PropertyHandle */) { SetInputInheritsDefault(); }));
 					}
 				}
 			}
 			else
 			{
-				Enabled = TAttribute<bool>::CreateLambda([this]
+				Enabled = TAttribute<bool>::CreateSPLambda(AsShared(), [this]
 				{
 					if (GraphMember.IsValid())
 					{
