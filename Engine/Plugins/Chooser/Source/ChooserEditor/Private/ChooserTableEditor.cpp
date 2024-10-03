@@ -199,7 +199,7 @@ FChooserTableEditor::~FChooserTableEditor()
 {
 	if (SelectedColumn)
 	{
-		SelectedColumn->ClearFlags(RF_Standalone);
+		SelectedColumn->RemoveFromRoot();
 		SelectedColumn = nullptr;
 	}
 	for (UObject* SelectedRow : SelectedRows)
@@ -1737,7 +1737,7 @@ void FChooserTableEditor::SelectColumn(UChooserTable* ChooserEditor, int Index)
    		if (SelectedColumn == nullptr)
    		{
    			SelectedColumn = NewObject<UChooserColumnDetails>();
-   			SelectedColumn->SetFlags(RF_Standalone);
+			SelectedColumn->AddToRoot();
    		}
    
    		SelectedColumn->Chooser = Chooser;
