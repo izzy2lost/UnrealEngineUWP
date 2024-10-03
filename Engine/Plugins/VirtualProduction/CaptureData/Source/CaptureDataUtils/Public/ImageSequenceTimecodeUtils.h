@@ -36,8 +36,7 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "ImageSequence")
 	static FString GetFrameRateString(UImgMediaSource* InImageSequence);
 
-	static TOptional<FTimecode> TryGetTimecode(UImgMediaSource* InImageSequence);
-	static TOptional<FFrameRate> TryGetFrameRate(UImgMediaSource* InImageSequence);
-	static TOptional<FString> TryGetTimecodeString(UImgMediaSource* InImageSequence);
-	static TOptional<FString> TryGetFrameRateString(UImgMediaSource* InImageSequence);
+	static bool IsValidTimecodeInfo(const FTimecode& InTimecode, const FFrameRate& InTimecodeRate);
+	static bool IsValidTimecode(const FTimecode& InTimecode);
+	static bool IsValidFrameRate(const FFrameRate& InTimecodeRate);
 };

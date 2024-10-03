@@ -22,9 +22,9 @@
 #include "MediaTexture.h"
 #include "Algo/AllOf.h"
 #include "Engine/SkeletalMesh.h"
+#include "ImageSequenceTimecodeUtils.h"
 
 #if WITH_EDITOR
-#include "ImageSequenceTimecodeUtils.h"
 #include "IDirectoryWatcher.h"
 #include "DirectoryWatcherModule.h"
 #endif
@@ -488,13 +488,11 @@ FTimecode UFootageCaptureData::GetEffectiveImageTimecode(int32 InView) const
 	check(InView < ImageSequences.Num());
 	check(InView < DepthSequences.Num());
 
-#if WITH_EDITOR
-	TOptional<FTimecode> TimecodeOpt = UImageSequenceTimecodeUtils::TryGetTimecode(ImageSequences[InView]);
-	if (TimecodeOpt.IsSet())
+	FTimecode ImgSequenceTimecode = UImageSequenceTimecodeUtils::GetTimecode(ImageSequences[InView]);
+	if (UImageSequenceTimecodeUtils::IsValidTimecode(ImgSequenceTimecode))
 	{
-		return MoveTemp(TimecodeOpt.GetValue());
+		return ImgSequenceTimecode;
 	}
-#endif
 
 	FTimecode Timecode;
 	FFrameRate FrameRate;
@@ -508,13 +506,11 @@ FFrameRate UFootageCaptureData::GetEffectiveImageTimecodeRate(int32 InView) cons
 	check(InView < ImageSequences.Num());
 	check(InView < DepthSequences.Num());
 
-#if WITH_EDITOR
-	TOptional<FFrameRate> FrameRateOpt = UImageSequenceTimecodeUtils::TryGetFrameRate(ImageSequences[InView]);
-	if (FrameRateOpt.IsSet())
+	FFrameRate ImgSequenceFrameRate = UImageSequenceTimecodeUtils::GetFrameRate(ImageSequences[InView]);
+	if (UImageSequenceTimecodeUtils::IsValidFrameRate(ImgSequenceFrameRate))
 	{
-		return MoveTemp(FrameRateOpt.GetValue());
+		return ImgSequenceFrameRate;
 	}
-#endif
 
 	FTimecode Timecode;
 	FFrameRate FrameRate;
@@ -528,13 +524,11 @@ FTimecode UFootageCaptureData::GetEffectiveDepthTimecode(int32 InView) const
 	check(InView < ImageSequences.Num());
 	check(InView < DepthSequences.Num());
 
-#if WITH_EDITOR
-	TOptional<FTimecode> TimecodeOpt = UImageSequenceTimecodeUtils::TryGetTimecode(DepthSequences[InView]);
-	if (TimecodeOpt.IsSet())
+	FTimecode DepthSequenceTimecode = UImageSequenceTimecodeUtils::GetTimecode(DepthSequences[InView]);
+	if (UImageSequenceTimecodeUtils::IsValidTimecode(DepthSequenceTimecode))
 	{
-		return MoveTemp(TimecodeOpt.GetValue());
+		return DepthSequenceTimecode;
 	}
-#endif
 
 	FTimecode Timecode;
 	FFrameRate FrameRate;
@@ -548,13 +542,12 @@ FFrameRate UFootageCaptureData::GetEffectiveDepthTimecodeRate(int32 InView) cons
 	check(InView < ImageSequences.Num());
 	check(InView < DepthSequences.Num());
 
-#if WITH_EDITOR
-	TOptional<FFrameRate> FrameRateOpt = UImageSequenceTimecodeUtils::TryGetFrameRate(DepthSequences[InView]);
-	if (FrameRateOpt.IsSet())
+	FFrameRate DepthSequenceFrameRate = UImageSequenceTimecodeUtils::GetFrameRate(DepthSequences[InView]);
+	if (UImageSequenceTimecodeUtils::IsValidFrameRate(DepthSequenceFrameRate))
 	{
-		return MoveTemp(FrameRateOpt.GetValue());
+		return DepthSequenceFrameRate;
 	}
-#endif
+
 	FTimecode Timecode;
 	FFrameRate FrameRate;
 	GetDefaultTimecodeInfo(Timecode, FrameRate);
@@ -618,34 +611,31 @@ FFrameRate UFootageCaptureData::GetEffectiveAudioTimecodeRate() const
 
 void UFootageCaptureData::GetDefaultTimecodeInfo(FTimecode& OutTimecode, FFrameRate& OutFrameRate) const
 {
-#if WITH_EDITOR
 	for (const TObjectPtr<class UImgMediaSource>& ImageSequence : ImageSequences)
 	{
-		TOptional<FTimecode> TimecodeOpt = UImageSequenceTimecodeUtils::TryGetTimecode(ImageSequence);
-		TOptional<FFrameRate> FrameRateOpt = UImageSequenceTimecodeUtils::TryGetFrameRate(ImageSequence);
+		FTimecode Timecode = UImageSequenceTimecodeUtils::GetTimecode(ImageSequence);
+		FFrameRate FrameRate = UImageSequenceTimecodeUtils::GetFrameRate(ImageSequence);
 
-		if (TimecodeOpt.IsSet() && FrameRateOpt.IsSet())
+		if (UImageSequenceTimecodeUtils::IsValidTimecodeInfo(Timecode, FrameRate))
 		{
-			OutTimecode = MoveTemp(TimecodeOpt.GetValue());
-			OutFrameRate = MoveTemp(FrameRateOpt.GetValue());
+			OutTimecode = MoveTemp(Timecode);
+			OutFrameRate = MoveTemp(FrameRate);
 			return;
 		}
 	}
 
 	for (const TObjectPtr<class UImgMediaSource>& DepthSequence : DepthSequences)
 	{
-		TOptional<FTimecode> TimecodeOpt = UImageSequenceTimecodeUtils::TryGetTimecode(DepthSequence);
-		TOptional<FFrameRate> FrameRateOpt = UImageSequenceTimecodeUtils::TryGetFrameRate(DepthSequence);
+		FTimecode Timecode = UImageSequenceTimecodeUtils::GetTimecode(DepthSequence);
+		FFrameRate FrameRate = UImageSequenceTimecodeUtils::GetFrameRate(DepthSequence);
 
-		if (TimecodeOpt.IsSet() && FrameRateOpt.IsSet())
+		if (UImageSequenceTimecodeUtils::IsValidTimecodeInfo(Timecode, FrameRate))
 		{
-			OutTimecode = MoveTemp(TimecodeOpt.GetValue());
-			OutFrameRate = MoveTemp(FrameRateOpt.GetValue());
+			OutTimecode = MoveTemp(Timecode);
+			OutFrameRate = MoveTemp(FrameRate);
 			return;
 		}
 	}
-#endif
-
 
 	if (Audios.Num() > 0)
 	{

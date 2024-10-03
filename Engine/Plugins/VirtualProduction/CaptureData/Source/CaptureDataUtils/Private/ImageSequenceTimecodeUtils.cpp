@@ -4,163 +4,51 @@
 
 #include "ParseTakeUtils.h"
 
-#if WITH_EDITOR
-#include "Subsystems/EditorAssetSubsystem.h"
-#include "Editor.h"
-#endif
-
-const FName UImageSequenceTimecodeUtils::TimecodeTagName = "Timecode";
-const FName UImageSequenceTimecodeUtils::TimecodeRateTagName = "TimecodeRate";
-
 void UImageSequenceTimecodeUtils::SetTimecodeInfo(const FTimecode& InTimecode, const FFrameRate& InFrameRate, UImgMediaSource* InImageSequence)
 {
-	FString ImageTimecodeString = InTimecode.ToString();
-	FString ImageTimecodeRateString = FString::SanitizeFloat(InFrameRate.AsDecimal());
-
-	SetTimecodeInfoString(ImageTimecodeString, ImageTimecodeRateString, InImageSequence);
+	InImageSequence->StartTimecode = InTimecode;
+	InImageSequence->FrameRateOverride = InFrameRate;
 }
 
 void UImageSequenceTimecodeUtils::SetTimecodeInfoString(const FString& InTimecode, const FString& InFrameRate, UImgMediaSource* InImageSequence)
 {
-#if WITH_EDITOR
-	UEditorAssetSubsystem* EditorAssetSubsystem = GEditor ? GEditor->GetEditorSubsystem<UEditorAssetSubsystem>() : nullptr;
+	InImageSequence->StartTimecode = ParseTimecode(InTimecode);
 
-	if (!EditorAssetSubsystem)
-	{
-		return;
-	}
-
-	EditorAssetSubsystem->SetMetadataTag(InImageSequence, UImageSequenceTimecodeUtils::TimecodeTagName, InTimecode);
-	EditorAssetSubsystem->SetMetadataTag(InImageSequence, UImageSequenceTimecodeUtils::TimecodeRateTagName, InFrameRate);
-#endif
+	double TimecodeRate = FCString::Atod(*InFrameRate);
+	InImageSequence->FrameRateOverride = ConvertFrameRate(TimecodeRate);
 }
 
 FTimecode UImageSequenceTimecodeUtils::GetTimecode(UImgMediaSource* InImageSequence)
 {
-	TOptional<FTimecode> TimecodeOpt = TryGetTimecode(InImageSequence);
-
-	if (TimecodeOpt.IsSet())
-	{
-		return TimecodeOpt.GetValue();
-	}
-
-	return FTimecode();
+	return InImageSequence->StartTimecode;
 }
 
 FFrameRate UImageSequenceTimecodeUtils::GetFrameRate(UImgMediaSource* InImageSequence)
 {
-	TOptional<FFrameRate> FrameRateOpt = TryGetFrameRate(InImageSequence);
-
-	if (FrameRateOpt.IsSet())
-	{
-		return FrameRateOpt.GetValue();
-	}
-
-	return FFrameRate();
+	return InImageSequence->FrameRateOverride;
 }
 
 FString UImageSequenceTimecodeUtils::GetTimecodeString(UImgMediaSource* InImageSequence)
 {
-	TOptional<FString> TimecodeOpt = TryGetTimecodeString(InImageSequence);
-
-	if (TimecodeOpt.IsSet())
-	{
-		return TimecodeOpt.GetValue();
-	}
-
-	return FString();
+	return InImageSequence->StartTimecode.ToString();
 }
 
 FString UImageSequenceTimecodeUtils::GetFrameRateString(UImgMediaSource* InImageSequence)
 {
-	TOptional<FString> FrameRateOpt = TryGetFrameRateString(InImageSequence);
-
-	if (FrameRateOpt.IsSet())
-	{
-		return FrameRateOpt.GetValue();
-	}
-
-	return FString();
+	return FString::SanitizeFloat(InImageSequence->FrameRateOverride.AsDecimal());
 }
 
-TOptional<FTimecode> UImageSequenceTimecodeUtils::TryGetTimecode(UImgMediaSource* InImageSequence)
+bool UImageSequenceTimecodeUtils::IsValidTimecodeInfo(const FTimecode& InTimecode, const FFrameRate& InTimecodeRate)
 {
-	TOptional<FString> TimecodeOpt = TryGetTimecodeString(InImageSequence);
-
-	if (!TimecodeOpt.IsSet())
-	{
-		return {};
-	}
-
-	return ParseTimecode(TimecodeOpt.GetValue());
+	return IsValidTimecode(InTimecode) && IsValidFrameRate(InTimecodeRate);
 }
 
-TOptional<FFrameRate> UImageSequenceTimecodeUtils::TryGetFrameRate(UImgMediaSource* InImageSequence)
+bool UImageSequenceTimecodeUtils::IsValidTimecode(const FTimecode& InTimecode)
 {
-	TOptional<FString> TimecodeRateOpt = TryGetFrameRateString(InImageSequence);
-
-	if (!TimecodeRateOpt.IsSet())
-	{
-		return {};
-	}
-
-	double TimecodeRate = FCString::Atod(*TimecodeRateOpt.GetValue());
-
-	return ConvertFrameRate(TimecodeRate);
+	return InTimecode.IsValid() && InTimecode != FTimecode();
 }
 
-TOptional<FString> UImageSequenceTimecodeUtils::TryGetTimecodeString(UImgMediaSource* InImageSequence)
+bool UImageSequenceTimecodeUtils::IsValidFrameRate(const FFrameRate& InTimecodeRate)
 {
-#if WITH_EDITOR
-	if (!InImageSequence)
-	{
-		return {};
-	}
-
-	UEditorAssetSubsystem* EditorAssetSubsystem = GEditor ? GEditor->GetEditorSubsystem<UEditorAssetSubsystem>() : nullptr;
-
-	if (!EditorAssetSubsystem)
-	{
-		return {};
-	}
-
-	FString Timecode = EditorAssetSubsystem->GetMetadataTag(InImageSequence, UImageSequenceTimecodeUtils::TimecodeTagName);
-
-	if (Timecode.IsEmpty())
-	{
-		return {};
-	}
-
-	return Timecode;
-#else
-	return {};
-#endif
-}
-
-TOptional<FString> UImageSequenceTimecodeUtils::TryGetFrameRateString(UImgMediaSource* InImageSequence)
-{
-#if WITH_EDITOR
-	if (!InImageSequence)
-	{
-		return {};
-	}
-
-	UEditorAssetSubsystem* EditorAssetSubsystem = GEditor ? GEditor->GetEditorSubsystem<UEditorAssetSubsystem>() : nullptr;
-
-	if (!EditorAssetSubsystem)
-	{
-		return {};
-	}
-
-	FString TimecodeRateMetadata = EditorAssetSubsystem->GetMetadataTag(InImageSequence, UImageSequenceTimecodeUtils::TimecodeRateTagName);
-
-	if (!TimecodeRateMetadata.IsNumeric())
-	{
-		return {};
-	}
-	
-	return TimecodeRateMetadata;
-#else
-	return {};
-#endif
+	return InTimecodeRate.IsValid() && InTimecodeRate != FFrameRate();
 }
