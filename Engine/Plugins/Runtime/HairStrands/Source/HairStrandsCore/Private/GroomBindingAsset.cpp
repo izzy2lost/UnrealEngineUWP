@@ -27,6 +27,7 @@
 #include "DerivedDataCacheInterface.h"
 #include "Serialization/LargeMemoryReader.h"
 #include "Serialization/LargeMemoryWriter.h"
+#include "Engine/SkinnedAssetAsyncCompileUtils.h"
 #endif
 
 LLM_DECLARE_TAG(Groom);
@@ -935,6 +936,54 @@ void UpdateGroomBindingAssetInfos(UGroomBindingAsset* In)
 // * Release : Engine\Source\Runtime\Core\Private\UObject\UE5ReleaseStreamObjectVersion.cpp
 // * ...
 
+static void ForceSkeletalMeshDataCachingForCookingOnly(const ITargetPlatform* TargetPlatform, USkeletalMesh* InSourceSkeletalMesh, USkeletalMesh* InTargetSkeletalMesh)
+{
+	// If a skeletal mesh build or preedit is called while we're async compiling groom bindings, the groom binding compiler
+	// will take care of finishing any groom binding that depends on the skeletal mesh being modified. So this is 
+	// safe to do asynchronously without locks on the render data. We assume that the skeletal mesh's render data is
+	// immutable once it has been built and can only be rebuilt throught a call to PreEditChange first.
+	const bool bAsyncCompiling = !IsInGameThread();
+
+	// * Only for SkeletalMesh: Take scoped lock on the skeletal render mesh data during the entire groom binding building
+	// * Then use an async build scope to allow accessing skeletal mesh property safely.
+	//   If skel.meshes are nullptr, this will act as a NOP
+	InSourceSkeletalMesh = InSourceSkeletalMesh == InTargetSkeletalMesh ? nullptr : InSourceSkeletalMesh;
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	FScopedSkeletalMeshRenderData SourceSkeletalMeshScopedData(bAsyncCompiling ? nullptr : InSourceSkeletalMesh);
+	FScopedSkeletalMeshRenderData TargetSkeletalMeshScopedData(bAsyncCompiling ? nullptr : InTargetSkeletalMesh);
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
+	if (InSourceSkeletalMesh)
+	{
+		if (bAsyncCompiling)
+		{
+			const ITargetPlatform* RunningPlatform = GetTargetPlatformManagerRef().GetRunningTargetPlatform();
+			checkf(TargetPlatform == RunningPlatform, TEXT("It is only safe to query the running platform's render data asynchronously from the skeletal mesh"));
+			InSourceSkeletalMesh->GetResourceForRendering();
+		}
+		else
+		{
+			FSkinnedAssetAsyncBuildScope AsyncBuildScope(InSourceSkeletalMesh);
+			USkeletalMesh::GetPlatformSkeletalMeshRenderData(TargetPlatform, SourceSkeletalMeshScopedData);
+		}
+	}
+
+	if (InTargetSkeletalMesh)
+	{
+		if (bAsyncCompiling)
+		{
+			const ITargetPlatform* RunningPlatform = GetTargetPlatformManagerRef().GetRunningTargetPlatform();
+			checkf(TargetPlatform == RunningPlatform, TEXT("It is only safe to query the running platform's render data asynchronously from the skeletal mesh"));
+			InTargetSkeletalMesh->GetResourceForRendering();
+		}
+		else
+		{
+			FSkinnedAssetAsyncBuildScope AsyncBuildScope(InTargetSkeletalMesh);
+			USkeletalMesh::GetPlatformSkeletalMeshRenderData(TargetPlatform, TargetSkeletalMeshScopedData);
+		}
+	}
+}
+
 namespace GroomBindingDerivedDataCacheUtils
 {
 	const FString& GetGroomBindingDerivedDataVersion()
@@ -949,7 +998,7 @@ namespace GroomBindingDerivedDataCacheUtils
 	}
 }
 
-static FString BuildDerivedDataKeySuffix(const UGroomBindingAsset& BindingAsset, const ITargetPlatform* TargetPlatform)
+static FString BuildDerivedDataKeySuffix(const UGroomBindingAsset& BindingAsset, const ITargetPlatform* TargetPlatform, bool bForceSkelMeshDataCachingForCookingOnly=false)
 {
 	FString BindingType;
 	FString SourceKey;
@@ -957,6 +1006,12 @@ static FString BuildDerivedDataKeySuffix(const UGroomBindingAsset& BindingAsset,
 
 	if (BindingAsset.GetGroomBindingType() == EGroomBindingMeshType::SkeletalMesh)
 	{
+		// Force skel. mesh data caching, in order to produce later an valid/up-to-date DDC key
+		if (bForceSkelMeshDataCachingForCookingOnly)
+		{
+			ForceSkeletalMeshDataCachingForCookingOnly(TargetPlatform, BindingAsset.GetSourceSkeletalMesh(), BindingAsset.GetTargetSkeletalMesh());
+		}
+
 		// Binding type is implicitly SkeletalMesh so keep BindingType empty to prevent triggering rebuild of old binding for nothing
 		SourceKey = BindingAsset.GetSourceSkeletalMesh() ? BindingAsset.GetSourceSkeletalMesh()->BuildDerivedDataKey(TargetPlatform) : FString();
 		TargetKey = BindingAsset.GetTargetSkeletalMesh() ? BindingAsset.GetTargetSkeletalMesh()->BuildDerivedDataKey(TargetPlatform) : FString();
@@ -992,7 +1047,7 @@ static FString BuildDerivedDataKeyGroup(const FString& InDeriveDataKeySuffix , u
 	return GroomBindingDerivedDataCacheUtils::BuildGroomBindingDerivedDataKey(InDeriveDataKeySuffix + FString(TEXT("_Group")) + FString::FromInt(InGroupIndex));
 }
 
-static TArray<FString> GetGroupDerivedDataKeys(const UGroomBindingAsset* In, const ITargetPlatform* TargetPlatform);
+static TArray<FString> GetGroupDerivedDataKeys(const UGroomBindingAsset* In, const ITargetPlatform* TargetPlatform, bool bForceSkelMeshDataCaching=false);
 static void CacheDerivedDatas(UGroomBindingAsset* In, const uint32 InGroupIndex, const FString& DerivedDataKey, bool& bOutValid, const ITargetPlatform* TargetPlatform, UGroomBindingAsset::FHairGroupPlatformData& OutPlatformData);
 
 void UGroomBindingAsset::CacheDerivedDatas()
@@ -1260,12 +1315,12 @@ void UGroomBindingAsset::FinishCacheDerivedDatas(FGroomBindingBuildContext& Cont
 	}
 }
 
-static TArray<FString> GetGroupDerivedDataKeys(const UGroomBindingAsset* In, const ITargetPlatform* TargetPlatform)
+static TArray<FString> GetGroupDerivedDataKeys(const UGroomBindingAsset* In, const ITargetPlatform* TargetPlatform, bool bForceSkelMeshDataCachingForCookingOnly )
 {
 	check(In);
 	check(TargetPlatform);
 
-	const FString KeySuffix = BuildDerivedDataKeySuffix(*In, TargetPlatform);
+	const FString KeySuffix = BuildDerivedDataKeySuffix(*In, TargetPlatform, bForceSkelMeshDataCachingForCookingOnly );
 	const uint32 GroupCount = In->GetGroupInfos().Num();
 
 	TArray<FString> Out;
@@ -1300,7 +1355,7 @@ void UGroomBindingAsset::BeginCacheForCookedPlatformData(const ITargetPlatform* 
 	Super::BeginCacheForCookedPlatformData(TargetPlatform);
 
 	// 1. Build the key for each group
-	const TArray<FString> GroupDerivedDataKeys = GetGroupDerivedDataKeys(this, TargetPlatform);
+	const TArray<FString> GroupDerivedDataKeys = GetGroupDerivedDataKeys(this, TargetPlatform, true /*bForceSkelMeshDataCachingForCookingOnly */);
 
 	// 2. Find existing cached cooked data
 	UGroomBindingAsset::FCachedCookedPlatformData* TargetPlatformData = FindCachedCookedPlatformData(GroupDerivedDataKeys, CachedCookedPlatformDatas);
