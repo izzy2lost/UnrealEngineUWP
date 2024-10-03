@@ -530,9 +530,9 @@ export const AuditLogPanel: React.FC<{ agentId?: string, issueId?: string, templ
 
    return <Stack>
       <Breadcrumbs items={crumbItems} />
-      <Stack tokens={{ childrenGap: 12 }}>
+      <Stack tokens={{ childrenGap: 12 }} style={{backgroundColor: modeColors.background}}>
          <Stack horizontal>
-            <div key={`windowsize_logview1_${windowSize.width}_${windowSize.height}`} style={{ width: vw / 2 - (1440 / 2) - 230, flexShrink: 0, backgroundColor: modeColors.background }} />
+            <div key={`windowsize_logview1_${windowSize.width}_${windowSize.height}`} style={{ width: vw / 2 - (1440 / 2) - 990, flexShrink: 0, backgroundColor: modeColors.background }} />
             <Stack tokens={{ childrenGap: 0 }} styles={{ root: { backgroundColor: modeColors.background, margin: "auto", paddingTop: 12, paddingRight: 10 } }}>
                <Stack horizontal styles={{ root: { paddingLeft: 0, paddingBottom: 4, paddingRight: 12, width: 1440 } }}>
                   <Stack horizontal tokens={{ childrenGap: 12 }}>
