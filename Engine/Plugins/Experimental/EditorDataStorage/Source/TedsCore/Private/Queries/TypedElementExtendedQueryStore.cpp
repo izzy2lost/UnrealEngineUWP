@@ -172,7 +172,7 @@ namespace UE::Editor::DataStorage
 				checkf(!QueryData.Description.Callback.ActivationName.IsNone(),
 					TEXT("Attempting to enable the query '%s' which isn't activatable."), *QueryData.Description.Callback.Name.ToString());
 #endif
-				PendingActivatables.Add(Query);
+				PendingActivatables.AddUnique(Query);
 			}
 		}
 	}

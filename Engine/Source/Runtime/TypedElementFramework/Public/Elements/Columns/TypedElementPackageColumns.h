@@ -47,18 +47,6 @@ struct FTypedElementPackageUpdatedTag final : public FEditorDataStorageTag
 };
 
 /**
- * Column that stores relevant rows when a package is updated
- */
-USTRUCT()
-struct FTypedElementPackageUpdateColumn final : public FEditorDataStorageColumn
-{
-	GENERATED_BODY()
-	
-	UE::Editor::DataStorage::RowHandle ObjectRow;
-	UE::Editor::DataStorage::RowHandle PackageRow;
-};
-
-/**
  * Column that stores the path of a package.
  */
 USTRUCT(meta = (DisplayName = "Package path"))

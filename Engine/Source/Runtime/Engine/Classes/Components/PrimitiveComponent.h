@@ -3105,6 +3105,11 @@ private:
 
 	UPROPERTY()
 	TObjectPtr<UPrimitiveComponent> LODParent = nullptr;
+
+#if WITH_EDITOR
+	FColor OverlayColor;
+#endif
+	
 };
 
 
