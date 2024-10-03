@@ -102,12 +102,8 @@ public:
 	FPCGSubdivisionModuleAttributeNames ModulesInfoAttributeNames;
 
 	/** An encoded string that represents how to apply a set of rules to a series of defined modules. */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (ShowOnlyInnerProperties))
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (ShowOnlyInnerProperties, PCG_Overridable))
 	FPCGGrammarSelection GrammarSelection;
-
-	/** Attribute to be taken from the input spline containing the grammar to use for the subdivision. */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (EditCondition = "bGrammarAsAttribute", EditConditionHides, DisplayAfter = bGrammarAsAttribute, PCG_Overridable))
-	FPCGAttributePropertyInputSelector GrammarAttribute;
 
 	/** Controls whether we'll use an attribute to drive random seeding for stochastic processes in the subdivision. */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable, InlineEditConditionToggle))
