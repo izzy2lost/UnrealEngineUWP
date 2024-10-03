@@ -515,7 +515,7 @@ void FChaosClothAssetProxyDeformerNode_v2::OnPinRemoved(const UE::Dataflow::FPin
 	check(FirstInput || SecondInput);
 	const bool bIsFirstInput = FirstInput && FirstInput->GetName() == Pin.Name;
 	const bool bIsSecondInput = SecondInput && SecondInput->GetName() == Pin.Name;
-	if (bIsFirstInput && !SecondInput || bIsSecondInput && !FirstInput)
+	if ((bIsFirstInput && !SecondInput) || (bIsSecondInput && !FirstInput))
 	{
 		// Both inputs removed. Remove array index.
 		SelectionFilterSets.SetNum(Index);

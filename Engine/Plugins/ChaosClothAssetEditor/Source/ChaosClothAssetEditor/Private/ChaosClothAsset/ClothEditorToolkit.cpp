@@ -32,7 +32,7 @@
 #include "Dataflow/DataflowGraphEditor.h"
 #include "Dataflow/DataflowObject.h"
 #include "Dataflow/DataflowSchema.h"
-#include "Dataflow/DataFlowEdNode.h"
+#include "Dataflow/DataflowEdNode.h"
 #include "IStructureDetailsView.h"
 #include "Engine/Canvas.h"
 #include "PropertyEditorModule.h"
