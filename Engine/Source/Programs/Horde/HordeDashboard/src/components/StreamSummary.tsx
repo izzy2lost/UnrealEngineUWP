@@ -778,7 +778,7 @@ const SchedulePanel: React.FC = observer(() => {
          <Stack tokens={{ childrenGap: 12 }}>
             <Text variant="mediumPlus" styles={{ root: { fontFamily: "Horde Open Sans SemiBold" } }}>Schedule</Text>
             <Stack styles={{ root: { paddingLeft: 4, paddingRight: 0, paddingTop: 8, paddingBottom: 4 } }}>
-               <SchedulePane templates={templates} />
+               <SchedulePane streamId={stream.id} templates={templates} />
             </Stack>
          </Stack>
       </Stack>

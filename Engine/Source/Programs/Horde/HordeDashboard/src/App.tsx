@@ -160,6 +160,7 @@ const Main: React.FC = () => {
                { path: "devices", element: <DeviceView /> },
                { path: "audit/agent/:agentId", element: <AuditLogView /> },
                { path: "audit/issue/:issueId", element: <AuditLogView /> },
+               { path: "audit/template/:streamId/:templateId", element: <AuditLogView /> },
                { path: "automation", element: <AutomationView /> },
                { path: "tools", element: <ToolView /> },
                { path: "lease/:leaseId", element: <DebugView /> },
