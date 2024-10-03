@@ -17,8 +17,7 @@
 
 RWStructuredBuffer<uint> OutStatsBuffer;
 
-template<bool bWriteEnabled = VSM_GENERATE_STATS>
-void StatsBufferWrite(uint Index, uint Value)
+void StatsBufferWrite(uint Index, uint Value, bool bWriteEnabled = VSM_GENERATE_STATS)
 {
 	if (bWriteEnabled)
 	{
@@ -26,8 +25,7 @@ void StatsBufferWrite(uint Index, uint Value)
 	}
 }
 
-template<bool bWriteEnabled = VSM_GENERATE_STATS>
-void StatsBufferInterlockedAdd(uint Index, uint Value)
+void StatsBufferInterlockedAdd(uint Index, uint Value, bool bWriteEnabled = VSM_GENERATE_STATS)
 {
 	if (bWriteEnabled)
 	{
@@ -35,8 +33,7 @@ void StatsBufferInterlockedAdd(uint Index, uint Value)
 	}
 }
 
-template<bool bWriteEnabled = VSM_GENERATE_STATS>
-void StatsBufferInterlockedInc(uint Index)
+void StatsBufferInterlockedInc(uint Index, bool bWriteEnabled = VSM_GENERATE_STATS)
 {
 	if (bWriteEnabled)
 	{
@@ -44,8 +41,7 @@ void StatsBufferInterlockedInc(uint Index)
 	}
 }
 
-template<bool bWriteEnabled = VSM_GENERATE_STATS>
-void StatsBufferInterlockedEnableFlags(uint Index, uint Flags, bool bEnabled)
+void StatsBufferInterlockedEnableFlags(uint Index, uint Flags, bool bEnabled, bool bWriteEnabled = VSM_GENERATE_STATS)
 {
 	if (bWriteEnabled)
 	{
