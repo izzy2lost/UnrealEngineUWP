@@ -59,8 +59,6 @@ private:
 	FLocalIndex GetOrCreateLocalIndex(FInternalNetRefIndex NetRefIndex);
 	void FreeLocalIndex(FLocalIndex LocalIndex);
 
-	// Internally there's a mapping between NetRefIndex and a LocalIndex to keep updates in as small a range as possible. This is the highest local index + 1 that needs to be updated.
-	FLocalIndex MaxLocalIndex = 0;
 	// Per LocalIndex how many frames left to update before filtering out the object.
 	TArray<uint16> FrameCounters;
 	// Lookup table for local index to InternalNetRefIndex.
