@@ -91,11 +91,15 @@ namespace HordeServer.Storage
 			public async Task<BlobLocator> WriteBlobAsync(Stream stream, IReadOnlyCollection<BlobLocator> imports, string? basePath = null, CancellationToken cancellationToken = default)
 			{
 				BlobLocator locator = StorageHelpers.CreateUniqueLocator(basePath);
+				await WriteBlobAsync(locator, stream, imports, cancellationToken);
+				return locator;
+			}
 
+			/// <inheritdoc/>
+			public async Task WriteBlobAsync(BlobLocator locator, Stream stream, IReadOnlyCollection<BlobLocator> imports, CancellationToken cancellationToken = default)
+			{
 				await _store.WriteAsync(GetObjectKey(locator), stream, cancellationToken);
 				await _outer.AddBlobAsync(NamespaceId, locator, imports, null, cancellationToken);
-
-				return locator;
 			}
 
 			/// <inheritdoc/>
@@ -103,6 +107,24 @@ namespace HordeServer.Storage
 			{
 				await _outer.CheckBlobExistsAsync(NamespaceId, locator, cancellationToken);
 				return await _store.TryGetReadRedirectAsync(GetObjectKey(locator), cancellationToken);
+			}
+
+			/// <inheritdoc/>
+			public async ValueTask<Uri?> TryGetBlobWriteRedirectAsync(BlobLocator locator, IReadOnlyCollection<BlobLocator> imports, CancellationToken cancellationToken = default)
+			{
+				if (!_store.SupportsRedirects)
+				{
+					return null;
+				}
+
+				Uri? url = await _store.TryGetWriteRedirectAsync(GetObjectKey(locator), cancellationToken);
+				if (url == null)
+				{
+					return null;
+				}
+
+				await _outer.AddBlobAsync(NamespaceId, locator, imports, null, cancellationToken);
+				return url;
 			}
 
 			/// <inheritdoc/>
@@ -115,13 +137,11 @@ namespace HordeServer.Storage
 
 				BlobLocator locator = StorageHelpers.CreateUniqueLocator(prefix);
 
-				Uri? url = await _store.TryGetWriteRedirectAsync(GetObjectKey(locator), cancellationToken);
+				Uri? url = await TryGetBlobWriteRedirectAsync(locator, imports, cancellationToken);
 				if (url == null)
 				{
 					return null;
 				}
-
-				await _outer.AddBlobAsync(NamespaceId, locator, imports, null, cancellationToken);
 
 				return (locator, url);
 			}

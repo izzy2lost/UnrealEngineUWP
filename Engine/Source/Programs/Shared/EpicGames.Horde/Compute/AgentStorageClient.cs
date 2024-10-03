@@ -68,11 +68,19 @@ namespace EpicGames.Horde.Compute
 		}
 
 		/// <inheritdoc/>
+		public Task WriteBlobAsync(BlobLocator locator, Stream stream, IReadOnlyCollection<BlobLocator>? imports, CancellationToken cancellationToken = default)
+			=> throw new NotSupportedException();
+
+		/// <inheritdoc/>
 		public Task<BlobLocator> WriteBlobAsync(Stream stream, IReadOnlyCollection<BlobLocator>? imports, string? basePath = null, CancellationToken cancellationToken = default) 
 			=> throw new NotSupportedException();
 
 		/// <inheritdoc/>
 		public ValueTask<Uri?> TryGetBlobReadRedirectAsync(BlobLocator locator, CancellationToken cancellationToken = default) 
+			=> default;
+
+		/// <inheritdoc/>
+		public ValueTask<Uri?> TryGetBlobWriteRedirectAsync(BlobLocator locator, IReadOnlyCollection<BlobLocator>? imports = null, CancellationToken cancellationToken = default)
 			=> default;
 
 		/// <inheritdoc/>
