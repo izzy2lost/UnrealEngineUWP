@@ -487,7 +487,7 @@ namespace HordeServer.Storage
 			_gcTicker = clock.AddTicker("Storage:GC", TimeSpan.FromMinutes(5.0), TickGcAsync, logger);
 
 			_lengthScanState = new SingletonDocument<LengthScanState>(mongoService);
-			_lengthScanTicker = clock.AddTicker("Storage:LengthScan", TimeSpan.FromSeconds(1.0), TickLengthsAsync, logger);
+			_lengthScanTicker = clock.AddSharedTicker("Storage:LengthScan", TimeSpan.FromMinutes(5.0), TickLengthsAsync, logger);
 		}
 
 		static string GetFieldName<TClass>(Expression<Func<TClass, object?>> expr)
