@@ -162,3 +162,5 @@ FDynamicRHI* PlatformCreateDynamicRHI()
 
 	return DynamicRHI;
 }
+
+#undef LOCTEXT_NAMESPACE
