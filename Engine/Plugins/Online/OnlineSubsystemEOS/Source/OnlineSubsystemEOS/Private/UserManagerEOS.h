@@ -238,6 +238,13 @@ struct FLocalUserEOS
 	FNotificationIdCallbackPairPtr ConnectLoginNotification;
 };
 
+/** Created when a new local user starts a login process, keeps the state for the login session, and gets destroyed when the user logs out */
+struct FLoginSession
+{
+	/** If set, Connect Login will be re-attempted with it. If this attempt fails, a new token will need to be provided */
+	TOptional<FString> UserProvidedConnectAuthToken;
+};
+
 /**
  * EOS service implementation of the online identity, friends, and user info interfaces
  *
@@ -287,6 +294,7 @@ public:
 	virtual FPlatformUserId GetPlatformUserIdFromUniqueNetId(const FUniqueNetId& UniqueNetId) const override;
 	virtual void GetLinkedAccountAuthToken(int32 LocalUserNum, const FString& TokenType, const FOnGetLinkedAccountAuthTokenCompleteDelegate& Delegate) const override;
 // ~IOnlineIdentity Interface
+
 	ELoginStatus::Type GetLoginStatus(const FUniqueNetIdEOS& UserId) const;
 
 // IOnlineExternalUI Interface
@@ -383,7 +391,7 @@ public:
 	void LoginViaExternalAuth(int32 LocalUserNum);
 	void CreateConnectedLogin(int32 LocalUserNum, EOS_EpicAccountId AccountId, EOS_ContinuanceToken Token);
 	void LinkEAS(int32 LocalUserNum, EOS_ContinuanceToken Token);
-	void RefreshConnectLogin(int32 LocalUserNum);
+	void AutoRefreshConnectLogin(int32 LocalUserNum);
 	bool ConnectLoginNoEAS(int32 LocalUserNum);
 
 	void FullLoginCallback(int32 LocalUserNum, EOS_EpicAccountId AccountId, EOS_ProductUserId UserId);
@@ -414,6 +422,7 @@ private:
 	void CallEOSAuthLogin(int32 LocalUserNum, const FOnlineAccountCredentials& Credentials, bool bIsAutoLogin);
 	void CopyAndSaveEpicAuthToken(int32 LocalUserNum, const EOS_EpicAccountId& EpicAccountId);
 	void OnEOSAuthLoginComplete(int32 LocalUserNum, const EOS_ELoginCredentialType LoginCredentialType, const bool bIsAutoLogin, const EOS_Auth_LoginCallbackInfo* Data);
+	void CallEOSConnectLogin(int32 LocalUserNum, const FOnlineAccountCredentials& Credentials);
 
 	void RemoveLocalUser(int32 LocalUserNum);
 	FLocalUserEOS& AddLocalUser(int32 LocalUserNum, EOS_EpicAccountId EpicAccountId, EOS_ProductUserId UserId);
@@ -458,6 +467,9 @@ private:
 
 	/** Information related to ongoing operations and state for local users */
 	TLocalUserArray<FLocalUserEOS> LocalUsers;
+
+	/** Relevant information about the login session for local users */
+	TLocalUserArray<FLoginSession> LoginSessions;
 
 	// Online user info
 

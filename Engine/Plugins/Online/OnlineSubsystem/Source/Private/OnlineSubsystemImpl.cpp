@@ -252,6 +252,10 @@ bool FOnlineSubsystemImpl::Exec(UWorld* InWorld, const TCHAR* Cmd, FOutputDevice
 	{
 		bWasHandled = HandleFriendExecCommands(InWorld, Cmd, Ar);
 	}
+	else if (FParse::Command(&Cmd, TEXT("IDENTITY")))
+	{
+		bWasHandled = HandleIdentityExecCommands(InWorld, Cmd, Ar);
+	}
 	else if (FParse::Command(&Cmd, TEXT("SESSION")))
 	{
 		bWasHandled = HandleSessionExecCommands(InWorld, Cmd, Ar);
@@ -690,6 +694,27 @@ bool FOnlineSubsystemImpl::HandleFriendExecCommands(UWorld* InWorld, const TCHAR
 			}
 		}
 
+		bWasHandled = true;
+	}
+
+	return bWasHandled;
+}
+
+bool FOnlineSubsystemImpl::HandleIdentityExecCommands(UWorld* InWorld, const TCHAR* Cmd, FOutputDevice& Ar)
+{
+	bool bWasHandled = false;
+
+	if (FParse::Command(&Cmd, TEXT("TRIGGERONAUTHABOUTTOEXPIREDELEGATES"))) /* ONLINE IDENTITY TRIGGERONAUTHABOUTTOEXPIREDELEGATES LocalUserNum=0 */
+	{
+		IOnlineIdentityPtr IdentityInt = GetIdentityInterface();
+		if (IdentityInt.IsValid())
+		{
+			int LocalUserNum = 0;
+			FParse::Value(Cmd, TEXT("LocalUserNum="), LocalUserNum);
+
+			IdentityInt->TriggerOnAuthAboutToExpireDelegates(LocalUserNum);
+		}
+		
 		bWasHandled = true;
 	}
 
