@@ -26,7 +26,7 @@ struct FAdaptiveVolumetricShadowMap
 	bool bIsEmpty;
 	bool bIsDirectionalLight;
 
-	StructuredBuffer<uint2> IndirectionBuffer;
+	StructuredBuffer<uint4> IndirectionBuffer;
 	StructuredBuffer<uint> SampleBuffer;
 };
 
@@ -99,16 +99,16 @@ float AVSM_Sample_Reference(
 		if (WorldHitT >= IndirectionData.EndX)
 		{
 			int LastSampleIndex = IndirectionData.PixelOffset + Align4(TopLevelSampleCount) + IndirectionData.SampleCount - 1;
-			return AVSM_UnpackSampleData(ShadowMap.SampleBuffer[LastSampleIndex]).Tau;
+			return AVSM_UnpackSampleData(ShadowMap.SampleBuffer[LastSampleIndex], IndirectionData).Tau;
 		}
 
 		// Initialize from the top-level
-		ShadowData[0] = AVSM_UnpackSampleData(ShadowMap.SampleBuffer[IndirectionData.PixelOffset]);
+		ShadowData[0] = AVSM_UnpackSampleData(ShadowMap.SampleBuffer[IndirectionData.PixelOffset], IndirectionData);
 
 		// Iterate through the linear span of offset transmittance information
 		for (int ElementIndex = 0; ElementIndex < IndirectionData.SampleCount - 1; ++ElementIndex)
 		{
-			ShadowData[1] = AVSM_UnpackSampleData(ShadowMap.SampleBuffer[IndirectionData.PixelOffset + Align4(TopLevelSampleCount) + ElementIndex]);
+			ShadowData[1] = AVSM_UnpackSampleData(ShadowMap.SampleBuffer[IndirectionData.PixelOffset + Align4(TopLevelSampleCount) + ElementIndex], IndirectionData);
 			if (WorldHitT < ShadowData[1].X)
 			{
 				break;
@@ -149,11 +149,11 @@ float AVSM_Sample_BinarySearch(
 		if (WorldHitT >= IndirectionData.EndX)
 		{
 			int LastSampleIndex = IndirectionData.PixelOffset + Align4(TopLevelSampleCount) + IndirectionData.SampleCount - 1;
-			return AVSM_UnpackSampleData(ShadowMap.SampleBuffer[LastSampleIndex]).Tau;
+			return AVSM_UnpackSampleData(ShadowMap.SampleBuffer[LastSampleIndex], IndirectionData).Tau;
 		}
 
 		// Initialize from the top-level
-		ShadowData[0] = AVSM_UnpackSampleData(ShadowMap.SampleBuffer[IndirectionData.PixelOffset]);
+		ShadowData[0] = AVSM_UnpackSampleData(ShadowMap.SampleBuffer[IndirectionData.PixelOffset], IndirectionData);
 
 		// Account for the shifted bottom-level
 		int ElementIndexMin = -1;
@@ -161,7 +161,7 @@ float AVSM_Sample_BinarySearch(
 		while (ElementIndexMax - ElementIndexMin > 1)
 		{
 			int ElementIndex = (ElementIndexMin + ElementIndexMax + 1) / 2;
-			FAVSMSampleData SampleData = AVSM_UnpackSampleData(ShadowMap.SampleBuffer[IndirectionData.PixelOffset + Align4(TopLevelSampleCount) + ElementIndex]);
+			FAVSMSampleData SampleData = AVSM_UnpackSampleData(ShadowMap.SampleBuffer[IndirectionData.PixelOffset + Align4(TopLevelSampleCount) + ElementIndex], IndirectionData);
 
 			if (WorldHitT < SampleData.X)
 			{
@@ -209,15 +209,15 @@ float AVSM_Sample_TwoLevel_Reference(
 		if (WorldHitT >= IndirectionData.EndX)
 		{
 			int LastSampleIndex = IndirectionData.PixelOffset + Align4(TopLevelSampleCount) + IndirectionData.SampleCount - 1;
-			return AVSM_UnpackSampleData(AVSM.SampleBuffer[LastSampleIndex]).Tau;
+			return AVSM_UnpackSampleData(AVSM.SampleBuffer[LastSampleIndex], IndirectionData).Tau;
 		}
 
-		ShadowData[0] = AVSM_UnpackSampleData(ShadowMap.SampleBuffer[IndirectionData.PixelOffset]);
+		ShadowData[0] = AVSM_UnpackSampleData(ShadowMap.SampleBuffer[IndirectionData.PixelOffset], IndirectionData);
 
 		// Iterate through the top-level
 		for (TopLevelSampleIndex = 0; TopLevelSampleIndex < TopLevelSampleCount; ++TopLevelSampleIndex)
 		{
-			ShadowData[1] = AVSM_UnpackSampleData(ShadowMap.SampleBuffer[IndirectionData.PixelOffset + TopLevelSampleIndex]);
+			ShadowData[1] = AVSM_UnpackSampleData(ShadowMap.SampleBuffer[IndirectionData.PixelOffset + TopLevelSampleIndex], IndirectionData);
 			if (WorldHitT < ShadowData[1].X)
 			{
 				break;
@@ -233,7 +233,7 @@ float AVSM_Sample_TwoLevel_Reference(
 	int SampleIndexMax = min(TopLevelSampleIndex * 4, IndirectionData.SampleCount - 1);
 	for (int SampleIndex = SampleIndexMin; SampleIndex < SampleIndexMax; ++SampleIndex)
 	{
-		ShadowData[1] = AVSM_UnpackSampleData(ShadowMap.SampleBuffer[IndirectionData.PixelOffset + Align4(TopLevelSampleCount) + SampleIndex]);
+		ShadowData[1] = AVSM_UnpackSampleData(ShadowMap.SampleBuffer[IndirectionData.PixelOffset + Align4(TopLevelSampleCount) + SampleIndex], IndirectionData);
 		if (WorldHitT < ShadowData[1].X)
 		{
 			break;
@@ -277,7 +277,7 @@ float AVSM_Sample_TwoLevel_Vectorized(
 		if (WorldHitT >= IndirectionData.EndX)
 		{
 			int LastIndex = IndirectionData.PixelOffset + Align4(TopLevelSampleCount) + IndirectionData.SampleCount - 1;
-			return AVSM_UnpackSampleData(ShadowMap.SampleBuffer[LastIndex]).Tau;
+			return AVSM_UnpackSampleData(ShadowMap.SampleBuffer[LastIndex], IndirectionData).Tau;
 		}
 
 		int TopLevelSampleOffset = 0;
@@ -295,17 +295,17 @@ float AVSM_Sample_TwoLevel_Vectorized(
 			);
 
 			float4 Depths = float4(
-				AVSM_UnpackSampleData(PackedShadowData4[0]).X,
-				AVSM_UnpackSampleData(PackedShadowData4[1]).X,
-				AVSM_UnpackSampleData(PackedShadowData4[2]).X,
-				AVSM_UnpackSampleData(PackedShadowData4[3]).X
+				AVSM_UnpackSampleData(PackedShadowData4[0], IndirectionData).X,
+				AVSM_UnpackSampleData(PackedShadowData4[1], IndirectionData).X,
+				AVSM_UnpackSampleData(PackedShadowData4[2], IndirectionData).X,
+				AVSM_UnpackSampleData(PackedShadowData4[3], IndirectionData).X
 			);
 
 			int4 Result = float4(WorldHitT, WorldHitT, WorldHitT, WorldHitT) > Depths;
 			int LocalSampleIndex = Result[0] + Result[1] + Result[2] + Result[3];
 
-			ShadowData[0] = AVSM_UnpackSampleData(PackedShadowData4[max(LocalSampleIndex - 1, 0)]);
-			ShadowData[1] = AVSM_UnpackSampleData(PackedShadowData4[min(LocalSampleIndex, 3)]);
+			ShadowData[0] = AVSM_UnpackSampleData(PackedShadowData4[max(LocalSampleIndex - 1, 0)], IndirectionData);
+			ShadowData[1] = AVSM_UnpackSampleData(PackedShadowData4[min(LocalSampleIndex, 3)], IndirectionData);
 			TopLevelSampleIndex = min(TopLevelSampleOffset + LocalSampleIndex, TopLevelSampleCount);
 #if AVSM_SAMPLE_MODE == AVSM_SAMPLE_MODE_TWO_LEVEL_VECTORIZED_LOOP
 			if (LocalSampleIndex < 4)
@@ -330,10 +330,10 @@ float AVSM_Sample_TwoLevel_Vectorized(
 		);
 
 		float4 Depths = float4(
-			AVSM_UnpackSampleData(PackedShadowData4.x).X,
-			AVSM_UnpackSampleData(PackedShadowData4.y).X,
-			AVSM_UnpackSampleData(PackedShadowData4.z).X,
-			AVSM_UnpackSampleData(PackedShadowData4.w).X
+			AVSM_UnpackSampleData(PackedShadowData4.x, IndirectionData).X,
+			AVSM_UnpackSampleData(PackedShadowData4.y, IndirectionData).X,
+			AVSM_UnpackSampleData(PackedShadowData4.z, IndirectionData).X,
+			AVSM_UnpackSampleData(PackedShadowData4.w, IndirectionData).X
 		);
 
 		int4 Result = float4(WorldHitT, WorldHitT, WorldHitT, WorldHitT) > Depths;
@@ -341,9 +341,9 @@ float AVSM_Sample_TwoLevel_Vectorized(
 
 		if (Index > 0)
 		{
-			ShadowData[0] = AVSM_UnpackSampleData(PackedShadowData4[max(Index - 1, 0)]);
+			ShadowData[0] = AVSM_UnpackSampleData(PackedShadowData4[max(Index - 1, 0)], IndirectionData);
 		}
-		ShadowData[1] = AVSM_UnpackSampleData(PackedShadowData4[min(Index, 3)]);
+		ShadowData[1] = AVSM_UnpackSampleData(PackedShadowData4[min(Index, 3)], IndirectionData);
 	}
 
 	// Lerp the final value
