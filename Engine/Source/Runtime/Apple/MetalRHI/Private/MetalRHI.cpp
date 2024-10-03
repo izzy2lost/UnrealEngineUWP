@@ -438,6 +438,18 @@ FMetalDynamicRHI::FMetalDynamicRHI(ERHIFeatureLevel::Type RequestedFeatureLevel)
 	bool const bRequestedSM5 = RequestedFeatureLevel == ERHIFeatureLevel::SM5 ||
                                (!bRequestedFeatureLevel && (FParse::Param(FCommandLine::Get(),TEXT("metalsm5")) || FParse::Param(FCommandLine::Get(),TEXT("metalmrt"))));
                                 
+	if(bRequestedSM6 && !bSupportsSM6)
+	{
+		if(GRHIAdapterName.Contains("Apple") && !GRHIAdapterName.Contains("M1"))
+		{
+			UE_LOG(LogMetal, Warning, TEXT("To use SM6 on this system, please ensure you are running Mac OS 15. Falling back to SM5"));
+		}
+		else
+		{
+			UE_LOG(LogMetal, Warning, TEXT("SM6 is enabled but is not supported on this system, falling back to SM5"));
+		}
+	}
+	
     if(bSupportsSM6 && bRequestedSM6)
     {
         GMaxRHIFeatureLevel = ERHIFeatureLevel::SM6;

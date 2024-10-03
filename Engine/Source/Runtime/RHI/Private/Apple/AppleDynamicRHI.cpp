@@ -10,6 +10,7 @@
 #include "DataDrivenShaderPlatformInfo.h"
 #include COMPILED_PLATFORM_HEADER_WITH_PREFIX(Apple/Platform, PlatformDynamicRHI.h)
 
+#define LOCTEXT_NAMESPACE "AppleRHI"
 
 //------------------------------------------------------------------------------
 // MARK: - FAppleDynamicRHIOptions Union
@@ -47,6 +48,21 @@ static inline bool ValidateAppleDynamicRHIOptions(FAppleDynamicRHIOptions* Optio
 		Options->ForceSM5 = 1;
 		Options->ForceSM6 = 0;
 		Options->ForceMTL = 1;
+	}
+	if(Options->ForceSM6)
+	{
+		bool bSupportsSM6 = false;
+		if (@available(macOS 15.0, *))
+		{
+			bSupportsSM6 = true;
+		}
+		
+		if(!bSupportsSM6)
+		{
+			FMessageDialog::Open(EAppMsgType::Ok, LOCTEXT("RHIOptionsError", "-sm6 is selected but Mac requires OS 15 to support SM6"));
+			UE_LOG(LogRHI, Fatal, TEXT("-sm6 is selected but Mac requires OS 15 to support SM6"));
+			return false;
+		}
 	}
 	return true;
 }
