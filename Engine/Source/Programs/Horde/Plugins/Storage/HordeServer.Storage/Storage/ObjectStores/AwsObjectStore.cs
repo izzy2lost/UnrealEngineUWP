@@ -552,6 +552,27 @@ namespace HordeServer.Storage.ObjectStores
 		}
 
 		/// <inheritdoc/>
+		public async Task<long> GetSizeAsync(ObjectKey key, CancellationToken cancellationToken)
+		{
+			using TelemetrySpan span = OpenTelemetryTracers.Horde.StartActiveSpan($"{nameof(AwsObjectStore)}.{nameof(ExistsAsync)}");
+			span.SetAttribute("path", key.ToString());
+
+			try
+			{
+				GetObjectMetadataRequest request = new GetObjectMetadataRequest();
+				request.BucketName = _options.AwsBucketName;
+				request.Key = GetFullPath(key);
+
+				GetObjectMetadataResponse response = await _client.GetObjectMetadataAsync(request, cancellationToken);
+				return response.ContentLength;
+			}
+			catch (AmazonS3Exception ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
+			{
+				return -1;
+			}
+		}
+
+		/// <inheritdoc/>
 		public void GetStats(StorageStats stats) { }
 	}
 

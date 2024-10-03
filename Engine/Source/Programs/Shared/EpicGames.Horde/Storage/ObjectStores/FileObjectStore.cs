@@ -107,6 +107,20 @@ namespace EpicGames.Horde.Storage.ObjectStores
 			return Task.FromResult(FileReference.Exists(location));
 		}
 
+		/// <inheritdoc/>
+		public Task<long> GetSizeAsync(ObjectKey key, CancellationToken cancellationToken)
+		{
+			FileInfo info = GetBlobFile(key).ToFileInfo();
+			if (info.Exists)
+			{
+				return Task.FromResult<long>(info.Length);
+			}
+			else
+			{
+				return Task.FromResult<long>(-1);
+			}
+		}
+
 		/// <summary>
 		/// Delete a file from the store
 		/// </summary>

@@ -130,6 +130,27 @@ namespace HordeServer.Storage.ObjectStores
 		}
 
 		/// <inheritdoc/>
+		public async Task<long> GetSizeAsync(ObjectKey key, CancellationToken cancellationToken)
+		{
+			if (!await _blobContainer.ExistsAsync(cancellationToken))
+			{
+				return -1;
+			}
+
+			BlobClient blob = _blobContainer.GetBlobClient(key.ToString());
+
+			try
+			{
+				BlobProperties properties = await blob.GetPropertiesAsync(cancellationToken: cancellationToken);
+				return properties.ContentLength;
+			}
+			catch(RequestFailedException)
+			{
+				return -1;
+			}
+		}
+
+		/// <inheritdoc/>
 		public async Task DeleteAsync(ObjectKey key, CancellationToken cancellationToken)
 		{
 			if (!await _blobContainer.ExistsAsync(cancellationToken))

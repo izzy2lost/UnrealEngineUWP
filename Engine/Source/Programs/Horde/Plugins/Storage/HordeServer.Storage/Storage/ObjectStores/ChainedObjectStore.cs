@@ -36,6 +36,10 @@ namespace HordeServer.Storage.Storage.ObjectStores
 			=> await _primary.ExistsAsync(key, cancellationToken) || await _secondary.ExistsAsync(key, cancellationToken);
 
 		/// <inheritdoc/>
+		public Task<long> GetSizeAsync(ObjectKey key, CancellationToken cancellationToken = default)
+			=> _primary.GetSizeAsync(key, cancellationToken);
+
+		/// <inheritdoc/>
 		public void GetStats(StorageStats stats)
 		{
 			_primary.GetStats(stats);

@@ -41,6 +41,9 @@ namespace EpicGames.Horde.Storage.ObjectStores
 		public Task<bool> ExistsAsync(ObjectKey locator, CancellationToken cancellationToken = default) => _inner.ExistsAsync(GetKeyWithPrefix(locator), cancellationToken);
 
 		/// <inheritdoc/>
+		public Task<long> GetSizeAsync(ObjectKey locator, CancellationToken cancellationToken = default) => _inner.GetSizeAsync(GetKeyWithPrefix(locator), cancellationToken);
+
+		/// <inheritdoc/>
 		public Task<Stream> OpenAsync(ObjectKey locator, int offset, int? length, CancellationToken cancellationToken = default) => _inner.OpenAsync(GetKeyWithPrefix(locator), offset, length, cancellationToken);
 
 		/// <inheritdoc/>
