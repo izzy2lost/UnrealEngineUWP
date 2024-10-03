@@ -64,6 +64,20 @@ namespace EpicGames.Horde.Storage.ObjectStores
 		}
 
 		/// <inheritdoc/>
+		public Task<long> GetSizeAsync(ObjectKey key, CancellationToken cancellationToken)
+		{
+			byte[]? data;
+			if (_keyToData.TryGetValue(key, out data))
+			{
+				return Task.FromResult<long>(data.Length);
+			}
+			else
+			{
+				return Task.FromResult<long>(-1);
+			}
+		}
+
+		/// <inheritdoc/>
 		public Task DeleteAsync(ObjectKey key, CancellationToken cancellationToken)
 		{
 			_keyToData.TryRemove(key, out _);

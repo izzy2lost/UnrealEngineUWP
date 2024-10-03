@@ -54,6 +54,24 @@ namespace EpicGames.Horde.Storage.ObjectStores
 		}
 
 		/// <inheritdoc/>
+		public async Task<long> GetSizeAsync(ObjectKey key, CancellationToken cancellationToken = default)
+		{
+			using HttpClient client = _createHttpClient();
+
+			using HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Head, GetUri(key));
+			using HttpResponseMessage response = await client.SendAsync(request, cancellationToken);
+
+			if (response.IsSuccessStatusCode)
+			{
+				return response.Content.Headers.ContentLength ?? throw new NotSupportedException("Missing Content-Length header");
+			}
+			else
+			{
+				return -1;
+			}
+		}
+
+		/// <inheritdoc/>
 		public void GetStats(StorageStats stats)
 		{
 		}

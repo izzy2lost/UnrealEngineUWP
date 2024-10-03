@@ -265,6 +265,9 @@ namespace HordeServer.Storage
 			[BsonElement("del"), BsonIgnoreIfDefault]
 			public int GcVersion { get; set; }
 
+			[BsonElement("len"), BsonIgnoreIfDefault]
+			public long Length { get; set; }
+
 			[BsonIgnore]
 			public BlobLocator Locator => new BlobLocator(Path);
 
@@ -365,6 +368,19 @@ namespace HordeServer.Storage
 			}
 		}
 
+		[SingletonDocument("length-scan-state")]
+		class LengthScanState : SingletonBase
+		{
+			public ObjectId LastImportBlobInfoId { get; set; }
+			public bool Reset { get; set; }
+
+			public void DoReset()
+			{
+				LastImportBlobInfoId = ObjectId.Empty;
+				Reset = false;
+			}
+		}
+
 		class GcNamespaceState
 		{
 			public NamespaceId Id { get; set; }
@@ -389,6 +405,9 @@ namespace HordeServer.Storage
 
 		readonly SingletonDocument<GcState> _gcState;
 		readonly ITicker _gcTicker;
+
+		readonly SingletonDocument<LengthScanState> _lengthScanState;
+		readonly ITicker _lengthScanTicker;
 
 		readonly object _lockObject = new object();
 
@@ -446,6 +465,9 @@ namespace HordeServer.Storage
 
 			_gcState = new SingletonDocument<GcState>(mongoService);
 			_gcTicker = clock.AddTicker("Storage:GC", TimeSpan.FromMinutes(5.0), TickGcAsync, logger);
+
+			_lengthScanState = new SingletonDocument<LengthScanState>(mongoService);
+			_lengthScanTicker = clock.AddTicker("Storage:LengthScan", TimeSpan.FromSeconds(1.0), TickLengthsAsync, logger);
 		}
 
 		static string GetFieldName<TClass>(Expression<Func<TClass, object?>> expr)
@@ -461,6 +483,7 @@ namespace HordeServer.Storage
 			await _blobTicker.DisposeAsync();
 			await _refTicker.DisposeAsync();
 			await _gcTicker.DisposeAsync();
+			await _lengthScanTicker.DisposeAsync();
 		}
 
 		internal static ObjectKey GetObjectKey(BlobLocator locator) => new ObjectKey($"{locator.Path}.blob");
@@ -492,11 +515,13 @@ namespace HordeServer.Storage
 			await _blobTicker.StartAsync();
 			await _refTicker.StartAsync();
 			await _gcTicker.StartAsync();
+			await _lengthScanTicker.StartAsync();
 		}
 
 		/// <inheritdoc/>
 		public async Task StopAsync(CancellationToken cancellationToken)
 		{
+			await _lengthScanTicker.StopAsync();
 			await _gcTicker.StopAsync();
 			await _refTicker.StopAsync();
 			await _blobTicker.StopAsync();
@@ -697,8 +722,6 @@ namespace HordeServer.Storage
 
 			// Get the current state of the storage system
 			State state = CreateState(_storageConfig.CurrentValue);
-
-			Dictionary<NamespaceId, BundleStorageNamespace> cachedClients = new();
 
 			long ingestedCount = 0;
 
@@ -1296,6 +1319,82 @@ namespace HordeServer.Storage
 			{
 				double score = GetGcTimestamp();
 				_ = _redisService.GetDatabase().SortedSetAddAsync(GetGcCheckSet(namespaceId), id, score, flags: CommandFlags.FireAndForget);
+			}
+		}
+
+		#endregion
+
+		#region Length scan
+
+		/// <summary>
+		/// Scan new blobs for their sizes
+		/// </summary>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
+		async ValueTask TickLengthsAsync(CancellationToken cancellationToken)
+		{
+			using TelemetrySpan span = _tracer.StartActiveSpan($"{nameof(StorageService)}.{nameof(TickLengthsAsync)}");
+
+			State state = CreateState(_storageConfig.CurrentValue);
+
+			Channel<BlobInfo> channel = Channel.CreateBounded<BlobInfo>(new BoundedChannelOptions(1000));
+
+			await using AsyncPipeline pipeline = new AsyncPipeline(cancellationToken);
+			pipeline.AddTask(ctx => FindBlobsForLengthScanAsync(channel.Writer, ctx));
+			pipeline.AddTasks(8, channel.Reader, (entry, ctx) => FindBlobLengthsAsync(entry, state, ctx));
+			await pipeline.WaitForCompletionAsync();
+		}
+
+		async Task FindBlobsForLengthScanAsync(ChannelWriter<BlobInfo> writer, CancellationToken cancellationToken)
+		{
+			DateTime latestTimeUtc = _clock.UtcNow - TimeSpan.FromMinutes(30.0);
+			ObjectId latestInfoId = ObjectId.GenerateNewId(latestTimeUtc);
+
+			long scannedCount = 0;
+			LengthScanState lengthScanState = await _lengthScanState.GetAsync(cancellationToken);
+
+			for(; ;)
+			{
+				// Reset the state
+				if (lengthScanState.Reset)
+				{
+					_logger.LogInformation("Resetting scan for blob lengths...");
+					lengthScanState = await _lengthScanState.UpdateAsync(x => x.DoReset(), cancellationToken);
+				}
+
+				// Fetch the next batch of blobs
+				List<BlobInfo> current = await _blobCollection.Find(x => x.Id > lengthScanState.LastImportBlobInfoId && x.Id < latestInfoId).SortBy(x => x.Id).Limit(2000).ToListAsync(cancellationToken);
+				if (current.Count == 0)
+				{
+					break;
+				}
+
+				// Add a check record for each new blob
+				_logger.LogDebug("Finding length for {NumBlobs} blobs ({FirstId} to {LastId})", current.Count, current[0].Id, current[^1].Id);
+				foreach (BlobInfo blobInfo in current)
+				{
+					await writer.WriteAsync(blobInfo, cancellationToken);
+				}
+
+				// Update the last imported blob id
+				lengthScanState = await _lengthScanState.UpdateAsync(state => state.LastImportBlobInfoId = current[^1].Id, cancellationToken);
+				scannedCount += current.Count;
+			}
+
+			_logger.LogInformation("Added lengths for {NumBlobs} blobs", scannedCount);
+			writer.Complete();
+		}
+
+		async Task FindBlobLengthsAsync(BlobInfo blobInfo, State state, CancellationToken cancellationToken)
+		{
+			NamespaceInfo? namespaceInfo;
+			if (state.Namespaces.TryGetValue(blobInfo.NamespaceId, out namespaceInfo))
+			{
+				ObjectKey key = GetObjectKey(blobInfo.Locator);
+				long length = await namespaceInfo.Store.GetSizeAsync(key, cancellationToken);
+
+				FilterDefinition<BlobInfo> filter = Builders<BlobInfo>.Filter.Eq(x => x.Id, blobInfo.Id);
+				UpdateDefinition<BlobInfo> update = Builders<BlobInfo>.Update.Set(x => x.Length, length);
+				await _blobCollection.UpdateOneAsync(filter, update, cancellationToken: cancellationToken);
 			}
 		}
 
