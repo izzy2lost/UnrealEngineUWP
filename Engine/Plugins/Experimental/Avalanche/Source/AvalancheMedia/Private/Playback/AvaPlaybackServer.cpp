@@ -832,7 +832,7 @@ void FAvaPlaybackServer::HandleBroadcastStatusRequest(const FAvaBroadcastStatusR
 	// Make sure all the channel status are refreshed
 	{
 		// Block channel status update while we refresh, we want to send one clean update at the end.
-		TGuardValue BlockChannelStatusUpdate(bBlockChannelStatusUpdate, true);
+		TGuardValue<bool> BlockChannelStatusUpdate(bBlockChannelStatusUpdate, true);
 		for (FAvaBroadcastOutputChannel* Channel : UAvaBroadcast::Get().GetCurrentProfile().GetChannels())
 		{
 			Channel->RefreshState();
@@ -1732,18 +1732,22 @@ bool FAvaPlaybackServer::UpdateChannelOutputConfig(FAvaBroadcastOutputChannel& I
 		if (!NewOutputs.IsEmpty())
 		{
 			{
+				// Both RemoveMediaOutput and AddMediaOutput will broadcast channel events
+				// we don't want those temporary states to propagate to the playback client.
+				TGuardValue<bool> BlockChannelStatusUpdate(bBlockChannelStatusUpdate, true);
+			
 				TArray<UMediaOutput*> MediaOutputs = InChannel.GetMediaOutputs();
 				for (UMediaOutput* MediaOutput : MediaOutputs)
 				{
 					InChannel.RemoveMediaOutput(MediaOutput);
 				}
-			}
 
-			for (int32 Index = 0; Index < NewOutputs.Num(); ++Index)
-			{
-				// Make the device info "local" for this server.
-				NewOutputInfos[Index].ServerName = FAvaBroadcastDeviceProviderProxyManager::LocalServerName;
-				InChannel.AddMediaOutput(NewOutputs[Index].Get(), NewOutputInfos[Index]);
+				for (int32 Index = 0; Index < NewOutputs.Num(); ++Index)
+				{
+					// Make the device info "local" for this server.
+					NewOutputInfos[Index].ServerName = FAvaBroadcastDeviceProviderProxyManager::LocalServerName;
+					InChannel.AddMediaOutput(NewOutputs[Index].Get(), NewOutputInfos[Index]);
+				}
 			}
 
 			// We may not desired refresh state here to avoid spurious states if
