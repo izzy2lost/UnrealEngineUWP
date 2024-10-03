@@ -958,6 +958,14 @@ export class Backend {
         });
     }
 
+    getTemplateHistory(streamId: string, templateId: string, query: AuditLogQuery): Promise<AuditLogEntry[]> {
+        return new Promise<AuditLogEntry[]>((resolve, reject) => {
+            this._fetch.get(`/api/v1/streams/${encodeURIComponent(streamId)}/templates/${encodeURIComponent(templateId)}/history`, { params: query }).then((response) => {
+                const history = (response.data?.entries ?? []) as AuditLogEntry[];
+                resolve(history);
+            }).catch(reason => { reject(reason); });
+        });
+    }
 
     getIssuesV2(queryIn?: IssueQueryV2): Promise<FindIssueResponse[]> {
 
