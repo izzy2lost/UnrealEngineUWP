@@ -616,9 +616,12 @@ bool LoadBasePassPipeline(
 		FPrimitiveSceneProxy::FLCIArray LCIs;
 		SceneProxy->GetLCIs(LCIs);
 
-		// We expect a Nanite scene proxy can only ever have a single LCI
-		check(LCIs.Num() == 1u);
-		LightCacheInterface = LCIs[0];
+		// We expect a Nanite scene proxy can only ever have a single LCI, or none in cases like skeletal meshes
+		check(LCIs.Num() <= 1u);
+		if (LCIs.Num() == 1u)
+		{
+			LightCacheInterface = LCIs[0];
+		}
 	}
 
 	bool bRenderSkylight = false;
