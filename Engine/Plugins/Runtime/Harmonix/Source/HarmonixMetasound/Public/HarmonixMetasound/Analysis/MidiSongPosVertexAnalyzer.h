@@ -41,6 +41,7 @@ namespace HarmonixMetasound::Analysis
 		virtual void Execute() override;
 
 	private:
+		TWeakPtr<const FMidiClock, ESPMode::NotThreadSafe> LastClock;
 		FMidiClockSongPositionWriteRef LastMidiClockSongPos;
 		TSharedPtr<FMidiClockSongPositionHistory> History;
 		bool LastPosWasSeekOrLoop {false};
