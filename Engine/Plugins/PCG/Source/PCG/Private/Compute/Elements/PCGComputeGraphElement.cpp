@@ -206,6 +206,37 @@ bool FPCGComputeGraphElement::ExecuteInternal(FPCGContext* InContext) const
 
 	check(Context->DataBinding && InContext->SourceComponent.Get());
 
+	if (!Context->bPrimitiveProxiesValidated)
+	{
+		bool bAllProxiesCreated = true;
+
+		for (const TPair<TObjectPtr<const UPCGSettings>, FPCGSpawnerPrimitives>& SpawnerToPrimitives : Context->DataBinding->MeshSpawnersToPrimitives)
+		{
+			for (const TObjectPtr<UPrimitiveComponent>& Primitive : SpawnerToPrimitives.Value.Primitives)
+			{
+				const UPCGProceduralISMComponent* PISMC = Cast<UPCGProceduralISMComponent>(Primitive);
+				if (PISMC && PISMC->GetNumInstances() > 0 && !PISMC->GetSceneProxy())
+				{
+					bAllProxiesCreated = false;
+					break;
+				}
+			}
+
+			if (!bAllProxiesCreated)
+			{
+				break;
+			}
+		}
+
+		if (!bAllProxiesCreated)
+		{
+			SleepUntilNextFrame(Context);
+			return false;
+		}
+
+		Context->bPrimitiveProxiesValidated = true;
+	}
+
 	// 1. Prepare render resources. In editor, this will trigger shader compile if not compiled already.
 	if (!Context->ComputeGraph->GetRenderProxy())
 	{
