@@ -164,7 +164,7 @@ namespace Metasound
 
 		TAttribute<EVisibility> SMetaSoundGraphNode::GetSimulationVisibilityAttribute() const
 		{
-			return TAttribute<EVisibility>::CreateLambda([this]()
+			return TAttribute<EVisibility>::CreateSPLambda(AsShared(), [this]()
 			{
 				using namespace Frontend;
 
