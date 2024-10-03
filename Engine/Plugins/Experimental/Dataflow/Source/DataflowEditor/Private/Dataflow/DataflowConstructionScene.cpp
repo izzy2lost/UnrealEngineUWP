@@ -12,6 +12,7 @@
 #include "Drawing/MeshElementsVisualizer.h"
 #include "Elements/Framework/EngineElementsLibrary.h"
 #include "Selection.h"
+#include "AssetViewerSettings.h"
 
 #define LOCTEXT_NAMESPACE "FDataflowConstructionScene"
 
@@ -221,6 +222,28 @@ void FDataflowConstructionScene::UpdateDynamicMeshComponents()
 					}
 				}
 			}
+
+			// Hide the floor in orthographic view modes
+			if (const UE::Dataflow::IDataflowConstructionViewMode* ConstructionViewMode = EditorContent->GetConstructionViewMode())
+			{
+				if (!ConstructionViewMode->IsPerspective())
+				{
+					constexpr bool bDontModifyProfile = true;
+					SetFloorVisibility(false, bDontModifyProfile);
+				}
+				else
+				{
+					// Restore visibility from profile settings
+					const int32 ProfileIndex = GetCurrentProfileIndex();
+					if (DefaultSettings->Profiles.IsValidIndex(ProfileIndex))
+					{
+						const bool bProfileSetting = DefaultSettings->Profiles[CurrentProfileIndex].bShowFloor;
+						constexpr bool bDontModifyProfile = true;
+						SetFloorVisibility(bProfileSetting, bDontModifyProfile);
+					}
+				}
+			}
+
 		}
 	}
 }
@@ -263,7 +286,8 @@ TObjectPtr<UDynamicMeshComponent>& FDataflowConstructionScene::AddDynamicMeshCom
 	}
 	else
 	{
-		DynamicMeshComponent->SetOverrideRenderMaterial(FDataflowEditorStyle::Get().VertexMaterial);
+		ensure(FDataflowEditorStyle::Get().DefaultTwoSidedMaterial);
+		DynamicMeshComponent->SetOverrideRenderMaterial(FDataflowEditorStyle::Get().DefaultTwoSidedMaterial);
 		DynamicMeshComponent->SetShadowsEnabled(false);
 	}
 	//else if (FDataflowEditorStyle::Get().DefaultMaterial)
