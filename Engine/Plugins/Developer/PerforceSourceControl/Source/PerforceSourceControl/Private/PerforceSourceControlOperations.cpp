@@ -2133,15 +2133,12 @@ bool FPerforceUpdateStatusWorker::UpdateStates() const
 			DataStorage->RemoveColumn(Row, Column);
 		}
 		
-        if (FTypedElementPackageReference* BackReference = DataStorage->GetColumn<FTypedElementPackageReference>(Row))
-        {
-        	if (RowHandle ObjectRow = BackReference->Row; ObjectRow != InvalidRowHandle)
-        	{
-        		static TableHandle Table = DataStorage->FindTable(FName("Editor_PackageUpdateTable"));
-        		RowHandle UpdateRow = DataStorage->AddRow(Table);
-        		DataStorage->AddColumn(UpdateRow, FTypedElementPackageUpdateColumn{ .ObjectRow = ObjectRow, .PackageRow = Row });
-        	}
-        }
+		// While the backreference via FTypedElementPackageReference isn't reliable because you can have multiple actors referencing a single SCC
+		// row, it at least lets us filter out rows that don't have any actors
+		if (DataStorage->HasColumns<FTypedElementPackageReference>(Row))
+		{
+			DataStorage->ActivateQueries(TEXT("UpdateSCCForActors"));
+		}
 	};
 
 	bool bUpdated = false;

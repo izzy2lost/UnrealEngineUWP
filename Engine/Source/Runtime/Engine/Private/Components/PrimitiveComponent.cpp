@@ -731,8 +731,21 @@ FPrimitiveComponentInstanceData::FPrimitiveComponentInstanceData(const UPrimitiv
 	, VisibilityId(SourceComponent->VisibilityId)
 	, LODParent(SourceComponent->GetLODParentPrimitive())
 {
-	const_cast<UPrimitiveComponent*>(SourceComponent)->ConditionalUpdateComponentToWorld(); // sadness
+	UPrimitiveComponent* PrimitiveComponent = const_cast<UPrimitiveComponent*>(SourceComponent);
+	PrimitiveComponent->ConditionalUpdateComponentToWorld(); // sadness
 	ComponentTransform = SourceComponent->GetComponentTransform();
+
+#if WITH_EDITOR
+	// Only persist the overlay color if the component wants editor effects
+	if (PrimitiveComponent->bWantsEditorEffects)
+	{
+		OverlayColor = PrimitiveComponent->OverlayColor;
+	}
+	else
+	{
+		OverlayColor = FColor(ForceInitToZero);
+	}
+#endif
 }
 
 void FPrimitiveComponentInstanceData::ApplyToComponent(UActorComponent* Component, const ECacheApplyPhase CacheApplyPhase)
@@ -758,11 +771,24 @@ void FPrimitiveComponentInstanceData::ApplyToComponent(UActorComponent* Componen
 		PrimitiveComponent->ResetCustomPrimitiveData();
 		Component->MarkRenderStateDirty();
 	}
+	
+#if WITH_EDITOR
+	if (OverlayColor != FColor(ForceInitToZero))
+	{
+		PrimitiveComponent->SetOverlayColor(OverlayColor);
+	}
+#endif
 }
 
 bool FPrimitiveComponentInstanceData::ContainsData() const
 {
-	return (Super::ContainsData() || LODParent || (VisibilityId != INDEX_NONE));
+	bool bContainsData = (Super::ContainsData() || LODParent || (VisibilityId != INDEX_NONE));
+	
+#if WITH_EDITOR
+	bContainsData |= (OverlayColor != FColor(ForceInitToZero));
+#endif
+
+	return bContainsData;
 }
 
 void FPrimitiveComponentInstanceData::AddReferencedObjects(FReferenceCollector& Collector)
@@ -5031,6 +5057,13 @@ void UPrimitiveComponent::AssignSceneProxy(FPrimitiveSceneProxy* InSceneProxy)
 		{
 			SceneData.OwnerLastRenderTimePtr->NumAlwaysVisibleComponents.fetch_add(1, std::memory_order_relaxed);
 		}
+
+#if WITH_EDITOR
+		if (bWantsEditorEffects)
+		{
+			SetOverlayColor(OverlayColor);
+		}
+#endif
 	}
 }
 
