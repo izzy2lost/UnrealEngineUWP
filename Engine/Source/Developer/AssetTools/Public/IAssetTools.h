@@ -611,15 +611,6 @@ public:
 	/* Given a complete set of copy parameters, which includes the selected package set, start the advanced copy process */
 	virtual void InitAdvancedCopyFromCopyParams(FAdvancedCopyParams CopyParams) const = 0;
 
-	/** Copies a file, patching internal references without performing a de-serialization. This is a blocking operation. returns true on successful copy */
-	UE_INTERNAL virtual bool PatchCopyPackageFile(const FString& SrcFile, const FString& DstFile, const TMap<FString, FString>& SearchForAndReplace) const = 0;
-
-	/** Generates the PatchCopyPackageFile SearchForAndReplace parameter if all you are doing is changing the root and not the relative path of assets */
-	UE_INTERNAL virtual TMap<FString, FString> GetPatchCopyMappingsForRootRename(const FString& SrcRoot, const FString& DstRoot, const FString& SrcBaseDir, const TArray<TPair<FString, FString>>& SourceAndDestFiles, const TMap<FString, FString>& MountPointReplacements) const = 0;
-
-	/** Generates additional entries for the PatchCopyPackageFile SearchForAndReplace parameter based on the specified package paths mapping */
-	UE_INTERNAL virtual TMap<FString, FString> GetAdditionalPatchCopyMappings(const TMap<FString, FString>& SourceAndDestPackages) const = 0;
-
 	/** Opens editor for assets */
 	UFUNCTION(BlueprintCallable, Category = "Editor Scripting | Asset Tools", meta = (DeprecatedFunction, DeprecationMessage = "Please use UAssetEditorSubsystem::OpenEditorForAssets instead."))
 	virtual void OpenEditorForAssets(const TArray<UObject*>& Assets) = 0;
