@@ -208,7 +208,7 @@ protected:
 	ResourceType ShaderResource;
 };
 
-class IViewportRenderTargetProvider
+class UE_DEPRECATED(5.5, "This is no longer used.") IViewportRenderTargetProvider
 {
 public:
 	virtual FSlateShaderResource* GetViewportRenderTargetTexture() = 0;

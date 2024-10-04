@@ -505,6 +505,22 @@ public:
 	}
 
 	/**
+	 * Does the texture returned by GetViewportRenderTargetTexture represent a stereoscopic 3D target?
+	 */
+	virtual bool IsStereoscopic3D() const
+	{
+		return false;
+	}
+	
+	/**
+	 * Is the viewport expected to render to GetViewportRenderTargetTexture? Or to the swapchain?
+	 */
+	virtual bool UseSeparateRenderTarget() const
+	{
+		return false;
+	}
+
+	/**
 	 * Does the texture contain SDR/HDR information
 	 */
 	virtual ESlateViewportDynamicRange GetViewportDynamicRange() const

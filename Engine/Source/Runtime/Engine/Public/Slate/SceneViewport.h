@@ -31,7 +31,7 @@ extern const FName NAME_SceneViewport;
 /**
  * A viewport for use with Slate SViewport widgets.
  */
-class FSceneViewport : public FViewportFrame, public FViewport, public ISlateViewport, public IViewportRenderTargetProvider
+class FSceneViewport : public FViewportFrame, public FViewport, public ISlateViewport
 {
 public:
 	ENGINE_API FSceneViewport( FViewportClient* InViewportClient, TSharedPtr<SViewport> InViewportWidget );
@@ -261,8 +261,6 @@ public:
 	/** Returns dimensions of RenderTarget texture. Can be called on a game thread. */
 	virtual FIntPoint GetRenderTargetTextureSizeXY() const { return (RTTSize.X != 0) ? RTTSize : GetSizeXY(); }
 
-	ENGINE_API virtual FSlateShaderResource* GetViewportRenderTargetTexture() override;
-
 	/** Returns format for the scene of this viewport. */
 	ENGINE_API EPixelFormat GetSceneTargetFormat() const override { return SceneTargetFormat; }
 
@@ -345,14 +343,17 @@ private:
 	/** Utility function to figure out if we are currently a game viewport */
 	ENGINE_API bool IsCurrentlyGameViewport();
 
-	ENGINE_API void WindowRenderTargetUpdate(FSlateRenderer* Renderer, SWindow* Window);
+	UE_DEPRECATED(5.5, "WindowRenderTargetUpdate is no longer used")
+	void WindowRenderTargetUpdate(FSlateRenderer* Renderer, SWindow* Window) {}
 
 	/** @return Returns true if we should always render to a separate render target (rather than rendering directly to the
 	    viewport backbuffer, taking into account any temporary requirements of head-mounted displays */
-	bool UseSeparateRenderTarget() const
+	bool UseSeparateRenderTarget() const override
 	{
 		return bUseSeparateRenderTarget || bForceSeparateRenderTarget;
 	}
+
+	ENGINE_API bool IsStereoscopic3D() const override;
 
 	/**
 	 * Called right before a slate window is destroyed so we can free up the backbuffer resource before the window backing it is destroyed

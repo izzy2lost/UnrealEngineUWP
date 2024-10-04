@@ -146,7 +146,6 @@ struct FSlateViewportInfo : public FRenderResource
 {
 	FViewportRHIRef ViewportRHI;
 	void* OSWindow = nullptr;
-	IViewportRenderTargetProvider* RenderTargetProvider = nullptr;
 	FMatrix ProjectionMatrix;
 	FIntPoint Extent = FIntPoint::ZeroValue;
 	FIntPoint ExtentToResizeTo = FIntPoint::ZeroValue;
@@ -161,18 +160,6 @@ struct FSlateViewportInfo : public FRenderResource
 		// Full GPU sync here to simplify memory lifetime of the underlying resource.
 		FRHICommandListExecutor::GetImmediateCommandList().BlockUntilGPUIdle();
 		ViewportRHI.SafeRelease();
-	}
-
-	FTextureRHIRef GetRenderTargetTexture() const
-	{
-		if (RenderTargetProvider)
-		{
-			if (FSlateShaderResource* RenderTargetTexture = RenderTargetProvider->GetViewportRenderTargetTexture())
-			{
-				return static_cast<FSlateRenderTargetRHI*>(RenderTargetTexture)->GetTypedResource();
-			}
-		}
-		return nullptr;
 	}
 };
 
@@ -679,14 +666,16 @@ FSlateDrawWindowPassOutputs FSlateRHIRenderer::DrawWindow_RenderThread(FRDGBuild
 		RDG_CSV_STAT_EXCLUSIVE_SCOPE(GraphBuilder, Slate);
 		TRACE_CPUPROFILER_EVENT_SCOPE(Slate::DrawWindow_RenderThread);
 
+		ISlateViewport* SlateViewport = Inputs.Window->GetViewport().Get();
+
 		// The viewport texture is an optional user-allocated render target. This is rendered to if valid.
-		ViewportTextureRHI = ViewportInfo.GetRenderTargetTexture();
+		ViewportTextureRHI = SlateViewport && SlateViewport->UseSeparateRenderTarget() ? static_cast<FSlateRenderTargetRHI*>(SlateViewport->GetViewportRenderTargetTexture())->GetTypedResource() : nullptr;
 
 		// The swap chain is the final output. This is rendered to if no viewport render target is provided.
 		FRHITexture* SwapChainTextureRHI = RHIGetViewportBackBuffer(ViewportInfo.ViewportRHI);
 
 		// Only render to the intermediate viewport render target if stereo rendering is enabled, which we'll then composite later.
-		const bool bCompositeStereoToSwapChain = ViewportTextureRHI && GEngine && GEngine->StereoRenderingDevice.IsValid();
+		const bool bCompositeStereoToSwapChain = ViewportTextureRHI && GEngine && GEngine->StereoRenderingDevice.IsValid() && SlateViewport && SlateViewport->IsStereoscopic3D();
 
 		// The output texture is what we ultimately render or composite slate elements into.
 		OutputTextureRHI = bCompositeStereoToSwapChain ? ViewportTextureRHI : SwapChainTextureRHI;
@@ -1715,15 +1704,6 @@ void FSlateRHIRenderer::RequestResize(const TSharedPtr<SWindow>& Window, uint32 
 	{
 		ViewInfo->ExtentToResizeTo.X = NewWidth;
 		ViewInfo->ExtentToResizeTo.Y = NewHeight;
-	}
-}
-
-void FSlateRHIRenderer::SetWindowRenderTarget(const SWindow& Window, IViewportRenderTargetProvider* Provider)
-{
-	FSlateViewportInfo* ViewInfo = WindowToViewportInfo.FindRef(&Window);
-	if (ViewInfo)
-	{
-		ViewInfo->RenderTargetProvider = Provider;
 	}
 }
 
