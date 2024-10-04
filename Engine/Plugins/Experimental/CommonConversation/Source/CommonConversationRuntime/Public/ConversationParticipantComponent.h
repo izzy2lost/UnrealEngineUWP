@@ -39,7 +39,7 @@ public:
 
 public:
 	void SendClientConversationMessage(const FConversationContext& Context, const FClientConversationMessagePayload& Payload);
-	virtual void SendClientUpdatedChoices(const FConversationContext& Context);
+	virtual void SendClientUpdatedChoices(const FConversationContext& Context, const bool bForcedRefresh = false);
 	void SendClientRefreshedTaskChoiceData(const FConversationNodeHandle& Handle, const FConversationContext& Context);
 
 	UFUNCTION(BlueprintCallable, Category=Conversation)
