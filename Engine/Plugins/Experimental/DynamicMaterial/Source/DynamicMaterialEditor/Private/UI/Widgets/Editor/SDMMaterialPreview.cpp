@@ -9,6 +9,7 @@
 #include "DynamicMaterialEditorSettings.h"
 #include "DynamicMaterialModule.h"
 #include "Editor/UnrealEdEngine.h"
+#include "EditorModeManager.h"
 #include "Engine/Engine.h"
 #include "Engine/PostProcessVolume.h"
 #include "Engine/World.h"
@@ -559,7 +560,7 @@ void SDMMaterialPreview::OpenMaterialPreviewTab()
 
 TSharedRef<FEditorViewportClient> SDMMaterialPreview::MakeEditorViewportClient()
 {
-	EditorViewportClient = MakeShared<FDMMaterialPreviewViewportClient>(SharedThis(this), *PreviewScene.Get());
+	EditorViewportClient = MakeShared<FDMMaterialPreviewViewportClient>(SharedThis(this), *PreviewScene.Get(), MakeShared<FEditorModeTools>());
 	EditorViewportClient->SetViewLocation(FVector::ZeroVector);
 	EditorViewportClient->SetViewRotation(FRotator(-15.0f, -90.0f, 0.0f));
 	EditorViewportClient->SetViewLocationForOrbiting(FVector::ZeroVector);

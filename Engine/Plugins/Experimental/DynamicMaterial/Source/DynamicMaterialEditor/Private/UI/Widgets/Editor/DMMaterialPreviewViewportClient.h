@@ -7,13 +7,15 @@
 #include "Templates/SharedPointer.h"
 
 class FAdvancedPreviewScene;
+class FEditorModeTools;
 class SDMMaterialPreview;
 
 /** Based on FMaterialEditorViewportClient (private) */
 class FDMMaterialPreviewViewportClient : public FEditorViewportClient
 {
 public:
-	FDMMaterialPreviewViewportClient(const TSharedRef<SDMMaterialPreview>& InPreviewWidget, FAdvancedPreviewScene& InPreviewScene);
+	FDMMaterialPreviewViewportClient(const TSharedRef<SDMMaterialPreview>& InPreviewWidget, FAdvancedPreviewScene& InPreviewScene,
+		TSharedRef<FEditorModeTools> InPreviewModeTools);
 
 	/**
 	* Focuses the viewport to the center of the bounding box/sphere ensuring that the entire bounds are in view
@@ -35,4 +37,5 @@ public:
 private:
 	TWeakPtr<SDMMaterialPreview> PreviewWidget;
 	FAdvancedPreviewScene* AdvancedPreviewScene;
+	TSharedPtr<FEditorModeTools> PreviewModeTools;
 };

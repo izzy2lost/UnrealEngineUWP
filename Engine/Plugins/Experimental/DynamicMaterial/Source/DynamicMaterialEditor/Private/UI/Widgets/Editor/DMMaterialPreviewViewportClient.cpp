@@ -8,10 +8,12 @@
 #include "UnrealWidget.h"
 
 FDMMaterialPreviewViewportClient::FDMMaterialPreviewViewportClient(const TSharedRef<SDMMaterialPreview>& InPreviewWidget,
-	FAdvancedPreviewScene& InPreviewScene)
-	: FEditorViewportClient(nullptr, &InPreviewScene, StaticCastSharedRef<SEditorViewport>(InPreviewWidget))
+	FAdvancedPreviewScene& InPreviewScene, TSharedRef<FEditorModeTools> InPreviewModeTools)
+	: FEditorViewportClient(&*InPreviewModeTools, &InPreviewScene,
+		StaticCastSharedRef<SEditorViewport>(InPreviewWidget))
 {
 	PreviewWidget = InPreviewWidget;
+	PreviewModeTools = InPreviewModeTools;
 
 	bDrawAxes = false;
 
@@ -124,7 +126,10 @@ void FDMMaterialPreviewViewportClient::Tick(float InDeltaSeconds)
 	// Tick the preview scene world.
 	if (UWorld* World = PreviewScene->GetWorld())
 	{
-		World->Tick(LEVELTICK_All, InDeltaSeconds);
+		if (IsValid(World))
+		{
+			World->Tick(LEVELTICK_All, InDeltaSeconds);
+		}
 	}
 }
 
