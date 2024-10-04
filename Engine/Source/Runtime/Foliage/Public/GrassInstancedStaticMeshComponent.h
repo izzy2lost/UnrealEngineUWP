@@ -6,7 +6,7 @@
 #include "Components/HierarchicalInstancedStaticMeshComponent.h"
 #include "GrassInstancedStaticMeshComponent.generated.h"
 
-UCLASS(ClassGroup = Foliage, MinimalAPI)
+UCLASS(ClassGroup = Foliage, MinimalAPI, Hidden)
 class UGrassInstancedStaticMeshComponent : public UHierarchicalInstancedStaticMeshComponent
 {
 	GENERATED_UCLASS_BODY()

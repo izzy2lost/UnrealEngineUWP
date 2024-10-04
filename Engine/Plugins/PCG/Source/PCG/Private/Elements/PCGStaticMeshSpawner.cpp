@@ -19,6 +19,7 @@
 #include "MeshSelectors/PCGMeshSelectorByAttribute.h"
 #include "MeshSelectors/PCGMeshSelectorWeighted.h"
 
+#include "GrassInstancedStaticMeshComponent.h"
 #include "Components/InstancedStaticMeshComponent.h"
 #include "Engine/StaticMesh.h"
 #include "Materials/MaterialInterface.h"
@@ -595,6 +596,12 @@ void FPCGStaticMeshSpawnerElement::SpawnStaticMeshInstances(FPCGStaticMeshSpawne
 
 	if (InstanceList.Instances.Num() == 0)
 	{
+		return;
+	}
+	
+	if (InstanceList.Descriptor.ComponentClass && InstanceList.Descriptor.ComponentClass->IsChildOf<UGrassInstancedStaticMeshComponent>())
+	{
+		PCGLog::LogErrorOnGraph(LOCTEXT("NoSupportForGrassComponent", "Grass Instanced Static Mesh Component are not meant to be used outside of the landscape grass system, and are not supported by PCG."), Context);
 		return;
 	}
 
