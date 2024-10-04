@@ -54,6 +54,7 @@ protected:
 	//~ End IAvaPlaybackObject
 
 	//~ Begin AActor
+	virtual void BeginDestroy() override;
 	virtual void EndPlay(const EEndPlayReason::Type InEndPlayReason) override;
 #if WITH_EDITOR
 	virtual bool IsSelectable() const override { return false; }
@@ -68,6 +69,9 @@ protected:
 
 	/** Unregisters this Playback Object from the World's Sequence Tick Manager */
 	void UnregisterPlaybackObject();
+
+	/** Called when on FWorldDelegates::OnWorldCleanup */
+	void OnWorldCleanup(UWorld* InWorld, bool bInSessionEnded, bool bInCleanupResources);
 
 	void OnSequenceFinished(UAvaSequencePlayer* InPlayer, UAvaSequence* InSequence);
 
@@ -101,6 +105,9 @@ private:
 
 	/** Called when a Camera Cut occurs. */
 	FOnCameraCut OnCameraCut;
+
+	FDelegateHandle OnSequenceFinishedDelegate;
+	FDelegateHandle OnWorldCleanupDelegate;
 
 	bool bStoppingAllSequences = false;
 };

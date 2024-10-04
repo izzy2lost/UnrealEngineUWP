@@ -17,7 +17,9 @@ AAvaSequencePlaybackActor::AAvaSequencePlaybackActor()
 	PrimaryActorTick.TickInterval = 0.f;
 	PrimaryActorTick.bTickEvenWhenPaused = true;
 
-	UAvaSequencePlayer::OnSequenceFinished().AddUObject(this, &AAvaSequencePlaybackActor::OnSequenceFinished);
+	OnSequenceFinishedDelegate = UAvaSequencePlayer::OnSequenceFinished().AddUObject(this, &AAvaSequencePlaybackActor::OnSequenceFinished);
+
+	OnWorldCleanupDelegate = FWorldDelegates::OnWorldCleanup.AddUObject(this, &AAvaSequencePlaybackActor::OnWorldCleanup);
 }
 
 void AAvaSequencePlaybackActor::SetSequenceProvider(IAvaSequenceProvider& InSequenceProvider)
@@ -484,6 +486,26 @@ void AAvaSequencePlaybackActor::UnregisterPlaybackObject()
 	}
 
 	CleanupPlayers();
+}
+
+void AAvaSequencePlaybackActor::OnWorldCleanup(UWorld* InWorld, bool bInSessionEnded, bool bInCleanupResources)
+{
+	if (bInCleanupResources && GetWorld() == InWorld)
+	{
+		// Ensure the players tear down to unregister themselves from Tick Manager holding them as external references
+		CleanupPlayers();
+	}
+}
+
+void AAvaSequencePlaybackActor::BeginDestroy()
+{
+	Super::BeginDestroy();
+
+	UAvaSequencePlayer::OnSequenceFinished().Remove(OnSequenceFinishedDelegate);
+	OnSequenceFinishedDelegate.Reset();
+
+	FWorldDelegates::OnWorldCleanup.Remove(OnWorldCleanupDelegate);
+	OnWorldCleanupDelegate.Reset();
 }
 
 void AAvaSequencePlaybackActor::EndPlay(const EEndPlayReason::Type InEndPlayReason)

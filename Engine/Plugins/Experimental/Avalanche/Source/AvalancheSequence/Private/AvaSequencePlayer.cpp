@@ -86,8 +86,6 @@ void UAvaSequencePlayer::SetPlaySettings(const FAvaSequencePlayParams& InPlaySet
 
 	SetTimeRange(StartTimeSeconds, DurationSeconds);
 
-	bTearDownOnFinished = InPlaySettings.AdvancedSettings.bTearDownOnFinished;
-
 	PlaybackSettings = FMovieSceneSequencePlaybackSettings();
 	PlaybackSettings.PlayRate = InPlaySettings.AdvancedSettings.PlaybackSpeed;
 	PlaybackSettings.LoopCount.Value = InPlaySettings.AdvancedSettings.LoopCount;
@@ -184,6 +182,10 @@ void UAvaSequencePlayer::OnStopped()
 
 	// At the moment, Stop means to completely finish
 	NotifySequenceFinished();
+
+	// Defer cleanup as there is an action flush that assumes the Tick Manager is still alive after this Stop callback
+	// see UMovieSceneSequencePlayer::RunLatentActions
+	QueueLatentAction(FMovieSceneSequenceLatentActionDelegate::CreateUObject(this, &UAvaSequencePlayer::Cleanup));
 }
 
 void UAvaSequencePlayer::TickFromSequenceTickManager(float InDeltaSeconds, FMovieSceneEntitySystemRunner* InRunner)
@@ -228,9 +230,4 @@ void UAvaSequencePlayer::NotifySequencePaused()
 void UAvaSequencePlayer::NotifySequenceFinished()
 {
 	OnSequenceFinishedDelegate.Broadcast(this, GetAvaSequence());
-
-	if (bTearDownOnFinished)
-	{
-		TearDown();
-	}
 }
