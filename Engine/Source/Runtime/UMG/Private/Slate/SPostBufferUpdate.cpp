@@ -59,9 +59,16 @@ public:
 
 void FPostBufferUpdater::Draw_RenderThread(FRDGBuilder& GraphBuilder, const FDrawPassInputs& Inputs)
 {
+	const USlateRHIRendererSettings* RendererSettings = USlateRHIRendererSettings::Get();
+
+	if (!RendererSettings)
+	{
+		return;
+	}
+
 	for (ESlatePostRT SlatePostBufferBit : MakeFlagsRange(Inputs.UsedSlatePostBuffers & BuffersToUpdate_Renderthread))
 	{
-		UTextureRenderTarget2D* SlatePostBuffer = Cast<UTextureRenderTarget2D>(USlateRHIRendererSettings::Get()->TryGetPostBufferRT(SlatePostBufferBit));
+		UTextureRenderTarget2D* SlatePostBuffer = Cast<UTextureRenderTarget2D>(RendererSettings->TryGetPostBufferRT(SlatePostBufferBit));
 		if (!SlatePostBuffer)
 		{
 			continue;
@@ -113,16 +120,19 @@ void FPostBufferUpdater::PostCustomElementAdded(FSlateElementBatcher& ElementBat
 	}
 
 	// Give proxies a chance to update their renderthread values.
-	for (ESlatePostRT SlatePostBufferBit : MakeFlagsRange(BuffersToUpdate_Renderthread))
+	if (const USlateRHIRendererSettings* RendererSettings = USlateRHIRendererSettings::Get())
 	{
-		if (!USlateRHIRendererSettings::Get()->GetSlatePostSetting(SlatePostBufferBit).bEnabled)
+		for (ESlatePostRT SlatePostBufferBit : MakeFlagsRange(BuffersToUpdate_Renderthread))
 		{
-			continue;
-		}
+			if (!RendererSettings->GetSlatePostSetting(SlatePostBufferBit).bEnabled)
+			{
+				continue;
+			}
 
-		if (TSharedPtr<FSlateRHIPostBufferProcessorProxy> PostProcessorProxy = USlateFXSubsystem::GetPostProcessorProxy(SlatePostBufferBit))
-		{
-			PostProcessorProxy->OnUpdateValuesRenderThread();
+			if (TSharedPtr<FSlateRHIPostBufferProcessorProxy> PostProcessorProxy = USlateFXSubsystem::GetPostProcessorProxy(SlatePostBufferBit))
+			{
+				PostProcessorProxy->OnUpdateValuesRenderThread();
+			}
 		}
 	}
 }
@@ -184,11 +194,14 @@ void SPostBufferUpdate::SetBuffersToUpdate(const TArrayView<ESlatePostRT> InBuff
 	if (PostBufferUpdater && !PostBufferUpdater->bBuffersToUpdateInitialized)
 	{
 		PostBufferUpdater->BuffersToUpdate_Renderthread = ESlatePostRT::None;
-		for (ESlatePostRT BufferToUpdate : BuffersToUpdate)
+		if (const USlateRHIRendererSettings* RendererSettings = USlateRHIRendererSettings::Get())
 		{
-			if (USlateRHIRendererSettings::Get()->GetSlatePostSetting(BufferToUpdate).bEnabled)
+			for (ESlatePostRT BufferToUpdate : BuffersToUpdate)
 			{
-				PostBufferUpdater->BuffersToUpdate_Renderthread |= BufferToUpdate;
+				if (RendererSettings->GetSlatePostSetting(BufferToUpdate).bEnabled)
+				{
+					PostBufferUpdater->BuffersToUpdate_Renderthread |= BufferToUpdate;
+				}
 			}
 		}
 
