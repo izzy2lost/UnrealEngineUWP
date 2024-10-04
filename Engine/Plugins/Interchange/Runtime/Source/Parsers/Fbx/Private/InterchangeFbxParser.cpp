@@ -62,6 +62,16 @@ namespace UE::Interchange
 		//Since we are not in main thread we cannot use TStrongPtr, so we will add the object to the root and remove it when we are done
 		UInterchangeBaseNodeContainer* Container = NewObject<UInterchangeBaseNodeContainer>(GetTransientPackage(), NAME_None);
 
+		if (!ensure(Container != nullptr))
+		{
+			if (UInterchangeResultError_Generic* Error = AddMessage<UInterchangeResultError_Generic>())
+			{
+				Error->SourceAssetName = SourceFilename;
+				Error->Text = LOCTEXT("CantAllocate", "Cannot allocate base node container to add FBX scene data.");
+			}
+			return;
+		}
+
 		if (!FbxParserPrivate->LoadFbxFile(Filename, *Container))
 		{
 			if (UInterchangeResultError_Generic* Error = AddMessage<UInterchangeResultError_Generic>())
@@ -73,16 +83,6 @@ namespace UE::Interchange
 		}
 
 		ResultFilepath = ResultFolder + TEXT("/SceneDescription.itc");
-		
-		if (!ensure(Container != nullptr))
-		{
-			if (UInterchangeResultError_Generic* Error = AddMessage<UInterchangeResultError_Generic>())
-			{
-				Error->SourceAssetName = SourceFilename;
-				Error->Text = LOCTEXT("CantAllocate", "Cannot allocate base node container to add FBX scene data.");
-			}
-			return;
-		}
 
 		Container->AddToRoot();
 		FbxParserPrivate->FillContainerWithFbxScene(*Container);
