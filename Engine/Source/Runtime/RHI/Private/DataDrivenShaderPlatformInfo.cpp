@@ -460,29 +460,21 @@ void FGenericDataDrivenShaderPlatformInfo::Initialize()
 
 				const FString ParentShaderPlatformName = GetSectionString(SectionSettings, "ParentShaderPlatform");
 				const EShaderPlatform ParentShaderPlatform = ParseShaderPlatform(*ParentShaderPlatformName);
-				if (ParentShaderPlatform == SP_NumPlatforms)
-				{
-#if DDPI_HAS_EXTENDED_PLATFORMINFO_DATA
-					const bool bIsEnabled = FDataDrivenPlatformInfoRegistry::GetPlatformInfo(PlatformName).bEnabledForUse;
-#else
-					const bool bIsEnabled = true;
-#endif
-					UE_CLOG(bIsEnabled, LogRHI, Warning, TEXT("Found an unknown parent shader platform %s in a preview shader platform DataDriven ini file"), *ParentShaderPlatformName);
-					continue;
-				}
-
-				check(IsValid(ParentShaderPlatform));
 
 				// get enum value for the string name
 				const EShaderPlatform ShaderPlatform = EShaderPlatform(CustomShaderPlatform++);
 
 				FGenericDataDrivenShaderPlatformInfo& Info = Infos[ShaderPlatform];
-				const FGenericDataDrivenShaderPlatformInfo& ParentInfo = Infos[ParentShaderPlatform];
-				Info = ParentInfo;
+				if (IsValid(ParentShaderPlatform))
+				{
+					const FGenericDataDrivenShaderPlatformInfo& ParentInfo = Infos[ParentShaderPlatform];
+					Info = ParentInfo;
+				}
 				Info.Name = *SectionName.Mid(22);
-				Info.bIsPreviewPlatform = true;
-				Info.bContainsValidPlatformInfo = true;
+				
 				ParseDataDrivenShaderInfo(SectionSettings, ShaderPlatform);
+				Info.bContainsValidPlatformInfo = true;
+				Info.bIsPreviewPlatform = true;
 
 				ERHIFeatureLevel::Type PreviewFeatureLevel = ERHIFeatureLevel::Num;
 				if (GetFeatureLevelFromName(GetSectionString(SectionSettings, "PreviewFeatureLevel"), PreviewFeatureLevel))
