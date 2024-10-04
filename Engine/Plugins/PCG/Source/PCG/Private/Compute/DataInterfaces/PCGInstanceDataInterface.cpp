@@ -113,18 +113,16 @@ UComputeDataProvider* UPCGInstanceDataInterface::CreateDataProvider(TObjectPtr<U
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(UPCGInstanceDataInterface::CreateDataProvider);
 	UPCGDataBinding* Binding = CastChecked<UPCGDataBinding>(InBinding);
+	check(ProducerSettings);
 
 	TObjectPtr<UPCGInstanceDataProvider> DataProvider = NewObject<UPCGInstanceDataProvider>();
 
-	check(ProducerSettings);
-	const FPCGDataCollectionDesc InputDataDesc = ProducerSettings->ComputeInputPinDataDesc(InputPinProvidingData, Binding);
-	DataProvider->NumInstancesAllPrimitives = InputDataDesc.ComputeDataElementCount(EPCGDataType::Point);
-
-	FPCGSpawnerPrimitives* FoundPrimitives = Binding->MeshSpawnersToPrimitives.Find(ProducerSettings);
-
-	// If there were 0 input points for this execution, we will not have created any primitives, so check for null.
-	if (FoundPrimitives)
+	// If there were 0 input points (or too many input points) for this execution, we will not have created any primitives, so check for null.
+	if (FPCGSpawnerPrimitives* FoundPrimitives = Binding->MeshSpawnersToPrimitives.Find(ProducerSettings))
 	{
+		const FPCGDataCollectionDesc InputDataDesc = ProducerSettings->ComputeInputPinDataDesc(InputPinProvidingData, Binding);
+		DataProvider->NumInstancesAllPrimitives = InputDataDesc.ComputeDataElementCount(EPCGDataType::Point);
+
 		if (!ensure(FoundPrimitives->Primitives.Num() <= PCGComputeConstants::MAX_PRIMITIVE_COMPONENTS_PER_SPAWNER))
 		{
 			// Last resort - should be clamped earlier during setup and not come to this.
@@ -139,10 +137,6 @@ UComputeDataProvider* UPCGInstanceDataInterface::CreateDataProvider(TObjectPtr<U
 			// When selecting primitives dynamically (by attribute), we don't know statically how many instances will end up in each primitive, so run worst case.
 			DataProvider->NumInstancesAllPrimitives *= FoundPrimitives->Primitives.Num();
 		}
-	}
-	else
-	{
-		ensure(DataProvider->NumInstancesAllPrimitives == 0);
 	}
 
 	return DataProvider;

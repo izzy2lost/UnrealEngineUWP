@@ -413,10 +413,17 @@ UComputeDataProvider* UPCGDataCollectionDataInterface::CreateDataProvider(TObjec
 	TRACE_CPUPROFILER_EVENT_SCOPE(UPCGDataCollectionDataInterface::CreateDataProvider);
 	UPCGDataBinding* Binding = CastChecked<UPCGDataBinding>(InBinding);
 
+	FPCGDataCollectionDesc PinDataDesc = ProducerSettings->ComputeOutputPinDataDesc(OutputPinLabel, Binding);
+
+	if (PCGComputeHelpers::IsBufferSizeTooLarge(PinDataDesc.ComputePackedSizeBytes()))
+	{
+		return nullptr;
+	}
+
 	UPCGDataCollectionDataProvider* Provider = NewObject<UPCGDataCollectionDataProvider>();
 	Provider->Binding = Binding;
 	Provider->ProducerSettings = ProducerSettings;
-	Provider->PinDesc = ProducerSettings->ComputeOutputPinDataDesc(OutputPinLabel, Binding);
+	Provider->PinDesc = MoveTemp(PinDataDesc);
 
 	Provider->ReadbackMode = bRequiresReadback ? EPCGReadbackMode::GraphOutput : EPCGReadbackMode::None;
 

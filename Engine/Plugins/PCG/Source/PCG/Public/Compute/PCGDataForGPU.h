@@ -112,7 +112,7 @@ struct FPCGDataDesc
 	FPCGDataDesc(EPCGDataType InType, int32 InElementCount);
 	FPCGDataDesc(const UPCGData* InData, const TMap<FName, FPCGKernelAttributeIDAndType>& InGlobalAttributeLookupTable, const TArray<FString>& InStringTable);
 
-	uint32 ComputePackedSize() const;
+	uint64 ComputePackedSize() const;
 
 	EPCGDataType Type = EPCGDataType::Point;
 	TArray<FPCGKernelAttributeDesc> AttributeDescs;
@@ -134,7 +134,7 @@ struct FPCGDataCollectionDesc
 	uint32 ComputePackedHeaderSizeBytes() const;
 
 	/** Computes the size (in bytes) of the data collection after packing. */
-	uint32 ComputePackedSizeBytes() const;
+	uint64 ComputePackedSizeBytes() const;
 
 	void WriteHeader(TArray<uint32>& OutPackedDataCollectionHeader) const;
 

@@ -496,15 +496,15 @@ FPCGDataDesc::FPCGDataDesc(const UPCGData* InData, const TMap<FName, FPCGKernelA
 	InitializeAttributeDescs(InData, InGlobalAttributeLookupTable, InStringTable);
 }
 
-uint32 FPCGDataDesc::ComputePackedSize() const
+uint64 FPCGDataDesc::ComputePackedSize() const
 {
 	check(PCGComputeHelpers::IsTypeAllowedInDataCollection(Type));
 
-	uint32 DataSizeBytes = DATA_HEADER_SIZE_BYTES;
+	uint64 DataSizeBytes = DATA_HEADER_SIZE_BYTES;
 
 	for (const FPCGKernelAttributeDesc& AttributeDesc : AttributeDescs)
 	{
-		DataSizeBytes += PCGDataForGPUHelpers::GetAttributeTypeStrideBytes(AttributeDesc.Type) * ElementCount;
+		DataSizeBytes += static_cast<uint64>(PCGDataForGPUHelpers::GetAttributeTypeStrideBytes(AttributeDesc.Type)) * static_cast<uint64>(ElementCount);
 	}
 
 	return DataSizeBytes;
@@ -678,11 +678,11 @@ uint32 FPCGDataCollectionDesc::ComputePackedHeaderSizeBytes() const
 	return PCGComputeConstants::DATA_COLLECTION_HEADER_SIZE_BYTES + PCGComputeConstants::DATA_HEADER_SIZE_BYTES * DataDescs.Num();
 }
 
-uint32 FPCGDataCollectionDesc::ComputePackedSizeBytes() const
+uint64 FPCGDataCollectionDesc::ComputePackedSizeBytes() const
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGDataCollectionDesc::ComputePackedSize);
 
-	uint32 TotalCollectionSizeBytes = ComputePackedHeaderSizeBytes();
+	uint64 TotalCollectionSizeBytes = ComputePackedHeaderSizeBytes();
 
 	for (const FPCGDataDesc& DataDesc : DataDescs)
 	{
