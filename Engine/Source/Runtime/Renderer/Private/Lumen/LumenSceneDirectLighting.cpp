@@ -1832,7 +1832,7 @@ struct FLumenDirectLightingTaskData
 
 uint32 PackRG16(float In0, float In1);
 
-void FDeferredShadingSceneRenderer::BeginGatherLumenLights(const FLumenSceneFrameTemporaries& FrameTemporaries, FLumenDirectLightingTaskData*& TaskData, IVisibilityTaskData* VisibilityTaskData)
+void FDeferredShadingSceneRenderer::BeginGatherLumenLights(const FLumenSceneFrameTemporaries& FrameTemporaries, FLumenDirectLightingTaskData*& TaskData, IVisibilityTaskData* VisibilityTaskData, UE::Tasks::FTask UpdateLightFunctionAtlasTask)
 {
 	if (HasRayTracedOverlay(ViewFamily))
 	{
@@ -1853,6 +1853,10 @@ void FDeferredShadingSceneRenderer::BeginGatherLumenLights(const FLumenSceneFram
 	}
 
 	TaskData = Allocator.Create<FLumenDirectLightingTaskData>();
+
+	TArray<UE::Tasks::FTask, TInlineAllocator<2>> Prerequisites;
+	Prerequisites.Add(VisibilityTaskData->GetLightVisibilityTask());
+	Prerequisites.Add(UpdateLightFunctionAtlasTask);
 
 	TaskData->Task = LaunchSceneRenderTask(TEXT("GatherLumenLights"), [TaskData, Scene = this->Scene, &Views = this->Views, &ViewFamily = this->ViewFamily, &FrameTemporaries]
 	{
@@ -2007,7 +2011,7 @@ void FDeferredShadingSceneRenderer::BeginGatherLumenLights(const FLumenSceneFram
 			}
 		}
 #endif
-	}, VisibilityTaskData->GetLightVisibilityTask());
+	}, Prerequisites);
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////

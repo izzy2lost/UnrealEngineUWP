@@ -2497,6 +2497,11 @@ protected:
 	 * NOTE: Also extracts the SimpleLights AND adds them to the sorted range (first sub-range). 
 	 */
 	void GatherAndSortLights(FSortedLightSetSceneInfo& OutSortedLights, bool bShadowedLightsInClustered = false);
+
+	/**
+	 * Register all lights with the light function atlas and updates it.
+	 */
+	void UpdateLightFunctionAtlasTaskFunction();
 	
 	/** 
 	 * Culls local lights and reflection probes to a grid in frustum space, builds one light list and grid per view in the current Views.  
