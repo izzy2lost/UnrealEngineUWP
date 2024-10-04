@@ -21,7 +21,7 @@
 #include "CompGeom/Delaunay2.h"
 #include "HAL/IConsoleManager.h"
 
-static bool GDetectPlanarFace = true;
+static bool GDetectPlanarFace = false;
 FAutoConsoleVariableRef PlanarFaceCVar(
 	TEXT("CADKernel.FaceMesher.DetectPlanarFace"),
 	GDetectPlanarFace,
