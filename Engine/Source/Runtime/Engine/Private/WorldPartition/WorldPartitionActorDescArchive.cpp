@@ -121,6 +121,13 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	BaseDescSizeof = BaseDesc ? BaseDesc->GetSizeOf() : 0;
 }
 
+FArchive& FActorDescArchive::operator<<(FTopLevelAssetPath& Value)
+{
+	((FArchive&)*this) << Value;
+
+	return *this;
+};
+
 FArchive& FActorDescArchive::operator<<(FSoftObjectPath& Value)
 {
 	Value.SerializePathWithoutFixup(*this);
@@ -163,6 +170,23 @@ FArchive& FActorDescArchivePatcher::operator<<(FSoftObjectPath& Value)
 	if (!bIsPatching)
 	{
 		Value.SerializePathWithoutFixup(OutAr);
+	}
+	return *this;
+}
+
+FArchive& FActorDescArchivePatcher::operator<<(FTopLevelAssetPath& Value)
+{
+	{
+		TGuardValue<bool> GuardIsPatching(bIsPatching, true);
+		FActorDescArchive::operator<<(Value);
+		AssetDataPatcher->DoPatch(Value);
+	}
+
+	// Only write out values if we aren't already patching since this function can be called
+	// from other patching functions which will perform the final write of the patched values
+	if (!bIsPatching)
+	{
+		OutAr << Value;
 	}
 	return *this;
 }
