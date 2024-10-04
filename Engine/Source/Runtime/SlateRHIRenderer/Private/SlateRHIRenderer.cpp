@@ -1075,7 +1075,7 @@ void FSlateRHIRenderer::DrawWindows_Private(FSlateDrawBuffer& WindowDrawBuffer)
 	const FGameTime AppDilatedTime = FGameTime::CreateDilated(FPlatformTime::Seconds() - GStartTime, AppDeltaTime, FApp::GetCurrentTime() - GStartTime, AppDeltaTime);
 	const FVector2f AppCursorPosition = FSlateApplication::Get().GetCursorPos();
 	const bool bAppCanRender = GIsClient && !IsRunningCommandlet() && !GUsingNullRHI;
-	const bool bAppCanRenderPostProcess = IsInGameThread() && UAssetManager::IsInitialized() && bAppCanRender && CVarCopyBackbufferToSlatePostRenderTargets.GetValueOnGameThread() > 0;
+	const bool bAppCanRenderPostProcess = RendererSettings && IsInGameThread() && UAssetManager::IsInitialized() && bAppCanRender && CVarCopyBackbufferToSlatePostRenderTargets.GetValueOnGameThread() > 0;
 	EPixelFormat AppViewportSceneFormat = PF_Unknown;
 	FIntPoint AppViewportExtentMax = FIntPoint::ZeroValue;
 	ESlatePostRT PostProcessAnyUsedBits = ESlatePostRT::None;

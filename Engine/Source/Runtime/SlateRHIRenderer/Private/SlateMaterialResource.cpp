@@ -97,16 +97,20 @@ FSlateMaterialResource::FSlateMaterialResource(const UMaterialInterface& InMater
 		MaterialObject->GetUsedTextures(OutUsedTextures, EMaterialQualityLevel::Num, true, ERHIFeatureLevel::Num, true);
 
 		CachedSlatePostBuffers = ESlatePostRT::None;
-		for (const UTexture* OutUsedTexture : OutUsedTextures)
-		{
-			for (const TPair<ESlatePostRT, FSlatePostSettings>& SlatePostSetting : USlateRHIRendererSettings::Get()->GetSlatePostSettings())
-			{
-				const ESlatePostRT SlatePostBitflag = SlatePostSetting.Key;
-				const FSlatePostSettings& SlatePostSettingValue = SlatePostSetting.Value;
 
-				if (SlatePostSettingValue.bEnabled && OutUsedTexture && OutUsedTexture->GetPathName() == SlatePostSettingValue.GetPathToSlatePostRT())
+		if (const USlateRHIRendererSettings* RendererSettings = USlateRHIRendererSettings::Get())
+		{
+			for (const UTexture* OutUsedTexture : OutUsedTextures)
+			{
+				for (const TPair<ESlatePostRT, FSlatePostSettings>& SlatePostSetting : RendererSettings->GetSlatePostSettings())
 				{
-					CachedSlatePostBuffers |= SlatePostBitflag;
+					const ESlatePostRT SlatePostBitflag = SlatePostSetting.Key;
+					const FSlatePostSettings& SlatePostSettingValue = SlatePostSetting.Value;
+
+					if (SlatePostSettingValue.bEnabled && OutUsedTexture && OutUsedTexture->GetPathName() == SlatePostSettingValue.GetPathToSlatePostRT())
+					{
+						CachedSlatePostBuffers |= SlatePostBitflag;
+					}
 				}
 			}
 		}
@@ -163,16 +167,19 @@ void FSlateMaterialResource::UpdateMaterial(const UMaterialInterface& InMaterial
 		MaterialObject->GetUsedTextures(OutUsedTextures, EMaterialQualityLevel::Num, true, ERHIFeatureLevel::Num, true);
 
 		CachedSlatePostBuffers = ESlatePostRT::None;
-		for (const UTexture* OutUsedTexture : OutUsedTextures)
+		if (const USlateRHIRendererSettings* RendererSettings = USlateRHIRendererSettings::Get())
 		{
-			for (const TPair<ESlatePostRT, FSlatePostSettings>& SlatePostSetting : USlateRHIRendererSettings::Get()->GetSlatePostSettings())
+			for (const UTexture* OutUsedTexture : OutUsedTextures)
 			{
-				const ESlatePostRT SlatePostBitflag = SlatePostSetting.Key;
-				const FSlatePostSettings& SlatePostSettingValue = SlatePostSetting.Value;
-
-				if (SlatePostSettingValue.bEnabled && OutUsedTexture && OutUsedTexture->GetPathName() == SlatePostSettingValue.GetPathToSlatePostRT())
+				for (const TPair<ESlatePostRT, FSlatePostSettings>& SlatePostSetting : RendererSettings->GetSlatePostSettings())
 				{
-					CachedSlatePostBuffers |= SlatePostBitflag;
+					const ESlatePostRT SlatePostBitflag = SlatePostSetting.Key;
+					const FSlatePostSettings& SlatePostSettingValue = SlatePostSetting.Value;
+
+					if (SlatePostSettingValue.bEnabled && OutUsedTexture && OutUsedTexture->GetPathName() == SlatePostSettingValue.GetPathToSlatePostRT())
+					{
+						CachedSlatePostBuffers |= SlatePostBitflag;
+					}
 				}
 			}
 		}
