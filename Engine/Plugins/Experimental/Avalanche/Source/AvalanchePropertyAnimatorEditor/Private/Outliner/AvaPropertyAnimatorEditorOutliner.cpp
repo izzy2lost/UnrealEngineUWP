@@ -4,6 +4,7 @@
 
 #include "Animators/PropertyAnimatorCoreBase.h"
 #include "Components/PropertyAnimatorCoreComponent.h"
+#include "IAvaOutliner.h"
 #include "Selection/AvaOutlinerScopedSelection.h"
 #include "Styling/SlateIconFinder.h"
 #include "Subsystems/PropertyAnimatorCoreSubsystem.h"
@@ -15,6 +16,16 @@ FAvaPropertyAnimatorEditorOutliner::FAvaPropertyAnimatorEditorOutliner(IAvaOutli
 	ItemName = FText::FromName(PropertyAnimator->GetAnimatorDisplayName());
 	ItemIcon = FSlateIconFinder::FindIconForClass(UPropertyAnimatorCoreComponent::StaticClass());
 	ItemTooltip = FText::FromName(PropertyAnimator->GetAnimatorOriginalName());
+
+	UPropertyAnimatorCoreBase::OnPropertyAnimatorRemoved().AddRaw(this, &FAvaPropertyAnimatorEditorOutliner::OnAnimatorRemoved);
+}
+
+FAvaPropertyAnimatorEditorOutliner::~FAvaPropertyAnimatorEditorOutliner()
+{
+	if (UObjectInitialized())
+	{
+		UPropertyAnimatorCoreBase::OnPropertyAnimatorRemoved().RemoveAll(this);
+	}
 }
 
 void FAvaPropertyAnimatorEditorOutliner::Select(FAvaOutlinerScopedSelection& InSelection) const
@@ -88,4 +99,15 @@ void FAvaPropertyAnimatorEditorOutliner::SetObject_Impl(UObject* InObject)
 {
 	FAvaOutlinerObject::SetObject_Impl(InObject);
 	PropertyAnimator = Cast<UPropertyAnimatorCoreBase>(InObject);
+}
+
+void FAvaPropertyAnimatorEditorOutliner::OnAnimatorRemoved(UPropertyAnimatorCoreComponent* InComponent, UPropertyAnimatorCoreBase* InAnimator) const
+{
+	if (InAnimator && PropertyAnimator.Get(/** EvenIfPendingKill */true) == InAnimator)
+	{
+		if (const TSharedPtr<IAvaOutliner> OwnerOutliner = GetOwnerOutliner())
+		{
+			OwnerOutliner->RequestRefresh();
+		}
+	}
 }

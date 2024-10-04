@@ -31,6 +31,7 @@ private:
 	void RefreshSelection(UObject* InSelectionObject) const;
 	void OnModifierUpdated(UActorModifierCoreBase* InUpdatedItem) const;
 	void OnAnimatorUpdated(UPropertyAnimatorCoreComponent* InComponent, UPropertyAnimatorCoreBase* InUpdatedItem) const;
+	void OnAnimatorRemoved(UPropertyAnimatorCoreComponent* InComponent, UPropertyAnimatorCoreBase* InRemovedItem) const;
 	void RefreshCurrentSelection(const UObject* InObject) const;
 
 	TWeakPtr<IAvaDetailsProvider> DetailsProviderWeak;
