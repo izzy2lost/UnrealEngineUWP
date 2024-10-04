@@ -1312,9 +1312,17 @@ void FSceneViewport::OnViewportDeactivated(const FWindowActivateEvent& InActivat
 }
 
 FSlateShaderResource* FSceneViewport::GetViewportRenderTargetTexture() const
-{ 
-	check(IsThreadSafeForSlateRendering());
+{
+	if (IsInRenderingThread())
+	{
+		return RenderThreadSlateTexture;
+	}
 	return (BufferedSlateHandles.Num() != 0) ? BufferedSlateHandles[CurrentBufferedTargetIndex] : nullptr;
+}
+
+bool FSceneViewport::IsStereoscopic3D() const
+{
+	return GEngine->IsStereoscopic3D(this);
 }
 
 void FSceneViewport::SetDebugCanvas(TSharedPtr<SDebugCanvas> InDebugCanvas)
@@ -1684,15 +1692,6 @@ const FTextureRHIRef& FSceneViewport::GetRenderTargetTexture() const
 	return 	RenderTargetTextureRHI;
 }
 
-FSlateShaderResource* FSceneViewport::GetViewportRenderTargetTexture()
-{
-	if (IsInRenderingThread())
-	{
-		return RenderThreadSlateTexture;
-	}
-	return (BufferedSlateHandles.Num() != 0) ? BufferedSlateHandles[CurrentBufferedTargetIndex] : nullptr;
-}
-
 void FSceneViewport::SetRenderTargetTextureRenderThread(FTextureRHIRef& RT)
 {
 	check(IsInRenderingThread());
@@ -1752,7 +1751,6 @@ void FSceneViewport::UpdateViewportRHI(bool bDestroyed, uint32 NewSizeX, uint32 
 			{
 				TSharedPtr<SWindow> Window = FSlateApplication::Get().FindWidgetWindow(PinnedViewport.ToSharedRef());
 
-				WindowRenderTargetUpdate(Renderer, Window.Get());
 				if (UseSeparateRenderTarget())
 				{
 					uint32 TexSizeX = SizeX, TexSizeY = SizeY;
@@ -1943,19 +1941,6 @@ void FSceneViewport::Tick( const FGeometry& AllottedGeometry, double InCurrentTi
 
 void FSceneViewport::OnPlayWorldViewportSwapped( const FSceneViewport& OtherViewport )
 {
-	// We need to call WindowRenderTargetUpdate() to make sure the Slate renderer is updated to render
-	// to the viewport client we'll be using for PIE/SIE.  Otherwise if stereo rendering is enabled, Slate
-	// could render the HMD mirror to a game viewport client which is not visible on screen!
-	TSharedPtr<SWidget> PinnedViewport = ViewportWidget.Pin();
-	if( PinnedViewport.IsValid() )
-	{
-		FSlateRenderer* Renderer = FSlateApplication::Get().GetRenderer();
-
-		TSharedPtr<SWindow> Window = FSlateApplication::Get().FindWidgetWindow( PinnedViewport.ToSharedRef() );
-
-		WindowRenderTargetUpdate( Renderer, Window.Get() );
-	}
-
 	// Play world viewports should always be the same size.  Resize to other viewports size
 	if( GetSizeXY() != OtherViewport.GetSizeXY() )
 	{
@@ -1987,17 +1972,6 @@ void FSceneViewport::SwapStatCommands( const FSceneViewport& OtherViewport )
 		const TArray<FString> StatsCopy = *StatsA;
 		ClientA->SetEnabledStats(*StatsB);
 		ClientB->SetEnabledStats(StatsCopy);
-	}
-}
-
-/** Queue an update to the Window's RT on the Renderthread */
-void FSceneViewport::WindowRenderTargetUpdate(FSlateRenderer* Renderer, SWindow* Window)
-{
-	check(IsInGameThread());
-	if (Renderer && Window)
-	{
-		// The viewport provider interface is ONLY used for stereo VR compositing to blit the intermediate viewport target over to the VR swap chain.
-		Renderer->SetWindowRenderTarget(*Window, UseSeparateRenderTarget() && GEngine->IsStereoscopic3D(this) ? this : nullptr);
 	}
 }
 

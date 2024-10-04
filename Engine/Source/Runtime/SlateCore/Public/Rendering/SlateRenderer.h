@@ -484,6 +484,7 @@ public:
 	/**
 	 * Pushes the rendering of the specified window to the specified render target
 	 */
+	UE_DEPRECATED(5.5, "SetWindowRenderTarget is no longer used.")
 	virtual void SetWindowRenderTarget(const SWindow& Window, class IViewportRenderTargetProvider* Provider) {}
 
 	/**
