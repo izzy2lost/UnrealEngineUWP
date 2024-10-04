@@ -12,6 +12,8 @@ namespace UE::GameFeatures
 	struct FResult;
 }
 
+enum class EInstallBundleReleaseRequestFlags : uint32;
+
 /** 
  * Utilty class to install GFP optional paks (usually containing optional mips) in sync with GFP content installs.
  * NOTE: This only currently supports LRU cached install bundles. It would need UI callbacks and additional support 
@@ -32,6 +34,8 @@ public:
 
 	void GAMEFEATURES_API Enable(bool bEnable);
 
+	void GAMEFEATURES_API UninstallContent();
+
 	void GAMEFEATURES_API EnableCellularDownloading(bool bEnable);
 
 private:
@@ -39,7 +43,7 @@ private:
 
 	void OnContentInstalled(FInstallBundleRequestResultInfo InResult, FString PluginName);
 
-	void ReleaseContent(const FString& PluginName);
+	void ReleaseContent(const FString& PluginName, EInstallBundleReleaseRequestFlags Flags = EInstallBundleReleaseRequestFlags::None);
 
 	void OnEnabled();
 	void OnDisabled();

@@ -60,6 +60,14 @@ void UGameFeatureOptionalContentInstaller::Enable(bool bInEnable)
 	}
 }
 
+void UGameFeatureOptionalContentInstaller::UninstallContent()
+{
+	for (const FString& GFP : RelevantGFPs)
+	{
+		ReleaseContent(GFP, EInstallBundleReleaseRequestFlags::RemoveFilesIfPossible);
+	}
+}
+
 void UGameFeatureOptionalContentInstaller::EnableCellularDownloading(bool bEnable)
 {
 	if (bAllowCellDownload == bEnable)
@@ -227,7 +235,7 @@ void UGameFeatureOptionalContentInstaller::OnContentInstalled(FInstallBundleRequ
 	}
 }
 
-void UGameFeatureOptionalContentInstaller::ReleaseContent(const FString& PluginName)
+void UGameFeatureOptionalContentInstaller::ReleaseContent(const FString& PluginName, EInstallBundleReleaseRequestFlags Flags)
 {
 	TArray<FName> Bundles = GetOptionalBundlePredicate(PluginName);
 	if (Bundles.IsEmpty())
@@ -237,7 +245,7 @@ void UGameFeatureOptionalContentInstaller::ReleaseContent(const FString& PluginN
 
 	BundleManager->RequestReleaseContent(
 		Bundles, 
-		EInstallBundleReleaseRequestFlags::None, 
+		Flags,
 		{}, 
 		GameFeatureOptionalContentInstaller::InstallBundleManagerVerbosityOverride);
 }
