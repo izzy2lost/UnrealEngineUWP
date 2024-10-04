@@ -509,7 +509,7 @@ namespace Metasound
 		}
 #endif // WITH_EDITOR
 
-		bool FAutoUpdateRootGraph::Transform(FDocumentHandle InDocument) const
+		bool FAutoUpdateRootGraph::Transform(FDocumentHandle InDocument)
 		{
 			METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE(FAutoUpdateRootGraph::Transform);
 			bool bDidEdit = false;
@@ -543,10 +543,14 @@ namespace Metasound
 				}
 
 				FClassInterfaceUpdates InterfaceUpdates;
-				if (!NodeHandle->CanAutoUpdate(InterfaceUpdates))
+				const FGuid& ClassID = NodeHandle->GetClassID();
+				const bool bHasUpdated = UpdatedClasses.Contains(ClassID);
+				if (!bHasUpdated && !NodeHandle->CanAutoUpdate(InterfaceUpdates))
 				{
 					return;
 				}
+
+				UpdatedClasses.Add(ClassID);
 
 				// Check if a updated minor version exists.
 				FMetasoundFrontendClass ClassWithHighestMinorVersion;
