@@ -30,6 +30,11 @@ FAVSMSampleData AVSM_CreateSampleData(float X, float Tau)
 	return SampleData;
 }
 
+FAVSMSampleData AVSM_CreateSampleData(float X, float3 Transmittance)
+{
+	return AVSM_CreateSampleData(X, Luminance(Transmittance));
+}
+
 uint AVSM_PackSampleDataX(float X, FAVSMIndirectionData IndirectionData)
 {
 	float Extent = IndirectionData.EndX - IndirectionData.BeginX;
