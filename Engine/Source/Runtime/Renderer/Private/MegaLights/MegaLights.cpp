@@ -1160,14 +1160,12 @@ void FDeferredShadingSceneRenderer::RenderMegaLights(FRDGBuilder& GraphBuilder, 
 				HistoryGatherUVMinMax = MegaLightsViewState.HistoryGatherUVMinMax;
 				HistoryVisibleLightHashViewSizeInTiles = MegaLightsViewState.HistoryVisibleLightHashViewSizeInTiles;
 
-				if (StochasticLightingViewState.SceneDepthHistory
-					&& StochasticLightingViewState.SceneDepthHistory->GetDesc().Extent == SceneTextures.Depth.Resolve->Desc.Extent)
+				if (StochasticLightingViewState.SceneDepthHistory)
 				{
 					SceneDepthHistory = GraphBuilder.RegisterExternalTexture(StochasticLightingViewState.SceneDepthHistory);
 				}
 
-				if (StochasticLightingViewState.SceneNormalHistory
-					&& StochasticLightingViewState.SceneNormalHistory->GetDesc().Extent == SceneTextures.Depth.Resolve->Desc.Extent)
+				if (StochasticLightingViewState.SceneNormalHistory)
 				{
 					SceneNormalAndShadingHistory = GraphBuilder.RegisterExternalTexture(StochasticLightingViewState.SceneNormalHistory);
 				}
@@ -1746,7 +1744,7 @@ void FDeferredShadingSceneRenderer::RenderMegaLights(FRDGBuilder& GraphBuilder, 
 			PassParameters->RWNumFramesAccumulated = GraphBuilder.CreateUAV(NumFramesAccumulated);
 
 			FDenoiserTemporalCS::FPermutationDomain PermutationVector;
-			PermutationVector.Set<FDenoiserTemporalCS::FValidHistory>(DiffuseLightingAndSecondMomentHistory != nullptr && SceneDepthHistory && bTemporal);
+			PermutationVector.Set<FDenoiserTemporalCS::FValidHistory>(DiffuseLightingAndSecondMomentHistory && SceneDepthHistory && SceneNormalAndShadingHistory && bTemporal);
 			PermutationVector.Set<FDenoiserTemporalCS::FDebugMode>(bDebug);
 			auto ComputeShader = View.ShaderMap->GetShader<FDenoiserTemporalCS>(PermutationVector);
 

@@ -168,7 +168,8 @@ class FLumenRadianceCacheHardwareRayTracing : public FLumenHardwareRayTracingSha
 			return false;
 		}
 
-		return FLumenHardwareRayTracingShaderBase::ShouldCompilePermutation(Parameters, ShaderDispatchType);
+		return DoesPlatformSupportLumenGI(Parameters.Platform)
+			&& FLumenHardwareRayTracingShaderBase::ShouldCompilePermutation(Parameters, ShaderDispatchType);
 	}
 
 	static ERayTracingPayloadType GetRayTracingPayloadType(const int32 PermutationId)
