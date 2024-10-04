@@ -9,8 +9,16 @@
 #include "Compute/PCGPinPropertiesGPU.h"
 #include "Data/PCGPointData.h"
 
+#include "DynamicRHI.h"
+#include "RHIStats.h"
+
 namespace PCGComputeHelpers
 {
+	static TAutoConsoleVariable<float> CVarMaxGPUBufferSizeProportion(
+		TEXT("pcg.GraphExecution.GPU.MaxBufferSize"),
+		0.5f,
+		TEXT("Maximum GPU buffer size as proportion of total available graphics memory."));
+
 	int GetElementCount(const UPCGData* InData)
 	{
 		if (const UPCGPointData* PointData = Cast<UPCGPointData>(InData))
@@ -287,5 +295,25 @@ namespace PCGComputeHelpers
 		{
 			checkNoEntry();
 		}
+	}
+
+	bool IsBufferSizeTooLarge(uint64 InBufferSizeBytes, bool bInLogError)
+	{
+		FTextureMemoryStats TextureMemStats;
+		RHIGetTextureMemoryStats(TextureMemStats);
+
+		// If buffer size exceeds a proportion of total graphics memory, then it is deemed too large. Using this as a heuristic as there
+		// is no RHI API to obtain available graphics memory outside of D3D12.
+		const uint64 BudgetBytes = static_cast<uint64>(TextureMemStats.TotalGraphicsMemory * CVarMaxGPUBufferSizeProportion.GetValueOnAnyThread());
+		const bool bBufferTooLarge = TextureMemStats.TotalGraphicsMemory > 0 && InBufferSizeBytes > BudgetBytes;
+
+		if (bBufferTooLarge && bInLogError)
+		{
+			UE_LOG(LogPCG, Error, TEXT("Attempted to allocate a GPU buffer of size %llu bytes which is larger than the safety threshold (%llu bytes). Compute graph execution aborted."),
+				InBufferSizeBytes,
+				BudgetBytes);
+		}
+
+		return bBufferTooLarge;
 	}
 }

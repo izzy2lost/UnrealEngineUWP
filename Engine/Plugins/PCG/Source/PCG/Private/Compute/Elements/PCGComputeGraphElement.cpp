@@ -283,7 +283,7 @@ bool FPCGComputeGraphElement::ExecuteInternal(FPCGContext* InContext) const
 			FSimpleDelegate());
 	}
 
-	if (ensure(Context->bGraphEnqueued))
+	if (Context->bGraphEnqueued)
 	{
 		FReadScopeLock Lock(Context->ProvidersRunningAsyncOperationsLock);
 
@@ -456,6 +456,21 @@ bool FPCGComputeGraphElement::SetupProceduralISMComponents(FPCGContext* InContex
 				Descriptor.NumCustomFloats = CustomFloatCount;
 				Descriptor.StaticMesh = StaticMesh;
 				ComponentsToCreate.Add(MoveTemp(Descriptor));
+			}
+		}
+
+		// Validate instance count is not too large.
+		{
+			uint64 TotalInstanceCount = 0;
+			for (const FPCGProceduralISMComponentDescriptor& Desc : ComponentsToCreate)
+			{
+				TotalInstanceCount += Desc.NumInstances;
+			}
+
+			if (TotalInstanceCount >= MAX_INSTANCE_ID)
+			{
+				UE_LOG(LogPCG, Error, TEXT("Tried to spawn too many instances (%lu), procedural ISM component creation skipped and instances will not be rendered."), TotalInstanceCount);
+				return false;
 			}
 		}
 

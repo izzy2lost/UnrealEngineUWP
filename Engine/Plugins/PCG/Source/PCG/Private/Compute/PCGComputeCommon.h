@@ -84,4 +84,7 @@ namespace PCGComputeHelpers
 
 	/** Computes a pin data description based on the given GPU pin properties. */
 	void ComputeOutputPinDataDesc(const FPCGPinPropertiesGPU& PinProperties, const UPCGSettings* Settings, const UPCGDataBinding* Binding, FPCGDataCollectionDesc& OutPinDesc);
+
+	/** Returns true if the given buffer size is dangerously large. Optionally emits error log. */
+	bool IsBufferSizeTooLarge(uint64 InBufferSizeBytes, bool bInLogError = true);
 }

@@ -6,6 +6,7 @@
 #include "PCGModule.h"
 #include "PCGNode.h"
 #include "PCGSettings.h"
+#include "Compute/PCGComputeCommon.h"
 #include "Compute/PCGComputeGraph.h"
 #include "Compute/PCGDataBinding.h"
 
@@ -42,6 +43,11 @@ FComputeDataProviderRenderProxy* UPCGDataProviderDataCollectionUpload::GetRender
 	// Use any downstream input pin label to grab data from the collection.
 	check(!DownstreamInputPinLabels.IsEmpty());
 	PinDesc.PackDataCollection(Binding->DataForGPU.InputDataCollection, DownstreamInputPinLabels[0], Binding->GetStringTable(), PackedDataCollection);
+
+	if (PCGComputeHelpers::IsBufferSizeTooLarge(PackedDataCollection.Num() * PackedDataCollection.GetTypeSize()))
+	{
+		return nullptr;
+	}
 
 	return new FPCGDataProviderDataCollectionUploadProxy(PinDesc, MoveTemp(PackedDataCollection), DownstreamInputPinLabels);
 }
