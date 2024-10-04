@@ -24,17 +24,21 @@ namespace Harmonix::Midi::Ops
 
 	void FPulseGenerator::Process(const HarmonixMetasound::FMidiClock& MidiClock, const TFunctionRef<void(const FPulseInfo&)>& OnPulse)
 	{
+		bool bIntervalIsValid = Interval.Interval != EMidiClockSubdivisionQuantization::None;
+		bool bTimeSigIsValid = CurrentTimeSignature.Numerator > 0 && CurrentTimeSignature.Denominator > 0;
+		
 		// ensure the pulse generator is lined up with the current clock phase
 		if (NextPulseTimestamp == FMusicTimestamp(-1, -1))
 		{
 			CurrentTimeSignature = *MidiClock.GetSongMapEvaluator().GetTimeSignatureAtTick(MidiClock.GetLastProcessedMidiTick());
-
+			bTimeSigIsValid = CurrentTimeSignature.Numerator > 0 && CurrentTimeSignature.Denominator > 0;
+			
 			// Find the next pulse and line up phase with the current bar
 			const FMusicTimestamp ClockCurrentTimestamp = MidiClock.GetMusicTimestampAtBlockOffset(0);
 			NextPulseTimestamp.Bar = ClockCurrentTimestamp.Bar;
 			NextPulseTimestamp.Beat = 1;
 			IncrementTimestampByOffset(NextPulseTimestamp, Interval, CurrentTimeSignature);
-			while (NextPulseTimestamp < ClockCurrentTimestamp)
+			while (bIntervalIsValid && bTimeSigIsValid && NextPulseTimestamp < ClockCurrentTimestamp)
 			{
 				IncrementTimestampByInterval(NextPulseTimestamp, Interval, CurrentTimeSignature);
 			}
@@ -54,7 +58,7 @@ namespace Harmonix::Midi::Ops
 				
 				int32 NextPulseTick = MidiClock.GetSongMapEvaluator().MusicTimestampToTick(NextPulseTimestamp);
 
-				while (AsAdvance->LastTickToProcess() >= NextPulseTick)
+				while (bIntervalIsValid && bTimeSigIsValid && AsAdvance->LastTickToProcess() >= NextPulseTick)
 				{
 					OnPulse({ ClockEvent.BlockFrameIndex, NextPulseTick });
 
@@ -66,6 +70,7 @@ namespace Harmonix::Midi::Ops
 			else if (const FTimeSignatureChange* AsTimeSigChange = ClockEvent.TryGet<FTimeSignatureChange>())
 			{
 				CurrentTimeSignature = AsTimeSigChange->TimeSignature;
+				bTimeSigIsValid = CurrentTimeSignature.Numerator > 0 && CurrentTimeSignature.Denominator > 0;
 				
 				// Time sig changes will come on the downbeat, and if we change time signature,
 				// we want to reset the pulse, so the next pulse is now plus the offset
@@ -85,7 +90,7 @@ namespace Harmonix::Midi::Ops
 				NextPulseTimestamp.Bar = ClockCurrentTimestamp.Bar;
 				NextPulseTimestamp.Beat = 1;
 				IncrementTimestampByOffset(NextPulseTimestamp, Interval, CurrentTimeSignature);
-				while (NextPulseTimestamp < ClockCurrentTimestamp)
+				while (bIntervalIsValid && bTimeSigIsValid && NextPulseTimestamp < ClockCurrentTimestamp)
 				{
 					IncrementTimestampByInterval(NextPulseTimestamp, Interval, CurrentTimeSignature);
 				}
@@ -103,6 +108,26 @@ namespace Harmonix::Midi::Ops
 	void FMidiPulseGenerator::Process(const HarmonixMetasound::FMidiClock& MidiClock, HarmonixMetasound::FMidiStream& OutStream)
 	{
 		OutStream.PrepareBlock();
+
+		// kill any notes if the interval becomes invalid
+		if (GetInterval().Interval == EMidiClockSubdivisionQuantization::None && LastNoteOn.IsSet())
+		{
+			check(LastNoteOn->MidiMessage.IsNoteOn());
+			const int32 NoteOffSample = 0;
+
+			// Trigger the note off one tick before the note on
+			const int32 NoteOffTick = MidiClock.GetNextTickToProcessAtBlockFrame(0);
+
+			FMidiMsg Msg{ FMidiMsg::CreateAllNotesOff() };
+			HarmonixMetasound::FMidiStreamEvent Event{ &VoiceGenerator, Msg };
+			Event.BlockSampleFrameIndex = NoteOffSample;
+			Event.AuthoredMidiTick = NoteOffTick;
+			Event.CurrentMidiTick = NoteOffTick;
+			Event.TrackIndex = 1;
+			OutStream.InsertMidiEvent(Event);
+
+			LastNoteOn.Reset();	
+		}
 
 		FPulseGenerator::Process(MidiClock, [this, &OutStream](const FPulseInfo& Pulse)
 		{

@@ -81,7 +81,6 @@ namespace Harmonix::Midi::Constants
 		case EMidiClockSubdivisionQuantization::HalfNoteTriplet:
 			return BeatsPerQuarter * 4 / 3;
 		default:
-			checkNoEntry();
 			return 0;
 		}
 	}

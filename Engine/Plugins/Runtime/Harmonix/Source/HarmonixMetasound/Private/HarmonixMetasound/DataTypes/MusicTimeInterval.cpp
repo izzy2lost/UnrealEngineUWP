@@ -43,6 +43,12 @@ namespace Harmonix
 	float GetOffsetInBeats(const FMusicTimeInterval& Interval, const FTimeSignature& TimeSignature)
 	{
 		const float IntervalBeats = GetIntervalInBeats(Interval, TimeSignature);
+		
+		if (FMath::IsNearlyZero(IntervalBeats))
+		{
+			return 0.0f;
+		}
+		
 		const float OffsetBeats = Harmonix::Midi::Constants::SubdivisionToBeats(Interval.Offset, TimeSignature) * Interval.OffsetMultiplier;
 		return FMath::Fmod(OffsetBeats, IntervalBeats);
 	}
