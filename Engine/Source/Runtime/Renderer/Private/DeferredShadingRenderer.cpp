@@ -1392,6 +1392,15 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 	// Initialize global system textures (pass-through if already initialized).
 	GSystemTextures.InitializeTextures(GraphBuilder.RHICmdList, FeatureLevel);
 
+	UE::Tasks::TTask<void> UpdateLightFunctionAtlasTask;
+	if (LightFunctionAtlas.IsLightFunctionAtlasEnabled())
+	{
+		UpdateLightFunctionAtlasTask = LaunchSceneRenderTask<void>(TEXT("UpdateLightFunctionAtlas"), [this]
+			{
+				UpdateLightFunctionAtlasTaskFunction();
+			}, UE::Tasks::FTask());
+	}
+
 	{
 		if (RendererOutput == ERendererOutput::FinalSceneColor)
 		{
@@ -1430,7 +1439,7 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 					BeginUpdateLumenSceneTasks(GraphBuilder, *InitViewTaskDatas.LumenFrameTemporaries);
 				}
 	
-				BeginGatherLumenLights(*InitViewTaskDatas.LumenFrameTemporaries, InitViewTaskDatas.LumenDirectLighting, InitViewTaskDatas.VisibilityTaskData);
+				BeginGatherLumenLights(*InitViewTaskDatas.LumenFrameTemporaries, InitViewTaskDatas.LumenDirectLighting, InitViewTaskDatas.VisibilityTaskData, UpdateLightFunctionAtlasTask);
 			}
 		}
 
@@ -1835,12 +1844,15 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 				&& IsVSMOnePassProjectionEnabled(ViewFamily.EngineShowFlags)
 				&& VirtualShadowMapArray.IsEnabled();
 
+			TArray<UE::Tasks::FTask, TInlineAllocator<2>> IssuedTasksCompletionEvents;
+			IssuedTasksCompletionEvents.Add(GetGatherAndSortLightsPrerequisiteTask(InitViewTaskDatas.DynamicShadows));
+			IssuedTasksCompletionEvents.Add(UpdateLightFunctionAtlasTask);
+
 			GatherAndSortLightsTask = LaunchSceneRenderTask<FSortedLightSetSceneInfo*>(UE_SOURCE_LOCATION, [this, SortedLightSet, bShadowedLightsInClustered]
 			{
 				GatherAndSortLights(*SortedLightSet, bShadowedLightsInClustered);
 				return SortedLightSet;
-
-			}, GetGatherAndSortLightsPrerequisiteTask(InitViewTaskDatas.DynamicShadows));
+			}, IssuedTasksCompletionEvents);
 		}
 	}
 

@@ -1196,6 +1196,22 @@ bool CanLightUsesAtlasForUnbatchedLight(ERHIFeatureLevel::Type FeatureLevel, con
 	return false;
 }
 
+void FSceneRenderer::UpdateLightFunctionAtlasTaskFunction()
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(UpdateLightFunctionAtlas);
+	SCOPED_NAMED_EVENT_TEXT("UpdateLightFunctionAtlas", FColor::Yellow);
+
+	for (auto LightIt = Scene->Lights.CreateConstIterator(); LightIt; ++LightIt)
+	{
+		const FLightSceneInfoCompact& LightSceneInfoCompact = *LightIt;
+
+		LightFunctionAtlas.UpdateRegisterLightSceneInfo(LightSceneInfoCompact.LightSceneInfo);
+	}
+
+	// Update the light function atlas according to registered lights and views
+	LightFunctionAtlas.UpdateLightFunctionAtlas(Views);
+}
+
 void FSceneRenderer::GatherAndSortLights(FSortedLightSetSceneInfo& OutSortedLights, bool bShadowedLightsInClustered)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(GatherAndSortLights);
@@ -1224,8 +1240,6 @@ void FSceneRenderer::GatherAndSortLights(FSortedLightSetSceneInfo& OutSortedLigh
 	{
 		const FLightSceneInfoCompact& LightSceneInfoCompact = *LightIt;
 		const FLightSceneInfo* const LightSceneInfo = LightSceneInfoCompact.LightSceneInfo;
-
-		LightFunctionAtlas.UpdateRegisterLightSceneInfo(LightSceneInfoCompact.LightSceneInfo);
 
 #if ENABLE_DEBUG_DISCARD_PROP
 		{
@@ -1380,9 +1394,6 @@ void FSceneRenderer::GatherAndSortLights(FSortedLightSetSceneInfo& OutSortedLigh
 	{
 		OutSortedLights.UnbatchedLightStart = OutSortedLights.MegaLightsLightStart;
 	}
-
-	// Update the light function atlas according to registered lights and views
-	LightFunctionAtlas.UpdateLightFunctionAtlas(Views);
 }
 
 FHairStrandsTransmittanceMaskData CreateDummyHairStrandsTransmittanceMaskData(FRDGBuilder& GraphBuilder, FGlobalShaderMap* ShaderMap);
