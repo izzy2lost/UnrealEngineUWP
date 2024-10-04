@@ -188,7 +188,7 @@ namespace Metasound::Frontend
 	/** Automatically updates all nodes and respective dependencies in graph where
 		* newer versions exist in the loaded MetaSound Class Node Registry.
 		*/
-	class METASOUNDFRONTEND_API FAutoUpdateRootGraph : public IDocumentTransform
+	class METASOUNDFRONTEND_API FAutoUpdateRootGraph 
 	{
 	public:
 		/** Construct an AutoUpdate transform
@@ -202,9 +202,14 @@ namespace Metasound::Frontend
 		{
 		}
 
-		bool Transform(FDocumentHandle InDocument) const override;
+		bool Transform(FDocumentHandle InDocument);
 
 	private:
+		// Keeps track of classes already updated so node check can be avoided.
+		// Hack to avoid issue where earlier auto-update passes on pages can
+		// clear out internal change state of a class in the registry causing
+		// nodes to get ignored on later page auto-update passes.
+		TSet<FGuid> UpdatedClasses;
 		const FString DebugAssetPath;
 		bool bLogWarningOnDroppedConnection;
 	};

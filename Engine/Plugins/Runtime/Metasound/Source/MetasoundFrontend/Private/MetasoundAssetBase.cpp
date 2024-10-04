@@ -1049,13 +1049,14 @@ bool FMetasoundAssetBase::VersionDependencies(FMetaSoundFrontendDocumentBuilder&
 	Metasound::Frontend::FDocumentHandle DocHandle = GetDocumentHandle();
 	const FMetasoundFrontendGraphClass& RootGraph = Builder.GetConstDocumentChecked().RootGraph;
 	constexpr bool bBroadcastPageIDDelegate = false;
+
+	FAutoUpdateRootGraph AutoUpdateTransform(GetOwningAssetName(), bInLogWarningsOnDroppedConnection);
 	RootGraph.IterateGraphPages([&](const FMetasoundFrontendGraph& Graph)
 	{
 		// Set the build page ID to this graph as a hack to apply dependency versioning logic using
 		// the controller/handle API until auto-update is renamed & moved to use document builder API.
 		Builder.SetBuildPageID(Graph.PageID, bBroadcastPageIDDelegate);
-		FString OwningAssetName = GetOwningAssetName();
-		bDocumentModified |= FAutoUpdateRootGraph(MoveTemp(OwningAssetName), bInLogWarningsOnDroppedConnection).Transform(DocHandle);
+		bDocumentModified |= AutoUpdateTransform.Transform(DocHandle);
 	});
 	Builder.SetBuildPageID(InitBuildPageID, bBroadcastPageIDDelegate);
 #endif // WITH_EDITORONLY_DATA
