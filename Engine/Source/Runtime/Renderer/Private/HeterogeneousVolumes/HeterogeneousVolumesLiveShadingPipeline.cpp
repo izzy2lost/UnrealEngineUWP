@@ -34,8 +34,8 @@ static TAutoConsoleVariable<int32> CVarHeterogeneousLightingLiveShadingScreenTil
 
 static TAutoConsoleVariable<int32> CVarHeterogeneousVolumesSupportOverlappingVolumes(
 	TEXT("r.HeterogeneousVolumes.SupportOverlappingVolumes"),
-	1,
-	TEXT("Enables support for overlapping volumes (Default = 1)"),
+	0,
+	TEXT("Enables support for overlapping volumes (Default = 0)"),
 	ECVF_RenderThreadSafe
 );
 
