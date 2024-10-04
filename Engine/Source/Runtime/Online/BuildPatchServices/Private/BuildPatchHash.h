@@ -102,13 +102,13 @@ public:
 private:
 	FRollingHash();
 	// The data size that we roll over.
-	const uint32 WindowSize;
+	const uint32 WindowSize = 0;
 	// The current hash value
-	uint64 HashState;
+	uint64 HashState = 0;
 	// The number of bytes we have consumed so far, used in hash function and to check validity of calls
-	uint32 NumBytesConsumed;
+	uint32 NumBytesConsumed = 0;
 	// Store the data to make access and rolling easier
-	HashRingBuffer WindowData;
+	HashRingBuffer WindowData = 0;
 };
 
 /**
