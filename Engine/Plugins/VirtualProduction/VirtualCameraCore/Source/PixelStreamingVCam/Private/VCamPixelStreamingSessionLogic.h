@@ -105,6 +105,9 @@ namespace UE::PixelStreamingVCam
 
 		/** Unregister any handlers for pixel streaming delegates */
 		void UnregisterPixelStreamingDelegates();
+
+		/** Sets MediaOutput to nullptr and unsubscribes from relevant delegates. */
+		void CleanupMediaOutput();
 	};
 }
 
