@@ -686,7 +686,6 @@ TArray<FGeometryIdentifier> UGeometrySelectionManager::GetCurrentTargetIdentifie
 
 void UGeometrySelectionManager::SetTargetsOnUndoRedo(TArray<FGeometryIdentifier> NewTargets)
 {
-	check(HasSelection() == false);
 	ClearActiveTargets();
 	for (FGeometryIdentifier Identifier : NewTargets)
 	{
