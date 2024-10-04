@@ -124,6 +124,7 @@ public:
 protected:
 	//~ Begin UObject
 	virtual void PostEditImport() override;
+	virtual void PostLoad() override;
 #if WITH_EDITOR
 	virtual void PostEditUndo() override;
 #endif
@@ -163,6 +164,9 @@ private:
 	/** When level is unloaded or world cleaned up, deactivate and unload layout */
 	void OnWorldCleanup(UWorld* InWorld, bool bInSessionEnded, bool bInCleanupResources);
 	void OnLevelCleanup();
+
+	/** Marks niagara system owned by this layout garbage to avoid GC leak */
+	void CleanOwnedSystem() const;
 
 	/** Layout name to display in layout options */
 	UPROPERTY(Transient)

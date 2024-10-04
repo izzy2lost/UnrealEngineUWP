@@ -102,6 +102,10 @@ void UCEClonerLayoutBase::LoadLayout()
 		NiagaraSystem->MarkAsGarbage();
 		NiagaraSystem = nullptr;
 	}
+	else
+	{
+		CleanOwnedSystem();
+	}
 
 	const UCEClonerComponent* ClonerComponent = GetClonerComponent();
 
@@ -296,19 +300,21 @@ void UCEClonerLayoutBase::PostEditImport()
 
 	// After cloner duplication in editor, niagara system should not be duplicated but still is,
 	// so look for it in outer chain otherwise it will trigger a world GC leak when switching level
-
-	TArray<UObject*> OwnedObjects;
-	GetObjectsWithOuter(this, OwnedObjects, false);
-
-	for (UObject* OwnedObject : OwnedObjects)
-	{
-		if (OwnedObject && OwnedObject->IsA<UNiagaraSystem>())
-		{
-			OwnedObject->MarkAsGarbage();
-		}
-	}
+	CleanOwnedSystem();
 
 	MarkLayoutDirty();
+}
+
+void UCEClonerLayoutBase::PostLoad()
+{
+	Super::PostLoad();
+
+	if (CachedVersion == ECEClonerLayoutAssetVersion::PreVersioning)
+	{
+		// After cloner layout load, niagara system should not be loaded since property was transient pre versioning,
+		// so look for it in outer chain otherwise it will trigger a world GC leak when switching level
+		CleanOwnedSystem();
+	}
 }
 
 #if WITH_EDITOR
@@ -446,6 +452,21 @@ void UCEClonerLayoutBase::OnLevelCleanup()
 	}
 
 	UnbindCleanupDelegates();
+}
+
+void UCEClonerLayoutBase::CleanOwnedSystem() const
+{
+	TArray<UObject*> OwnedObjects;
+	GetObjectsWithOuter(this, OwnedObjects, false);
+
+	for (UObject* OwnedObject : OwnedObjects)
+	{
+		if (OwnedObject && OwnedObject->IsA<UNiagaraSystem>())
+		{
+			UE_LOG(LogCEClonerLayoutBase, Warning, TEXT("%s : Cloner layout %s cleaning owned system %s"), *GetClonerActor()->GetActorNameOrLabel(), *LayoutName.ToString(), *OwnedObject->GetName())
+			OwnedObject->MarkAsGarbage();
+		}
+	}
 }
 
 UCEClonerComponent* UCEClonerLayoutBase::GetClonerComponent() const
