@@ -259,6 +259,24 @@ public:
 	}
 };
 
+UWorldPartition::FDisableNonDirtyActorTrackingScope::FDisableNonDirtyActorTrackingScope(UWorldPartition* InWorldPartition, bool bInDisableTracking)
+	: WorldPartition(InWorldPartition)
+{
+	if (WorldPartition && WorldPartition->ExternalDirtyActorsTracker)
+	{
+		bPreviousValue = WorldPartition->ExternalDirtyActorsTracker->IsNonDirtyTrackingDisabled();
+		WorldPartition->ExternalDirtyActorsTracker->SetNonDirtyTrackingDisabled(bInDisableTracking);
+	}
+}
+
+UWorldPartition::FDisableNonDirtyActorTrackingScope::~FDisableNonDirtyActorTrackingScope()
+{
+	if (WorldPartition && WorldPartition->ExternalDirtyActorsTracker)
+	{
+		WorldPartition->ExternalDirtyActorsTracker->SetNonDirtyTrackingDisabled(bPreviousValue);
+	}
+}
+
 UWorldPartition::FWorldPartitionExternalDirtyActorsTracker::FWorldPartitionExternalDirtyActorsTracker()
 	: Super(nullptr, nullptr)
 {}
@@ -270,7 +288,20 @@ UWorldPartition::FWorldPartitionExternalDirtyActorsTracker::FWorldPartitionExter
 void UWorldPartition::FWorldPartitionExternalDirtyActorsTracker::OnRemoveNonDirtyActor(TWeakObjectPtr<AActor> InActor, FWorldPartitionReference& InValue)
 {
 	check(InActor.IsValid());
-	NonDirtyActors.Emplace({ InActor, InValue });
+
+	FWorldPartitionReference NonDirtyReference = InValue;
+	
+	// Grab Reference if it isn't valid. This means we saved a new actor.
+	if (!NonDirtyReference.IsValid() && InActor.IsValid())
+	{
+		NonDirtyReference = FWorldPartitionReference(Owner, InActor->GetActorGuid());
+	}
+
+	// If Tracking is disabled, the reference will get released and actor will get unloaded (if not referenced elsewhere)
+	if (!bIsNonDirtyTrackingDisabled)
+	{
+		NonDirtyActors.Emplace({ InActor, NonDirtyReference });
+	}
 }
 
 void UWorldPartition::FWorldPartitionExternalDirtyActorsTracker::Tick(float InDeltaSeconds)
@@ -279,10 +310,10 @@ void UWorldPartition::FWorldPartitionExternalDirtyActorsTracker::Tick(float InDe
 
 	for (auto& [Actor, Reference] : NonDirtyActors)
 	{
-		// Resolve reference for newly added actors
-		if (!Reference.IsValid() && Actor.IsValid())
+		// If Actor was dirtied since last tick ignore it
+		if (DirtyActors.Contains(Actor))
 		{
-			Reference = FWorldPartitionReference(Owner, Actor->GetActorGuid());
+			continue;
 		}
 
 		// Transfer ownership of our last ref if actor can be pinned
@@ -1356,7 +1387,7 @@ void UWorldPartition::OnActorDescInstanceAdded(FWorldPartitionActorDescInstance*
 		ForceLoadedActors->AddActors({ NewActorDescInstance->GetGuid() });
 	}
 
-	bForceRefreshAlwaysLoaded = !NewActorDescInstance->GetIsSpatiallyLoaded();
+	bForceRefreshAlwaysLoaded |= !NewActorDescInstance->GetIsSpatiallyLoaded();
 	bForceRefreshEditor = true;
 }
 
@@ -1374,7 +1405,7 @@ void UWorldPartition::OnActorDescInstanceRemoved(FWorldPartitionActorDescInstanc
 		ForceLoadedActors->RemoveActors({ ActorDescInstance->GetGuid() });
 	}
 
-	bForceRefreshAlwaysLoaded = !ActorDescInstance->GetIsSpatiallyLoaded();
+	bForceRefreshAlwaysLoaded |= !ActorDescInstance->GetIsSpatiallyLoaded();
 	bForceRefreshEditor = true;
 }
 
@@ -1672,11 +1703,7 @@ void UWorldPartition::Tick(float DeltaSeconds)
 		EditorHash->Tick(DeltaSeconds);
 	}
 
-	if (ExternalDirtyActorsTracker)
-	{
-		ExternalDirtyActorsTracker->Tick(DeltaSeconds);
-	}
-
+	// Force refresh needs to happen before dirty tracker tick to allow new always loaded actors to be referenced before releasing NonDirtyActors
 	if (bForceRefreshAlwaysLoaded)
 	{
 		if (AlwaysLoadedActors)
@@ -1687,6 +1714,11 @@ void UWorldPartition::Tick(float DeltaSeconds)
 		bForceRefreshAlwaysLoaded = false;
 	}
 
+	if (ExternalDirtyActorsTracker)
+	{
+		ExternalDirtyActorsTracker->Tick(DeltaSeconds);
+	}
+		
 	if (bForceRefreshEditor)
 	{
 		if (WorldPartitionEditor)

@@ -87,17 +87,12 @@ namespace LandscapeEditorUtils
 
 	}
 
-	void SaveLandscapeProxies(TArrayView<ALandscapeProxy*> Proxies)
+	void SaveLandscapeProxies(UWorld* World, TArrayView<ALandscapeProxy*> Proxies)
 	{
 		// Save the proxies
-		{
-			TRACE_CPUPROFILER_EVENT_SCOPE(SaveCreatedActors);
-			LandscapeEditorUtils::SaveObjects(Proxies);
-		}
-
-		// Grab references to proxies so they get unloaded after this function returns
-		TArray<FWorldPartitionReference> ProxyReferences;
-		Algo::Transform(Proxies, ProxyReferences, [](ALandscapeProxy* Proxy) { return FWorldPartitionReference(FWorldPartitionHelpers::GetWorldPartition(Proxy), Proxy->GetActorGuid()); });
+		TRACE_CPUPROFILER_EVENT_SCOPE(SaveCreatedActors);
+		UWorldPartition::FDisableNonDirtyActorTrackingScope Scope(World->GetWorldPartition(), true);
+		LandscapeEditorUtils::SaveObjects(Proxies);
 	}
 }
 
