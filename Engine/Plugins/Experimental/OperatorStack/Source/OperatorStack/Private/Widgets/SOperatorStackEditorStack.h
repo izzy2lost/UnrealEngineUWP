@@ -81,6 +81,7 @@ protected:
 	/** Generate this named menu widget for this context */
 	TSharedRef<SWidget> GenerateMenuWidget(FName InMenuName) const;
 
+	EVisibility GetHeaderVisibility() const;
 	EVisibility GetBodyVisibility() const;
 	EVisibility GetFooterVisibility() const;
 
@@ -143,6 +144,8 @@ protected:
 	/** When set will display an alert message in the header */
 	TAttribute<EOperatorStackEditorMessageType> MessageBoxType;
 
+	bool bHiddenByFilter = false;
+
 private:
 	static TSharedRef<ICustomDetailsView> CreateDetailsView(const FCustomDetailsViewArgs& InArgs, const FOperatorStackEditorItem& InItem);
 
@@ -158,6 +161,5 @@ private:
 
 	/** Returns true when this item matches the keywords */
 	bool MatchSearch(const TSet<FString>& InSearchedKeywordsOR, const TSet<FString>& InSearchedKeywordsAND) const;
-
 };
 
