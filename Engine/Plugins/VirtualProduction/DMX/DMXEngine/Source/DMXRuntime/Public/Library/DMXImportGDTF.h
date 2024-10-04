@@ -28,7 +28,6 @@ public:
 	UDMXImportGDTF();
 
 	//~ Begin UObject interface
-	virtual void Serialize(FArchive& Ar) override;
 	virtual void PostLoad() override;
 	//~ End UObject interface
 
