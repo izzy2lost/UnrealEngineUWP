@@ -6,6 +6,9 @@
 #include "GPUSceneWriter.h"
 #include "ShaderParameterStruct.h"
 
+/** [EXPERIMENTAL] Compute shader for writing instance data into GPU Scene.
+ * Note: This class is subject to change without deprecation.
+ */
 class FPCGSceneWriterCS : public FGlobalShader
 {
 public:
