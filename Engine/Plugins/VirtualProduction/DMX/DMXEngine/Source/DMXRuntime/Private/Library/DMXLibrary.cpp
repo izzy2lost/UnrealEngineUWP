@@ -46,6 +46,8 @@ void UDMXLibrary::Serialize(FArchive& Ar)
 {
 	Super::Serialize(Ar);
 
+	Ar.UsingCustomVersion(FDMXRuntimeMainStreamObjectVersion::GUID);
+
 #if WITH_EDITOR
 	if (Ar.IsLoading())
 	{
@@ -55,6 +57,15 @@ void UDMXLibrary::Serialize(FArchive& Ar)
 			for (UDMXEntityFixturePatch* FixturePatch : FixturePatches)
 			{
 				FixturePatch->GenerateFixtureID();
+			}
+		}
+
+		// Fix an issue where the GeneralSceneDescription was not always flagged RF_Public
+		if (Ar.CustomVer(FDMXRuntimeMainStreamObjectVersion::GUID) < FDMXRuntimeMainStreamObjectVersion::FixDMXLibrariesWithGeneralSceneDescriptionsNotFlaggedRFPublic)
+		{
+			if (GeneralSceneDescription && !GeneralSceneDescription->HasAllFlags(RF_Public))
+			{
+				GeneralSceneDescription->SetFlags(GeneralSceneDescription->GetFlags() | RF_Public);
 			}
 		}
 	}
@@ -570,7 +581,12 @@ void UDMXLibrary::UpdatePorts()
 
 void UDMXLibrary::SetMVRGeneralSceneDescription(UDMXMVRGeneralSceneDescription* NewGeneralSceneDescription)
 {
-	GeneralSceneDescription = NewGeneralSceneDescription;
+	if (ensureMsgf(NewGeneralSceneDescription, TEXT("Invalid General Scene Description provided when setting it in the DMX Library.")) &&
+		ensureMsgf(NewGeneralSceneDescription->GetOuter() == this, TEXT("Cannot set a General Scene Description if the outer is not the DMX Library")))
+	{
+		GeneralSceneDescription = NewGeneralSceneDescription;
+		GeneralSceneDescription->SetFlags(GeneralSceneDescription->GetFlags() | RF_Public);
+	}
 }
 
 #if WITH_EDITOR

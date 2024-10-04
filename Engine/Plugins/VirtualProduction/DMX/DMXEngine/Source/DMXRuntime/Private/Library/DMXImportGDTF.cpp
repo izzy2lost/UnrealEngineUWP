@@ -3,6 +3,7 @@
 #include "Library/DMXImportGDTF.h"
 
 #include "DMXGDTF.h"
+#include "DMXRuntimeMainStreamObjectVersion.h"
 #include "GDTF/DMXGDTFDescription.h"
 #include "Library/DMXGDTFAssetImportData.h"
 
@@ -15,6 +16,24 @@ UDMXImportGDTF::UDMXImportGDTF()
 	GDTFAssetImportData = NewObject<UDMXGDTFAssetImportData>(this, TEXT("GDTFAssetImportData"), RF_Public);
 }
 
+void UDMXImportGDTF::Serialize(FArchive& Ar)
+{
+	Super::Serialize(Ar);
+
+	Ar.UsingCustomVersion(FDMXRuntimeMainStreamObjectVersion::GUID);
+
+#if WITH_EDITOR
+	// Fix an issue where GDTFAssetImportData was not always flagged RF_Public
+	if (Ar.CustomVer(FDMXRuntimeMainStreamObjectVersion::GUID) < FDMXRuntimeMainStreamObjectVersion::FixImportGDTFWithGDTFAssetImportDataNotFlaggedRFPublic)
+	{
+		if (GDTFAssetImportData && !GDTFAssetImportData->HasAllFlags(RF_Public))
+		{
+			GDTFAssetImportData->SetFlags(GDTFAssetImportData->GetFlags() | RF_Public);
+		}
+	}
+#endif
+}
+
 void UDMXImportGDTF::PostLoad()
 {
 	Super::PostLoad();
@@ -22,7 +41,7 @@ void UDMXImportGDTF::PostLoad()
 	// Upgrade so this object always holds asset data.
 	if (!GDTFAssetImportData)
 	{
-		GDTFAssetImportData = NewObject<UDMXGDTFAssetImportData>(this, TEXT("GDTFAssetImportData"));
+		GDTFAssetImportData = NewObject<UDMXGDTFAssetImportData>(this, TEXT("GDTFAssetImportData"), RF_Public);
 	}
 
 #if WITH_EDITORONLY_DATA

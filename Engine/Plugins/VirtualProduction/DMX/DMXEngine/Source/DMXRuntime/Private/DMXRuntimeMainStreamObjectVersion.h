@@ -48,6 +48,12 @@ struct FDMXRuntimeMainStreamObjectVersion
 		// 5.5 Upgrade MVR Scene Actor to spawn Actors per Fixture Type of per GDTF
 		DMXMVRSceneActorSpawnsActorsPerFixtureType,
 
+		// 5.5 Fix DMX Library assets with General Scene Descriptions that are not flagged RF_Public
+		FixDMXLibrariesWithGeneralSceneDescriptionsNotFlaggedRFPublic,
+
+		// 5.5 Fix DMX Import GDTF assets with GDTF Asset Import Data that are not flagged RF_Public
+		FixImportGDTFWithGDTFAssetImportDataNotFlaggedRFPublic,
+
 		VersionPlusOne,
 		LatestVersion = VersionPlusOne - 1
 	};
