@@ -834,7 +834,7 @@ void UE::PropertyAnimatorCoreEditor::Menu::FillLinkAnimatorSubmenu(UToolMenu* In
 			, FSlateIcon()
 			, FUIAction(
 				FExecuteAction::CreateLambda(&ExecuteLinkAnimatorPropertyAction, InAnimator, SupportedProperty, Empty, InMenuData)
-				, FCanExecuteAction()
+				, FCanExecuteAction::CreateLambda(&IsAnimatorLinkPropertyAllowed, InAnimator, SupportedProperty)
 				, FIsActionChecked::CreateLambda(&IsAnimatorPropertyLinked, InAnimator, SupportedProperty)
 			)
 			, EUserInterfaceActionType::ToggleButton
@@ -887,7 +887,7 @@ void UE::PropertyAnimatorCoreEditor::Menu::FillPresetAnimatorSubmenu(UToolMenu* 
 			, FSlateIcon()
 			, FUIAction(
 				FExecuteAction::CreateLambda(&ExecuteLinkAnimatorPropertyAction, InAnimator, SupportedProperty, InPreset, InMenuData)
-				, FCanExecuteAction()
+				, FCanExecuteAction::CreateLambda(&IsAnimatorLinkPropertyAllowed, InAnimator, SupportedProperty)
 				, FIsActionChecked::CreateLambda(&IsAnimatorPropertyLinked, InAnimator, SupportedProperty)
 			)
 			, EUserInterfaceActionType::ToggleButton
@@ -1019,6 +1019,18 @@ bool UE::PropertyAnimatorCoreEditor::Menu::IsAnimatorPropertyLinked(const UPrope
 	}
 
 	return InAnimator->IsPropertyLinked(InProperty);
+}
+
+bool UE::PropertyAnimatorCoreEditor::Menu::IsAnimatorLinkPropertyAllowed(const UPropertyAnimatorCoreBase* InAnimator, const FPropertyAnimatorCoreData& InProperty)
+{
+	if (!IsValid(InAnimator) || InAnimator->IsTemplate())
+	{
+		return false;
+	}
+
+	// Only allow linking properties that are not yet linked and do not have any of their children linked
+	return (!InAnimator->IsPropertyLinked(InProperty) && InAnimator->GetInnerPropertiesLinked(InProperty).IsEmpty())
+		|| InAnimator->GetLinkedPropertyContext(InProperty) != nullptr;
 }
 
 bool UE::PropertyAnimatorCoreEditor::Menu::IsLastAnimatorCreatedPropertyLinked(const UPropertyAnimatorCoreBase* InAnimator, const FPropertyAnimatorCoreData& InProperty, TSharedRef<FPropertyAnimatorCoreEditorMenuData> InMenuData)

@@ -776,7 +776,7 @@ UPropertyAnimatorCoreContext* UPropertyAnimatorCoreBase::LinkProperty(const FPro
 		return PropertyContext;
 	}
 
-	if (IsPropertyLinked(InLinkProperty))
+	if (IsPropertyLinked(InLinkProperty) || !GetInnerPropertiesLinked(InLinkProperty).IsEmpty())
 	{
 		return GetLinkedPropertyContext(InLinkProperty);
 	}
@@ -807,11 +807,12 @@ bool UPropertyAnimatorCoreBase::UnlinkProperty(const FPropertyAnimatorCoreData& 
 		return false;
 	}
 
-	UPropertyAnimatorCoreContext* PropertyContext = GetLinkedPropertyContext(InUnlinkProperty);
-
-	PropertyContext->Restore();
-	LinkedProperties.Remove(PropertyContext);
-	OnPropertyUnlinked(PropertyContext);
+	if (UPropertyAnimatorCoreContext* PropertyContext = GetLinkedPropertyContext(InUnlinkProperty))
+	{
+		PropertyContext->Restore();
+		LinkedProperties.Remove(PropertyContext);
+		OnPropertyUnlinked(PropertyContext);
+	}
 
 	UPropertyAnimatorCoreBase::OnAnimatorPropertyUnlinkedDelegate.Broadcast(this, InUnlinkProperty);
 
@@ -852,16 +853,11 @@ TSet<FPropertyAnimatorCoreData> UPropertyAnimatorCoreBase::GetInnerPropertiesLin
 		return OutProperties;
 	}
 
-	FProperty* LeafProperty = InPropertyData.GetLeafProperty();
-
-	for (const FPropertyAnimatorCoreData& ControllerProperty : GetLinkedProperties())
+	for (const FPropertyAnimatorCoreData& LinkedProperty : GetLinkedProperties())
 	{
-		const int32 LeafPropertyIdx = ControllerProperty.GetChainProperties().Find(LeafProperty);
-
-		// If member property is inside array and not the last one, then this controlled property is inside the InPropertyData
-		if (LeafPropertyIdx != INDEX_NONE)
+		if (InPropertyData.IsOwning(LinkedProperty))
 		{
-			OutProperties.Add(ControllerProperty);
+			OutProperties.Add(LinkedProperty);
 		}
 	}
 

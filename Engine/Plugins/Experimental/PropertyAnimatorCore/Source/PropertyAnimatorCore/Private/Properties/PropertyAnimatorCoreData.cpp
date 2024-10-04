@@ -466,7 +466,10 @@ bool FPropertyAnimatorCoreData::HasSetter() const
 
 bool FPropertyAnimatorCoreData::IsParentOf(const FPropertyAnimatorCoreData& InOtherProperty) const
 {
-	if (FProperty* LeafProperty = GetLeafProperty())
+	FProperty* LeafProperty = GetLeafProperty();
+	const UObject* Owner = GetOwner();
+
+	if (Owner && Owner == InOtherProperty.GetOwner() && LeafProperty)
 	{
 		const TArray<FProperty*> OtherChainProperties = InOtherProperty.GetChainProperties();
 
@@ -486,7 +489,10 @@ bool FPropertyAnimatorCoreData::IsChildOf(const FPropertyAnimatorCoreData& InOth
 
 bool FPropertyAnimatorCoreData::IsOwning(const FPropertyAnimatorCoreData& InOtherProperty) const
 {
-	if (FProperty* LeafProperty = GetLeafProperty())
+	FProperty* LeafProperty = GetLeafProperty();
+	const UObject* Owner = GetOwner();
+
+	if (Owner && Owner == InOtherProperty.GetOwner() && LeafProperty)
 	{
 		const TArray<FProperty*> OtherChainProperties = InOtherProperty.GetChainProperties();
 
