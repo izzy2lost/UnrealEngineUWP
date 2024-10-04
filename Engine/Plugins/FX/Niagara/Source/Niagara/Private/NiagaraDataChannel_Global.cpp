@@ -45,8 +45,9 @@ void UNiagaraDataChannelHandler_Global::Init(const UNiagaraDataChannel* InChanne
 
 void UNiagaraDataChannelHandler_Global::Cleanup()
 {
-	Super::Cleanup();
 	Data.Reset();
+
+	Super::Cleanup();
 }
 
 void UNiagaraDataChannelHandler_Global::BeginFrame(float DeltaTime, FNiagaraWorldManager* OwningWorld)

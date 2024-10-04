@@ -463,6 +463,53 @@ FNiagaraDataChannelDataProxy::~FNiagaraDataChannelDataProxy()
 #endif
 }
 
+void FNiagaraDataChannelDataProxy::Cleanup(FNiagaraGpuComputeDispatchInterface* ComputeDispatchInterface)
+{
+#if !UE_BUILD_SHIPPING
+	ensureMsgf(DispatchInterfaceForDebuggingOnly == ComputeDispatchInterface || ComputeDispatchInterface == nullptr, TEXT("FNiagaraDataChannelDataProxy - ComputeDispatchInterface has been modified without proper cleanup. This could cause a crash."));
+#endif
+	
+	if(ComputeDispatchInterface)
+	{
+		//Remove ourselves from the dispatcher and free our instance counts from the instance count manager.
+		ComputeDispatchInterface->RemoveNDCDataProxy(this);
+	
+		FNiagaraGPUInstanceCountManager& InstCountManager = ComputeDispatchInterface->GetGPUInstanceCounterManager();
+		
+		if(CurrFrameData)
+		{
+			uint32 InstanceCountOffset = CurrFrameData->GetGPUInstanceCountBufferOffset();
+			InstCountManager.FreeEntry(InstanceCountOffset);
+			CurrFrameData->SetGPUInstanceCountBufferOffset(INDEX_NONE);
+		}
+
+		if (PrevFrameData)
+		{
+			uint32 InstanceCountOffset = PrevFrameData->GetGPUInstanceCountBufferOffset();
+			InstCountManager.FreeEntry(InstanceCountOffset);
+			PrevFrameData->SetGPUInstanceCountBufferOffset(INDEX_NONE);
+		}
+	}
+	else
+	{
+		if (CurrFrameData)
+		{
+			CurrFrameData->SetGPUInstanceCountBufferOffset(INDEX_NONE);
+		}
+
+		if (PrevFrameData)
+		{
+			PrevFrameData->SetGPUInstanceCountBufferOffset(INDEX_NONE);
+		}
+	}
+
+#if !UE_BUILD_SHIPPING
+	DispatchInterfaceForDebuggingOnly = nullptr;
+#endif
+	CurrFrameData = nullptr;
+	PrevFrameData = nullptr;
+}
+
 void FNiagaraDataChannelDataProxy::Reset()
 {
 	PrevFrameData = nullptr;
@@ -592,6 +639,11 @@ FNiagaraDataChannelData::~FNiagaraDataChannelData()
 	ENQUEUE_RENDER_COMMAND(FDeleteContextCommand)(
 		[ComputeDispatchInterface, CPUDataChannelDataSet = CPUSimData, GPUDataChannelDataSet = GPUSimData, ReleasedRTProxy = RTProxy.Release()](FRHICommandListImmediate& RHICmdList)
 	{
+		if (ReleasedRTProxy)
+		{
+			ReleasedRTProxy->Cleanup(ComputeDispatchInterface);
+			delete ReleasedRTProxy;
+		}
 		if (CPUDataChannelDataSet != nullptr)
 		{
 			delete CPUDataChannelDataSet;
@@ -600,24 +652,11 @@ FNiagaraDataChannelData::~FNiagaraDataChannelData()
 		{
 			delete GPUDataChannelDataSet;
 		}
-		if (ReleasedRTProxy)
-		{
-			if (ComputeDispatchInterface)
-			{
-			#if !UE_BUILD_SHIPPING
-				check(ComputeDispatchInterface == ReleasedRTProxy->DispatchInterfaceForDebuggingOnly);
-			#endif
-				ComputeDispatchInterface->RemoveNDCDataProxy(ReleasedRTProxy);
-			}
-		#if !UE_BUILD_SHIPPING
-			ReleasedRTProxy->DispatchInterfaceForDebuggingOnly = nullptr;
-		#endif
-			delete ReleasedRTProxy;
-		}
 	}
 	);
 	CPUSimData = nullptr;
 	GPUSimData = nullptr;
+	check(RTProxy == nullptr);
 }
 
 void FNiagaraDataChannelData::Init(UNiagaraDataChannelHandler* Owner)
@@ -643,23 +682,7 @@ void FNiagaraDataChannelData::Init(UNiagaraDataChannelHandler* Owner)
 	UWorld* OwnerWorld = Owner->GetWorld();
 	WeakOwnerWorld = OwnerWorld;
 
-	if (FNiagaraGpuComputeDispatchInterface* ComputeDispatchInterface = FNiagaraGpuComputeDispatchInterface::Get(OwnerWorld))
-	{
-		RTProxy.Reset(new FNiagaraDataChannelDataProxy());
-		RTProxy->GPUDataSet = GPUSimData;
-		RTProxy->bNeedsPrevFrameData = DataChannel->KeepPreviousFrameData();
-		RTProxy->Owner = this->AsWeak();
-#if !UE_BUILD_SHIPPING
-		RTProxy->DebugName = FString::Printf(TEXT("%s__GPUData"), *DataChannel->GetName());
-		RTProxy->DispatchInterfaceForDebuggingOnly = ComputeDispatchInterface;
-#endif
-		ENQUEUE_RENDER_COMMAND(FNiagaraDataChannelDataProxyInit) (
-			[ComputeDispatchInterface, RT_Proxy=RTProxy.Get()](FRHICommandListImmediate& CmdList)
-			{
-				ComputeDispatchInterface->AddNDCDataProxy(RT_Proxy);
-			}
-		);
-	}
+	CreateRenderThreadProxy(Owner);
 }
 
 void FNiagaraDataChannelData::Reset()
@@ -687,6 +710,12 @@ void FNiagaraDataChannelData::Reset()
 
 void FNiagaraDataChannelData::BeginFrame(UNiagaraDataChannelHandler* Owner)
 {
+	//Lazy re-init our proxy data in cases where we've had to recreate our render state while running due to an FScene change etc.
+	if(RTProxy == nullptr)
+	{
+		CreateRenderThreadProxy(Owner);
+	}
+
 	GameData->BeginFrame();
 
 	bool bRequirePreviousData = Owner->GetDataChannel()->KeepPreviousFrameData();
@@ -934,6 +963,47 @@ FNiagaraDataBuffer* FNiagaraDataChannelData::GetBufferForCPUWrite()
 	return nullptr;
 }
 
+void FNiagaraDataChannelData::DestroyRenderThreadProxy(FNiagaraGpuComputeDispatchInterface* ComputeDispatchInterface)
+{
+	ENQUEUE_RENDER_COMMAND(FDestroyRTProxyCommand)(
+		[ComputeDispatchInterface, ReleasedRTProxy = RTProxy.Release()](FRHICommandListImmediate& RHICmdList)
+		{
+			if (ReleasedRTProxy)
+			{
+				ReleasedRTProxy->Cleanup(ComputeDispatchInterface);
+				delete ReleasedRTProxy;
+			}
+		}
+	);
+	check(RTProxy == nullptr);
+}
+
+void FNiagaraDataChannelData::CreateRenderThreadProxy(UNiagaraDataChannelHandler* Owner)
+{
+	check(Owner);
+	UWorld* OwnerWorld = Owner->GetWorld();	
+	const UNiagaraDataChannel* DataChannel = Owner->GetDataChannel();
+	check(DataChannel);
+
+	if (FNiagaraGpuComputeDispatchInterface* ComputeDispatchInterface = FNiagaraGpuComputeDispatchInterface::Get(OwnerWorld))
+	{
+		RTProxy.Reset(new FNiagaraDataChannelDataProxy());
+		RTProxy->GPUDataSet = GPUSimData;
+		RTProxy->bNeedsPrevFrameData = DataChannel->KeepPreviousFrameData();
+		RTProxy->Owner = this->AsWeak();
+#if !UE_BUILD_SHIPPING
+		RTProxy->DebugName = FString::Printf(TEXT("%s__GPUData"), *DataChannel->GetName());
+		RTProxy->DispatchInterfaceForDebuggingOnly = ComputeDispatchInterface;
+#endif
+		ENQUEUE_RENDER_COMMAND(FNiagaraDataChannelDataProxyInit) (
+			[ComputeDispatchInterface, RT_Proxy = RTProxy.Get()](FRHICommandListImmediate& CmdList)
+			{
+				ComputeDispatchInterface->AddNDCDataProxy(RT_Proxy);
+			}
+		);
+	}
+}
+
 //////////////////////////////////////////////////////////////////////////
 
 void UNiagaraDataChannel::PostInitProperties()
@@ -1003,6 +1073,13 @@ void UNiagaraDataChannel::BeginDestroy()
 {
 	Super::BeginDestroy();
 	INiagaraModule::RequestRefreshDataChannels();
+
+	RTFence.BeginFence();
+}
+
+bool UNiagaraDataChannel::IsReadyForFinishDestroy()
+{
+	return RTFence.IsFenceComplete() && Super::IsReadyForFinishDestroy();
 }
 
 #if WITH_EDITOR

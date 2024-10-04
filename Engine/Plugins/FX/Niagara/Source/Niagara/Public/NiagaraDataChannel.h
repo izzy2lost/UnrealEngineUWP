@@ -33,6 +33,7 @@ Reading the previous frames data introduces a frame of latency but removes the n
 #include "NiagaraCommon.h"
 #include "NiagaraDataSet.h"
 #include "UObject/UObjectIterator.h"
+#include "RenderCommandFence.h"
 #include "NiagaraDataChannel.generated.h"
 
 DECLARE_STATS_GROUP(TEXT("Niagara Data Channels"), STATGROUP_NiagaraDataChannels, STATCAT_Niagara);
@@ -77,6 +78,7 @@ struct FNiagaraDataChannelDataProxy
 	const TCHAR* GetDebugName()const{return nullptr;}
 	#endif
 
+	void Cleanup(FNiagaraGpuComputeDispatchInterface* ComputeDispatchInterface);
 	void BeginFrame(FNiagaraGpuComputeDispatchInterface* DispatchInterface, FRHICommandListImmediate& RHICmdList);
 	void EndFrame(FRHICommandListImmediate& RHICmdList);
 	void Reset();
@@ -102,6 +104,7 @@ public:
 	NIAGARA_API virtual void PostInitProperties() override;
 	NIAGARA_API virtual void PostLoad() override;
 	NIAGARA_API virtual void BeginDestroy() override;
+	NIAGARA_API virtual bool IsReadyForFinishDestroy() override;
 #if WITH_EDITOR
 	NIAGARA_API virtual void PreEditChange(FProperty* PropertyAboutToChange) override;
 	NIAGARA_API virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedDataChannel) override;
@@ -187,6 +190,8 @@ private:
 	#if WITH_NIAGARA_DEBUGGER
 	mutable bool bVerboseLogging = false;
 	#endif
+
+	FRenderCommandFence RTFence;
 };
 
 template<typename TAction>

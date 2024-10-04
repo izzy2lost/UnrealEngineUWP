@@ -103,7 +103,12 @@ struct FNiagaraDataChannelData final : public TSharedFromThis<FNiagaraDataChanne
 
 	//This will get a buffer from the CPU dataset intended to be written to on the CPU.
 	FNiagaraDataBuffer* GetBufferForCPUWrite();
+
+	void DestroyRenderThreadProxy(FNiagaraGpuComputeDispatchInterface* ComputeDispatchInterface);
+
 private:
+
+	void CreateRenderThreadProxy(UNiagaraDataChannelHandler* Owner);
 
 	/** DataChannel data accessible from Game/BP. AoS Layout. LWC types. */
 	FNiagaraDataChannelGameDataPtr GameData;

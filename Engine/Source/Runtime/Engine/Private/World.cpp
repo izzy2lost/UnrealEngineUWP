@@ -9157,6 +9157,16 @@ void UWorld::RecreateScene(ERHIFeatureLevel::Type InFeatureLevel, bool bBroadcas
 			Level->ReleaseRenderingResources();
 		}
 
+		//Ensure we've destroyed our FXSystem before we change Scene on the world.
+		bool bCreateFXSystem = false;
+		if (FXSystem)
+		{
+			bCreateFXSystem = true;
+			FFXSystemInterface::Destroy(FXSystem);
+			FXSystem = nullptr;
+			Scene->SetFXSystem(nullptr);
+		}
+
 		Scene->Release();
 		IRendererModule& RendererModule = GetRendererModule();
 		RendererModule.RemoveScene(Scene);
@@ -9166,7 +9176,7 @@ void UWorld::RecreateScene(ERHIFeatureLevel::Type InFeatureLevel, bool bBroadcas
 			FRenderResource::ChangeFeatureLevel(InFeatureLevel);
 		}
 
-		RendererModule.AllocateScene(this, bRequiresHitProxies, FXSystem != nullptr, InFeatureLevel);
+		RendererModule.AllocateScene(this, bRequiresHitProxies, bCreateFXSystem, InFeatureLevel);
 
 		for (ULevel* Level : Levels)
 		{
