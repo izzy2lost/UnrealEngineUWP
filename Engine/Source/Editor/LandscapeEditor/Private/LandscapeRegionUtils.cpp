@@ -135,7 +135,7 @@ void ForEachRegion_LoadProcessUnload(ULandscapeInfo* InLandscapeInfo, const FInt
 
 		InLandscapeInfo->ForceLayersFullUpdate();
 
-		LandscapeEditorUtils::SaveLandscapeProxies(MakeArrayView(LandscapeProxies));
+		LandscapeEditorUtils::SaveLandscapeProxies(InWorld, MakeArrayView(LandscapeProxies));
 
 		Region->Unload();
 

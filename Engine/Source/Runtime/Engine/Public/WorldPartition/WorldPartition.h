@@ -642,13 +642,15 @@ private:
 		FWorldPartitionExternalDirtyActorsTracker(UWorldPartition* InWorldPartition);
 
 		//~ Begin TExternalDirtyActorsTracker interface
-		virtual bool OnAddDirtyActor(const TWeakObjectPtr<AActor> InActor) override { return !!GUndo; }
 		virtual void OnRemoveNonDirtyActor(const TWeakObjectPtr<AActor> InActor, FWorldPartitionReference& InValue) override;
 		virtual void Tick(float InDeltaTime) override;
 		//~ End TExternalDirtyActorsTracker interface
 
+		void SetNonDirtyTrackingDisabled(bool bInIsNonDirtyTrackingDisabled) { bIsNonDirtyTrackingDisabled = bInIsNonDirtyTrackingDisabled; }
+		bool IsNonDirtyTrackingDisabled() const { return bIsNonDirtyTrackingDisabled; }
 	private:
 		TSet<TPair<TWeakObjectPtr<AActor>, FWorldPartitionReference>> NonDirtyActors;
+		bool bIsNonDirtyTrackingDisabled = false;
 	};
 
 	TUniquePtr<FWorldPartitionExternalDirtyActorsTracker> ExternalDirtyActorsTracker;
@@ -663,6 +665,18 @@ private:
 public:
 	TOptional<bool> bOverrideEnableStreamingInEditor;
 
+	friend class FDisableNonDirtyActorTrackingScope;
+
+	// Use scope around actor package save calls to prevent newly created spatial actors from being pinned (actors will get unloaded instead)
+	class FDisableNonDirtyActorTrackingScope
+	{
+	public:
+		ENGINE_API FDisableNonDirtyActorTrackingScope(UWorldPartition* InWorldPartition, bool bInDisableTracking);
+		ENGINE_API ~FDisableNonDirtyActorTrackingScope();
+	private:
+		UWorldPartition* WorldPartition = nullptr;
+		bool bPreviousValue = false;
+	};
 private:
 #endif
 
