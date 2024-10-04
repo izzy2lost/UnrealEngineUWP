@@ -104,13 +104,6 @@ static FAutoConsoleVariableRef CVarSkinnedMeshRenderNanite(
 	)
 );
 
-static bool GSkinnedMeshSkinWeightProfileEarlyExit = false;
-static FAutoConsoleVariableRef CVarSkinnedMeshSkinWeightProfileEarlyExit(
-	TEXT("r.SkinnedMesh.SkinWeightProfileEarlyExit"),
-   GSkinnedMeshSkinWeightProfileEarlyExit,
-   TEXT("When set to true, the new profile stack update is not re-done if it's similar to the current skin weight profile.")
-   );
-
 static bool ShouldRenderNaniteSkinnedMeshes()
 {
 	return NaniteSkinnedMeshesSupported() && GSkinnedMeshRenderNanite != 0;
@@ -5048,10 +5041,7 @@ bool USkinnedMeshComponent::SetSkinWeightProfileStack(const FSkinWeightProfileSt
 	// If we're not actually changing anything, then just return and say we did, as if the operation succeeded.
 	if (InProfileStack.Normalized() == FSkinWeightProfileStack{CurrentSkinWeightProfileLayers}.Normalized())
 	{
-		if (GSkinnedMeshSkinWeightProfileEarlyExit)
-		{
-			return true;
-		}
+		return true;
 	}
 
 	bool bChanged = false;
