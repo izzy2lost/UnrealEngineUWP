@@ -435,7 +435,7 @@ void UAvaPlayableGroup::ForEachPlayableTransition(TFunctionRef<bool(UAvaPlayable
 
 UAvaPlayableGroup* UAvaPlayableGroup::FindPlayableGroupForWorld(const UWorld* InWorld, bool bInFallbackToGlobalSearch)
 {
-	if (!InWorld)
+	if (!InWorld || !InWorld->PersistentLevel)
 	{
 		return nullptr;
 	}
