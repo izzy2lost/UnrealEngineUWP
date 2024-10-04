@@ -31,7 +31,7 @@ protected:
 
 public:
 	/** The grammar to interpret. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Settings, meta = (PCG_Overridable))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Settings, meta = (MultiLine, PCG_Overridable))
 	FString Grammar;
 };
 

@@ -35,6 +35,8 @@ namespace PCGGrammar
 		// TODO: parse tokens in a more efficient way; this relies on token separation from what should essentially be token delimiters
 		// This would also allow better information to the end user when the grammar is invalid (as we wouldn't need to modify the string).
 		FString Grammar = InGrammar;
+		Grammar.ReplaceInline(TEXT("\r"), TEXT(""));
+		Grammar.ReplaceInline(TEXT("\n"), TEXT(""));
 		Grammar.ReplaceInline(Delimiter, TEXT(" , "));
 		Grammar.ReplaceInline(WeightDelimiter, TEXT(" : "));
 		Grammar.ReplaceInline(SequenceStart, TEXT(" [ "));
