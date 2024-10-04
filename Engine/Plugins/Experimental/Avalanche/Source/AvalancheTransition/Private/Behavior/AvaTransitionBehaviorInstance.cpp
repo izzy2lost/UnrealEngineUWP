@@ -158,6 +158,11 @@ void FAvaTransitionBehaviorInstance::SetLogContext(const FString& InContext)
 	LogContext = InContext;
 }
 
+void FAvaTransitionBehaviorInstance::AddReferencedObjects(FReferenceCollector& InCollector)
+{
+	InstanceData.AddStructReferencedObjects(InCollector);
+}
+
 void FAvaTransitionBehaviorInstance::ConditionallyStop()
 {
 	// if the run status was set in Start/Tick with anything other than running (e.g. Succeeded/Failed/Stop) it should call stop

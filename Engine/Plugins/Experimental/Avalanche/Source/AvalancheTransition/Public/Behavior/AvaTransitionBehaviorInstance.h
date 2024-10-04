@@ -9,6 +9,7 @@
 #include "UObject/WeakInterfacePtr.h"
 
 class FAvaTransitionExecutorBuilder;
+class FReferenceCollector;
 class IAvaTransitionBehavior;
 class UAvaTransitionTree;
 struct FAvaTransitionExecutionContext;
@@ -66,6 +67,8 @@ struct FAvaTransitionBehaviorInstance
 	void SetOverrideLayer(const FAvaTagHandle& InOverrideLayer);
 
 	void SetLogContext(const FString& InContext);
+
+	void AddReferencedObjects(FReferenceCollector& InCollector);
 
 private:
 	/** Stops Execution if the Tree is no longer running */

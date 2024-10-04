@@ -233,6 +233,20 @@ bool FAvaTransitionExecutor::IsTickable() const
 	return IsRunning();
 }
 
+FString FAvaTransitionExecutor::GetReferencerName() const
+{
+	return TEXT("FAvaTransitionExecutor");
+}
+
+void FAvaTransitionExecutor::AddReferencedObjects(FReferenceCollector& InCollector)
+{
+	ForEachInstance(
+		[&InCollector](FAvaTransitionBehaviorInstance& InInstance)
+		{
+			InInstance.AddReferencedObjects(InCollector);
+		});
+}
+
 void FAvaTransitionExecutor::ForEachInstance(TFunctionRef<void(FAvaTransitionBehaviorInstance&)> InFunc)
 {
 	for (FAvaTransitionBehaviorInstance& Instance : Instances)
