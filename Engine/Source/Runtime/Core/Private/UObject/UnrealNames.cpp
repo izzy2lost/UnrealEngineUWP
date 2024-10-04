@@ -40,7 +40,10 @@
 #include "Misc/AsciiSet.h"
 #include "AutoRTFM/AutoRTFM.h"
 
-#define USE_FNAME_MMAP (PLATFORM_ANDROID || PLATFORM_IOS)
+#ifndef USE_FNAME_MMAP
+#define USE_FNAME_MMAP 0
+#endif
+
 #if USE_FNAME_MMAP
 #include <sys/mman.h>
 #if PLATFORM_ANDROID
