@@ -49,7 +49,7 @@ struct FPCGSelectGrammarCriterion
 	double SecondValue = 0.0;
 
 	/** The selected grammar result if the condition evaluates to true. */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings)
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (MultiLine))
 	FString Grammar;
 };
 

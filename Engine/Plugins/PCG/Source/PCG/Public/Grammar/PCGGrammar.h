@@ -61,7 +61,7 @@ struct FPCGGrammarSelection
 	bool bGrammarAsAttribute = false;
 
 	/** An encoded string that represents how to apply a set of rules to a series of defined modules. */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (EditCondition = "!bGrammarAsAttribute", EditConditionHides, PCG_Overridable))
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (MultiLine, EditCondition = "!bGrammarAsAttribute", EditConditionHides, PCG_Overridable))
 	FString GrammarString;
 
 	/** Attribute to be taken from the input spline containing the grammar to use. */
