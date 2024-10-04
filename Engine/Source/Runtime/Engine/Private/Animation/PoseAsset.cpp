@@ -1806,7 +1806,7 @@ bool UPoseAsset::RemoveInvalidTracks()
 	return InitialNumTracks != PoseContainer.Tracks.Num();
 }
 
-#if WITH_EDITORONLY_DATA
+#if WITH_EDITOR
 void UPoseAsset::SetRetargetSourceAsset(USkeletalMesh* InRetargetSourceAsset)
 {
 	if (InRetargetSourceAsset != nullptr && InRetargetSourceAsset->HasAnyFlags(RF_Transient))
@@ -1820,6 +1820,20 @@ void UPoseAsset::SetRetargetSourceAsset(USkeletalMesh* InRetargetSourceAsset)
 
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	RetargetSourceAsset = InRetargetSourceAsset;
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+}
+
+void UPoseAsset::ClearRetargetSourceAsset()
+{
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	RetargetSourceAsset.Reset();
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+}
+
+const TSoftObjectPtr<USkeletalMesh>& UPoseAsset::GetRetargetSourceAsset() const
+{
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	return RetargetSourceAsset;
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 }
 

@@ -1956,7 +1956,7 @@ void UAnimSequence::UpdateCompressedCurveName(const FName& OldCurveName, const F
 }
 #endif // WITH_EDITOR
 
-#if WITH_EDITORONLY_DATA
+#if WITH_EDITOR
 void UAnimSequence::SetRetargetSourceAsset(USkeletalMesh* InRetargetSourceAsset)
 {
 	if (InRetargetSourceAsset != nullptr && InRetargetSourceAsset->HasAnyFlags(RF_Transient))
@@ -1970,6 +1970,20 @@ void UAnimSequence::SetRetargetSourceAsset(USkeletalMesh* InRetargetSourceAsset)
 
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	RetargetSourceAsset = InRetargetSourceAsset;
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+}
+
+const TSoftObjectPtr<USkeletalMesh>& UAnimSequence::GetRetargetSourceAsset() const
+{
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	return RetargetSourceAsset;
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+}
+
+void UAnimSequence::ClearRetargetSourceAsset()
+{
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	RetargetSourceAsset.Reset();
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 }
 
@@ -1989,7 +2003,7 @@ void UAnimSequence::UpdateRetargetSourceAssetData()
 		RetargetSourceAssetReferencePose.Empty();
 	}
 }
-#endif // WITH_EDITORONLY_DATA
+#endif // WITH_EDITOR
 
 const TArray<FTransform>& UAnimSequence::GetRetargetTransforms() const
 {
