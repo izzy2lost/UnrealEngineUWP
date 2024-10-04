@@ -1127,6 +1127,11 @@ FVector UText3DComponent::GetLineLocation(int32 LineIndex)
 
 void UText3DComponent::UpdateTransforms()
 {
+	ShapedText->Kerning = Kerning;
+	ShapedText->WordSpacing = WordSpacing;
+	ShapedText->MaxWidth = MaxWidth;
+	ShapedText->bWrap = MaxWidthHandling == EText3DMaxWidthHandling::WrapAndScale;
+
 	ShapedText->CalculateWidth();
 	CalculateTextScale();
 	const FVector Scale = GetTextScale();
