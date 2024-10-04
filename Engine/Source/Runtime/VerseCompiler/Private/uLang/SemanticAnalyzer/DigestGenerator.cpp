@@ -603,12 +603,9 @@ private:
         Verse::Vst::ClauseArray NewClauses;
         for (const CScope* Scope : ScopedAccessLevel._Scopes)
         {
-            const bool bEnclosingScopeIsProgram = Scope->ScopeAsDefinition()->_EnclosingScope.ScopeAsDefinition() == _Program.ScopeAsDefinition();
-
-            const CUTF8String PathString = bEnclosingScopeIsProgram ? Scope->GetScopePath('/', CScope::EPathMode::PrefixSeparator) :
-                                                                      static_cast<CUTF8String>(GetDependencyName(*Scope->ScopeAsDefinition()));
+            CUTF8String PathString = Scope->GetScopePath('/', CScope::EPathMode::PrefixSeparator);
 			
-            TSRef<PathLiteral> NewPathLiteral = TSRef<PathLiteral>::New(PathString, NullWhence());
+            TSRef<PathLiteral> NewPathLiteral = TSRef<PathLiteral>::New(Move(PathString), NullWhence());
             // The syntax should be something like `scoped {/Verse.org`}, we don't want any newlines after the
             // path literal.
             NewPathLiteral->SetNumNewLinesAfter(0);
