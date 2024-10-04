@@ -95,12 +95,7 @@ namespace UE::PixelStreamingVCam
 	void FVCamPixelStreamingSessionLogic::OnDeinitialize(DecoupledOutputProvider::IOutputProviderEvent& Args)
 	{
 		UnregisterPixelStreamingDelegates();
-
-		if (MediaOutput)
-		{
-			MediaOutput->ConditionalBeginDestroy();
-			MediaOutput = nullptr;
-		}
+		CleanupMediaOutput();
 	}
 
 	void FVCamPixelStreamingSessionLogic::OnActivate(DecoupledOutputProvider::IOutputProviderEvent& Args)
@@ -134,8 +129,11 @@ namespace UE::PixelStreamingVCam
 		}
 
 		// create a new media output if we dont already have one, or its not valid, or if the id has changed
-		if (MediaOutput == nullptr || !MediaOutput->IsValid() || MediaOutput->GetStreamer()->GetId() != This->StreamerId)
+		if (!MediaOutput || !MediaOutput->IsValid() || MediaOutput->GetStreamer()->GetId() != This->StreamerId)
 		{
+			// If there already is a MediaOutput, unregister from the below delegates.
+			CleanupMediaOutput();
+			
 			MediaOutput = UPixelStreamingMediaOutput::Create(GetTransientPackage(), This->StreamerId);
 			MediaOutput->OnRemoteResolutionChanged().AddSP(this, &FVCamPixelStreamingSessionLogic::OnRemoteResolutionChanged, WeakThisUObjectPtr);
 			MediaOutput->GetStreamer()->OnPreConnection().AddSP(this, &FVCamPixelStreamingSessionLogic::OnPreStreaming, WeakThisUObjectPtr);
@@ -269,7 +267,7 @@ namespace UE::PixelStreamingVCam
 
 	void FVCamPixelStreamingSessionLogic::StopEverything(UVCamPixelStreamingSession& Session)
 	{
-		StopStreaming();
+		CleanupMediaOutput();
 		StopSignallingServer(Session);
 		StopCapture();
 	}
@@ -732,6 +730,32 @@ namespace UE::PixelStreamingVCam
 		if (UPixelStreamingDelegates* Delegates = UPixelStreamingDelegates::GetPixelStreamingDelegates())
 		{
 			Delegates->OnAllConnectionsClosedNative.RemoveAll(this);
+		}
+	}
+
+	void FVCamPixelStreamingSessionLogic::CleanupMediaOutput()
+	{
+		if (MediaOutput)
+		{
+			// BeginDestroy will
+			// 1. call UPixelStreamingMediaOutput::StopStreaming, and
+			// 2. set its Streamer to nullptr - so get it beforehand
+			const TSharedPtr<IPixelStreamingStreamer> Streamer = MediaOutput->GetStreamer();
+			MediaOutput->ConditionalBeginDestroy();
+			MediaOutput->OnRemoteResolutionChanged().RemoveAll(this);
+
+			// We should clean this up because of good RAII practices, however, there is one more reason:
+			// Our MediaOutput is usually the only to have registered Streamer, so it should be nullptr by now.
+			// However, Streamer is a shared system resource, and technically some other system may be referencing it, e.g. because they called
+			// IPixelStreamingModule::CreateStreamer with the same streamer ID as us. 
+			if (Streamer)
+			{
+				Streamer->OnPreConnection().RemoveAll(this);
+				Streamer->OnStreamingStarted().RemoveAll(this);
+				Streamer->OnStreamingStopped().RemoveAll(this);
+			}
+
+			MediaOutput = nullptr;
 		}
 	}
 }
