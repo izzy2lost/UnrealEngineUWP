@@ -6636,6 +6636,12 @@ namespace UEProperty_Private
 			Prop.*NextName = nullptr;
 		}
 
+		FORCEINLINE void AppendNoTerminate(FProperty& Prop)
+		{
+			*EndPtr = &Prop;
+			EndPtr = &(Prop.*NextName);
+		}
+
 		FORCEINLINE void Remove(FProperty& Prop)
 		{
 			FProperty** PrevIt = StartPtr;

@@ -1032,7 +1032,7 @@ void UStruct::Link(FArchive& Ar, bool bRelinkExistingProperties)
 		// contain object references
 		if (Property->ContainsObjectReference(EncounteredStructProps, EPropertyObjectReferenceType::Any))
 		{
-			RefLinkBuilder.Append(*Property);
+			RefLinkBuilder.AppendNoTerminate(*Property);
 		}
 
 		const UClass* OwnerClass = Property->GetOwnerClass();
@@ -1044,13 +1044,13 @@ void UStruct::Link(FArchive& Ar, bool bRelinkExistingProperties)
 			|| bShouldHandleFinishDestroy)
 		{
 			// things in a struct that need a destructor will still be in here, even though in many cases they will also be destroyed by a native destructor on the whole struct
-			DestructorLinkBuilder.Append(*Property);
+			DestructorLinkBuilder.AppendNoTerminate(*Property);
 		}
 
 		// Link references to properties that require their values to be initialized and/or copied from CDO post-construction. Note that this includes all non-native-class-owned properties.
 		if (OwnerClass && (!bOwnedByNativeClass || (Property->HasAnyPropertyFlags(CPF_Config) && !OwnerClass->HasAnyClassFlags(CLASS_PerObjectConfig))))
 		{
-			PostConstructLinkBuilder.Append(*Property);
+			PostConstructLinkBuilder.AppendNoTerminate(*Property);
 		}
 
 #if WITH_EDITORONLY_DATA
@@ -1059,7 +1059,7 @@ void UStruct::Link(FArchive& Ar, bool bRelinkExistingProperties)
 		bHasAssetRegistrySearchableProperties |= Property->HasAnyPropertyFlags(CPF_AssetRegistrySearchable);
 #endif
 
-		PropertyLinkBuilder.Append(*Property);
+		PropertyLinkBuilder.AppendNoTerminate(*Property);
 	}
 
 	PropertyLinkBuilder.NullTerminate();
