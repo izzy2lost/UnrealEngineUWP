@@ -72,11 +72,15 @@ void UControlRigSkeletalMeshComponent::RebuildDebugDrawSkeleton()
 	
 	UControlRigLayerInstance* ControlRigInstance = Cast<UControlRigLayerInstance>(GetAnimInstance());
 
+	bool bHasValidControlRig = false;
+	
 	if (ControlRigInstance)
 	{
 		UControlRig* ControlRig = ControlRigInstance->GetFirstAvailableControlRig();
 		if (ControlRig)
 		{
+			bHasValidControlRig = true;
+			
 			// we are trying to poke into running instances of Control Rigs
 			// on the anim thread and query data, using a lock here to make sure
 			// we don't get an inconsistent view of the rig at some
@@ -143,6 +147,14 @@ void UControlRigSkeletalMeshComponent::RebuildDebugDrawSkeleton()
 				RefSkelModifier.Add(NewMeshBoneInfo, Hierarchy->GetInitialGlobalTransform(Index), true);
 			}
 		}
+	}
+	
+	if (!bHasValidControlRig)
+	{
+		DebugDrawSkeleton.Empty();
+		DebugDrawBones.Reset();
+		DebugDrawBoneIndexInHierarchy.Reset();
+		return;
 	}
 	
 	bRebuildDebugDrawSkeletonRequired = false;
