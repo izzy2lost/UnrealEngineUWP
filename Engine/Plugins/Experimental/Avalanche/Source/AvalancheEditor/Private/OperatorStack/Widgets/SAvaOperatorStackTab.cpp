@@ -6,6 +6,7 @@
 #include "Components/PropertyAnimatorCoreComponent.h"
 #include "Contexts/OperatorStackEditorContext.h"
 #include "DetailView/IAvaDetailsProvider.h"
+#include "Editor.h"
 #include "EditorModeManager.h"
 #include "Items/OperatorStackEditorItem.h"
 #include "Items/OperatorStackEditorObjectItem.h"
@@ -36,7 +37,7 @@ void SAvaOperatorStackTab::Construct(const FArguments& InArgs
 
 	// Property controllers delegates
 	UPropertyAnimatorCoreBase::OnPropertyAnimatorAdded().AddSP(this, &SAvaOperatorStackTab::OnAnimatorUpdated);
-	UPropertyAnimatorCoreBase::OnPropertyAnimatorRemoved().AddSP(this, &SAvaOperatorStackTab::OnAnimatorUpdated);
+	UPropertyAnimatorCoreBase::OnPropertyAnimatorRemoved().AddSP(this, &SAvaOperatorStackTab::OnAnimatorRemoved);
 	UPropertyAnimatorCoreBase::OnPropertyAnimatorRenamed().AddSP(this, &SAvaOperatorStackTab::OnAnimatorUpdated);
 
 	const TSharedPtr<IDetailKeyframeHandler> KeyframeHandler = InProvider->GetDetailsKeyframeHandler();
@@ -112,6 +113,27 @@ void SAvaOperatorStackTab::OnAnimatorUpdated(UPropertyAnimatorCoreComponent* InC
 	if (InComponent)
 	{
 		RefreshCurrentSelection(InComponent);
+	}
+}
+
+void SAvaOperatorStackTab::OnAnimatorRemoved(UPropertyAnimatorCoreComponent* InComponent, UPropertyAnimatorCoreBase* InRemovedItem) const
+{
+	if (!GEditor)
+	{
+		return;
+	}
+
+	if (USelection* SelectionSet = GEditor->GetSelectedObjects())
+	{
+		if (SelectionSet->CountSelections(UPropertyAnimatorCoreComponent::StaticClass())
+			|| SelectionSet->CountSelections(UPropertyAnimatorCoreBase::StaticClass()))
+		{
+			RefreshSelection(SelectionSet);
+		}
+		else
+		{
+			OnAnimatorUpdated(InComponent, InRemovedItem);
+		}
 	}
 }
 

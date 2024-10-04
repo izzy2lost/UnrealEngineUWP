@@ -7,6 +7,7 @@
 #include "UObject/WeakObjectPtr.h"
 
 class UPropertyAnimatorCoreBase;
+class UPropertyAnimatorCoreComponent;
 
 /** Item representing a property animator item */
 class FAvaPropertyAnimatorEditorOutliner : public FAvaOutlinerObject
@@ -15,6 +16,7 @@ public:
 	UE_AVA_INHERITS_WITH_SUPER(FAvaPropertyAnimatorEditorOutliner, FAvaOutlinerObject);
 
 	FAvaPropertyAnimatorEditorOutliner(IAvaOutliner& InOutliner, UPropertyAnimatorCoreBase* InObject);
+	virtual ~FAvaPropertyAnimatorEditorOutliner() override;
 
 	UPropertyAnimatorCoreBase* GetPropertyAnimator() const
 	{
@@ -37,6 +39,8 @@ protected:
 	//~ Begin FAvaOutlinerObjectItem
 	virtual void SetObject_Impl(UObject* InObject) override;
 	//~ End FAvaOutlinerObjectItem
+
+	void OnAnimatorRemoved(UPropertyAnimatorCoreComponent* InComponent, UPropertyAnimatorCoreBase* InAnimator) const;
 
 	TWeakObjectPtr<UPropertyAnimatorCoreBase> PropertyAnimator;
 
