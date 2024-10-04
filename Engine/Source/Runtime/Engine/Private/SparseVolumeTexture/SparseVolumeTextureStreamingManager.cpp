@@ -1134,6 +1134,9 @@ void FStreamingManager::IssueRequests()
 	DDCRequestsBlocking.Reserve(TileRangesToStream.Num());
 #endif
 
+	// Indicies into requests we should block on after sending them all
+	TArray<int32> BlockingDiskRequests;
+
 	// Process all tile ranges selected for streaming, allocate a slot in the tile data texture for every tile and finally create IO requests for every range.
 	for (FTileRange& TileRange : TileRangesToStream)
 	{
@@ -1331,6 +1334,11 @@ void FStreamingManager::IssueRequests()
 					Batch.Read(BulkData, ReadOffset, ReadSize);
 					Batch.Issue(PendingRequest.RequestBuffer, Priority, [](FBulkDataRequest::EStatus){}, PendingRequest.Request);
 
+					if (PendingRequest.bBlocking)
+					{
+						BlockingDiskRequests.Add(PendingRequestIndex);
+					}
+
 #if WITH_EDITORONLY_DATA
 					PendingRequest.State = FPendingRequest::EState::Disk;
 #endif
@@ -1346,6 +1354,14 @@ void FStreamingManager::IssueRequests()
 				FrameInfo.StreamingTiles.SetRange(PendingRequest.TileOffset, PendingRequest.TileCount, true);
 			}
 		}
+	}
+
+	// Wait on all blocking disk requests
+	for (int32 PendingRequestIndex : BlockingDiskRequests)
+	{
+		FPendingRequest& PendingRequest = PendingRequests[PendingRequestIndex];
+		LOCK_PENDING_REQUEST(PendingRequest);
+		PendingRequest.Request.Wait();
 	}
 
 	// Now we can finally issue the requests
