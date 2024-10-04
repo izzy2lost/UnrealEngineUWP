@@ -105,6 +105,11 @@ static void ComputeRequestedFeatureLevel(const FAppleDynamicRHIOptions& Options,
                 }
             }
 		}
+		else
+		{
+			FMessageDialog::Open(EAppMsgType::Ok, LOCTEXT("RHIOptionsError", "No Targeted RHI is set for this project, defaulting to SM5"));
+			RequestedFeatureLevel = ERHIFeatureLevel::SM5;
+		}
 	}
 	else
 	{

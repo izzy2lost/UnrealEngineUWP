@@ -171,4 +171,14 @@ public:
 	{
 		InOutSectionName = TEXT("/Script/MacTargetPlatform.MacTargetSettings");
 	}
+	
+#if WITH_EDITOR
+	virtual void PostEditChangeProperty(struct FPropertyChangedEvent& PropertyChangedEvent) override
+	{
+		if(TargetedRHIs.Num() == 0)
+		{		
+			TargetedRHIs.Add(TEXT("SF_METAL_SM5"));
+		}
+	}
+#endif
 };
