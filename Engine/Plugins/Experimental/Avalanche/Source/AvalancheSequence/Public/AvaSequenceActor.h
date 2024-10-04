@@ -8,7 +8,7 @@
 class UAvaSequence;
 class UAvaSequencePlayer;
 
-UCLASS()
+UCLASS(MinimalAPI)
 class AAvaSequenceActor : public ALevelSequenceActor
 {
 	GENERATED_BODY()
@@ -16,8 +16,9 @@ class AAvaSequenceActor : public ALevelSequenceActor
 public:
 	AAvaSequenceActor(const FObjectInitializer& InObjectInitializer);
 
-	void Initialize(UAvaSequence* InSequence);
+	AVALANCHESEQUENCE_API void Initialize(UAvaSequence* InSequence);
 
+protected:
 	//~ Begin AActor
 	virtual void PostInitializeComponents() override;
 	//~ End AActor

@@ -2,6 +2,7 @@
 
 #include "AvaSequencer.h"
 #include "AvaSequence.h"
+#include "AvaSequenceActor.h"
 #include "AvaSequencePlaybackObject.h"
 #include "AvaSequencePlayer.h"
 #include "AvaSequencerArgs.h"
@@ -36,7 +37,6 @@
 #include "MovieScene.h"
 #include "Playback/AvaSequencerCleanView.h"
 #include "Playback/AvaSequencerController.h"
-#include "Player/AvaSequenceActor.h"
 #include "PropertyHandle.h"
 #include "ScopedTransaction.h"
 #include "Selection/AvaEditorSelection.h"
@@ -1022,7 +1022,6 @@ void FAvaSequencer::PlaySelected_Execute()
 
 	FAvaSequencePlayParams PlaySettings;
 	PlaySettings.AdvancedSettings.bRestoreState = true;
-	PlaySettings.AdvancedSettings.bTearDownOnFinished = true;
 
 	for (const FAvaSequenceItemPtr& Item : SelectedItems)
 	{

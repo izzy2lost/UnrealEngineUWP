@@ -130,9 +130,6 @@ struct FAvaSequencePlayAdvancedSettings
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Motion Design Sequence")
 	bool bRestoreState = false;
-
-	UPROPERTY()
-	bool bTearDownOnFinished = false;
 };
 
 USTRUCT(BlueprintType, DisplayName="Motion Design Sequence Play Parameters")
