@@ -1106,6 +1106,8 @@ bool Writer_WriteSnapshot(const FSnapshotTarget& Target)
 	Writer_FlushSendBuffer();
 
 	{
+		const bool bExistingDataHandle = GDataHandle != 0;
+		
 		TStashGlobal DataHandle(GDataHandle);
 		TStashGlobal PendingDataHandle(GPendingDataHandle);
 		TStashGlobal SyncPacketCountdown(GSyncPacketCountdown, GNumSyncPackets);
@@ -1136,6 +1138,11 @@ bool Writer_WriteSnapshot(const FSnapshotTarget& Target)
 		if (!GDataHandle || !Writer_SessionPrologue())
 		{
 			UE_TRACE_ERRORMESSAGE(FileOpenError, GetLastErrorCode());
+			if (bExistingDataHandle)
+			{
+				UE_TRACE_MESSAGE(Display, "Creating a snapshot during ongoing trace "
+					"is known to fail on some combinations of platforms and hardware.");
+			}
 			return false;
 		}
 
