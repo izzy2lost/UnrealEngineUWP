@@ -717,12 +717,11 @@ void FNiagaraWorldManager::OnSystemPostChange(UNiagaraSystem* System)
 
 void FNiagaraWorldManager::OnComputeDispatchInterfaceDestroyed_Internal(FNiagaraGpuComputeDispatchInterface* InComputeDispatchInterface)
 {
+	GetDataChannelManager().OnComputeDispatchInterfaceDestroyed(InComputeDispatchInterface);
+
 	// Process the deferred deletion queue before deleting the ComputeDispatchInterface of this world.
 	// This is required because the ComputeDispatchInterface is accessed in FNiagaraEmitterInstance::~FNiagaraEmitterInstance
-	if (FNiagaraGpuComputeDispatchInterface::Get(World) == InComputeDispatchInterface)
-	{
-		DeferredDeletionQueue.Empty();
-	}
+	DeferredDeletionQueue.Empty();
 }
 
 void FNiagaraWorldManager::OnWorldBeginTearDown()
@@ -988,7 +987,11 @@ void FNiagaraWorldManager::OnComputeDispatchInterfaceDestroyed(FNiagaraGpuComput
 {
 	for (TPair<UWorld*, FNiagaraWorldManager*>& Pair : WorldManagers)
 	{
-		Pair.Value->OnComputeDispatchInterfaceDestroyed_Internal(InComputeDispatchInterface);
+		UWorld* World = Pair.Key;
+		if (FNiagaraGpuComputeDispatchInterface::Get(World) == InComputeDispatchInterface)
+		{
+			Pair.Value->OnComputeDispatchInterfaceDestroyed_Internal(InComputeDispatchInterface);
+		}
 	}
 }
 

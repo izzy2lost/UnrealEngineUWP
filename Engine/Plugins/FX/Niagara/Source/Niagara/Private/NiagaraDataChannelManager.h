@@ -8,6 +8,7 @@
 class FNiagaraWorldManager;
 class UNiagaraDataChannel;
 class UNiagaraDataChannelHandler;
+class FNiagaraGpuComputeDispatchInterface;
 enum ETickingGroup : int;
 
 /**
@@ -41,6 +42,8 @@ public:
 	UNiagaraDataChannelHandler* FindDataChannelHandler(const UNiagaraDataChannelAsset* Channel) { return Channel ? FindDataChannelHandler(Channel->Get()) : nullptr; }
 
 	UWorld* GetWorld()const;
+
+	void OnComputeDispatchInterfaceDestroyed(FNiagaraGpuComputeDispatchInterface* InComputeDispatchInterface);
 
 private:
 	FNiagaraWorldManager* WorldMan = nullptr;

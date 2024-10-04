@@ -131,10 +131,11 @@ void UNiagaraDataChannelHandler_Islands::Init(const UNiagaraDataChannel* InChann
 
 void UNiagaraDataChannelHandler_Islands::Cleanup()
 {
-	Super::Cleanup();
 	ActiveIslands.Empty();
 	FreeIslands.Empty();
 	IslandPool.Empty();
+
+	Super::Cleanup();
 }
 
 void UNiagaraDataChannelHandler_Islands::BeginFrame(float DeltaTime, FNiagaraWorldManager* OwningWorld)
