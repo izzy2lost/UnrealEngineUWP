@@ -4816,7 +4816,7 @@ void FDefaultInstallBundleManager::AsyncInit_CreateAnalyticsSession()
 		}
 		ensureAlways(MaxVersionCL != -1);
 
-		AnalyticsProvider->SetSessionID(FString(TEXT("IBMInstallSession-")) + FGuid().ToString() + TEXT("-") + ContentVersion);
+		AnalyticsProvider->SetSessionID(FString(TEXT("IBMInstallSession-")) + FGuid::NewGuid().ToString() + TEXT("-") + ContentVersion);
 	}
 	InitStepResult = EAsyncInitStepResult::Done;
 }
