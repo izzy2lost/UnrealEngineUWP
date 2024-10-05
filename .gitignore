@@ -82,6 +82,7 @@
 !*.tps
 !*.xml
 !*.xaml
+!*.axaml
 !*.uproject
 !*.uplugin
 !*.html
