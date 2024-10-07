@@ -1064,7 +1064,6 @@ void UChaosClothAsset::WriteDataflowContent(const TObjectPtr<UDataflowBaseConten
 	{
 		SkeletalContent->SetDataflowAsset(DataflowAsset);
 		SkeletalContent->SetDataflowTerminal(DataflowTerminal);
-		SkeletalContent->SetSkeleton(nullptr);
 
 #if WITH_EDITORONLY_DATA
 		SkeletalContent->SetAnimationAsset(GetPreviewSceneAnimation());

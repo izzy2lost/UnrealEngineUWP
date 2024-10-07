@@ -79,17 +79,6 @@ void UDataflowEditor::Initialize(const TArray<TObjectPtr<UObject>>& InObjects, c
 
 void UDataflowEditor::UpdateEditorContent()
 {
-	if(const TObjectPtr<UDataflowSkeletalContent> SkeletalContent = Cast<UDataflowSkeletalContent>(EditorContent))
-	{
-		// Add a skeleton mesh in case we don't have one
-		if(!SkeletalContent->GetSkeleton())
-		{
-			const FName SkeletonName = MakeUniqueObjectName(SkeletalContent->GetDataflowAsset(), UDataflow::StaticClass(), FName("USkeleton"));
-			USkeleton* Skeleton = NewObject<USkeleton>(SkeletalContent->GetDataflowAsset(), SkeletonName);
-
-			SkeletalContent->SetSkeleton(Skeleton);
-		}
-	}
 	if(EditorContent && EditorContent->GetDataflowAsset())
 	{
 		EditorContent->GetDataflowAsset()->Schema = UDataflowSchema::StaticClass();

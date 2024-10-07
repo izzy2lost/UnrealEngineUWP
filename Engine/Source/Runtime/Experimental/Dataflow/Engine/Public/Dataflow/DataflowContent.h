@@ -224,10 +224,6 @@ public:
 	void SetSkeletalMesh(const TObjectPtr<USkeletalMesh>& InMesh, const bool bHideAsset = false);
 	const TObjectPtr<USkeletalMesh>& GetSkeletalMesh() const { return SkeletalMesh; }
 
-	/** Data flow skeleton accessors */
-	void SetSkeleton(const TObjectPtr<USkeleton>& InSkeleton);
-	const TObjectPtr<USkeleton>& GetSkeleton() const { return Skeleton; }
-
 	/** Data flow animation asset accessors */
 	void SetAnimationAsset(const TObjectPtr<UAnimationAsset>& InAnimation, const bool bHideAsset = false);
 	const TObjectPtr<UAnimationAsset>& GetAnimationAsset() const { return AnimationAsset; }
@@ -243,11 +239,7 @@ protected:
 	/** Data flow skeletal mesh*/
 	UPROPERTY(EditAnywhere, Category = "Preview", Transient, SkipSerialization)
 	TObjectPtr<USkeletalMesh> SkeletalMesh = nullptr;
-	
-	/** Data flow skeleton */
-	UPROPERTY(Transient, SkipSerialization)
-	TObjectPtr<USkeleton> Skeleton = nullptr;
-	
+
 	/** Animation asset to be used to preview simulation */
 	UPROPERTY(EditAnywhere, Category = "Preview", Transient, SkipSerialization)
 	TObjectPtr<UAnimationAsset> AnimationAsset = nullptr;
