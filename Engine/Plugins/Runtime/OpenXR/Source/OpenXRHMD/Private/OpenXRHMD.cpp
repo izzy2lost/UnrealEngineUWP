@@ -1576,11 +1576,6 @@ bool CheckPlatformDepthExtensionSupport(const XrInstanceProperties& InstanceProp
 	{
 		return false;
 	}
-	else if (FCStringAnsi::Strstr(InstanceProps.runtimeName, "Oculus") && RHIGetInterfaceType() == ERHIInterfaceType::D3D12)
-	{
-		// No PF_DepthStencil compatible formats offered yet
-		return false;
-	}
 	return true;
 }
 
