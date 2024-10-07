@@ -337,7 +337,7 @@ void SAnimViewportToolBar::Construct(const FArguments& InArgs, TSharedPtr<class 
 				// this behavior was requested by UX to match the behavior of the static mesh editor
 				if (PreviewProfileController.IsValid())
 				{
-					return PreviewProfileController->HasAnyUserProfiles() ? EVisibility::Visible : EVisibility::Hidden;
+					return PreviewProfileController->HasAnyUserProfiles() ? EVisibility::Visible : EVisibility::Collapsed;
 				}
 				return EVisibility::Hidden;
 			})
