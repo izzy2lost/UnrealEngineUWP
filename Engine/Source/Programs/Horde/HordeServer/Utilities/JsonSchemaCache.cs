@@ -23,6 +23,7 @@ namespace HordeServer.Utilities
 			_factory = new JsonSchemaFactory(new XmlDocReader());
 
 			JsonSchemaObject pluginObj = new JsonSchemaObject();
+			pluginObj.Name = "PluginsConfig";
 			foreach (ILoadedPlugin plugin in pluginCollection.LoadedPlugins)
 			{
 				if (plugin.GlobalConfigType != null)
