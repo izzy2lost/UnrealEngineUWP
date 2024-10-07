@@ -1021,11 +1021,14 @@ void FSubTrackEditor::UpdateActiveMode()
 	
 	for(UMovieSceneSection* Section : Sections)
 	{
-		if(Section->IsA(UMovieSceneSubSection::StaticClass()))
+		if(UMovieSceneSubSection* SubSection = Cast<UMovieSceneSubSection>(Section))
 		{
-			GLevelEditorModeTools().ActivateDefaultMode();
-			GLevelEditorModeTools().ActivateMode(FSubTrackEditorMode::ModeName);
-			return;
+			if (SubSection->IsTransformOriginEditable())
+			{
+				GLevelEditorModeTools().ActivateDefaultMode();
+				GLevelEditorModeTools().ActivateMode(FSubTrackEditorMode::ModeName);
+				return;
+			}
 		}
 	}
 	
@@ -1034,11 +1037,20 @@ void FSubTrackEditor::UpdateActiveMode()
 
 	for(UMovieSceneTrack* Track : Tracks)
 	{
-		if(Track->IsA(UMovieSceneSubTrack::StaticClass()))
+		if (UMovieSceneSubTrack* SubTrack = Cast<UMovieSceneSubTrack>(Track))
 		{
-			GLevelEditorModeTools().ActivateDefaultMode();
-			GLevelEditorModeTools().ActivateMode(FSubTrackEditorMode::ModeName);
-			return;
+			for (UMovieSceneSection* Section : Track->GetAllSections())
+			{
+				if (UMovieSceneSubSection* SubSection = Cast<UMovieSceneSubSection>(Section))
+				{
+					if (SubSection->IsTransformOriginEditable())
+					{
+						GLevelEditorModeTools().ActivateDefaultMode();
+						GLevelEditorModeTools().ActivateMode(FSubTrackEditorMode::ModeName);
+						return;
+					}
+				}
+			}
 		}
 	}
 }
