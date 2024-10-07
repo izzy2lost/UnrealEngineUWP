@@ -1391,17 +1391,17 @@ bool FArrayProperty::CanSerializeFromTypeName(UE::FPropertyTypeName Type) const
 	return LocalInner->CanSerializeFromTypeName(Type.GetParameter(0));
 }
 
-EPropertyVisitorControlFlow FArrayProperty::Visit(FPropertyVisitorPath& Path, void* Data, const TFunctionRef<EPropertyVisitorControlFlow(const FPropertyVisitorPath& /*Path*/, void* /*Data*/)> InFunc) const
+EPropertyVisitorControlFlow FArrayProperty::Visit(FPropertyVisitorPath& Path, const FPropertyVisitorData& InData, const TFunctionRef<EPropertyVisitorControlFlow(const FPropertyVisitorPath& /*Path*/, const FPropertyVisitorData& /*Data*/)> InFunc) const
 {
 	// Indicate in the path that this property contains inner properties
 	Path.Top().bContainsInnerProperties = true;
 
-	EPropertyVisitorControlFlow RetVal = Super::Visit(Path, Data, InFunc);
+	EPropertyVisitorControlFlow RetVal = Super::Visit(Path, InData, InFunc);
 
 	if (RetVal == EPropertyVisitorControlFlow::StepInto)
 	{
 		checkf(Inner, TEXT("Expecting a valid inner property type"));
-		FScriptArrayHelper ArrayHelper(this, Data);
+		FScriptArrayHelper ArrayHelper(this, InData.PropertyData);
 
 		FPropertyVisitorScope Scope(Path, FPropertyVisitorInfo(Inner));
 
@@ -1409,7 +1409,10 @@ EPropertyVisitorControlFlow FArrayProperty::Visit(FPropertyVisitorPath& Path, vo
 		for (int32 ContainerIndex = 0; ContainerIndex < ArrayNum; ContainerIndex++)
 		{
 			Path.Top().SetIndex(ContainerIndex, EPropertyVisitorInfoType::ContainerIndex);
-			RetVal = Inner->Visit(Path, ArrayHelper.GetRawPtr(ContainerIndex), InFunc);
+
+			FPropertyVisitorData Data = InData.VisitPropertyData(ArrayHelper.GetRawPtr(ContainerIndex));
+
+			RetVal = Inner->Visit(Path, Data, InFunc);
 			if (RetVal == EPropertyVisitorControlFlow::Stop)
 			{
 				return EPropertyVisitorControlFlow::Stop;

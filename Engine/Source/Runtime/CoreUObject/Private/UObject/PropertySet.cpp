@@ -1130,24 +1130,27 @@ bool FSetProperty::CanSerializeFromTypeName(UE::FPropertyTypeName Type) const
 	return LocalElementProp->CanSerializeFromTypeName(Type.GetParameter(0));
 }
 
-EPropertyVisitorControlFlow FSetProperty::Visit(FPropertyVisitorPath& Path, void* Data, const TFunctionRef<EPropertyVisitorControlFlow(const FPropertyVisitorPath& /*Path*/, void* /*Data*/)> InFunc) const
+EPropertyVisitorControlFlow FSetProperty::Visit(FPropertyVisitorPath& Path, const FPropertyVisitorData& InData, const TFunctionRef<EPropertyVisitorControlFlow(const FPropertyVisitorPath& /*Path*/, const FPropertyVisitorData& /*Data*/)> InFunc) const
 {
 	// Indicate in the path that this property contains inner properties
 	Path.Top().bContainsInnerProperties = true;
 
-	EPropertyVisitorControlFlow RetVal = Super::Visit(Path, Data, InFunc);
+	EPropertyVisitorControlFlow RetVal = Super::Visit(Path, InData, InFunc);
 
 	if (RetVal == EPropertyVisitorControlFlow::StepInto)
 	{
 		checkf(ElementProp, TEXT("Expecting a valid inner property type"));
-		FScriptSetHelper SetHelper(this, Data);
+		FScriptSetHelper SetHelper(this, InData.PropertyData);
 
 		FPropertyVisitorScope Scope(Path, FPropertyVisitorInfo(ElementProp));
 		for (FScriptSetHelper::FIterator It(SetHelper); It; ++It)
 		{
 			// visit element
 			Path.Top().SetIndex(It.GetLogicalIndex(), EPropertyVisitorInfoType::ContainerIndex);
-			RetVal = ElementProp->Visit(Path, SetHelper.GetElementPtr(It), InFunc);
+
+			FPropertyVisitorData Data = InData.VisitPropertyData(SetHelper.GetElementPtr(It));
+
+			RetVal = ElementProp->Visit(Path, Data, InFunc);
 			if (RetVal == EPropertyVisitorControlFlow::Stop)
 			{
 				return EPropertyVisitorControlFlow::Stop;

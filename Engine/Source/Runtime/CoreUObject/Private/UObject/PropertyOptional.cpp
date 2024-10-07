@@ -696,14 +696,14 @@ bool FOptionalProperty::CanSerializeFromTypeName(UE::FPropertyTypeName Type) con
 	return LocalValueProperty->CanSerializeFromTypeName(Type.GetParameter(0));
 }
 
-EPropertyVisitorControlFlow FOptionalProperty::Visit(FPropertyVisitorPath& Path, void* Data, const TFunctionRef<EPropertyVisitorControlFlow(const FPropertyVisitorPath& /*Path*/, void* /*Data*/)> InFunc) const
+EPropertyVisitorControlFlow FOptionalProperty::Visit(FPropertyVisitorPath& Path, const FPropertyVisitorData& Data, const TFunctionRef<EPropertyVisitorControlFlow(const FPropertyVisitorPath& /*Path*/, const FPropertyVisitorData& /*Data*/)> InFunc) const
 {
 	// Indicate in the path that this property contains inner properties
 	Path.Top().bContainsInnerProperties = true;
 
 	EPropertyVisitorControlFlow RetVal = Super::Visit(Path, Data, InFunc);
 
-	if (RetVal == EPropertyVisitorControlFlow::StepInto && IsSet(Data))
+	if (RetVal == EPropertyVisitorControlFlow::StepInto && IsSet(Data.PropertyData))
 	{
 		checkf(ValueProperty, TEXT("Expecting a valid property value"));
 

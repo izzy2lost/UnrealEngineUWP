@@ -889,18 +889,20 @@ bool FObjectPropertyBase::SameType(const FProperty* Other) const
 			 (PropertyClass == ((FObjectPropertyBase*)Other)->PropertyClass);
 }
 
-EPropertyVisitorControlFlow FObjectPropertyBase::Visit(FPropertyVisitorPath& Path, void* Data, const TFunctionRef<EPropertyVisitorControlFlow(const FPropertyVisitorPath& /*Path*/, void* /*Data*/)> InFunc) const
+EPropertyVisitorControlFlow FObjectPropertyBase::Visit(FPropertyVisitorPath& Path, const FPropertyVisitorData& InData, const TFunctionRef<EPropertyVisitorControlFlow(const FPropertyVisitorPath& /*Path*/, const FPropertyVisitorData& /*Data*/)> InFunc) const
 {
 	// Indicate in the path that this property contains inner properties
 	Path.Top().bContainsInnerProperties = true;
 
-	EPropertyVisitorControlFlow RetVal = Super::Visit(Path, Data, InFunc);
+	EPropertyVisitorControlFlow RetVal = Super::Visit(Path, InData, InFunc);
 
 	if (RetVal == EPropertyVisitorControlFlow::StepInto)
 	{
-		if (const TObjectPtr<UObject> Object = GetObjectPropertyValue(Data))
+		if (const TObjectPtr<UObject> Object = GetObjectPropertyValue(InData.PropertyData))
 		{
-			RetVal = Object.GetClass()->Visit(Path, Object.Get(), InFunc);
+			FPropertyVisitorData Data = InData.VisitPropertyData(Object.Get());
+
+			RetVal = Object.GetClass()->Visit(Path, Data, InFunc);
 		}
 	}
 	return RetVal;

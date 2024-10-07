@@ -1411,13 +1411,13 @@ namespace UE::CoreUObject::Private
 	}
 }
 
-EPropertyVisitorControlFlow FProperty::Visit(void* Data, const TFunctionRef<EPropertyVisitorControlFlow(const FPropertyVisitorPath&, void*)> InFunc) const
+EPropertyVisitorControlFlow FProperty::Visit(const FPropertyVisitorData& Data, const TFunctionRef<EPropertyVisitorControlFlow(const FPropertyVisitorPath&, const FPropertyVisitorData&)> InFunc) const
 {
 	FPropertyVisitorPath Path(FPropertyVisitorInfo(this));
 	return Visit(Path, Data, InFunc);
 }
 
-EPropertyVisitorControlFlow FProperty::Visit(FPropertyVisitorPath& Path, void* Data, const TFunctionRef<EPropertyVisitorControlFlow(const FPropertyVisitorPath& /*Path*/, void* /*Data*/)> InFunc) const
+EPropertyVisitorControlFlow FProperty::Visit(FPropertyVisitorPath& Path, const FPropertyVisitorData& Data, const TFunctionRef<EPropertyVisitorControlFlow(const FPropertyVisitorPath& /*Path*/, const FPropertyVisitorData& /*Data*/)> InFunc) const
 {
 	checkf(Path.Top().Property == this, TEXT("The property set in the info has to match to this property"));
 
