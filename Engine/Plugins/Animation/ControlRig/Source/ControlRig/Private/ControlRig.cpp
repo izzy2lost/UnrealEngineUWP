@@ -3442,7 +3442,7 @@ void UControlRig::PostInitInstance(URigVMHost* InCDO)
 			if (ObjectFound)
 			{
 				FName NewName = MakeUniqueObjectName(GetTransientPackage(), URigHierarchy::StaticClass(), TEXT("DynamicHierarchy_Deleted"));
-				ObjectFound->Rename(*NewName.ToString(), GetTransientPackage(), REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
+				ObjectFound->Rename(*NewName.ToString(), GetTransientPackage(), REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional | REN_AllowPackageLinkerMismatch);
 				ObjectFound->MarkAsGarbage();
 			}
 		}
