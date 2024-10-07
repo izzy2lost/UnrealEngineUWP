@@ -300,6 +300,18 @@ void YUVv216ConvertPS(
 	CbY0CrY1 = (YUVv216ConvertUB.SwapChroma != 0u) ? CbY0CrY1.zyxw : CbY0CrY1;						// Cb/Cr swap
 	float3 YUV = (uint(InUV.x * YUVv216ConvertUB.OutputDimX) & 1u) ? CbY0CrY1.wxz : CbY0CrY1.yxz;	// Decode to YCbCr for odd/even pixels
 
+	// Needed for UYVY to RGB
+	BRANCH
+	if (YUVv216ConvertUB.UseBilinearSampler != 0u)
+	{
+		float4 InSampled = YUVv216ConvertUB.YUVTexture.Sample(YUVv216ConvertUB.SamplerB, InUV);
+		InSampled = (YUVv216ConvertUB.IsARGBFmt != 0u) ? InSampled.zyxw : InSampled;										// PF_ARGB8 vs. PF_ABGR16 ordering
+		float4 CbY0CrY1Sampled = (YUVv216ConvertUB.IsCbY0CrY1 != 0u) ? InSampled : InSampled.yxwz;							// CbY0CrY1 vs. Y0CbY1Cr ordering
+		CbY0CrY1Sampled = (YUVv216ConvertUB.SwapChroma != 0u) ? CbY0CrY1Sampled.zyxw : CbY0CrY1Sampled;						// Cb/Cr swap
+		float3 YUVSampled = (uint(InUV.x * YUVv216ConvertUB.OutputDimX) & 1u) ? CbY0CrY1Sampled.wxz : CbY0CrY1Sampled.yxz;	// Decode to YCbCr for odd/even pixels
+		YUV.yz = YUVSampled.yz;
+	}
+
 	OutColor = float4(ApplyColorProcessing(YUV, YUVv216ConvertUB.ColorTransform, YUVv216ConvertUB.CSTransform, YUVv216ConvertUB.EOTF, YUVv216ConvertUB.ToneMapMethod), 1.0f); 
 }
 
