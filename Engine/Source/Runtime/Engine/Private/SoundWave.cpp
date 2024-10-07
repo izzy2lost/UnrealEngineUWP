@@ -1424,7 +1424,13 @@ void USoundWave::SetSoundAssetCompressionType(ESoundAssetCompressionType InSound
 		SoundAssetCompressionType = InSoundAssetCompressionType;
 	}
 
-	SoundWaveDataPtr->CacheRuntimeFormatDependentState(SoundWaveDataPtr->FindRuntimeFormat(*this));
+	FName RuntimeFormat = SoundWaveDataPtr->FindRuntimeFormat(*this);
+	if (RuntimeFormat.IsNone())
+	{
+		RuntimeFormat = Audio::ToName(SoundAssetCompressionType);
+	}
+
+	SoundWaveDataPtr->CacheRuntimeFormatDependentState(RuntimeFormat);
 
 	UpdateAsset(bMarkDirty);
 #endif // #if WITH_EDITOR
