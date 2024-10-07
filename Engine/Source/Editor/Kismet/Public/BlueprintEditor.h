@@ -1386,7 +1386,7 @@ public://@TODO
 	/** Whether delegates are allowed  to be displayed/created in a blueprint */
 	virtual bool AreDelegatesAllowed() const;
 
-	FEditorViewportSelectabilityBridge& GetViewportSelectabilityBridge();
+	FEditorViewportSelectabilityBridge* GetViewportSelectabilityBridge();
 
 protected:
 

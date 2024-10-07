@@ -246,10 +246,12 @@ public:
 				}
 			}
 
-			FEditorViewportSelectabilityBridge& SelectabilityBridge = BlueprintEditor->GetViewportSelectabilityBridge();
-			SelectabilityBridge.OnIsViewportSelectionLimited().Unbind();
-			SelectabilityBridge.OnGetIsObjectSelectableInViewport().Unbind();
-			SelectabilityBridge.OnGetViewportSelectionLimitedText().Unbind();
+			if (FEditorViewportSelectabilityBridge* SelectabilityBridge = BlueprintEditor->GetViewportSelectabilityBridge())
+			{
+				SelectabilityBridge->OnIsViewportSelectionLimited().Unbind();
+				SelectabilityBridge->OnGetIsObjectSelectableInViewport().Unbind();
+				SelectabilityBridge->OnGetViewportSelectionLimitedText().Unbind();
+			}
 		}
 
 		GEditor->UnregisterForUndo(this);
@@ -446,10 +448,12 @@ public:
 
 		if (const TSharedPtr<FBlueprintEditor> BlueprintEditor = WeakBlueprintEditor.Pin())
 		{
-			FEditorViewportSelectabilityBridge& SelectabilityBridge = BlueprintEditor->GetViewportSelectabilityBridge();
-			SelectabilityBridge.OnIsViewportSelectionLimited().BindSP(this, &SActorSequenceEditorWidgetImpl::IsViewportSelectionLimited);
-			SelectabilityBridge.OnGetIsObjectSelectableInViewport().BindSP(this, &SActorSequenceEditorWidgetImpl::IsObjectSelectableInViewport);
-			SelectabilityBridge.OnGetViewportSelectionLimitedText().BindSP(this, &SActorSequenceEditorWidgetImpl::GetViewportSelectionLimitedText);
+			if (FEditorViewportSelectabilityBridge* SelectabilityBridge = BlueprintEditor->GetViewportSelectabilityBridge())
+			{
+				SelectabilityBridge->OnIsViewportSelectionLimited().BindSP(this, &SActorSequenceEditorWidgetImpl::IsViewportSelectionLimited);
+				SelectabilityBridge->OnGetIsObjectSelectableInViewport().BindSP(this, &SActorSequenceEditorWidgetImpl::IsObjectSelectableInViewport);
+				SelectabilityBridge->OnGetViewportSelectionLimitedText().BindSP(this, &SActorSequenceEditorWidgetImpl::GetViewportSelectionLimitedText);
+			}
 		}
 	}
 
@@ -690,27 +694,28 @@ public:
 			return;
 		}
 
-		FEditorViewportSelectabilityBridge& SelectabilityBridge = BlueprintEditor->GetViewportSelectabilityBridge();
-
-		if (SelectabilityBridge.IsViewportSelectionLimited())
+		if (FEditorViewportSelectabilityBridge* SelectabilityBridge = BlueprintEditor->GetViewportSelectabilityBridge())
 		{
-			// Filter out non-selectable nodes from the selection
-			TSet<FSubobjectEditorTreeNodePtrType> NewSelectedNodes;
-			for (const FSubobjectEditorTreeNodePtrType& Node : SubojectEditor->GetSelectedNodes())
+			if (SelectabilityBridge->IsViewportSelectionLimited())
 			{
-				const FSubobjectData* const Data = Node->GetDataSource();
-				const UActorComponent* const Component = Data ? Data->FindComponentInstanceInActor(GetPreviewActor()) : nullptr;
-				if (IsValid(Component) && IsObjectSelectableInViewport(const_cast<UActorComponent*>(Component)))
+				// Filter out non-selectable nodes from the selection
+				TSet<FSubobjectEditorTreeNodePtrType> NewSelectedNodes;
+				for (const FSubobjectEditorTreeNodePtrType& Node : SubojectEditor->GetSelectedNodes())
 				{
-					NewSelectedNodes.Add(Node);
+					const FSubobjectData* const Data = Node->GetDataSource();
+					const UActorComponent* const Component = Data ? Data->FindComponentInstanceInActor(GetPreviewActor()) : nullptr;
+					if (IsValid(Component) && IsObjectSelectableInViewport(const_cast<UActorComponent*>(Component)))
+					{
+						NewSelectedNodes.Add(Node);
+					}
 				}
-			}
 
-			// Clear selection and select the new nodes
-			SubojectEditor->ClearSelection();
-			for (const FSubobjectEditorTreeNodePtrType& Node : NewSelectedNodes)
-			{
-				SubojectEditor->SelectNode(Node, false);
+				// Clear selection and select the new nodes
+				SubojectEditor->ClearSelection();
+				for (const FSubobjectEditorTreeNodePtrType& Node : NewSelectedNodes)
+				{
+					SubojectEditor->SelectNode(Node, false);
+				}
 			}
 		}
 	}
