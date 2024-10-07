@@ -4,6 +4,7 @@
 
 #include "Customizations/MathStructCustomizations.h"
 #include "DetailLayoutBuilder.h"
+#include "Editor.h"
 #include "PropertyHandle.h"
 #include "ScopedTransaction.h"
 #include "Util/ColorGradingUtil.h"
@@ -12,30 +13,26 @@
 #include "Widgets/Colors/SComplexGradient.h"
 #include "Widgets/Layout/SBox.h"
 
-#if WITH_EDITOR
-#include "Editor.h"
-#endif
-
 #define LOCTEXT_NAMESPACE "ColorGradingEditor"
 
 SColorGradingColorWheel::SColorGradingColorWheel()
 {
-#if WITH_EDITOR
 	if (GEditor)
 	{
 		GEditor->RegisterForUndo(this);
 	}
-#endif
+
+	FCoreUObjectDelegates::OnObjectPropertyChanged.AddRaw(this, &SColorGradingColorWheel::OnPropertyValueChanged);
 }
 
 SColorGradingColorWheel::~SColorGradingColorWheel()
 {
-#if WITH_EDITOR
 	if (GEditor)
 	{
 		GEditor->UnregisterForUndo(this);
 	}
-#endif
+
+	FCoreUObjectDelegates::OnObjectPropertyChanged.RemoveAll(this);
 }
 
 void SColorGradingColorWheel::Construct(const FArguments& InArgs)
@@ -133,9 +130,9 @@ void SColorGradingColorWheel::SetColorPropertyHandle(TSharedPtr<IPropertyHandle>
 	ComponentSliderDynamicMinValue.Reset();
 	ComponentSliderDynamicMaxValue.Reset();
 
-	ColorPropertyHandle = InColorPropertyHandle;
+	ColorPropertyHandle = FTrackedVector4PropertyHandle(InColorPropertyHandle);
 
-	if (ColorPropertyHandle.IsValid() && ColorPropertyHandle.Pin()->IsValidHandle())
+	if (ColorPropertyHandle.IsValidHandle())
 	{
 		ColorPropertyMetadata = GetColorPropertyMetadata();
 		ComponentSliderDynamicMinValue = ColorPropertyMetadata->MinValue;
@@ -165,7 +162,6 @@ void SColorGradingColorWheel::SetHeaderContent(const TSharedRef<SWidget>& Header
 	}
 }
 
-#if WITH_EDITOR
 void SColorGradingColorWheel::PostUndo(bool bSuccess)
 {
 	RecalculateHSVColor();
@@ -175,11 +171,35 @@ void SColorGradingColorWheel::PostRedo(bool bSuccess)
 {
 	RecalculateHSVColor();
 }
-#endif
+
+void SColorGradingColorWheel::OnPropertyValueChanged(UObject* Object, FPropertyChangedEvent& PropertyChangedEvent)
+{
+	if (ColorPropertyHandle.IsSettingValue())
+	{
+		// If setting our own value, it's already handled (or will be)
+		return;
+	}
+
+	if (TSharedPtr<const IPropertyHandle> PinnedPropertyHandle = ColorPropertyHandle.GetHandle())
+	{
+		uint32 NumChildren;
+		if (PinnedPropertyHandle->GetNumChildren(NumChildren) == FPropertyAccess::Result::Success)
+		{
+			for (uint32 ChildIndex = 0; ChildIndex < NumChildren; ++ChildIndex)
+			{
+				if (PinnedPropertyHandle->GetChildHandle(ChildIndex)->GetProperty() == PropertyChangedEvent.Property)
+				{
+					RecalculateHSVColor();
+					break;
+				}
+			}
+		}
+	}
+}
 
 TSharedRef<SWidget> SColorGradingColorWheel::SColorGradingColorWheel::CreateColorGradingPicker()
 {
-	if (ColorPropertyHandle.IsValid() && ColorPropertyHandle.Pin()->IsValidHandle())
+	if (ColorPropertyHandle.IsValidHandle())
 	{
 		return SNew(UE::ColorGrading::SColorGradingPicker)
 			.DesiredWheelSize(this, &SColorGradingColorWheel::GetMaxWheelWidth)
@@ -195,7 +215,7 @@ TSharedRef<SWidget> SColorGradingColorWheel::SColorGradingColorWheel::CreateColo
 			.ColorGradingModes(ColorPropertyMetadata->ColorGradingMode)
 			.OnColorCommitted(this, &SColorGradingColorWheel::CommitColor)
 			.OnQueryCurrentColor(this, &SColorGradingColorWheel::GetColor)
-			.AllowSpin(ColorPropertyHandle.Pin()->GetNumOuterObjects() == 1) // TODO: May want to find a way to support multiple objects
+			.AllowSpin(ColorPropertyHandle.GetHandle()->GetNumOuterObjects() == 1) // TODO: May want to find a way to support multiple objects
 			.OnBeginSliderMovement(this, &SColorGradingColorWheel::BeginUsingColorPickerSlider)
 			.OnEndSliderMovement(this, &SColorGradingColorWheel::EndUsingColorPickerSlider)
 			.OnBeginMouseCapture(this, &SColorGradingColorWheel::BeginUsingColorPickerSlider)
@@ -208,7 +228,7 @@ TSharedRef<SWidget> SColorGradingColorWheel::SColorGradingColorWheel::CreateColo
 
 TSharedRef<SWidget> SColorGradingColorWheel::CreateColorComponentSliders()
 {
-	if (ColorPropertyHandle.IsValid() && ColorPropertyHandle.Pin()->IsValidHandle())
+	if (ColorPropertyHandle.IsValidHandle())
 	{
 		TSharedRef<SVerticalBox> ColorSlidersVerticalBox = SNew(SVerticalBox);
 
@@ -260,9 +280,9 @@ SColorGradingColorWheel::FColorPropertyMetadata SColorGradingColorWheel::GetColo
 {
 	FColorPropertyMetadata PropertyMetadata;
 
-	if (ColorPropertyHandle.IsValid() && ColorPropertyHandle.Pin()->IsValidHandle())
+	if (ColorPropertyHandle.IsValidHandle())
 	{
-		FProperty* Property = ColorPropertyHandle.Pin()->GetProperty();
+		FProperty* Property = ColorPropertyHandle.GetHandle()->GetProperty();
 		const FString ColorGradingModeString = Property->GetMetaData(TEXT("ColorGradingMode")).ToLower();
 
 		if (!ColorGradingModeString.IsEmpty())
@@ -367,9 +387,9 @@ SColorGradingColorWheel::FColorPropertyMetadata SColorGradingColorWheel::GetColo
 
 bool SColorGradingColorWheel::IsPropertyEnabled() const
 {
-	if (ColorPropertyHandle.IsValid() && ColorPropertyHandle.Pin()->IsValidHandle())
+	if (ColorPropertyHandle.IsValidHandle())
 	{
-		return ColorPropertyHandle.Pin()->IsEditable();
+		return ColorPropertyHandle.GetHandle()->IsEditable();
 	}
 
 	return false;
@@ -411,41 +431,38 @@ bool SColorGradingColorWheel::ShouldUseTallLayout() const
 
 bool SColorGradingColorWheel::GetColor(FVector4& OutCurrentColor)
 {
-	if (ColorPropertyHandle.IsValid())
-	{
-		return ColorPropertyHandle.Pin()->GetValue(OutCurrentColor) == FPropertyAccess::Success;
-	}
-
-	return false;
+	return ColorPropertyHandle.GetValue(OutCurrentColor) == FPropertyAccess::Success;
 }
 
 void SColorGradingColorWheel::CommitColor(FVector4& NewValue, bool bShouldCommitValueChanges)
 {
 	FScopedTransaction Transaction(LOCTEXT("ColorWheel_TransactionName", "Color Grading Main Value"), bShouldCommitValueChanges);
 
-	if (ColorPropertyHandle.IsValid())
+	if (ColorPropertyHandle.IsValidHandle())
 	{
 		// Always perform a purely interactive change. We do this because it won't invoke reconstruction, which may cause that only the first 
 		// element gets updated due to its change causing a component reconstruction and the remaining vector element property handles updating 
 		// the trashed component.
-		ColorPropertyHandle.Pin()->SetValue(NewValue, EPropertyValueSetFlags::InteractiveChange | EPropertyValueSetFlags::NotTransactable);
+		ColorPropertyHandle.SetValue(NewValue, EPropertyValueSetFlags::InteractiveChange | EPropertyValueSetFlags::NotTransactable);
 
 		// If not purely interactive, set the value with default flags.
 		if (bShouldCommitValueChanges || !bIsUsingColorPickerSlider)
 		{
-			ColorPropertyHandle.Pin()->SetValue(NewValue, EPropertyValueSetFlags::DefaultFlags);
+			ColorPropertyHandle.SetValue(NewValue, EPropertyValueSetFlags::DefaultFlags);
 		}
 
 		TransactColorValue();
 	}
+
+	CurrentHSVColor = FLinearColor(NewValue.X, NewValue.Y, NewValue.Z).LinearRGBToHSV();
 }
 
 void SColorGradingColorWheel::TransactColorValue()
 {
-	if (ColorPropertyHandle.IsValid())
+	if (ColorPropertyHandle.IsValidHandle())
 	{
 		TArray<UObject*> OuterObjects;
-		ColorPropertyHandle.Pin()->GetOuterObjects(OuterObjects);
+		ColorPropertyHandle.GetHandle()->GetOuterObjects(OuterObjects);
 		for (UObject* Object : OuterObjects)
 		{
 			if (!Object->HasAnyFlags(RF_Transactional))
@@ -461,10 +478,10 @@ void SColorGradingColorWheel::TransactColorValue()
 
 void SColorGradingColorWheel::RecalculateHSVColor()
 {
-	if (ColorPropertyHandle.IsValid() && ColorPropertyHandle.Pin().IsValid())
+	if (ColorPropertyHandle.IsValidHandle())
 	{
 		FVector4 VectorValue;
-		if (ColorPropertyHandle.Pin()->GetValue(VectorValue) == FPropertyAccess::Success)
+		if (ColorPropertyHandle.GetValue(VectorValue) == FPropertyAccess::Success)
 		{
 			CurrentHSVColor = FLinearColor(VectorValue).LinearRGBToHSV();
 		}
@@ -475,36 +492,30 @@ void SColorGradingColorWheel::BeginUsingColorPickerSlider()
 {
 	bIsUsingColorPickerSlider = true;
 
-#if WITH_EDITOR
 	if (GEditor)
 	{
 		GEditor->BeginTransaction(LOCTEXT("ColorWheel_TransactionName", "Color Grading Main Value"));
 	}
-#endif
 }
 
 void SColorGradingColorWheel::EndUsingColorPickerSlider()
 {
 	bIsUsingColorPickerSlider = false;
 
-#if WITH_EDITOR
 	if (GEditor)
 	{
 		GEditor->EndTransaction();
 	}
-#endif
 }
 
 void SColorGradingColorWheel::BeginUsingComponentSlider(uint32 ComponentIndex)
 {
 	bIsUsingComponentSlider = true;
 
-#if WITH_EDITOR
 	if (GEditor)
 	{
 		GEditor->BeginTransaction(LOCTEXT("ColorWheel_TransactionName", "Color Grading Main Value"));
 	}
-#endif
 }
 
 void SColorGradingColorWheel::EndUsingComponentSlider(float NewValue, uint32 ComponentIndex)
@@ -512,12 +523,10 @@ void SColorGradingColorWheel::EndUsingComponentSlider(float NewValue, uint32 Com
 	bIsUsingComponentSlider = false;
 	SetComponentValue(NewValue, ComponentIndex);
 
-#if WITH_EDITOR
 	if (GEditor)
 	{
 		GEditor->EndTransaction();
 	}
-#endif
 }
 
 UE::ColorGrading::EColorGradingComponent SColorGradingColorWheel::GetComponent(uint32 ComponentIndex) const
@@ -528,10 +537,10 @@ UE::ColorGrading::EColorGradingComponent SColorGradingColorWheel::GetComponent(u
 
 TOptional<float> SColorGradingColorWheel::GetComponentValue(uint32 ComponentIndex) const
 {
-	if (ColorPropertyHandle.IsValid())
+	if (ColorPropertyHandle.IsValidHandle())
 	{
 		FVector4 ColorValue;
-		if (ColorPropertyHandle.Pin()->GetValue(ColorValue) == FPropertyAccess::Success)
+		if (ColorPropertyHandle.GetValue(ColorValue) == FPropertyAccess::Success)
 		{
 			float Value = 0.0f;
 
@@ -553,10 +562,10 @@ TOptional<float> SColorGradingColorWheel::GetComponentValue(uint32 ComponentInde
 
 void SColorGradingColorWheel::SetComponentValue(float NewValue, uint32 ComponentIndex)
 {
-	if (ColorPropertyHandle.IsValid())
+	if (ColorPropertyHandle.IsValidHandle())
 	{
 		FVector4 CurrentColorValue;
-		if (ColorPropertyHandle.Pin()->GetValue(CurrentColorValue) == FPropertyAccess::Success)
+		if (ColorPropertyHandle.GetValue(CurrentColorValue) == FPropertyAccess::Success)
 		{
 			FVector4 NewColorValue = CurrentColorValue;
 
@@ -575,7 +584,7 @@ void SColorGradingColorWheel::SetComponentValue(float NewValue, uint32 Component
 				NewColorValue = (FVector4)CurrentHSVColor.HSVToLinearRGB();
 			}
 
-			ColorPropertyHandle.Pin()->SetValue(NewColorValue, bIsUsingComponentSlider ? EPropertyValueSetFlags::InteractiveChange : EPropertyValueSetFlags::DefaultFlags);
+			ColorPropertyHandle.SetValue(NewColorValue, bIsUsingComponentSlider ? EPropertyValueSetFlags::InteractiveChange : EPropertyValueSetFlags::DefaultFlags);
 			TransactColorValue();
 		}
 	}
