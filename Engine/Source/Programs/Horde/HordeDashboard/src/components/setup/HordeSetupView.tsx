@@ -14,6 +14,8 @@ export const HordeSetupView: React.FC = () => {
 
    const username = "Admin";
 
+   document.body.setAttribute('style', `background: ${dashboard.darktheme ? "#0F0F0F" : "#FFFFFFF"}`)   
+
    const onLoginAdmin = async () => {
 
       const password = secrets.newPassword?.trim();

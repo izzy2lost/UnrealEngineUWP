@@ -55,6 +55,8 @@ const Main: React.FC = () => {
 
    const [init, setInit] = useState(false);
 
+   document.body.setAttribute('style', `background: ${dashboard.darktheme ? "#0F0F0F" : "#FAF9F9"}`)   
+
    if (window.location.pathname === "/login") {
       return <HordeLoginView />
    }
@@ -84,9 +86,6 @@ const Main: React.FC = () => {
       }).catch((reason) => {
          ErrorHandler.set({ title: "Error initializing site", reason: reason }, true);
       });
-
-      // avoid flash when initializing dashboard
-      document.body.setAttribute('style', `background: ${dashboard.darktheme ? "#0F0F0F" : "#FAF9F9"}`)   
 
       return (<ThemeProvider applyTo='element' theme={dashboard.darktheme ? darkTheme : lightTheme}>
          <div style={{ position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%, -50%)' }}>
@@ -186,10 +185,6 @@ const Main: React.FC = () => {
 
       router = createBrowserRouter(routes);
    }
-
-   // avoid white bar on body
-   
-   document.body.setAttribute('style', `background: ${dashboard.darktheme ? "#0F0F0F" : "#FAF9F9"}`)   
    
    
    return (
