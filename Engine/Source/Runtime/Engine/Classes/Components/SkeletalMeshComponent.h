@@ -963,7 +963,6 @@ public:
 
 	/** Set the anim instance class. Clears and re-initializes the anim instance with the new class and sets animation mode to 'AnimationBlueprint' */
 	UE_DEPRECATED(5.5, "This function is deprecated. Please use 'SetAnimInstanceClass' instead. ")
-	UFUNCTION(BlueprintCallable, Category = "Components|SkeletalMesh", meta = (Keywords = "AnimBlueprint", DisplayName = "Set Anim Class", DeprecatedFunction, DeprecationMessage = "This function is deprecated. Please use 'SetAnimInstanceClass' instead. "))
 	ENGINE_API virtual void SetAnimClass(class UClass* NewClass);
 
 	/** Get the anim instance class via getter callable by sequencer.  */
