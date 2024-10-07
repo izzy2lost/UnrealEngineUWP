@@ -10,10 +10,10 @@ enum class EDisplayClusterUVLightCardRenderMode : uint8
 	// Use light card render mode from the StageSettings
 	Default,
 
-	// The lightcard will always be displayed only “over the In-Camera”.
+	// The lightcard will always be displayed only "Over the In-Camera".
 	AlwaysOver,
 
-	// The lightcard will always be displayed only “under the In-Camera”.
+	// The lightcard will always be displayed only "Under the In-Camera".
 	AlwaysUnder,
 
 	// Lighting maps are not used.

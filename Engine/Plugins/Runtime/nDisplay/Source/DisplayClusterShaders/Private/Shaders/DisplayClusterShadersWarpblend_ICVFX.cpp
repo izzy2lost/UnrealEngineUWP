@@ -833,11 +833,20 @@ public:
 		RenderPassData.PSParameters.InnerCameraSampler = TStaticSamplerState<SF_Trilinear, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
 
 		RenderPassData.PSParameters.InnerCameraProjectionMatrix = FMatrix44f(InnerCameraProjectionMatrix);
+
+		float InnerCameraFrameAspectRatio = 1.f;
+		if (Camera.Resource.Texture)
+		{
+			// Calc inner camera texture aspect ratio:
+			const FIntPoint InnerCameraTextureSize = Camera.Resource.Texture->GetSizeXY();
+			InnerCameraFrameAspectRatio = float(InnerCameraTextureSize.X) / InnerCameraTextureSize.Y;
+		}
+
 		RenderPassData.PSParameters.InnerCameraSoftEdge = FVector4f(Camera.SoftEdge);
 
 		RenderPassData.PSParameters.InnerCameraBorderColor = Camera.InnerCameraBorderColor;
 		RenderPassData.PSParameters.InnerCameraBorderThickness = Camera.InnerCameraBorderThickness;
-		RenderPassData.PSParameters.InnerCameraFrameAspectRatio = Camera.InnerCameraFrameAspectRatio;
+		RenderPassData.PSParameters.InnerCameraFrameAspectRatio = InnerCameraFrameAspectRatio;
 
 		return true;
 	}

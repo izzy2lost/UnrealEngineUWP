@@ -8,30 +8,7 @@
 #include "CineCameraComponent.h"
 #include "CineCameraActor.h"
 
-namespace UE::DisplayClusterConfiguration::ICVFX
-{
-	static float ClampPercent(float InValue)
-	{
-		static const float MaxCustomFrustumValue = 5.f;
 
-		return FMath::Clamp(InValue, -MaxCustomFrustumValue, MaxCustomFrustumValue);
-	}
-
-	static float ClampCustomFrustum(float InValue, float InMax)
-	{
-		return FMath::Clamp(InValue, -InMax, InMax);
-	}
-};
-
-using namespace UE::DisplayClusterConfiguration::ICVFX;
-
-int32 GDisplayClusterICVFXCameraAdoptResolution = 1;
-static FAutoConsoleVariableRef CVarGDisplayClusterICVFXCameraAdoptResolution(
-	TEXT("nDisplay.icvfx.camera.AdoptResolution"),
-	GDisplayClusterICVFXCameraAdoptResolution,
-	TEXT("Adopt camera viewport resolution with 'Filmback + CropSettings + SqueezeFactor' CineCamera settings.  (Default = 1)"),
-	ECVF_Default
-);
 
 ///////////////////////////////////////////////////////////////////////////////////////
 // FDisplayClusterConfigurationICVFX_ChromakeyMarkers
@@ -284,135 +261,11 @@ float FDisplayClusterConfigurationICVFX_CameraSettings::GetCameraBufferRatio(con
 	return BufferRatio;
 }
 
-bool FDisplayClusterConfigurationICVFX_CameraSettings::GetCameraBorder(const FDisplayClusterConfigurationICVFX_StageSettings& InStageSettings, FLinearColor& OutBorderColor, float& OutBorderThickness) const
-{
-	if (!Border.Enable)
-	{
-		OutBorderColor = FLinearColor::Black;
-		OutBorderThickness = 0.0f;
-
-		return false;
-	}
-
-	const float RealThicknessScaleValue = 0.1f;
-
-	OutBorderColor = Border.Color;
-	OutBorderThickness = Border.Thickness * RealThicknessScaleValue;
-
-	return true;
-}
-
 void FDisplayClusterConfigurationICVFX_CameraSettings::SetupViewInfo(const FDisplayClusterConfigurationICVFX_StageSettings& InStageSettings, FMinimalViewInfo& InOutViewInfo)
 {
 	RenderSettings.SetupViewInfo(InStageSettings, InOutViewInfo);
 	CustomFrustum.SetupViewInfo(InStageSettings, *this, InOutViewInfo);
 	CameraMotionBlur.SetupViewInfo(InStageSettings, InOutViewInfo);
-}
-
-FIntPoint FDisplayClusterConfigurationICVFX_CameraSettings::GetCameraFrameSize(const FDisplayClusterConfigurationICVFX_StageSettings& InStageSettings, const UCineCameraComponent& InCineCameraComponent) const
-{
-	const FIntPoint CameraFrameSize = RenderSettings.CustomFrameSize.bUseCustomSize
-		? FIntPoint(RenderSettings.CustomFrameSize.CustomWidth, RenderSettings.CustomFrameSize.CustomHeight)
-		: FIntPoint(InStageSettings.DefaultFrameSize.Width, InStageSettings.DefaultFrameSize.Height);
-
-	if (GDisplayClusterICVFXCameraAdoptResolution)
-	{
-		// Get the size of the cinematic camera's cropped sensor:
-		const double CropedSensorWidth  = FMath::Tan(FMath::DegreesToRadians(InCineCameraComponent.GetHorizontalFieldOfView()) / 2.f) * 2.f * InCineCameraComponent.CurrentFocalLength;
-		const double CropedSensorHeight = FMath::Tan(FMath::DegreesToRadians(InCineCameraComponent.GetVerticalFieldOfView()) / 2.f) * 2.f * InCineCameraComponent.CurrentFocalLength;
-
-		// Get the ratio of the cinematic camera's cropped sensor size to the base sensor size.
-		const double CroppedSensorWidthRatio  = CropedSensorWidth / InCineCameraComponent.Filmback.SensorWidth;
-		const double CroppedSensorHeightRatio = CropedSensorHeight / InCineCameraComponent.Filmback.SensorHeight;
-
-		// Adapt camera resolution to the filmback sensor aspect ratio
-		const double SensorAspectRatio = (InCineCameraComponent.Filmback.SensorHeight > 0.f && InCineCameraComponent.Filmback.SensorWidth > 0.f)
-			? InCineCameraComponent.Filmback.SensorWidth / InCineCameraComponent.Filmback.SensorHeight
-			: -1;
-
-		if (SensorAspectRatio < 0)
-		{
-			// The CineCamera sensor size has invalid values.
-			return CameraFrameSize;
-		}
-
-		// Use the max size as a base.
-		const double MaxSize = CameraFrameSize.GetMax();
-
-		const double CameraFrameWidth  = (SensorAspectRatio >= 1.0)
-			? MaxSize
-			: MaxSize * SensorAspectRatio;
-		const double CameraFrameHeight = (SensorAspectRatio >= 1.0)
-			? MaxSize / SensorAspectRatio
-			: MaxSize;
-
-		// Get cropped camera size
-		const FIntPoint CroppedCameraFrameSize(
-			FMath::RoundToInt(CameraFrameWidth  * CroppedSensorWidthRatio),
-			FMath::RoundToInt(CameraFrameHeight * CroppedSensorHeightRatio)
-		);
-
-		return CroppedCameraFrameSize;
-	}
-
-	return CameraFrameSize;
-}
-
-float FDisplayClusterConfigurationICVFX_CameraSettings::GetCameraFrameAspectRatio(const FDisplayClusterConfigurationICVFX_StageSettings& InStageSettings, const UCineCameraComponent& InCineCameraComponent) const
-{
-	FIntPoint FrameSize = GetCameraFrameSize(InStageSettings, InCineCameraComponent);
-
-	return (FrameSize.Y > 0 && FrameSize.X > 0) ? (float)FrameSize.X / float(FrameSize.Y) : 0;
-}
-
-FVector4 FDisplayClusterConfigurationICVFX_CameraSettings::GetCameraSoftEdge(const FDisplayClusterConfigurationICVFX_StageSettings& InStageSettings, const UCineCameraComponent& InCineCameraComponent) const
-{
-	FVector4 ResultSoftEdge(ForceInitToZero);
-
-	const float FieldOfViewMultiplier = CustomFrustum.GetCameraFieldOfViewMultiplier(InStageSettings);
-
-	// softedge adjustments	
-	const float Overscan = (FieldOfViewMultiplier > 0) ? FieldOfViewMultiplier : 1;
-
-	// remap values from 0-1 GUI range into acceptable 0.0 - 0.25 shader range
-	ResultSoftEdge.X = FMath::GetMappedRangeValueClamped(FVector2D(0.0, 1.0f), FVector2D(0.0, 0.25), SoftEdge.Horizontal) / Overscan; // Left
-	ResultSoftEdge.Y = FMath::GetMappedRangeValueClamped(FVector2D(0.0, 1.0f), FVector2D(0.0, 0.25), SoftEdge.Vertical) / Overscan; // Top
-
-	// ZW now used in other way
-	// Z for new parameter Feather
-	ResultSoftEdge.Z = SoftEdge.Feather;
-
-	// Custom frustum made changes to soft edges
-	if (CustomFrustum.bEnable)
-	{
-		// default - percents
-		const float ConvertToPercent = 0.01f;
-
-		float Left = ClampPercent(CustomFrustum.Left * ConvertToPercent);
-		float Right = ClampPercent(CustomFrustum.Right * ConvertToPercent);
-		float Top = ClampPercent(CustomFrustum.Top * ConvertToPercent);
-		float Bottom = ClampPercent(CustomFrustum.Bottom * ConvertToPercent);
-
-		if (CustomFrustum.Mode == EDisplayClusterConfigurationViewportCustomFrustumMode::Pixels)
-		{
-			const float CameraBufferRatio = GetCameraBufferRatio(InStageSettings);
-			const FIntPoint FrameSize = GetCameraFrameSize(InStageSettings, InCineCameraComponent);
-
-			const float  FrameWidth = FrameSize.X * CameraBufferRatio;
-			const float FrameHeight = FrameSize.Y * CameraBufferRatio;
-
-			Left = ClampPercent(CustomFrustum.Left / FrameWidth);
-			Right = ClampPercent(CustomFrustum.Right / FrameWidth);
-			Top = ClampPercent(CustomFrustum.Top / FrameHeight);
-			Bottom = ClampPercent(CustomFrustum.Bottom / FrameHeight);
-		}
-
-		// recalculate soft edge related offsets based on frustum
-		ResultSoftEdge.X /= (1 + Left + Right);
-		ResultSoftEdge.Y /= (1 + Top + Bottom);
-	}
-
-	return ResultSoftEdge;
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////
@@ -689,7 +542,7 @@ EDisplayClusterShaderParametersICVFX_LightCardRenderMode FDisplayClusterConfigur
 		break;
 	};
 
-	// By default, lightcards are rendered in “Over” mode.
+	// By default, lightcards are rendered in "Over" mode.
 	return EDisplayClusterShaderParametersICVFX_LightCardRenderMode::Over;
 }
 

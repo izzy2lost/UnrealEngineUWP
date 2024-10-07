@@ -33,7 +33,7 @@ namespace UE::DisplayCluster::Viewport::OverscanHelpers
 		// The idea behind the overscan is to add extra space on the sides of the RTT.
 		// Note: this only applies to regular viewports (Outers, etc.).
 		// 
-		// The inner frustum viewport has its own implementation for the overscan feature called “CustomFrustum”.
+		// The inner frustum viewport has its own implementation for the overscan feature called "CustomFrustum".
 		// (see FDisplayClusterViewport_CustomFrustumRuntimeSettings)
 
 		return FMath::Clamp(InValue, 0, MaxCustomFrustumValue);

@@ -27,13 +27,41 @@ struct FDisplayClusterViewport_CustomFrustumRuntimeSettings
 	* @param InOutTop                  - the value of the top projection plane that you want to change
 	* @parma InOutBottom               - the value of the bottom projection plane that you want to change
 	*/
-	static bool UpdateProjectionAngles(const FDisplayClusterViewport_CustomFrustumRuntimeSettings& InRuntimeSettings, const FIntPoint& InRenderTargetSize, double& InOutLeft, double& InOutRight, double& InOutTop, double& InOutBottom);
+	static bool UpdateProjectionAngles(
+		const FDisplayClusterViewport_CustomFrustumRuntimeSettings& InRuntimeSettings,
+		const FIntPoint& InRenderTargetSize,
+		double& InOutLeft,
+		double& InOutRight,
+		double& InOutTop,
+		double& InOutBottom);
 
 	/**
-	* Values in percent
+	* These are frustum modifiers, where 1 means 100% of the frustum size.
+	* 
+	* Positive values mean frustum expansion:
+	*   FrustumAngles.Left   -= FrustumAngles.Width * Left.
+	*   FrustumAngles.Right  += FrustumAngles.Width * Right.
+	*   FrustumAngles.Top    += FrustumAngles.Height * Top.
+	*   FrustumAngles.Bottom -= FrustumAngles.Height * Bottom.
 	*/
 	struct FCustomFrustumPercent
 	{
+		/** Returns the aspect ratio multiplier. */
+		inline double GetAspectRatioMult() const
+		{
+			// Positive values mean frustum expansion
+			const double WidthMult = 1 + Left + Right;
+			const double HeightMult = 1 + Top + Bottom;
+
+			if (WidthMult <= 0.f || HeightMult <= 0.f)
+			{
+				// If extreme values are used, 1 is returned, which means that the aspect ratio remains unchanged.
+				return 1;
+			}
+
+			return WidthMult / HeightMult;
+		}
+
 		double Left = 0;
 		double Right = 0;
 		double Top = 0;

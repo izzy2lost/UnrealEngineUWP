@@ -77,9 +77,13 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Rendering", meta = (DisplayName = "Enable Cross-GPU Transfer"))
 	bool bEnableCrossGPUTransfer = true;
 
-	/** Specify which GPU should render the second Stereo eye */
-	UPROPERTY(EditAnywhere, Category = "Stereo", meta = (DisplayName = "Stereo GPU Index"))
-	int StereoGPUIndex = -1;
+	/**
+	* Specifies the GPU index for the nDisplay viewport in stereo rendering for the second eye.
+	* A value of '-1' means to use the value from the GPU Index parameter. (the same value is used for both eyes).
+	* Used to improve rendering performance by spreading the load across multiple GPUs.
+	*/
+	UPROPERTY(EditAnywhere, Category = "Stereo", meta = (DisplayName = "Stereo GPU Index", ClampMin = "-1", UIMin = "-1", ClampMax = "8", UIMax = "8"))
+	int StereoGPUIndex = INDEX_NONE;
 
 	/** Enables and sets Stereo mode */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stereo")
@@ -216,8 +220,12 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Rendering")
 	int OverlapOrder = 0;
 
-	/** Specify which GPU should render this Viewport. "-1" is default. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Rendering", meta = (DisplayName = "GPU Index"))
+	/**
+	* Specifies the GPU index for the nDisplay viewport.
+	* Value '-1' means do not use multi-GPU
+	* Used to improve rendering performance by spreading the load across multiple GPUs.
+	*/
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Rendering", meta = (DisplayName = "GPU Index", ClampMin = "-1", UIMin = "-1", ClampMax = "8", UIMax = "8"))
 	int GPUIndex = -1;
 
 	// Configure render for this viewport
