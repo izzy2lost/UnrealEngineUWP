@@ -221,7 +221,7 @@ void FFontFaceEditor::OnPreviewFontSizeChanged(int32 InNewValue, ETextCommit::Ty
 	ApplyPreviewFontSize();
 }
 
-void FFontFaceEditor::NotifyPostChange( const FPropertyChangedEvent& PropertyChangedEvent, class FEditPropertyChain* PropertyThatChanged)
+void FFontFaceEditor::NotifyPostChange(const FPropertyChangedEvent& PropertyChangedEvent, class FEditPropertyChain* PropertyThatChanged)
 {
 	static const FName EnableDistanceFieldRenderingPropertyName = GET_MEMBER_NAME_CHECKED(UFontFace, bEnableDistanceFieldRendering);
 
@@ -389,33 +389,27 @@ void FFontFaceEditor::CreateInternalWidgets()
 
 void FFontFaceEditor::OnPostReimport(UObject* InObject, bool bSuccess)
 {
-	// Ignore if this is regarding a different object
-	if ( InObject != FontFace )
+	if (InObject == FontFace && bSuccess)
 	{
-		return;
-	}
-
-	if ( bSuccess )
-	{
-		//FontFaceViewport->RefreshViewport();
 		RefreshPreview();
 	}
 }
 
 void FFontFaceEditor::OnObjectPropertyChanged(UObject* InObject, struct FPropertyChangedEvent& InPropertyChangedEvent)
 {
-	if (Cast<UFontFace>(InObject))
+	if (InObject == FontFace)
 	{
 		// Force all texts using a font to be refreshed.
 		FSlateApplicationBase::Get().InvalidateAllWidgets(false);
 		GSlateLayoutGeneration++;
+		RefreshPreview();
 	}
 }
 
 void FFontFaceEditor::OnObjectReimported(UObject* InObject)
 {
 	// Make sure we are using the object that is being reimported, otherwise a lot of needless work could occur.
-	if(FontFace == InObject)
+	if (InObject == FontFace)
 	{
 		FontFace = Cast<UFontFace>(InObject);
 

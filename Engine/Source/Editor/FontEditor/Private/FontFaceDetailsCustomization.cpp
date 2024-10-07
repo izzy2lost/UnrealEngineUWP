@@ -208,6 +208,7 @@ void FFontFaceDetailsCustomization::OnFontPathPicked(const FString& InNewFontFil
 			FontFace->SourceFilename = InNewFontFilename;
 			FontFace->FontFaceData = FFontFaceData::MakeFontFaceData(MoveTemp(FontData)); // Make a new instance as the existing one may be being used by the font cache
 			FontFace->CacheSubFaces();
+			FontFace->PostEditChange();
 		}
 	}
 
