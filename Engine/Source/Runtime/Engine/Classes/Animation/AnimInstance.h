@@ -1455,6 +1455,10 @@ public:
 	FGraphTraversalCounter DebugDataCounter;
 
 private:
+
+	// Used to prevent indefinitely flushing montages on a single frame. 
+	uint32 LastMontageFlushFrame = 0u;
+	
 	TMap<FName, FMontageActiveSlotTracker> SlotWeightTracker;
 	TMap<FName, FSimpleMulticastDelegate> ExternalNotifyHandlers;
 
