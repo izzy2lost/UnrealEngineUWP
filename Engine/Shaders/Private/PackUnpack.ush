@@ -349,5 +349,7 @@ uint  PackTileCoord10bits(uint2 In) { return PackTileCoordXXbits  (In, 0x3FF, 10
 uint2 UnpackTileCoord10bits(uint In){ return UnpackTileCoordXXbits(In, 0x3FF, 10u); }
 uint  PackTileCoord12bits(uint2 In) { return PackTileCoordXXbits  (In, 0xFFF, 12u); }
 uint2 UnpackTileCoord12bits(uint In){ return UnpackTileCoordXXbits(In, 0xFFF, 12u); }
+uint  PackTileCoord14bits(uint2 In) { return PackTileCoordXXbits  (In, 0x3FFF, 14u); }
+uint2 UnpackTileCoord14bits(uint In){ return UnpackTileCoordXXbits(In, 0x3FFF, 14u); }
 uint  PackTileCoord16bits(uint2 In) { return PackTileCoordXXbits  (In, 0xFFFF,16u); }
 uint2 UnpackTileCoord16bits(uint In){ return UnpackTileCoordXXbits(In, 0xFFFF,16u); }
