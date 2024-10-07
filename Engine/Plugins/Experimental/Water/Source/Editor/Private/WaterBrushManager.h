@@ -30,10 +30,10 @@ class AWaterBrushManager : public AWaterLandscapeBrush
 public:
 	GENERATED_BODY()
 	
- 	UPROPERTY(Transient)
+ 	UPROPERTY()
 	TObjectPtr<USceneCaptureComponent2D> SceneCaptureComponent2D = nullptr;
 
-	UPROPERTY(Transient)
+	UPROPERTY()
 	TObjectPtr<UJumpFloodComponent2D> JumpFloodComponent2D = nullptr;
 
 	// RTs
