@@ -542,7 +542,7 @@ bool FContrastAdaptiveImageGenerator::IsSupportedByView(const FSceneView& View) 
 {
 	EDisplayOutputFormat DisplayOutputFormat = GetDisplayOutputFormat(View);
 	const bool bCompatibleWithOutputType = (DisplayOutputFormat == EDisplayOutputFormat::SDR_sRGB) || IsHDR10(DisplayOutputFormat);
-	return !View.bIsSceneCapture && bCompatibleWithOutputType;
+	return !View.bIsSceneCapture && bCompatibleWithOutputType && !IsMobilePlatform(View.GetShaderPlatform());
 }
 
 FRDGTextureRef FContrastAdaptiveImageGenerator::GetDebugImage(FRDGBuilder& GraphBuilder, const FViewInfo& ViewInfo, FVariableRateShadingImageManager::EVRSImageType ImageType, bool bGetSoftwareImage)

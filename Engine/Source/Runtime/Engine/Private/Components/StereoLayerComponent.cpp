@@ -115,7 +115,7 @@ void UStereoLayerComponent::TickComponent(float DeltaTime, enum ELevelTick TickT
 		}
 		if (LeftTexture)
 		{
-			Texture->SetForceMipLevelsToBeResident(30.0f);
+			LeftTexture->SetForceMipLevelsToBeResident(30.0f);
 			LayerDesc.LeftTexture = LeftTexture->GetResource()->TextureRHI;
 		}
 				
