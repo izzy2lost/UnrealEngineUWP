@@ -23,7 +23,6 @@
 #include "Tracks/MovieSceneParticleTrack.h"
 #include "Tracks/MovieSceneSlomoTrack.h"
 #include "Tracks/MovieSceneSubTrack.h"
-#include "Tracks/MovieSceneTimeWarpTrack.h"
 
 #define LOCTEXT_NAMESPACE "SequencerTrackFilters"
 
@@ -484,40 +483,6 @@ public:
 	virtual TSharedPtr<FUICommandInfo> GetToggleCommand() const override
 	{
 		return FSequencerTrackFilterCommands::Get().ToggleFilter_TimeDilation;
-	}
-
-	//~ End FSequencerTrackFilter
-};
-
-//////////////////////////////////////////////////////////////////////////
-//
-
-class FSequencerTrackFilter_TimeWarp : public FSequencerTrackFilter_ClassType<UMovieSceneTimeWarpTrack>
-{
-public:
-	FSequencerTrackFilter_TimeWarp(ISequencerTrackFilters& InFilterInterface, TSharedPtr<FFilterCategory> InCategory = nullptr)
-		: FSequencerTrackFilter_ClassType<UMovieSceneTimeWarpTrack>(InFilterInterface, InCategory)
-	{}
-
-	//~ Begin IFilter
-	virtual FString GetName() const override { return TEXT("TimeWarp"); }
-	//~ End IFilter
-
-	//~ Begin FFilterBase
-	virtual FText GetDisplayName() const override { return LOCTEXT("SequencerTrackFilter_TimeWarp", "Time Warp"); }
-	virtual FSlateIcon GetIcon() const override { return FSlateIcon(FAppStyle::GetAppStyleSetName(), TEXT("Sequencer.Tracks.TimeWarp")); }
-	//~ End FFilterBase
-
-	//~ Begin FSequencerTrackFilter
-
-	virtual FText GetDefaultToolTipText() const override
-	{
-		return LOCTEXT("SequencerTrackFilter_TimeWarpToolTip", "Show only Time Warp tracks");
-	}
-
-	virtual TSharedPtr<FUICommandInfo> GetToggleCommand() const override
-	{
-		return FSequencerTrackFilterCommands::Get().ToggleFilter_TimeWarp;
 	}
 
 	//~ End FSequencerTrackFilter
