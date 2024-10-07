@@ -81,7 +81,7 @@ void CheckRetargetSourceAssetData(bool bFixAssets, const TArray<FString>& Includ
 	FARFilter AssetFilter;
 	if (IncludedPaths.Num() > 0)
 	{
-		for (const FString IncludedPath : IncludedPaths)
+		for (const FString& IncludedPath : IncludedPaths)
 		{
 			UE_LOG(LogAnimation, Log, TEXT("Check Retarget Source Assets scan folder [%s]."), *IncludedPath);
 			AssetFilter.PackagePaths.AddUnique(*IncludedPath);
