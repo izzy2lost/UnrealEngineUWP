@@ -5219,7 +5219,7 @@ void FSequencer::SetLocalTimeLooped(FFrameTime NewLocalTime, const FMovieSceneTr
 	if (bResetPosition)
 	{
 		PlayPosition.Reset(NewPlayPosition);
-		TimeController->Reset(FQualifiedFrameTime(NewPlayPosition, RootTickResolution));
+		TimeController->Reset(FQualifiedFrameTime(NewGlobalTime.GetValue(), RootTickResolution));
 	}
 
 	// Ensure breadcrumbs are up to date
