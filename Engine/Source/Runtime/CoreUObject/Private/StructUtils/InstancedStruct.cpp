@@ -538,14 +538,16 @@ bool FInstancedStruct::FindInnerPropertyInstance(FName PropertyName, const FProp
 	return false;
 }
 
-EPropertyVisitorControlFlow FInstancedStruct::Visit(FPropertyVisitorPath& Path, const TFunctionRef<EPropertyVisitorControlFlow(const FPropertyVisitorPath& /*Path*/, void* /*Data*/)> InFunc) const
+EPropertyVisitorControlFlow FInstancedStruct::Visit(FPropertyVisitorPath& Path, const FPropertyVisitorData& InData, const TFunctionRef<EPropertyVisitorControlFlow(const FPropertyVisitorPath& /*Path*/, const FPropertyVisitorData& /*Data*/)> InFunc) const
 {
 	if (!ScriptStruct || !StructMemory)
 	{
 		return EPropertyVisitorControlFlow::StepOver;
 	}
 
-	return ScriptStruct->Visit(Path, StructMemory, InFunc);
+	FPropertyVisitorData Data = InData.VisitPropertyData(StructMemory);
+
+	return ScriptStruct->Visit(Path, Data, InFunc);
 }
 
 void* FInstancedStruct::ResolveVisitedPathInfo(const FPropertyVisitorInfo& Info) const

@@ -228,7 +228,7 @@ FInstanceDataObjectFixupPanel::FInstanceDataObjectFixupPanel(
 static bool ObjectHasLoosePropertiesThatNeedFixup(UObject* Object)
 {
 	bool bNeedsFixup = false;
-	Object->GetClass()->Visit(Object, [&bNeedsFixup](const FPropertyVisitorPath& Path, void* Data)->EPropertyVisitorControlFlow
+	Object->GetClass()->Visit(Object, [&bNeedsFixup](const FPropertyVisitorPath& Path, const FPropertyVisitorData& Data)->EPropertyVisitorControlFlow
 	{
 		const FProperty* Property = Path.Top().Property;
 		if (!Property->HasAnyPropertyFlags(CPF_SkipSerialization) && Property->GetBoolMetaData(NAME_IsLooseMetadata))

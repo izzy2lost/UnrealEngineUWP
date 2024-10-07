@@ -1755,17 +1755,17 @@ bool FMapProperty::CanSerializeFromTypeName(UE::FPropertyTypeName Type) const
 	return LocalKeyProp->CanSerializeFromTypeName(Type.GetParameter(0)) && LocalValueProp->CanSerializeFromTypeName(Type.GetParameter(1));
 }
 
-EPropertyVisitorControlFlow FMapProperty::Visit(FPropertyVisitorPath& Path, void* Data, const TFunctionRef<EPropertyVisitorControlFlow(const FPropertyVisitorPath& /*Path*/, void* /*Data*/)> InFunc) const
+EPropertyVisitorControlFlow FMapProperty::Visit(FPropertyVisitorPath& Path, const FPropertyVisitorData& InData, const TFunctionRef<EPropertyVisitorControlFlow(const FPropertyVisitorPath& /*Path*/, const FPropertyVisitorData& /*Data*/)> InFunc) const
 {
 	// Indicate in the path that this property contains inner properties
 	Path.Top().bContainsInnerProperties = true;
 
-	EPropertyVisitorControlFlow RetVal = Super::Visit(Path, Data, InFunc);
+	EPropertyVisitorControlFlow RetVal = Super::Visit(Path, InData, InFunc);
 
 	if (RetVal == EPropertyVisitorControlFlow::StepInto)
 	{
 		checkf(KeyProp && ValueProp, TEXT("Expecting a valid inner property type"));
-		FScriptMapHelper MapHelper(this, Data);
+		FScriptMapHelper MapHelper(this, InData.PropertyData);
 
 		for (FScriptMapHelper::FIterator It(MapHelper); It; ++It)
 		{
@@ -1773,7 +1773,9 @@ EPropertyVisitorControlFlow FMapProperty::Visit(FPropertyVisitorPath& Path, void
 				// Visit Key
 				FPropertyVisitorScope Scope(Path, FPropertyVisitorInfo(KeyProp, It.GetLogicalIndex(), EPropertyVisitorInfoType::MapKey));
 
-				RetVal = KeyProp->Visit(Path, MapHelper.GetKeyPtr(It), InFunc);
+				FPropertyVisitorData Data = InData.VisitPropertyData(MapHelper.GetKeyPtr(It));
+
+				RetVal = KeyProp->Visit(Path, Data, InFunc);
 				if (RetVal == EPropertyVisitorControlFlow::Stop)
 				{
 					return EPropertyVisitorControlFlow::Stop;
@@ -1788,7 +1790,9 @@ EPropertyVisitorControlFlow FMapProperty::Visit(FPropertyVisitorPath& Path, void
 				// Visit Value
 				FPropertyVisitorScope Scope(Path, FPropertyVisitorInfo(ValueProp, It.GetLogicalIndex(), EPropertyVisitorInfoType::MapValue));
 
-				RetVal = ValueProp->Visit(Path, MapHelper.GetValuePtr(It), InFunc);
+				FPropertyVisitorData Data = InData.VisitPropertyData(MapHelper.GetValuePtr(It));
+
+				RetVal = ValueProp->Visit(Path, Data, InFunc);
 				if (RetVal == EPropertyVisitorControlFlow::Stop)
 				{
 					return EPropertyVisitorControlFlow::Stop;

@@ -223,6 +223,25 @@ protected:
 	FPropertyVisitorPath& Path;
 };
 
+struct FPropertyVisitorData
+{
+	explicit FPropertyVisitorData(void* InPropertyData, void* InParentStructData)
+		: PropertyData(InPropertyData)
+		, ParentStructData(InParentStructData)
+	{}
+
+	/** Utility that constructs a new visitor data object with new property data but the same parent struct data */
+	FPropertyVisitorData VisitPropertyData(void* InPropertyData) const
+	{
+		return FPropertyVisitorData(InPropertyData, ParentStructData);
+	}
+
+	/** Data associated with the property being iterated */
+	void* PropertyData = nullptr;
+	/** Data associated with the parent struct that provided the property being iterated */
+	void* ParentStructData = nullptr;
+};
+
 namespace PropertyVisitorHelpers
 {
 
@@ -266,12 +285,18 @@ template <typename Type>
 void* ResolveVisitedPathInfo_Generic(Type* This, FPropertyVisitorPath& Path, void* Data, const FPropertyVisitorInfo& Info)
 {
 	void* FoundInnerData = nullptr;
-	This->Visit(Path, Data, [&FoundInnerData, &Info, InnerPathDepth = Path.Num() + 1](const FPropertyVisitorPath& InnerPath, void* InnerData)
+
+	FPropertyVisitorData VisitorData(Data, /*ParentStructData*/nullptr);
+
+	This->Visit(Path, VisitorData, [&FoundInnerData, &Info, InnerPathDepth = Path.Num() + 1](const FPropertyVisitorPath& InnerPath, const FPropertyVisitorData& InnerVisitorData)
 	{
 		if (InnerPath.Num() < InnerPathDepth)
 		{
 			return EPropertyVisitorControlFlow::StepInto;
 		}
+
+		void* InnerData = InnerVisitorData.PropertyData;
+
 		if (Info == InnerPath.Top())
 		{
 			FoundInnerData = InnerData;

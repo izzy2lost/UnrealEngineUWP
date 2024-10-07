@@ -767,13 +767,14 @@ void UStruct::CollectBytecodeAndPropertyReferencedObjectsRecursively()
 	}
 }
 
-EPropertyVisitorControlFlow UStruct::Visit(void* Data, const TFunctionRef<EPropertyVisitorControlFlow(const FPropertyVisitorPath& /*Path*/, void* /*Data*/)> InFunc) const
+EPropertyVisitorControlFlow UStruct::Visit(void* InData, const TFunctionRef<EPropertyVisitorControlFlow(const FPropertyVisitorPath& /*Path*/, const FPropertyVisitorData& /*Data*/)> InFunc) const
 {
 	FPropertyVisitorPath Path;
+	FPropertyVisitorData Data(InData, /*ParentStructData*/nullptr);
 	return Visit(Path, Data, InFunc);
 }
 
-EPropertyVisitorControlFlow UStruct::Visit(FPropertyVisitorPath& Path, void* Data, const TFunctionRef<EPropertyVisitorControlFlow(const FPropertyVisitorPath& /*Path*/, void* /*Data*/)> InFunc) const
+EPropertyVisitorControlFlow UStruct::Visit(FPropertyVisitorPath& Path, const FPropertyVisitorData& InData, const TFunctionRef<EPropertyVisitorControlFlow(const FPropertyVisitorPath& /*Path*/, const FPropertyVisitorData& /*Data*/)> InFunc) const
 {
 	EPropertyVisitorControlFlow RetVal = EPropertyVisitorControlFlow::StepOver;
 	for (const FProperty* Property = PropertyLink; Property; Property = Property->PropertyLinkNext)
@@ -784,7 +785,9 @@ EPropertyVisitorControlFlow UStruct::Visit(FPropertyVisitorPath& Path, void* Dat
 		// ArrayDim of one means it is just a single property, not a static array
 		if(Property->ArrayDim == 1)
 		{
-			RetVal = Property->Visit(Path, Property->ContainerPtrToValuePtr<void>(Data), InFunc);
+			FPropertyVisitorData Data(Property->ContainerPtrToValuePtr<void>(InData.PropertyData), /*ParentStructData*/InData.PropertyData);
+
+			RetVal = Property->Visit(Path, Data, InFunc);
 			if (RetVal == EPropertyVisitorControlFlow::Stop)
 			{
 				return EPropertyVisitorControlFlow::Stop;
@@ -800,7 +803,10 @@ EPropertyVisitorControlFlow UStruct::Visit(FPropertyVisitorPath& Path, void* Dat
 			for (int32 StaticArrayIndex = 0; StaticArrayIndex < Property->ArrayDim; ++StaticArrayIndex)
 			{
 				Path.Top().SetIndex(StaticArrayIndex, EPropertyVisitorInfoType::StaticArrayIndex);
-				RetVal = Property->Visit(Path, Property->ContainerPtrToValuePtr<void>(Data, StaticArrayIndex), InFunc);
+
+				FPropertyVisitorData Data(Property->ContainerPtrToValuePtr<void>(InData.PropertyData, StaticArrayIndex), /*ParentStructData*/InData.PropertyData);
+
+				RetVal = Property->Visit(Path, Data, InFunc);
 
 				if (RetVal == EPropertyVisitorControlFlow::Stop)
 				{
@@ -3623,7 +3629,7 @@ bool UScriptStruct::FindInnerPropertyInstance(FName PropertyName, const void* Da
 	return false;
 }
 
-EPropertyVisitorControlFlow UScriptStruct::Visit(FPropertyVisitorPath& Path, void* Data, const TFunctionRef<EPropertyVisitorControlFlow(const FPropertyVisitorPath& /*Path*/, void* /*Data*/)> InFunc) const
+EPropertyVisitorControlFlow UScriptStruct::Visit(FPropertyVisitorPath& Path, const FPropertyVisitorData& Data, const TFunctionRef<EPropertyVisitorControlFlow(const FPropertyVisitorPath& /*Path*/, const FPropertyVisitorData& /*Data*/)> InFunc) const
 {
 	const EPropertyVisitorControlFlow RetVal = UStruct::Visit(Path, Data, InFunc);
 	if (RetVal == EPropertyVisitorControlFlow::Stop)

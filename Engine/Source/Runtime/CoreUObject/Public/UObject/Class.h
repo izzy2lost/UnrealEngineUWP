@@ -740,7 +740,7 @@ public:
 	 * @param InFunc to call on each visited property, the return value controls what is the next behavior once this property has been visited
 	 * @return the new action to take one visited this property
 	 */
-	COREUOBJECT_API EPropertyVisitorControlFlow Visit(void* Data, const TFunctionRef<EPropertyVisitorControlFlow(const FPropertyVisitorPath& /*Path*/, void* /*Data*/)> InFunc) const;
+	COREUOBJECT_API EPropertyVisitorControlFlow Visit(void* Data, const TFunctionRef<EPropertyVisitorControlFlow(const FPropertyVisitorPath& /*Path*/, const FPropertyVisitorData& /*Data*/)> InFunc) const;
 
 	/**
 	 * Visits this property and allows recursion into the inner properties
@@ -751,7 +751,7 @@ public:
 	 * @param InFunc to call on each visited property, the return value controls what is the next behavior once this property has been visited
 	 * @return the new action to take one visited this property
 	 */
-	COREUOBJECT_API virtual EPropertyVisitorControlFlow Visit(FPropertyVisitorPath& Path, void* Data, const TFunctionRef<EPropertyVisitorControlFlow(const FPropertyVisitorPath& /*Path*/, void* /*Data*/)> InFunc) const;
+	COREUOBJECT_API virtual EPropertyVisitorControlFlow Visit(FPropertyVisitorPath& Path, const FPropertyVisitorData& Data, const TFunctionRef<EPropertyVisitorControlFlow(const FPropertyVisitorPath& /*Path*/, const FPropertyVisitorData& /*Data*/)> InFunc) const;
 
 	/**
 	 * Attempt to resolve the given inner path info against this outer struct to get the inner property value.
@@ -1261,7 +1261,7 @@ public:
 			return GetCapabilities().HasVisitor;
 		}
 		/** Structs property visitor signature */
-		virtual EPropertyVisitorControlFlow Visit(FPropertyVisitorPath& Path, void* Data, const TFunctionRef<EPropertyVisitorControlFlow(const FPropertyVisitorPath& /*Path*/, void* /*Data*/)> InFunc) const = 0;
+		virtual EPropertyVisitorControlFlow Visit(FPropertyVisitorPath& Path, const FPropertyVisitorData& Data, const TFunctionRef<EPropertyVisitorControlFlow(const FPropertyVisitorPath& /*Path*/, const FPropertyVisitorData& /*Data*/)> InFunc) const = 0;
 		virtual void* ResolveVisitedPathInfo(void* Data, const FPropertyVisitorInfo& Info) const = 0;
 
 	private:
@@ -1650,11 +1650,12 @@ public:
 		}
 #endif // WITH_EDITOR
 
-		virtual EPropertyVisitorControlFlow Visit(FPropertyVisitorPath& Path, void* Data, const TFunctionRef<EPropertyVisitorControlFlow(const FPropertyVisitorPath& /*Path*/, void* /*Data*/)> InFunc) const override
+		virtual EPropertyVisitorControlFlow Visit(FPropertyVisitorPath& Path, const FPropertyVisitorData& Data, const TFunctionRef<EPropertyVisitorControlFlow(const FPropertyVisitorPath& /*Path*/, const FPropertyVisitorData& /*Data*/)> InFunc) const override
 		{
 			if constexpr (TStructOpsTypeTraits<CPPSTRUCT>::WithVisitor)
 			{
-				return ((CPPSTRUCT*)Data)->Visit(Path, InFunc);
+				CPPSTRUCT* Struct = (CPPSTRUCT*)Data.PropertyData;
+				return Struct->Visit(Path, Data, InFunc);
 			}
 			else
 			{
@@ -1923,7 +1924,7 @@ public:
 
 	/* Custom visit implementation for structs */
 	using Super::Visit;
-	virtual COREUOBJECT_API EPropertyVisitorControlFlow Visit(FPropertyVisitorPath& Path, void* Data, const TFunctionRef<EPropertyVisitorControlFlow(const FPropertyVisitorPath& /*Path*/, void* /*Data*/)> InFunc) const override;
+	virtual COREUOBJECT_API EPropertyVisitorControlFlow Visit(FPropertyVisitorPath& Path, const FPropertyVisitorData& Data, const TFunctionRef<EPropertyVisitorControlFlow(const FPropertyVisitorPath& /*Path*/, const FPropertyVisitorData& /*Data*/)> InFunc) const override;
 	virtual COREUOBJECT_API void* ResolveVisitedPathInfo(void* Data, const FPropertyVisitorInfo& Info) const override;
 };
 
