@@ -2,6 +2,7 @@
 
 #include "DSP/Delay.h"
 #include "DSP/Dsp.h"
+#include "DSP/FloatArrayMath.h"
 #include "HAL/IConsoleManager.h"
 
 static float FDelayInitialAllocationSecondsCVar = -1.0f;
@@ -10,6 +11,14 @@ FAutoConsoleVariableRef CVarFDelayInitialAllocationSeconds(
 	FDelayInitialAllocationSecondsCVar,
 	TEXT("Override the inital delay line allocation in seconds, it will grow up to InBufferLengthSec.\n"),
 	//TEXT("The default is -1.  A value less than zero will allocate the full InBufferLengthSec\n"),
+	ECVF_Default);
+	
+	
+static int32 DelayResetFadeLengthSamplesCVar = 64;
+FAutoConsoleVariableRef CVarDelayResetFadeLengthSamples(
+	TEXT("au.DSP.DelayResetFadeLengthSamples"),
+	DelayResetFadeLengthSamplesCVar,
+	TEXT("Controls fade length (in samples) when clearing internal memory with ResetWithFade().\n"),
 	ECVF_Default);
 
 namespace Audio
@@ -58,6 +67,99 @@ namespace Audio
 		ReadIndex = 0;
 
 		Update(true);
+	}
+
+	void FDelay::ResetWithFade()
+	{
+		const int32 NumSamplesToFade = FMath::Min(DelayResetFadeLengthSamplesCVar,  static_cast<int32>(DelayInSamples - 1));
+		
+		if (DelayResetFadeLengthSamplesCVar == 0 || NumSamplesToFade < 2)
+		{
+			Reset();
+			return;
+		}
+		
+		const bool bIsReadRegionSplit = WriteIndex < ReadIndex;
+		
+		// we don't want to accept new input while the delay is faded
+		// (this could cause the two fades to create a small chirp)
+		// so we start the input gain negative and rely on the clamping to mute (gain = 0)
+		InputFadeGainStep = 1.f / static_cast<float>(NumSamplesToFade);
+		InputAttenuation = -1.2f;
+
+
+		// simple case
+		if (!bIsReadRegionSplit)
+		{
+			const int32 NumSamplesToZero = WriteIndex - ReadIndex - NumSamplesToFade;
+			
+			const TArrayView<float> FadeRegion(AudioBuffer.GetData() + ReadIndex, NumSamplesToFade);
+			const TArrayView<float> ZeroRegion(AudioBuffer.GetData() + ReadIndex + NumSamplesToFade, NumSamplesToZero);
+			
+			ArrayFade(FadeRegion, 1.0f, 0.0f);
+			FMemory::Memzero(ZeroRegion.GetData(), ZeroRegion.NumBytes());
+			
+			return;
+		}
+
+		// complex case, two regions to worry about
+		const int32 NumSamplesToZero = (AudioBufferSize - ReadIndex) + WriteIndex - NumSamplesToFade;
+		const int32 ReadRegion1Num = AudioBufferSize - ReadIndex;
+		const int32 ReadRegion2Num = WriteIndex;
+
+		// 3 complex cases:
+		// 1.) single fade region and two zero regions (fade region < read region 1)
+		// 2.) two fade regions and a single zero region (fade region > read region 2)
+		// 3.) [else] read region 1 is exactly the fade region (unlikely)
+		// note: we should have at least on sample to zero out
+		//       (see -1 in calculation of NumSamplesToFade)
+		//       so technically we don't have an "all fade" case
+
+		// case 1:
+		if (NumSamplesToFade < ReadRegion1Num)
+		{
+			const int32 ZeroRegion1Size = NumSamplesToZero - ReadRegion2Num;
+			const int32 ZeroRegion2Size = NumSamplesToZero - ZeroRegion1Size;
+
+			const TArrayView<float> FadeRegion(AudioBuffer.GetData() + ReadIndex, NumSamplesToFade);
+			const TArrayView<float> ZeroRegion1(AudioBuffer.GetData() + ReadIndex + NumSamplesToFade, ZeroRegion1Size);
+			const TArrayView<float> ZeroRegion2(AudioBuffer.GetData(), ZeroRegion2Size);
+
+			ArrayFade(FadeRegion, 1.0f, 0.0f);
+			FMemory::Memzero(ZeroRegion1.GetData(), ZeroRegion1.NumBytes());
+			FMemory::Memzero(ZeroRegion2.GetData(), ZeroRegion2.NumBytes());
+
+			return;
+		}
+		
+		// case 2:
+		if (NumSamplesToFade > ReadRegion1Num)
+		{
+			const int32 FadeRegion1Size = AudioBufferSize - ReadIndex;
+			const int32 FadeRegion2Size = NumSamplesToFade - FadeRegion1Size;
+			const int32 ZeroRegionSize = WriteIndex - FadeRegion2Size;
+
+			const TArrayView<float> FadeRegion1(AudioBuffer.GetData() + ReadIndex, FadeRegion1Size);
+			const TArrayView<float> FadeRegion2(AudioBuffer.GetData(), FadeRegion2Size);
+			const TArrayView<float> ZeroRegion(AudioBuffer.GetData() + FadeRegion2Size, ZeroRegionSize);
+
+			// technically there will be 2 samples with this gain value applied
+			// (should be imperceptible)
+			const float MidGain = FadeRegion2Size / static_cast<float>(NumSamplesToFade);
+
+			ArrayFade(FadeRegion1, 1.0f, MidGain);
+			ArrayFade(FadeRegion2, MidGain, 0.0f);
+			FMemory::Memzero(ZeroRegion.GetData(), ZeroRegion.NumBytes());
+
+			return;
+		}
+
+		// case 3 (rare):
+		const TArrayView<float> FadeRegion(AudioBuffer.GetData() + ReadIndex, AudioBufferSize - ReadIndex);
+		const TArrayView<float> ZeroRegion(AudioBuffer.GetData(), WriteIndex);
+
+		ArrayFade(FadeRegion, 1.0f, 0.0f);
+		FMemory::Memzero(ZeroRegion.GetData(), ZeroRegion.NumBytes());
 	}
 	 
 	void FDelay::SetDelayMsec(const float InDelayMsec)
