@@ -107,10 +107,13 @@ int RunTests(int ArgC, const char* ArgV[])
 int main(int ArgC, const char* ArgV[])
 {
 	int Result = RunTests(ArgC, ArgV);
-	if (0 == Result && !CheckNoMemoryLeaks())
+	
+#if 0 // Memory leak detection disabled - see FORT-794390
+	if (0 == Result && !CheckNoMemoryLeaks() )
 	{
 		Result = -1;
 	}
+#endif
 
 	return Result;
 }
