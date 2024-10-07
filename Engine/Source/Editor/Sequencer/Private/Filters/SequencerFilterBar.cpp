@@ -11,6 +11,7 @@
 #include "Filters/Filters/SequencerTrackFilter_Modified.h"
 #include "Filters/Filters/SequencerTrackFilter_Selected.h"
 #include "Filters/Filters/SequencerTrackFilter_Text.h"
+#include "Filters/Filters/SequencerTrackFilter_TimeWarp.h"
 #include "Filters/Filters/SequencerTrackFilter_Unbound.h"
 #include "Filters/Filters/SequencerTrackFilters.h"
 #include "Filters/SequencerFilterBarConfig.h"
@@ -120,7 +121,6 @@ void FSequencerFilterBar::CreateDefaultFilters()
 	CommonFilters->Add(MakeShared<FSequencerTrackFilter_CinematicShot>(*this, ClassTypeCategory));
 	CommonFilters->Add(MakeShared<FSequencerTrackFilter_Subsequence>(*this, ClassTypeCategory));
 	CommonFilters->Add(MakeShared<FSequencerTrackFilter_TimeDilation>(*this, ClassTypeCategory));
-	CommonFilters->Add(MakeShared<FSequencerTrackFilter_TimeWarp>(*this, ClassTypeCategory));
 
 	// Add component type category filters
 	CommonFilters->Add(MakeShared<FSequencerTrackFilter_Camera>(*this, ComponentTypeCategory));
@@ -133,6 +133,7 @@ void FSequencerFilterBar::CreateDefaultFilters()
 	CommonFilters->Add(SelectedFilter);
 	CommonFilters->Add(MakeShared<FSequencerTrackFilter_Unbound>(*this, MiscCategory));
 	CommonFilters->Add(MakeShared<FSequencerTrackFilter_Condition>(*this, MiscCategory));
+	CommonFilters->Add(MakeShared<FSequencerTrackFilter_TimeWarp>(*this, MiscCategory));
 
 	// Add global user-defined filters
 	for (TObjectIterator<USequencerTrackFilterExtension> ExtensionIt(RF_NoFlags); ExtensionIt; ++ExtensionIt)
