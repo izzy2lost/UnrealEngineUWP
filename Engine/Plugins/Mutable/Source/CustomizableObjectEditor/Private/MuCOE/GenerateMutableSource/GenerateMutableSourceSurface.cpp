@@ -249,6 +249,15 @@ mu::Ptr<mu::NodeSurface> GenerateMutableSourceSurface(const UEdGraphPin * Pin, F
 			}
 		}
 
+		if (!TypedNodeMat->GetMaterial())
+		{
+			const FText Message = LOCTEXT("FailedToGenerateMeshSection", "Could not generate a mesh section because it didn't have a material selected. Please assign one and recompile.");
+			GenerationContext.Log(Message, Node);
+			Result = nullptr;
+
+			return Result;
+		}
+
 		mu::Ptr<mu::NodeSurfaceNew> SurfNode = new mu::NodeSurfaceNew();
 		Result = SurfNode;
 
