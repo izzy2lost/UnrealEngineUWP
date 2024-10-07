@@ -52,6 +52,7 @@ public:
 	TArray<FOptimusCDIPinDefinition> GetPinDefinitions() const override;
 	TSubclassOf<UActorComponent> GetRequiredComponentClass() const override;
 	void RegisterTypes() override;
+	TOptional<FText> ValidateForCompile() const override;
 	//~ End UOptimusComputeDataInterface Interface
 	
 	//~ Begin UComputeDataInterface Interface

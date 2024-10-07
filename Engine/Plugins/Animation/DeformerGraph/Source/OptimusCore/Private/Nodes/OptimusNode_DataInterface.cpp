@@ -91,6 +91,15 @@ TOptional<FText> UOptimusNode_DataInterface::ValidateForCompile(const FOptimusPi
 			}
 		}
 	}
+
+	if (DataInterfaceData)
+	{
+		const TOptional<FText> ErrorIfDetected = DataInterfaceData->ValidateForCompile();
+		if (ErrorIfDetected.IsSet())
+		{
+			return ErrorIfDetected;
+		}
+	}
 	
 	return {};
 }
