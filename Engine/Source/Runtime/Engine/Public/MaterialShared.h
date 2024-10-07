@@ -1985,7 +1985,8 @@ public:
 		bContainsInlineShaders(false),
 		bLoadedCookedShaderMapId(false),
 		bGameThreadShaderMapIsComplete(false),
-		bRenderingThreadShaderMapIsComplete(false)
+		bRenderingThreadShaderMapIsComplete(false),
+		bAllowPixelDepthOffset(true)
 	{
 		// this option affects only deferred renderer
 		static TConsoleVariableData<int32>* CVarStencilDitheredLOD;
@@ -2672,6 +2673,9 @@ protected:
 	virtual UMaterialExpression* GetMaterialGraphNodePreviewExpression() const { return nullptr; }
 #endif
 
+	void SetAllowPixelDepthOffset(bool bEnable) { bAllowPixelDepthOffset = bEnable; }
+	bool AllowPixelDepthOffset() const { return bAllowPixelDepthOffset; }
+	
 private:
 #if WITH_EDITOR
 	bool ReleaseGameThreadCompilingShaderMap();
@@ -2763,6 +2767,8 @@ private:
 
 	uint32 bGameThreadShaderMapIsComplete : 1;
 	uint32 bRenderingThreadShaderMapIsComplete : 1;
+	
+	uint32 bAllowPixelDepthOffset : 1;
 
 #if UE_CHECK_FMATERIAL_LIFETIME
 	/** Set when the owner of this FMaterial (typically a UMaterial or UMaterialInstance) has had BeginDestroy() called */
