@@ -6,7 +6,7 @@ import { observer } from "mobx-react-lite";
 import { useEffect, useState } from "react";
 import { NavigateFunction, useNavigate } from "react-router-dom";
 import backend from "../../backend";
-import { ArtifactContextType, GetArtifactDirectoryEntryResponse, GetArtifactDirectoryResponse, GetArtifactFileEntryResponse, GetArtifactResponse } from "../../backend/Api";
+import { ArtifactContextType, CreateZipRequest, GetArtifactDirectoryEntryResponse, GetArtifactDirectoryResponse, GetArtifactFileEntryResponse, GetArtifactResponse } from "../../backend/Api";
 import dashboard, { StatusColor } from "../../backend/Dashboard";
 import { getHordeStyling } from "../../styles/Styles";
 
@@ -545,21 +545,30 @@ const DownloadButton: React.FC<{ handler: ArtifactsHandler, openArtifactInfo: ()
 
          const path = handler.path ? handler.path + "/" : "";
 
-         const filters = selection.map(s => {
-            const item = s as BrowserItem;
+         let zipRequest: CreateZipRequest | undefined;
 
-            if (item.type === BrowserType.NavigateUp) {
-               return "";
-            }
+         if ((handler.selection?.count ?? 0) > 0) {
 
-            if (item.type === BrowserType.Directory) {
-               return `${path}${item.text}/...`;
-            }
-            return `${path}${item.text}`;
-         }).filter(f => !!f);
+            const filter = selection.map(s => {
+               const item = s as BrowserItem;
+   
+               if (item.type === BrowserType.NavigateUp) {
+                  return "";
+               }
+   
+               if (item.type === BrowserType.Directory) {
+                  return `${path}${item.text}/...`;
+               }
+               return `${path}${item.text}`;
+            }).filter(f => !!f);
+
+            zipRequest = {
+               filter: filter
+            }   
+         }
 
          try {
-            backend.downloadArtifactZipV2(handler.artifact.id, { filter: filters });
+            backend.downloadArtifactZipV2(handler.artifact.id, zipRequest);
          } catch (err) {
             console.error(err);
          } finally {

@@ -571,12 +571,13 @@ export class Backend {
         window.location.assign(url);
     }
 
-    downloadArtifactZipV2(artifactId: string, request: CreateZipRequest) {
+    downloadArtifactZipV2(artifactId: string, request?: CreateZipRequest) {        
 
-        const filter = request.filter.map(f => `filter=${encodeURIComponent(f)}`).join("&")
+        const filter = request?.filter?.map(f => `filter=${encodeURIComponent(f)}`).join("&")
 
         let url = `/api/v2/artifacts/${artifactId}/zip`;
-        if (filter.length) {
+        
+        if (filter?.length) {
             url += "?" + filter;
         }
 
