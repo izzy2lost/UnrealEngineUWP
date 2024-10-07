@@ -1167,7 +1167,8 @@ void FMediaTextureResource::GetColorSpaceConversionMatrixForSample(const TShared
 												SampleFormat!= EMediaTextureSampleFormat::CharYUY2 && SampleFormat != EMediaTextureSampleFormat::CharYVYU,	// Y or Cb first
 												InputTexture->GetFormat() == PF_B8G8R8A8,																	// ARGB vs. ABGR (memory order)
 												SampleFormat == EMediaTextureSampleFormat::CharYVYU,														// Cb / Cr swap
-												Sample->GetToneMapMethod());
+												Sample->GetToneMapMethod(),
+												SampleFormat == EMediaTextureSampleFormat::CharUYVY);  // Whether to use bilinear sampling for the chroma values.
 				}
 				break;
 

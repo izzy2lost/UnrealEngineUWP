@@ -641,6 +641,8 @@ SHADER_PARAMETER(uint32, ToneMapMethod)
 SHADER_PARAMETER(uint32, IsCbY0CrY1)
 SHADER_PARAMETER(uint32, IsARGBFmt)
 SHADER_PARAMETER(uint32, SwapChroma)
+SHADER_PARAMETER(uint32, UseBilinearSampler)
+SHADER_PARAMETER_SAMPLER(SamplerState, SamplerB)
 SHADER_PARAMETER(float, OutputDimX)
 SHADER_PARAMETER(float, OutputDimY)
 SHADER_PARAMETER_TEXTURE(Texture2D<float4>, YUVTexture)
@@ -650,7 +652,7 @@ IMPLEMENT_GLOBAL_SHADER_PARAMETER_STRUCT(FYUVv216ConvertUB, "YUVv216ConvertUB");
 IMPLEMENT_SHADER_TYPE(, FYUVv216ConvertPS, TEXT("/Engine/Private/MediaShaders.usf"), TEXT("YUVv216ConvertPS"), SF_Pixel);
 
 
-void FYUVv216ConvertPS::SetParameters(FRHIBatchedShaderParameters& BatchedParameters, TRefCountPtr<FRHITexture> YUVTexture, const FIntPoint& OutputDimensions, const FMatrix44f& ColorTransform, UE::Color::EEncoding Encoding, const FMatrix44f& CSTransform, bool bIsCbY0CrY1, bool bIsARGBFmt, bool bSwapChroma, MediaShaders::EToneMapMethod ToneMapMethod)
+void FYUVv216ConvertPS::SetParameters(FRHIBatchedShaderParameters& BatchedParameters, TRefCountPtr<FRHITexture> YUVTexture, const FIntPoint& OutputDimensions, const FMatrix44f& ColorTransform, UE::Color::EEncoding Encoding, const FMatrix44f& CSTransform, bool bIsCbY0CrY1, bool bIsARGBFmt, bool bSwapChroma, MediaShaders::EToneMapMethod ToneMapMethod, bool bUseBilinearSamplingForChroma)
 {
 	FYUVv216ConvertUB UB;
 	{
@@ -661,6 +663,8 @@ void FYUVv216ConvertPS::SetParameters(FRHIBatchedShaderParameters& BatchedParame
 		UB.IsCbY0CrY1 = bIsCbY0CrY1;
 		UB.IsARGBFmt = bIsARGBFmt;
 		UB.SwapChroma = bSwapChroma;
+		UB.UseBilinearSampler = bUseBilinearSamplingForChroma;
+		UB.SamplerB = TStaticSamplerState<SF_Bilinear>::GetRHI();
 		UB.OutputDimX = (float)OutputDimensions.X;
 		UB.OutputDimY = (float)OutputDimensions.Y;
 		UB.YUVTexture = YUVTexture;
