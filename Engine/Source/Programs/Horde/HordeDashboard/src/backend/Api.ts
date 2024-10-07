@@ -1656,7 +1656,7 @@ export type ArtifactContextType = "step-trace" | "step-output" | "step-saved" | 
 /// Request to create a zip file with artifact data
 export type CreateZipRequest = {
 	/// Filter lines for the zip. Uses standard <see cref="FileFilter"/> syntax.
-	filter: string[];
+	filter?: string[];
 }
 
 
