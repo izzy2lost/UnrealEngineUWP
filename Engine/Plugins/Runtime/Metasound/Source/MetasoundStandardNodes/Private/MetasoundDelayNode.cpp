@@ -56,6 +56,7 @@ namespace Metasound
 		virtual FDataReferenceCollection GetOutputs() const override;
 		void Reset(const IOperator::FResetParams& InParams);
 		void Execute();
+		void ExecuteInternal(int32 StartFrame, int32 EndFrame);
 
 	private:
 		float GetInputDelayTimeMsec() const;
@@ -174,13 +175,19 @@ namespace Metasound
 		TriggerReset->ExecuteBlock(
 			[&](int32 StartFrame, int32 EndFrame)
 			{
+				ExecuteInternal(StartFrame, EndFrame); 
 			},
-			[this](int32 StartFrame, int32 EndFrame)
+			 [&, this](int32 StartFrame, int32 EndFrame)
 			{
-				DelayBuffer.Reset();
+				FeedbackSample = 0.f;
+				DelayBuffer.ResetWithFade();
+			 	ExecuteInternal(StartFrame, EndFrame);
 			}
 		);
+	}
 
+	void FDelayOperator::ExecuteInternal(int32 StartFrame, int32 EndFrame)
+	{
 		// Get clamped delay time
 		float CurrentInputDelayTime = GetInputDelayTimeMsec();
 
@@ -205,7 +212,7 @@ namespace Metasound
 		{
 			FeedbackSample = 0.0f;
 
-			for (int32 FrameIndex = 0; FrameIndex < NumFrames; ++FrameIndex)
+			for (int32 FrameIndex = StartFrame; FrameIndex < EndFrame; ++FrameIndex)
 			{
 				OutputAudio[FrameIndex] = CurrentWetLevel * DelayBuffer.ProcessAudioSample(InputAudio[FrameIndex]) + CurrentDryLevel * InputAudio[FrameIndex];
 			}
@@ -213,7 +220,7 @@ namespace Metasound
 		else
 		{
 			// There is some amount of feedback so we do the feedback mixing
-			for (int32 FrameIndex = 0; FrameIndex < NumFrames; ++FrameIndex)
+			for (int32 FrameIndex = StartFrame; FrameIndex < EndFrame; ++FrameIndex)
 			{
 				OutputAudio[FrameIndex] = CurrentWetLevel * DelayBuffer.ProcessAudioSample(InputAudio[FrameIndex] + FeedbackSample * FeedbackAmount) + CurrentDryLevel * InputAudio[FrameIndex];
 				FeedbackSample = OutputAudio[FrameIndex];
