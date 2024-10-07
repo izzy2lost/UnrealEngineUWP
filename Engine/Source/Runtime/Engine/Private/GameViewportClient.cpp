@@ -1429,7 +1429,7 @@ void UGameViewportClient::Draw(FViewport* InViewport, FCanvas* SceneCanvas)
 	ViewFamily.DebugDPIScale = GetDPIScale();
 
 #if WITH_EDITOR
-	if (GIsEditor)
+	if (GIsEditor && ViewFamily.SupportsScreenPercentage())
 	{
 		// Force enable view family show flag for HighDPI derived's screen percentage.
 		ViewFamily.EngineShowFlags.ScreenPercentage = true;

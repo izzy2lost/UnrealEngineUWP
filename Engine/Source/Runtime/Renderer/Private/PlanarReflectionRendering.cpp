@@ -615,12 +615,19 @@ void FScene::UpdatePlanarReflectionContents(UPlanarReflectionComponent* CaptureC
 		
 		FPostProcessSettings PostProcessSettings;
 
+		bool bIsMobileMultiViewEnabled = false;
+		if (MainSceneRenderer.ViewFamily.Views.Num() > 0)
+		{
+			bIsMobileMultiViewEnabled = MainSceneRenderer.ViewFamily.Views[0]->Aspects.IsMobileMultiViewEnabled();
+		}
+
 		FSceneViewFamilyContext ViewFamily(FSceneViewFamily::ConstructionValues(
 			CaptureComponent->RenderTarget,
 			this,
 			CaptureComponent->ShowFlags)
 			.SetResolveScene(false)
-			.SetRealtimeUpdate(true));
+			.SetRealtimeUpdate(true)
+			.SetRequireMobileMultiView(bIsMobileMultiViewEnabled));
 
 		// Uses the exact same secondary view fraction on the planar reflection as the main viewport.
 		ViewFamily.SecondaryViewFraction = MainSceneRenderer.ViewFamily.SecondaryViewFraction;
