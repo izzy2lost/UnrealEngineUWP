@@ -565,6 +565,12 @@ const DownloadButton: React.FC<{ handler: ArtifactsHandler, openArtifactInfo: ()
             zipRequest = {
                filter: filter
             }   
+         } else {
+            if (path) {
+               zipRequest = {
+                  filter: [path + "..."]
+               }   
+            }
          }
 
          try {
