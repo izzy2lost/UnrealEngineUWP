@@ -20,7 +20,7 @@ AMapBuildDataActor::AMapBuildDataActor(class FObjectInitializer const &ObjectIni
 
 void AMapBuildDataActor::PostLoad()
 {
-	Super::PostLoad();	
+	Super::PostLoad();
 
 	if (BuildData)
 	{
@@ -176,13 +176,14 @@ TUniquePtr<class FWorldPartitionActorDesc> AMapBuildDataActor::CreateClassActorD
 void AMapBuildDataActor::GetStreamingBounds(FBox& OutRuntimeBounds, FBox& OutEditorBounds) const
 {
 	FBox Bounds;
-	check(ActorBounds.IsValid && ActorBounds.GetVolume() > 0);
+	check(ActorBounds.IsValid);
 
 	OutRuntimeBounds = OutEditorBounds = ActorBounds;
 }
 
 void AMapBuildDataActor::SetBounds(FBox& Bounds)
 {
+	check(Bounds.IsValid);
 	ActorBounds = Bounds;
 }
 

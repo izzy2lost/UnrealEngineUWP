@@ -59,6 +59,8 @@ private:
 	// Options --
 	EWPStaticLightingBuildStep BuildOptions;
 	bool bBuildVLMOnly = false;
+	bool bForceSinglePass = false;
+	bool bSaveDirtyPackages = false;
 	ELightingBuildQuality QualityLevel;
 
 	FBuilderModifiedFiles ModifiedFiles;
