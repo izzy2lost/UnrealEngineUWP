@@ -193,6 +193,8 @@ public:
 		return true;
 	}
 
+	virtual TOptional<FText> ValidateForCompile() const { return{}; };
+
 	/// Returns all known UOptimusComputeDataInterface-derived classes.
 	static TArray<TSubclassOf<UOptimusComputeDataInterface>> GetAllComputeDataInterfaceClasses();
 
