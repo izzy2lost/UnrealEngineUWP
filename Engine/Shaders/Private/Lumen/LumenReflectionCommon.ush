@@ -252,13 +252,14 @@ FReflectionTracingCoord GetReflectionTracingCoord(uint2 InReflectionTracingCoord
 
 uint EncodeTraceTexel(uint2 ReflectionTracingCoord, uint InClosureIndex)
 {
-	return PackTileCoord12bits(ReflectionTracingCoord) | ((InClosureIndex & 0xF) << 24);
+	// SUBSTRATE_CLOSURE_OFFSET_BIT_COUNT (4) bits is needed for ClosureIndex
+	return PackTileCoord14bits(ReflectionTracingCoord) | ((InClosureIndex & 0xF) << 28);
 }
 
 FReflectionTracingCoord DecodeTraceTexel(uint TraceTexelData)
 {
-	const uint2 TraceCoord = UnpackTileCoord12bits(TraceTexelData);
-	const uint ClosureIndex = (TraceTexelData >> 24) & 0xF;
+	const uint2 TraceCoord = UnpackTileCoord14bits(TraceTexelData);
+	const uint ClosureIndex = BitFieldExtractU32(TraceTexelData, 4, 28);
 	return GetReflectionTracingCoord(TraceCoord, ClosureIndex);
 }
 
