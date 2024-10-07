@@ -63,7 +63,7 @@ namespace UnrealToolbox
 			else
 			{
 				ServerUrl = hordeClient.Client.ServerUrl.ToString();
-				ServerStatus = hordeClient.Client.HasValidAccessToken() ? "Connected" : "Session Expired";
+				ServerStatus = hordeClient.Client.HasValidAccessToken() ? "Authenticated" : "Session Expired";
 				IsLoginEnabled = !hordeClient.Client.HasValidAccessToken();
 			}
 		}
