@@ -1972,21 +1972,36 @@ void UAnimInstance::ConditionalFlushCompletedMontages()
 	const bool bTickedThisFrame = MeshComp->PoseTickedThisFrame();
 	const bool bShouldTickAnimation = MeshComp->ShouldTickAnimation();
 	const bool bShouldTickPose = MeshComp->ShouldTickPose();
-	const bool bShouldFlush = !bTickedThisFrame && (!bShouldTickAnimation || !bShouldTickPose); 
+	const bool bShouldFlush = !bTickedThisFrame && (!bShouldTickAnimation || !bShouldTickPose);
+	
 	if (bShouldFlush)
 	{
-		for (int32 InstanceIndex = MontageInstances.Num() - 1; InstanceIndex >= 0; InstanceIndex--)
-		{
-			FAnimMontageInstance* MontageInstance = MontageInstances[InstanceIndex];
-			if (MontageInstance && MontageInstance->IsValid() && MontageInstance->IsStopped() && MontageInstance->GetBlend().IsComplete())
-			{
-				// Need this to trigger Montage ended events.
-				MontageInstance->Terminate();
+		uint32 PrevMontageFlushFrame = LastMontageFlushFrame;
+		
+		// Don't care about roll over, just care about uniqueness (and 32-bits should give plenty).
+		LastMontageFlushFrame = static_cast<uint32>(GFrameCounter); 
 
-				// Make sure we've cleared our references before deleting memory. Terminate might miss this call.
-				ClearMontageInstanceReferences(*MontageInstance);
-				delete MontageInstance;
-				MontageInstances.RemoveAt(InstanceIndex);
+		// If we already flushed montages this frame, then there is no need to do so again
+		const bool bFlushedMontagesThisFrame = LastMontageFlushFrame == PrevMontageFlushFrame;
+		
+		if (!bFlushedMontagesThisFrame)
+		{
+			for (int32 InstanceIndex = MontageInstances.Num() - 1; InstanceIndex >= 0; InstanceIndex--)
+			{
+				if (MontageInstances.IsValidIndex(InstanceIndex))
+				{
+					FAnimMontageInstance* MontageInstance = MontageInstances[InstanceIndex];
+					if (MontageInstance && MontageInstance->IsValid() && MontageInstance->IsStopped() && MontageInstance->GetBlend().IsComplete())
+					{
+						// Need this to trigger Montage ended events.
+						MontageInstance->Terminate();
+
+						// Make sure we've cleared our references before deleting memory. Terminate might miss this call.
+						ClearMontageInstanceReferences(*MontageInstance);
+						delete MontageInstance;
+						MontageInstances.RemoveAt(InstanceIndex);
+					}	
+				}
 			}
 		}
 	}
