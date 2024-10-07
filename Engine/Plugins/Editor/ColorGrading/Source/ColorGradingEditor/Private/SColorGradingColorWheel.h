@@ -4,24 +4,19 @@
 
 #include "CoreMinimal.h"
 #include "Customizations/MathStructCustomizations.h"
+#include "EditorUndoClient.h"
+#include "Util/TrackedVector4PropertyHandle.h"
 #include "Widgets/DeclarativeSyntaxSupport.h"
 #include "Widgets/SCompoundWidget.h"
 #include "Widgets/ColorGrading/SColorGradingPicker.h"
 
 #include "ColorGradingPanelState.h"
 
-#if WITH_EDITOR
-#include "EditorUndoClient.h"
-#endif
-
 class IPropertyHandle;
 class SBox;
 
 /** A widget which encapsulates a color picker and numeric sliders for each color component, hooked up to a color property handle */
-class SColorGradingColorWheel : public SCompoundWidget
-#if WITH_EDITOR
-	, public FEditorUndoClient
-#endif
+class SColorGradingColorWheel : public SCompoundWidget, public FEditorUndoClient
 {
 public:
 	struct FColorPropertyMetadata
@@ -58,12 +53,13 @@ public:
 	/** Sets the widget to display as the header of the color wheel */
 	void SetHeaderContent(const TSharedRef<SWidget>& HeaderContent);
 
-#if WITH_EDITOR
 	//~ Begin FEditorUndoClient Interface
 	virtual void PostUndo(bool bSuccess) override;
 	virtual void PostRedo(bool bSuccess) override;
 	// End of FEditorUndoClient
-#endif
+
+	/** Called when any property changes */
+	void OnPropertyValueChanged(UObject* Object, FPropertyChangedEvent& PropertyChangedEvent);
 
 private:
 	TSharedRef<SWidget> CreateColorGradingPicker();
@@ -121,7 +117,7 @@ private:
 	TSharedPtr<SBox> ColorSlidersBox;
 
 	/** The property handle of the linear color property being edited */
-	TWeakPtr<IPropertyHandle> ColorPropertyHandle;
+	FTrackedVector4PropertyHandle ColorPropertyHandle;
 
 	/** The metadata of the color property */
 	TOptional<FColorPropertyMetadata> ColorPropertyMetadata;

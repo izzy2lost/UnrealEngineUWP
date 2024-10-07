@@ -17,6 +17,7 @@
 #include "Templates/SharedPointer.h"
 #include "UObject/NameTypes.h"
 #include "UObject/UnrealNames.h"
+#include "Util/TrackedVector4PropertyHandle.h"
 
 class FDetailWidgetRow;
 class FVector4StructCustomization;
@@ -50,7 +51,7 @@ public:
 	/** Notification the current HSV color was changed */
 	DECLARE_MULTICAST_DELEGATE_TwoParams(FOnCurrentHSVColorChanged, FLinearColor, bool);
 
-	FColorGradingVectorCustomizationBase(TWeakPtr<IPropertyHandle> InColorGradingPropertyHandle, const TArray<TWeakPtr<IPropertyHandle>>& InSortedChildArray);
+	FColorGradingVectorCustomizationBase(const FTrackedVector4PropertyHandle& InColorGradingPropertyHandle, const TArray<TWeakPtr<IPropertyHandle>>& InSortedChildArray);
 
 	/** Return max/min slider value changed delegate (only apply if SupportDynamicSliderMaxValue or SupportDynamicSliderMinValue are true) */
 	FOnNumericEntryBoxDynamicSliderMinMaxValueChanged& GetOnNumericEntryBoxDynamicSliderMaxValueChangedDelegate() { return OnNumericEntryBoxDynamicSliderMaxValueChanged; }
@@ -117,7 +118,7 @@ protected:
 	TArray<TWeakPtr<UE::ColorGrading::SColorGradingComponentViewer>> ComponentViewers;
 	
 	/** The color grading property we're editing */
-	TWeakPtr<IPropertyHandle> ColorGradingPropertyHandle;
+	FTrackedVector4PropertyHandle ColorGradingPropertyHandle;
 	
 	/** Property for each color value (RGBY) */
 	TArray<TWeakPtr<IPropertyHandle>> SortedChildArray;
@@ -172,7 +173,7 @@ public:
 	/** Notification when we change color mode (RGB <-> HSV) */
 	DECLARE_MULTICAST_DELEGATE_OneParam(FOnColorModeChanged, bool);
 
-	FColorGradingCustomBuilder(TWeakPtr<IPropertyHandle> InColorGradingPropertyHandle, const TArray<TWeakPtr<IPropertyHandle>>& InSortedChildArray, 
+	FColorGradingCustomBuilder(const FTrackedVector4PropertyHandle& InColorGradingPropertyHandle, const TArray<TWeakPtr<IPropertyHandle>>& InSortedChildArray, 
 							   TSharedRef<FColorGradingVectorCustomization> InColorGradingCustomization, IDetailGroup* InParentGroup);
 	virtual ~FColorGradingCustomBuilder();
 
@@ -202,6 +203,9 @@ private:
 
 	void OnBeginMouseCapture();
 	void OnEndMouseCapture();
+
+	/** Called when any property changes */
+	void OnPropertyValueChanged(UObject* Object, FPropertyChangedEvent& PropertyChangedEvent);
 
 	/** Callback when user click the Group reset button */
 	void OnDetailGroupReset();

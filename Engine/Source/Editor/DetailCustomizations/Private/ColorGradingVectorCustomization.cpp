@@ -90,16 +90,16 @@ namespace
 	}
 }
 
-FColorGradingVectorCustomizationBase::FColorGradingVectorCustomizationBase(TWeakPtr<IPropertyHandle> InColorGradingPropertyHandle, const TArray<TWeakPtr<IPropertyHandle>>& InSortedChildArray)
+FColorGradingVectorCustomizationBase::FColorGradingVectorCustomizationBase(const FTrackedVector4PropertyHandle& InColorGradingPropertyHandle, const TArray<TWeakPtr<IPropertyHandle>>& InSortedChildArray)
 	: ColorGradingPropertyHandle(InColorGradingPropertyHandle)
 	, SortedChildArray(InSortedChildArray)
 	, IsRGBMode(true)
 	, bIsUsingSlider(false)
 {
-	if (ColorGradingPropertyHandle.IsValid())
+	if (ColorGradingPropertyHandle.IsValidHandle())
 	{
 		FVector4 VectorValue;
-		ColorGradingPropertyHandle.Pin()->GetValue(VectorValue);
+		ColorGradingPropertyHandle.GetValue(VectorValue);
 		CurrentHSVColor = FLinearColor(VectorValue.X, VectorValue.Y, VectorValue.Z).LinearRGBToHSV();
 	}
 }
@@ -108,10 +108,10 @@ UE::ColorGrading::EColorGradingModes FColorGradingVectorCustomizationBase::GetCo
 {
 	UE::ColorGrading::EColorGradingModes ColorGradingMode = UE::ColorGrading::EColorGradingModes::Invalid;
 
-	if (ColorGradingPropertyHandle.IsValid())
+	if (ColorGradingPropertyHandle.IsValidHandle())
 	{
 		//Query all meta data we need
-		FProperty* Property = ColorGradingPropertyHandle.Pin()->GetProperty();
+		FProperty* Property = ColorGradingPropertyHandle.GetHandle()->GetProperty();
 		const FString& ColorGradingModeString = Property->GetMetaData(TEXT("ColorGradingMode"));
 
 		if (ColorGradingModeString.Len() > 0)
@@ -198,7 +198,7 @@ TOptional<float> FColorGradingVectorCustomizationBase::OnGetMaxValue(TOptional<f
 void FColorGradingVectorCustomizationBase::OnBeginSliderMovement()
 {
 	bIsUsingSlider = true;
-	GEditor->BeginTransaction(FText::Format(NSLOCTEXT("ColorGradingVectorCustomization", "SetPropertyValue", "Edit {0}"), ColorGradingPropertyHandle.Pin()->GetPropertyDisplayName()));
+	GEditor->BeginTransaction(FText::Format(NSLOCTEXT("ColorGradingVectorCustomization", "SetPropertyValue", "Edit {0}"), ColorGradingPropertyHandle.GetHandle()->GetPropertyDisplayName()));
 }
 
 void FColorGradingVectorCustomizationBase::OnEndSliderMovement(float NewValue, int32 ColorIndex)
@@ -220,14 +220,14 @@ UE::ColorGrading::EColorGradingComponent FColorGradingVectorCustomizationBase::O
 
 bool FColorGradingVectorCustomizationBase::GetCurrentColorGradingValue(FVector4& OutCurrentValue)
 {
-	return ColorGradingPropertyHandle.Pin()->GetValue(OutCurrentValue) == FPropertyAccess::Success;
+	return ColorGradingPropertyHandle.GetValue(OutCurrentValue) == FPropertyAccess::Success;
 }
 
 void FColorGradingVectorCustomizationBase::OnValueChanged(float NewValue, int32 ColorIndex)
 {
 	FVector4 CurrentValueVector;
-	verifySlow(ColorGradingPropertyHandle.Pin()->GetValue(CurrentValueVector) == FPropertyAccess::Success);
-	ClampValueFromMetaData(CurrentValueVector, ColorGradingPropertyHandle.Pin()->GetProperty());
+	verifySlow(ColorGradingPropertyHandle.GetValue(CurrentValueVector) == FPropertyAccess::Success);
+	ClampValueFromMetaData(CurrentValueVector, ColorGradingPropertyHandle.GetHandle()->GetProperty());
 	FVector4 NewValueVector = CurrentValueVector;
 
 	if (IsRGBMode)
@@ -255,9 +255,9 @@ void FColorGradingVectorCustomizationBase::OnValueChanged(float NewValue, int32 
 		OnCurrentHSVColorChanged.Broadcast(CurrentHSVColor, true);
 	}
 
-	if (ColorGradingPropertyHandle.IsValid())
+	if (ColorGradingPropertyHandle.IsValidHandle())
 	{
-		ColorGradingPropertyHandle.Pin()->SetValue(NewValueVector, bIsUsingSlider ? EPropertyValueSetFlags::InteractiveChange : EPropertyValueSetFlags::DefaultFlags);
+		ColorGradingPropertyHandle.SetValue(NewValueVector, bIsUsingSlider ? EPropertyValueSetFlags::InteractiveChange : EPropertyValueSetFlags::DefaultFlags);
 	}
 }
 
@@ -265,7 +265,7 @@ TOptional<float> FColorGradingVectorCustomizationBase::OnSliderGetValue(int32 Co
 {
 	FVector4 ValueVector;
 	
-	if (ColorGradingPropertyHandle.Pin()->GetValue(ValueVector) == FPropertyAccess::Success)
+	if (ColorGradingPropertyHandle.GetValue(ValueVector) == FPropertyAccess::Success)
 	{
 		float Value = 0.0f;
 
@@ -296,10 +296,10 @@ void FColorGradingVectorCustomizationBase::OnCurrentHSVColorChangedDelegate(FLin
 
 void FColorGradingVectorCustomizationBase::PostUndo(bool bSuccess)
 {
-	if (ColorGradingPropertyHandle.IsValid())
+	if (ColorGradingPropertyHandle.IsValidHandle())
 	{
 		FVector4 CurrentValueVector;
-		if (ColorGradingPropertyHandle.Pin()->GetValue(CurrentValueVector) == FPropertyAccess::Success)
+		if (ColorGradingPropertyHandle.GetValue(CurrentValueVector) == FPropertyAccess::Success)
 		{
 			CurrentHSVColor = FLinearColor(CurrentValueVector.X, CurrentValueVector.Y, CurrentValueVector.Z).LinearRGBToHSV();
 			OnCurrentHSVColorChanged.Broadcast(CurrentHSVColor, true);
@@ -391,7 +391,7 @@ TSharedRef<UE::ColorGrading::SColorGradingComponentViewer> FColorGradingVectorCu
 		.OnEndSliderMovement(this, &FColorGradingVectorCustomizationBase::OnEndSliderMovement, ColorIndex)
 		.OnQueryCurrentColor(this, &FColorGradingVectorCustomizationBase::GetCurrentColorGradingValue)
 		// Only allow spin on handles with one object.  Otherwise it is not clear what value to spin
-		.AllowSpin(ColorGradingPropertyHandle.Pin()->GetNumOuterObjects() == 1)
+		.AllowSpin(ColorGradingPropertyHandle.GetHandle()->GetNumOuterObjects() == 1)
 		.ShiftMultiplier(ShiftMultiplier)
 		.CtrlMultiplier(CtrlMultiplier)
 		.SupportDynamicSliderMaxValue(this, &FColorGradingVectorCustomizationBase::GetSupportDynamicSliderMaxValue, SupportDynamicSliderMaxValue, ColorIndex)
@@ -424,7 +424,7 @@ FColorGradingVectorCustomization::~FColorGradingVectorCustomization()
 void FColorGradingVectorCustomization::MakeHeaderRow(FDetailWidgetRow& Row, TSharedRef<FVector4StructCustomization> InVector4Customization)
 {
 	TSharedPtr<SHorizontalBox> ContentHorizontalBox = SNew(SHorizontalBox)
-		.IsEnabled(InVector4Customization, &FMathStructCustomization::IsValueEnabled, ColorGradingPropertyHandle);
+		.IsEnabled(InVector4Customization, &FMathStructCustomization::IsValueEnabled, ColorGradingPropertyHandle.GetHandle().ToWeakPtr());
 
 	Row.NameContent()
 		[
@@ -433,7 +433,7 @@ void FColorGradingVectorCustomization::MakeHeaderRow(FDetailWidgetRow& Row, TSha
 			.AutoWidth()
 			.HAlign(HAlign_Left)
 			[
-				ColorGradingPropertyHandle.Pin()->CreatePropertyNameWidget()
+				ColorGradingPropertyHandle.GetHandle()->CreatePropertyNameWidget()
 			]
 		];
 
@@ -451,7 +451,7 @@ void FColorGradingVectorCustomization::MakeHeaderRow(FDetailWidgetRow& Row, TSha
 
 		// Make a widget for each property.  The vector component properties  will be displayed in the header
 
-		TSharedRef<IPropertyHandle> ColorGradingPropertyHandleRef = ColorGradingPropertyHandle.Pin().ToSharedRef();
+		TSharedRef<IPropertyHandle> ColorGradingPropertyHandleRef = ColorGradingPropertyHandle.GetHandle().ToSharedRef();
 		FMathStructCustomization::FNumericMetadata<float> Metadata;
 		FMathStructCustomization::ExtractNumericMetadata(ColorGradingPropertyHandleRef, Metadata);
 
@@ -533,14 +533,14 @@ void FColorGradingVectorCustomization::MakeHeaderRow(FDetailWidgetRow& Row, TSha
 EVisibility FColorGradingVectorCustomization::GetMultipleValuesTextVisibility() const
 {
 	FVector4 VectorValue;
-	return (ColorGradingPropertyHandle.Pin()->GetValue(VectorValue) == FPropertyAccess::MultipleValues) ? EVisibility::Visible : EVisibility::Collapsed;
+	return (ColorGradingPropertyHandle.GetValue(VectorValue) == FPropertyAccess::MultipleValues) ? EVisibility::Visible : EVisibility::Collapsed;
 }
 
 FLinearColor FColorGradingVectorCustomization::OnGetColorForHeaderColorBlock() const
 {
 	FLinearColor ColorValue(0.0f, 0.0f, 0.0f);
 	FVector4 VectorValue;
-	if (ColorGradingPropertyHandle.Pin()->GetValue(VectorValue) == FPropertyAccess::Success)
+	if (ColorGradingPropertyHandle.GetValue(VectorValue) == FPropertyAccess::Success)
 	{
 		ColorValue.R = VectorValue.X * VectorValue.W;
 		ColorValue.G = VectorValue.Y * VectorValue.W;
@@ -569,7 +569,7 @@ void FColorGradingVectorCustomization::CustomizeChildren(IDetailChildrenBuilder&
 
 	if (ParentGroup != nullptr)
 	{
-		TSharedPtr<IDetailPropertyRow> PropertyRow = ParentGroup->FindPropertyRow(ColorGradingPropertyHandle.Pin().ToSharedRef());
+		TSharedPtr<IDetailPropertyRow> PropertyRow = ParentGroup->FindPropertyRow(ColorGradingPropertyHandle.GetHandle().ToSharedRef());
 		verifySlow(PropertyRow.IsValid());
 
 		PropertyRow->OverrideResetToDefault(FResetToDefaultOverride::Create(FIsResetToDefaultVisible::CreateSP(CustomColorGradingBuilder.Get(), &FColorGradingCustomBuilder::CanResetToDefault),
@@ -581,7 +581,7 @@ void FColorGradingVectorCustomization::CustomizeChildren(IDetailChildrenBuilder&
 //////////////////////////////////////////////////////////////////////////
 // Color Gradient custom builder implementation
 
-FColorGradingCustomBuilder::FColorGradingCustomBuilder(TWeakPtr<IPropertyHandle> InColorGradingPropertyHandle, const TArray<TWeakPtr<IPropertyHandle>>& InSortedChildArray, 
+FColorGradingCustomBuilder::FColorGradingCustomBuilder(const FTrackedVector4PropertyHandle& InColorGradingPropertyHandle, const TArray<TWeakPtr<IPropertyHandle>>& InSortedChildArray,
 													   TSharedRef<FColorGradingVectorCustomization> InColorGradingCustomization, IDetailGroup* InParentGroup)
 	: FColorGradingVectorCustomizationBase(InColorGradingPropertyHandle, InSortedChildArray)
 	, ColorGradingCustomization(InColorGradingCustomization)
@@ -631,12 +631,14 @@ FColorGradingCustomBuilder::~FColorGradingCustomBuilder()
 
 	// Deregister for Undo callbacks
 	GEditor->UnregisterForUndo(this);
+
+	FCoreUObjectDelegates::OnObjectPropertyChanged.RemoveAll(this);
 }
 
 void FColorGradingCustomBuilder::OnDetailGroupReset()
 {
 	FVector4 CurrentValueVector;
-	verifySlow(ColorGradingPropertyHandle.Pin()->GetValue(CurrentValueVector) == FPropertyAccess::Success);
+	verifySlow(ColorGradingPropertyHandle.GetValue(CurrentValueVector) == FPropertyAccess::Success);
 	CurrentHSVColor = FLinearColor(CurrentValueVector.X, CurrentValueVector.Y, CurrentValueVector.Z).LinearRGBToHSV();
 
 	OnCurrentHSVColorChanged.Broadcast(CurrentHSVColor, true);
@@ -657,7 +659,7 @@ void FColorGradingCustomBuilder::ResetToDefault(TSharedPtr<IPropertyHandle> Prop
 	PropertyHandle->ResetToDefault();
 
 	FVector4 CurrentValueVector;
-	verifySlow(ColorGradingPropertyHandle.Pin()->GetValue(CurrentValueVector) == FPropertyAccess::Success);
+	verifySlow(ColorGradingPropertyHandle.GetValue(CurrentValueVector) == FPropertyAccess::Success);
 	CurrentHSVColor = FLinearColor(CurrentValueVector.X, CurrentValueVector.Y, CurrentValueVector.Z).LinearRGBToHSV();
 
 	OnCurrentHSVColorChanged.Broadcast(CurrentHSVColor, true);
@@ -686,7 +688,7 @@ void FColorGradingCustomBuilder::GenerateHeaderRowContent(FDetailWidgetRow& Node
 {
 	// Make a widget for each property.  The vector component properties  will be displayed in the header
 
-	TSharedRef<IPropertyHandle> ColorGradingPropertyHandleRef = ColorGradingPropertyHandle.Pin().ToSharedRef();
+	TSharedRef<IPropertyHandle> ColorGradingPropertyHandleRef = ColorGradingPropertyHandle.GetHandle().ToSharedRef();
 	FMathStructCustomization::FNumericMetadata<float> Metadata;
 	FMathStructCustomization::ExtractNumericMetadata(ColorGradingPropertyHandleRef, Metadata);
 	
@@ -723,7 +725,7 @@ void FColorGradingCustomBuilder::GenerateHeaderRowContent(FDetailWidgetRow& Node
 				.ColorGradingModes(ColorGradingMode)
 				.OnColorCommitted(this, &FColorGradingCustomBuilder::OnColorGradingPickerChanged)
 				.OnQueryCurrentColor(this, &FColorGradingCustomBuilder::GetCurrentColorGradingValue)
-				.AllowSpin(ColorGradingPropertyHandle.Pin()->GetNumOuterObjects() == 1)
+				.AllowSpin(ColorGradingPropertyHandle.GetHandle()->GetNumOuterObjects() == 1)
 				.OnBeginSliderMovement(this, &FColorGradingCustomBuilder::OnBeginMainValueSliderMovement)
 				.OnEndSliderMovement(this, &FColorGradingCustomBuilder::OnEndMainValueSliderMovement)
 				.OnBeginMouseCapture(this, &FColorGradingCustomBuilder::OnBeginMouseCapture)
@@ -858,11 +860,13 @@ void FColorGradingCustomBuilder::GenerateHeaderRowContent(FDetailWidgetRow& Node
 	ParentGroupName.ReplaceInline(TEXT(" "), TEXT("_"));
 	ParentGroupName.ReplaceInline(TEXT("|"), TEXT("_"));
 
-	GConfig->GetBool(TEXT("ColorGrading"), *FString::Printf(TEXT("%s_%s_IsRGB"), *ParentGroupName, *ColorGradingPropertyHandle.Pin()->GetPropertyDisplayName().ToString()), RGBMode, GEditorPerProjectIni);
+	GConfig->GetBool(TEXT("ColorGrading"), *FString::Printf(TEXT("%s_%s_IsRGB"), *ParentGroupName, *ColorGradingPropertyHandle.GetHandle()->GetPropertyDisplayName().ToString()), RGBMode, GEditorPerProjectIni);
 	OnChangeColorModeClicked(RGBMode ? UE::ColorGrading::EColorGradingColorDisplayMode::RGB : UE::ColorGrading::EColorGradingColorDisplayMode::HSV);
 
 	// Register to update when an undo/redo operation has been called to update our list of actors
 	GEditor->RegisterForUndo(this);
+
+	FCoreUObjectDelegates::OnObjectPropertyChanged.AddRaw(this, &FColorGradingCustomBuilder::OnPropertyValueChanged);
 }
 
 FText FColorGradingCustomBuilder::OnChangeColorModeText(UE::ColorGrading::EColorGradingColorDisplayMode ModeType) const
@@ -904,7 +908,7 @@ EVisibility FColorGradingCustomBuilder::OnGetGradientVisibility() const
 void FColorGradingCustomBuilder::OnChangeColorModeClicked(UE::ColorGrading::EColorGradingColorDisplayMode ModeType)
 {
 	FVector4 CurrentValueVector;
-	if (ColorGradingPropertyHandle.Pin()->GetValue(CurrentValueVector) != FPropertyAccess::Success)
+	if (ColorGradingPropertyHandle.GetValue(CurrentValueVector) != FPropertyAccess::Success)
 	{
 		return;
 	}
@@ -921,7 +925,7 @@ void FColorGradingCustomBuilder::OnChangeColorModeClicked(UE::ColorGrading::ECol
 		ParentGroupName.ReplaceInline(TEXT(" "), TEXT("_"));
 		ParentGroupName.ReplaceInline(TEXT("|"), TEXT("_"));
 
-		GConfig->SetBool(TEXT("ColorGrading"), *FString::Printf(TEXT("%s_%s_IsRGB"), *ParentGroupName, *ColorGradingPropertyHandle.Pin()->GetPropertyDisplayName().ToString()), IsRGBMode, GEditorPerProjectIni);
+		GConfig->SetBool(TEXT("ColorGrading"), *FString::Printf(TEXT("%s_%s_IsRGB"), *ParentGroupName, *ColorGradingPropertyHandle.GetHandle()->GetPropertyDisplayName().ToString()), IsRGBMode, GEditorPerProjectIni);
 
 		CurrentHSVColor = FLinearColor(CurrentValueVector.X, CurrentValueVector.Y, CurrentValueVector.Z).LinearRGBToHSV();
 
@@ -940,17 +944,17 @@ void FColorGradingCustomBuilder::OnColorGradingPickerChanged(FVector4& NewValue,
 {
 	FScopedTransaction Transaction(LOCTEXT("ColorGradingMainValue", "Color Grading Main Value"), ShouldCommitValueChanges);
 
-	if (ColorGradingPropertyHandle.IsValid())
+	if (ColorGradingPropertyHandle.IsValidHandle())
 	{
 		// Always perform a purely interactive change. We do this because it won't invoke reconstruction, which may cause that only the first 
 		// element gets updated due to its change causing a component reconstruction and the remaining vector element property handles updating 
 		// the trashed component.
-		ColorGradingPropertyHandle.Pin()->SetValue(NewValue, EPropertyValueSetFlags::InteractiveChange | EPropertyValueSetFlags::NotTransactable);
+		ColorGradingPropertyHandle.SetValue(NewValue, EPropertyValueSetFlags::InteractiveChange | EPropertyValueSetFlags::NotTransactable);
 
 		// If not purely interactive, set the value with default flags.
 		if (ShouldCommitValueChanges || !bIsUsingSlider)
 		{
-			ColorGradingPropertyHandle.Pin()->SetValue(NewValue, EPropertyValueSetFlags::DefaultFlags);
+			ColorGradingPropertyHandle.SetValue(NewValue, EPropertyValueSetFlags::DefaultFlags);
 		}
 	}
 
@@ -987,6 +991,35 @@ void FColorGradingCustomBuilder::OnEndMouseCapture()
 {
 	bIsUsingSlider = false;
 	GEditor->EndTransaction();
+}
+
+void FColorGradingCustomBuilder::OnPropertyValueChanged(UObject* Object, FPropertyChangedEvent& PropertyChangedEvent)
+{
+	if (ColorGradingPropertyHandle.IsSettingValue())
+	{
+		// If setting our own value, it's already handled (or will be)
+		return;
+	}
+
+	if (TSharedPtr<IPropertyHandle> PinnedPropertyHandle = ColorGradingPropertyHandle.GetHandle())
+	{
+		uint32 NumChildren;
+		if (PinnedPropertyHandle->GetNumChildren(NumChildren) == FPropertyAccess::Result::Success)
+		{
+			for (uint32 ChildIndex = 0; ChildIndex < NumChildren; ++ChildIndex)
+			{
+				if (PinnedPropertyHandle->GetChildHandle(ChildIndex)->GetProperty() == PropertyChangedEvent.Property)
+				{
+					FVector4 CurrentValueVector;
+					if (PinnedPropertyHandle->GetValue(CurrentValueVector) == FPropertyAccess::Success)
+					{
+						CurrentHSVColor = FLinearColor(CurrentValueVector.X, CurrentValueVector.Y, CurrentValueVector.Z).LinearRGBToHSV();
+					}
+					break;
+				}
+			}
+		}
+	}
 }
 
 #undef LOCTEXT_NAMESPACE
