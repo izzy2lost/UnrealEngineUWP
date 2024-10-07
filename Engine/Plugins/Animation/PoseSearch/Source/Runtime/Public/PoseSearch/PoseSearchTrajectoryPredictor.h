@@ -8,7 +8,7 @@
 struct FPoseSearchQueryTrajectory;
 
 
-UINTERFACE(BlueprintType)
+UINTERFACE(BlueprintType, Experimental)
 class POSESEARCH_API UPoseSearchTrajectoryPredictorInterface : public UInterface
 {
 	GENERATED_BODY()
