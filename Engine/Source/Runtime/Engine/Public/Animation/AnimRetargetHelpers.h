@@ -20,10 +20,10 @@ enum class ERetargetSourceAssetStatus
 };
 
 // Warning, calling this on PostLoad generates asset dependenciy check failures
-ERetargetSourceAssetStatus CheckRetargetSourceAssetData(const UAnimSequence* InAsset);
+static ERetargetSourceAssetStatus CheckRetargetSourceAssetData(const UAnimSequence* InAsset);
 
 // Warning, calling this on PostLoad generates asset dependenciy check failures
-ERetargetSourceAssetStatus CheckRetargetSourceAssetData(const UPoseAsset* InAsset);
+static ERetargetSourceAssetStatus CheckRetargetSourceAssetData(const UPoseAsset* InAsset);
 
 #endif // WITH_EDITOR
 
