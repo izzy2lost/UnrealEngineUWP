@@ -43,6 +43,7 @@
 #include "Components/SkyLightComponent.h"
 #include "Components/SkyAtmosphereComponent.h"
 #include "Components/ModelComponent.h"
+#include "StaticMeshComponentLODInfo.h"
 #include "Engine/LightMapTexture2D.h"
 #include "Editor.h"
 #include "Engine/Selection.h"
@@ -460,6 +461,24 @@ void FStaticLightingManager::FinishLightingBuild()
 	{
 		// Everything should be built at this point, dump unbuilt interactions for debugging
 		World->Scene->DumpUnbuiltLightInteractions(*GLog);
+	}
+
+	// Verify if new MapBuildDataIDs were created during the build and mark their object's package dirty
+	for (UStaticMeshComponent* StaticMeshComponent : TObjectRange<UStaticMeshComponent>())
+	{
+		if (StaticMeshComponent->IsTemplate() || !StaticMeshComponent->HasStaticLighting())
+		{
+			continue;
+		}
+
+		for (FStaticMeshComponentLODInfo& LODInfo : StaticMeshComponent->LODData)
+		{
+			if (LODInfo.bMapBuildDataChanged)
+			{
+				UE_LOG(LogEngine, Warning, TEXT("MapBuildDataID for %s was updated during the static lighting build, marking package dirty (%s)"), *StaticMeshComponent->GetOwner()->GetActorNameOrLabel(), *StaticMeshComponent->GetFullName());
+				StaticMeshComponent->MarkPackageDirty();
+			}
+		}
 	}
 
 	if (bBuildReflectionCapturesOnFinish)

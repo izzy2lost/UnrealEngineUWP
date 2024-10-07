@@ -32,11 +32,14 @@
 #include "WorldPartition/WorldPartitionStreamingDescriptor.h"
 #include "Components/LightComponentBase.h"
 #include "Components/PrimitiveComponent.h"
+#include "Components/StaticMeshComponent.h"
 #include "LevelInstance/LevelInstanceActor.h"
 #include "LevelInstance/LevelInstanceComponent.h"
 #include "WorldPartition/HLOD/HLODActor.h"
 #include "ActorFolder.h"
 #include "UObject/Linker.h" // For ResetLoaders
+#include "StaticMeshComponentLODInfo.h"
+#include "UObject/UObjectIterator.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogWorldPartitionStaticLightingBuilder, All, All);
 
@@ -64,6 +67,9 @@ UWorldPartitionStaticLightingBuilder::UWorldPartitionStaticLightingBuilder(const
 	BuildOptions |= FParse::Param(FCommandLine::Get(), TEXT("Submit")) ? EWPStaticLightingBuildStep::WPSL_Submit : EWPStaticLightingBuildStep::None;
 	BuildOptions |= FParse::Param(FCommandLine::Get(), TEXT("Build")) ? EWPStaticLightingBuildStep::WPSL_Build|EWPStaticLightingBuildStep::WPSL_Finalize: EWPStaticLightingBuildStep::None;	
 	BuildOptions |= FParse::Param(FCommandLine::Get(), TEXT("Finalize")) ? EWPStaticLightingBuildStep::WPSL_Finalize: EWPStaticLightingBuildStep::None;	
+
+	bForceSinglePass = FParse::Param(FCommandLine::Get(), TEXT("SinglePass"));
+	bSaveDirtyPackages = FParse::Param(FCommandLine::Get(), TEXT("SaveAllDirtyPackages"));
 	
 	// Default behavior without any option is to build and finalize
 	if (BuildOptions == EWPStaticLightingBuildStep::None)
@@ -94,6 +100,12 @@ bool UWorldPartitionStaticLightingBuilder::ShouldRunStep(const EWPStaticLighting
 
 UWorldPartitionBuilder::ELoadingMode UWorldPartitionStaticLightingBuilder::GetLoadingMode() const 
 {
+	if (bForceSinglePass)
+	{
+		return ELoadingMode::EntireWorld;
+	}
+
+	// Until all issues are fixed with iterative mode
 	return ELoadingMode::EntireWorld;
 }
 
@@ -249,7 +261,7 @@ bool UWorldPartitionStaticLightingBuilder::DeletePackage(FStaticLightingDescript
 
 	if (Package.Guid.IsValid())
 	{
-		WorldPartition->RemoveActor(Package.Guid);		
+		WorldPartition->RemoveActor(Package.Guid);
 	}
 
 	 if (UPackage* PackagePtr = FindObject<UPackage>(nullptr, *Package.PackageName.ToString()))
@@ -400,7 +412,7 @@ bool UWorldPartitionStaticLightingBuilder::Run(UWorld* World, const FCellInfo& I
 	LightingOptions.ShouldBuildLighting = [&](const AActor* InActor, bool& bBuildLightingForActor, bool& bIncludeActorInLightingScene, bool& bDeferActorMapping)
 	{
 		// always defer actor mappings
-		bDeferActorMapping = true;
+		bDeferActorMapping = !bForceSinglePass;
 		bBuildLightingForActor = false;
 		bIncludeActorInLightingScene = false;
 
@@ -455,37 +467,41 @@ bool UWorldPartitionStaticLightingBuilder::Finalize(UWorld* World, FPackageSourc
 		World->PersistentLevel->MapBuildData->GetPackage()->FullyLoad();
 	}
 
-	// Invoke static lighting computation
-	FLightingBuildOptions LightingOptions;
-	LightingOptions.QualityLevel =  QualityLevel;
-	LightingOptions.bApplyDeferedActorMappingPass = true;
-	LightingOptions.bVolumetricLightmapFinalizerPass = false;
-	LightingOptions.MappingsDirectory = MappingsDirectory;
-
 	bool bLightingBuildFailed = false;
 
-	auto BuildFailedDelegate = [&bLightingBuildFailed, &World]() {
-		UE_LOG(LogWorldPartitionStaticLightingBuilder, Error, TEXT("[REPORT] Failed building lighting for %s"), *World->GetName());
-		bLightingBuildFailed = true;
-	};	
+	if (!bForceSinglePass)
+	{
+		// Invoke static lighting computation
+		FLightingBuildOptions LightingOptions;
+		LightingOptions.QualityLevel =  QualityLevel;
+		LightingOptions.bApplyDeferedActorMappingPass = true;
+		LightingOptions.bVolumetricLightmapFinalizerPass = false;
+		LightingOptions.MappingsDirectory = MappingsDirectory;		
 
-	// Actors that receive lighting are the ones in the identified zone
-	LightingOptions.ShouldBuildLighting = [&](const AActor* InActor, bool& bBuildLightingForActor, bool& bIncludeActorInLightingScene, bool& bDeferActorMapping)
-	{
-		// always defer actor mappings
-		bDeferActorMapping = false;
-		bBuildLightingForActor = false;
-		bIncludeActorInLightingScene = false;
-	};
+		auto BuildFailedDelegate = [&bLightingBuildFailed, &World]() {
+			UE_LOG(LogWorldPartitionStaticLightingBuilder, Error, TEXT("[REPORT] Failed building lighting for %s"), *World->GetName());
+			bLightingBuildFailed = true;
+		};	
+
+		// Actors that receive lighting are the ones in the identified zone
+		LightingOptions.ShouldBuildLighting = [&](const AActor* InActor, bool& bBuildLightingForActor, bool& bIncludeActorInLightingScene, bool& bDeferActorMapping)
+		{
+			// always defer actor mappings
+			bDeferActorMapping = false;
+			bBuildLightingForActor = false;
+			bIncludeActorInLightingScene = false;
+		};
 	
-	FDelegateHandle BuildFailedDelegateHandle = FEditorDelegates::OnLightingBuildFailed.AddLambda(BuildFailedDelegate);
+		FDelegateHandle BuildFailedDelegateHandle = FEditorDelegates::OnLightingBuildFailed.AddLambda(BuildFailedDelegate);
 	
-	GEditor->BuildLighting(LightingOptions);
-	while (GEditor->IsLightingBuildCurrentlyRunning())
-	{
-		GEditor->UpdateBuildLighting();
+		GEditor->BuildLighting(LightingOptions);
+		while (GEditor->IsLightingBuildCurrentlyRunning())
+		{
+			GEditor->UpdateBuildLighting();
+		}
+
+		FEditorDelegates::OnLightingBuildFailed.Remove(BuildFailedDelegateHandle);
 	}
-
 
 	if (!bLightingBuildFailed)
 	{
@@ -493,7 +509,10 @@ bool UWorldPartitionStaticLightingBuilder::Finalize(UWorld* World, FPackageSourc
 		bRet &= Descriptors.CreateAndUpdateActors();
 
 		TArray<UPackage*> PackagesToSave;
-		PackagesToSave.Add(World->PersistentLevel->MapBuildData->GetPackage());
+		if (World->PersistentLevel->MapBuildData)
+		{
+			PackagesToSave.Add(World->PersistentLevel->MapBuildData->GetPackage());
+		}
 
 		//@todo_ow: Add flag to detect when we need to save the world package instead of always saving it
 		PackagesToSave.Add(World->PersistentLevel->GetPackage());
@@ -506,6 +525,16 @@ bool UWorldPartitionStaticLightingBuilder::Finalize(UWorld* World, FPackageSourc
 			}
 		}
 
+		if (bSaveDirtyPackages)
+		{
+			// Obtain list of dirty packages
+			TArray<UPackage*> DirtyPackages;
+			FEditorFileUtils::GetDirtyWorldPackages(DirtyPackages);
+			DirtyPackages.Remove(nullptr);
+			
+			PackagesToSave.Append(DirtyPackages);
+		}
+
 		bRet &= SavePackages(PackagesToSave, PackageHelper, true);
 
 		bRet &= DeleteStalePackages(PackageHelper);
@@ -516,9 +545,6 @@ bool UWorldPartitionStaticLightingBuilder::Finalize(UWorld* World, FPackageSourc
 	{
 		bRet = false;
 	}
-
-
-	FEditorDelegates::OnLightingBuildFailed.Remove(BuildFailedDelegateHandle);
 	
 	return bRet;
 }
@@ -750,8 +776,17 @@ bool FStaticLightingDescriptors::CreateAndUpdateActors()
 			// This cell has data
 			if (!DataActor)
 			{
-				// Generate Actor Name/Label 
-				FString DataActorName = FString::Printf(TEXT("%s_MapBuildData_%s"), *World->GetMapName(), *CellDesc.CellLevelPackage.ToString());
+				// Generate Actor Name/Label
+
+				// Trim path from CellLevelPackage 
+				FString CellPackageName = CellDesc.CellLevelPackage.ToString();
+				int32 LastSlash = 0;
+				if (CellPackageName.FindLastChar('/', LastSlash))
+				{
+					CellPackageName.RightChopInline(LastSlash+1);
+				}
+				
+				FString DataActorName = FString::Printf(TEXT("%s_MapBuildData_%s"), *World->GetName(), *CellPackageName);
 
 				// Create the Actor
 				FActorSpawnParameters SpawnParams;
@@ -826,3 +861,34 @@ bool FStaticLightingDescriptors::CreateAndUpdateActors()
 
 	return bResult;
 }
+
+FAutoConsoleCommand MarkPackageDirtyNewMapBuildDataId(
+	TEXT("wp.StaticLighting.MarkPackageDirtyNewMapBuildDataId"),
+	TEXT("Mark dirty all Actors with newly created MapBuildDataIDs"),
+	FConsoleCommandDelegate::CreateLambda([]()
+	{
+		for (UStaticMeshComponent* StaticMeshComponent : TObjectRange<UStaticMeshComponent>())
+		{
+			if (StaticMeshComponent->IsTemplate())
+			{
+				continue;
+			}
+
+			for (FStaticMeshComponentLODInfo& LODInfo : StaticMeshComponent->LODData)
+			{
+				if (LODInfo.bMapBuildDataChanged)
+				{
+					UE_LOG(LogEngine, Log, TEXT("Marking component %s's package dirty"), *StaticMeshComponent->GetFullName());
+					StaticMeshComponent->MarkPackageDirty();
+				}
+			}
+
+			if (StaticMeshComponent->LODData.Num() == 0)
+			{
+				UE_LOG(LogEngine, Log, TEXT("Component %s has no LOD Data"), *StaticMeshComponent->GetFullName());
+			}
+		}		
+		
+	})
+);
+

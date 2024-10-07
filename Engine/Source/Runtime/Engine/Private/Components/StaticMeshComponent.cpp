@@ -3709,10 +3709,16 @@ bool FStaticMeshComponentLODInfo::CreateMapBuildDataId(int32 LodIndex)
 		if (LodIndex == 0 || OwningComponent == nullptr)
 		{
 			OriginalMapBuildDataId = FGuid::NewGuid();
+#if WITH_EDITOR
+			bMapBuildDataChanged = true;
+#endif
 		}
 		else
 		{
 			OriginalMapBuildDataId = GetMapDataIdForLOD(OwningComponent->LODData[0].OriginalMapBuildDataId, LodIndex);
+#if WITH_EDITOR
+			bMapBuildDataChanged = true;
+#endif
 		}
 
 		bReturnVal = true;

@@ -87,6 +87,10 @@ struct FStaticMeshComponentLODInfo
 	/** Serializer. */
 	friend FArchive& operator<<(FArchive& Ar,FStaticMeshComponentLODInfo& I);
 
+#if WITH_EDITOR
+	bool bMapBuildDataChanged = false;
+#endif
+
 private:
 	/** Purposely hidden */
 	FStaticMeshComponentLODInfo &operator=( const FStaticMeshComponentLODInfo &rhs ) { check(0); return *this; }
