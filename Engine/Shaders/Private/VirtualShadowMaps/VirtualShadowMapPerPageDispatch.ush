@@ -28,6 +28,7 @@ struct FPerPageDispatchSetup
 
 	void Init(uint2 DispatchThreadId)
 	{
+		bValid = false;
 		VirtualShadowMapId = INDEX_NONE;
 		uint LinearThreadId = DispatchThreadId.y * PerPageDispatchDimX + DispatchThreadId.x;
 		if (bUseThreadPerId)
