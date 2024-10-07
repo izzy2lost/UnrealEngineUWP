@@ -1078,7 +1078,7 @@ FVulkanRenderTargetLayout::FVulkanRenderTargetLayout(FVulkanDevice& InDevice, co
 		++NumAttachmentDescriptions;
 		++NumColorAttachments;
 	}
-
+	bool bMultiViewDepthStencil = false;
 	if (RPInfo.DepthStencilRenderTarget.DepthStencilTarget)
 	{
 		VkAttachmentDescription& CurrDesc = Desc[NumAttachmentDescriptions];
@@ -1086,7 +1086,7 @@ FVulkanRenderTargetLayout::FVulkanRenderTargetLayout(FVulkanDevice& InDevice, co
 		FVulkanTexture* Texture = ResourceCast(RPInfo.DepthStencilRenderTarget.DepthStencilTarget);
 		check(Texture);
 		const FRHITextureDesc& TextureDesc = Texture->GetDesc();
-
+		bMultiViewDepthStencil = (Texture->GetNumberOfArrayLevels() > 1) && !Texture->GetDesc().IsTextureCube();
 		CurrDesc.samples = static_cast<VkSampleCountFlagBits>(RPInfo.DepthStencilRenderTarget.DepthStencilTarget->GetNumSamples());
 		// CustomResolveSubpass can have targets with a different NumSamples
 		ensure(!NumSamples || CurrDesc.samples == NumSamples || RPInfo.SubpassHint == ESubpassHint::CustomResolveSubpass);
@@ -1247,8 +1247,8 @@ FVulkanRenderTargetLayout::FVulkanRenderTargetLayout(FVulkanDevice& InDevice, co
 
 	CompatibleHashInfo.NumSamples = NumSamples;
 	CompatibleHashInfo.MultiViewCount = MultiViewCount;
-
-	if (MultiViewCount > 1 && !bMultiviewRenderTargets)
+	// Depth prepass has no color RTs but has a depth attachment that must be multiview
+	if (MultiViewCount > 1 && !bMultiviewRenderTargets && !(NumColorRenderTargets == 0 && bMultiViewDepthStencil))
 	{
 		UE_LOG(LogVulkan, Error, TEXT("Non multiview textures on a multiview layout!"));
 	}

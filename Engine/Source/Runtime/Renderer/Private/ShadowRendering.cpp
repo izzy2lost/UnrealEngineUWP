@@ -2060,12 +2060,22 @@ void FSceneRenderer::RenderShadowProjections(
 		{
 			CommonPassParameters.Substrate = Substrate::BindSubstrateGlobalUniformParameters(View);
 		}
-		
+
+		FRDGTextureRef DepthStencilTexture = nullptr;
+		// When using MSAA we need to bind the texture with the correct number of samples
+		if (!(OutputTexture->Desc.NumSamples > 1) && SceneTextures.Depth.IsSeparate() && HasBeenProduced(SceneTextures.Depth.Resolve))
+		{
+			DepthStencilTexture = SceneTextures.Depth.Resolve;
+		}
+		else
+		{
+			DepthStencilTexture = SceneTextures.Depth.Target;
+		}
 		CommonPassParameters.RenderTargets[0] = FRenderTargetBinding(OutputTexture, ERenderTargetLoadAction::ELoad);
 		CommonPassParameters.RenderTargets.DepthStencil =
 			bSubPixelShadow ?
 			FDepthStencilBinding(View.HairStrandsViewData.VisibilityData.HairOnlyDepthTexture, ERenderTargetLoadAction::ELoad, ERenderTargetLoadAction::ELoad, ExclusiveDepthStencil) :
-			FDepthStencilBinding(SceneTextures.Depth.Target, ERenderTargetLoadAction::ELoad, ERenderTargetLoadAction::ELoad, ExclusiveDepthStencil);
+			FDepthStencilBinding(DepthStencilTexture, ERenderTargetLoadAction::ELoad, ERenderTargetLoadAction::ELoad, ExclusiveDepthStencil);
 
 		RDG_GPU_MASK_SCOPE(GraphBuilder, View.GPUMask);
 		RDG_EVENT_SCOPE_CONDITIONAL(GraphBuilder, Views.Num() > 1, "View%d", ViewIndex);
