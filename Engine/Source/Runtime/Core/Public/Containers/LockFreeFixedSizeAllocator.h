@@ -2,7 +2,6 @@
 
 #pragma once
 
-#include "HAL/MallocLeakDetection.h"
 #include "AutoRTFM/AutoRTFM.h"
 #include "Misc/AssertionMacros.h"
 #include "HAL/UnrealMemory.h"
@@ -168,7 +167,6 @@ private:
 		FThreadLocalCache* TLS = (FThreadLocalCache*)FPlatformTLS::GetTlsValue(TlsSlot);
 		if (!TLS)
 		{
-			MALLOCLEAK_IGNORE_SCOPE(); // TLS is never freed
 			TLS = new FThreadLocalCache();
 			FPlatformTLS::SetTlsValue(TlsSlot, TLS);
 		}
