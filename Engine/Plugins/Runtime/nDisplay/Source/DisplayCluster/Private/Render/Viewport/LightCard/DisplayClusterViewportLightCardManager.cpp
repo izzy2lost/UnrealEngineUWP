@@ -103,12 +103,12 @@ EDisplayClusterUVLightCardRenderMode FDisplayClusterViewportLightCardManager::Ge
 			const EDisplayClusterViewportICVFXFlags LightcardRenderModeFlags = ICVFXFlags & EDisplayClusterViewportICVFXFlags::LightcardRenderModeMask;
 			if (LightcardRenderModeFlags == EDisplayClusterViewportICVFXFlags::LightcardAlwaysUnder)
 			{
-				// The lightcard will always be displayed only “under the In-Camera” for this cluster node.
+				// The lightcard will always be displayed only "Under the In-Camera" for this cluster node.
 				return EDisplayClusterUVLightCardRenderMode::AlwaysUnder;
 			}
 			else if (LightcardRenderModeFlags == EDisplayClusterViewportICVFXFlags::LightcardAlwaysOver)
 			{
-				// The lightcard will always be displayed only “over the In-Camera” for this cluster node.
+				// The lightcard will always be displayed only "Over the In-Camera" for this cluster node.
 				return EDisplayClusterUVLightCardRenderMode::AlwaysOver;
 			}
 		}

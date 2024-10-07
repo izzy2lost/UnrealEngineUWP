@@ -217,7 +217,6 @@ public:
 
 			InnerCameraBorderColor      = InCameraSettings.InnerCameraBorderColor;
 			InnerCameraBorderThickness  = InCameraSettings.InnerCameraBorderThickness;
-			InnerCameraFrameAspectRatio = InCameraSettings.InnerCameraFrameAspectRatio;
 
 			ViewProjection = InCameraSettings.ViewProjection;
 
@@ -246,7 +245,6 @@ public:
 
 		FLinearColor InnerCameraBorderColor = FLinearColor::Black;
 		float InnerCameraBorderThickness = 0.1f;
-		float InnerCameraFrameAspectRatio = 1.0f;
 
 		// Camera view projection data
 		FDisplayClusterShaderParametersICVFX_CameraViewProjection ViewProjection;

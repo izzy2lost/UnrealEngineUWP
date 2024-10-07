@@ -470,37 +470,6 @@ bool FDisplayClusterViewportConfigurationHelpers_ICVFX::IsCameraUsed(const FDisp
 	return true;
 }
 
-FDisplayClusterShaderParameters_ICVFX::FCameraSettings FDisplayClusterViewportConfigurationHelpers_ICVFX::GetShaderParametersCameraSettings(const FDisplayClusterViewport& InCameraViewport, UDisplayClusterICVFXCameraComponent& InCameraComponent, const FDisplayClusterConfigurationICVFX_CameraSettings& InCameraSettings)
-{
-	FDisplayClusterShaderParameters_ICVFX::FCameraSettings Result;
-
-	ADisplayClusterRootActor* SceneRootActor = InCameraViewport.Configuration->GetRootActor(EDisplayClusterRootActorType::Scene);
-	ADisplayClusterRootActor* ConfigurationRootActor = InCameraViewport.Configuration->GetRootActor(EDisplayClusterRootActorType::Configuration);
-	const FDisplayClusterConfigurationICVFX_StageSettings* StageSettings = InCameraViewport.Configuration->GetStageSettings();
-
-	if (SceneRootActor && ConfigurationRootActor && StageSettings)
-	{
-		Result.Resource.ViewportId = InCameraViewport.GetId();
-
-		UCineCameraComponent* ActualCineCameraComponent = InCameraComponent.GetActualCineCameraComponent();
-		check(ActualCineCameraComponent);
-
-		// Get camera border settings
-		InCameraSettings.GetCameraBorder(*StageSettings, Result.InnerCameraBorderColor, Result.InnerCameraBorderThickness);
-		Result.InnerCameraFrameAspectRatio = InCameraSettings.GetCameraFrameAspectRatio(*StageSettings, *ActualCineCameraComponent);
-
-		// Soft edges
-		Result.SoftEdge = InCameraSettings.GetCameraSoftEdge(*StageSettings, *ActualCineCameraComponent);
-
-		// Rendering order for camera overlap
-		const FString InnerFrustumID = InCameraComponent.GetCameraUniqueId();
-		const int32 CameraRenderOrder = ConfigurationRootActor->GetInnerFrustumPriority(InnerFrustumID);
-		Result.RenderOrder = (CameraRenderOrder < 0) ? InCameraSettings.RenderSettings.RenderOrder : CameraRenderOrder;
-	}
-
-	return Result;
-}
-
 void FDisplayClusterViewportConfigurationHelpers_ICVFX::UpdateCameraViewportSettings(FDisplayClusterViewport& DstViewport, UDisplayClusterICVFXCameraComponent& InCameraComponent, const FDisplayClusterConfigurationICVFX_CameraSettings& InCameraSettings)
 {
 	const FDisplayClusterConfigurationICVFX_StageSettings* StageSettings = DstViewport.Configuration->GetStageSettings();
@@ -530,11 +499,8 @@ void FDisplayClusterViewportConfigurationHelpers_ICVFX::UpdateCameraViewportSett
 	// FDisplayClusterConfigurationICVFX_CameraSettings
 	InOutRenderSettings.CameraId.Empty();
 
-	UCineCameraComponent* ActualCineCameraComponent = InCameraComponent.GetActualCineCameraComponent();
-	check(ActualCineCameraComponent);
-
 	// UDisplayClusterConfigurationICVFX_CameraRenderSettings
-	const FIntPoint DesiredSize = InCameraSettings.GetCameraFrameSize(*StageSettings, *ActualCineCameraComponent);
+	const FIntPoint DesiredSize = InCameraComponent.GetICVFXCameraFrameSize(*StageSettings, InCameraSettings);
 
 	InOutRenderSettings.Rect = FDisplayClusterViewportHelpers::GetValidViewportRect(FIntRect(FIntPoint(0, 0), DesiredSize), DstViewport.GetId(), TEXT("Configuration Camera Frame Size"));
 
@@ -604,15 +570,9 @@ void FDisplayClusterViewportConfigurationHelpers_ICVFX::UpdateChromakeyViewportS
 
 		DstViewport.UpdateConfiguration_OverlayRenderSettings(InChromakeyRenderSettings->AdvancedRenderSettings);
 
-		// Support custom overlay size
-		if (InChromakeyRenderSettings->CustomSize.bUseCustomSize)
-		{
-			FIntPoint DesiredSize;
-			DesiredSize.X = InChromakeyRenderSettings->CustomSize.CustomWidth;
-			DesiredSize.Y = InChromakeyRenderSettings->CustomSize.CustomHeight;
-
-			InOutRenderSettings.Rect = FDisplayClusterViewportHelpers::GetValidViewportRect(FIntRect(FIntPoint(0, 0), DesiredSize), DstViewport.GetId(), TEXT("Configuration custom chromakey Frame Size"));
-		}
+		// Resize chromakey RTT
+		const FIntPoint ChromakeyTextureSize = InOutRenderSettings.Rect.Size() * InChromakeyRenderSettings->ChromakeySizeMult;
+		InOutRenderSettings.Rect = FDisplayClusterViewportHelpers::GetValidViewportRect(FIntRect(FIntPoint(0, 0), ChromakeyTextureSize), DstViewport.GetId(), TEXT("Configuration custom chromakey Frame Size"));
 
 		// Debug: override the texture of the target viewport from this chromakeyRTT
 		if (InChromakeyRenderSettings->bReplaceCameraViewport)

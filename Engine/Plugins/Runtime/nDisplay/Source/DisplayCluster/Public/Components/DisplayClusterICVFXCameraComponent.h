@@ -11,6 +11,7 @@
 #include "DisplayClusterEditorPropertyReference.h"
 #include "Render/Viewport/Containers/DisplayClusterViewport_Enums.h"
 #include "Render/Viewport/Containers/DisplayClusterViewport_CameraMotionBlur.h"
+#include "ShaderParameters/DisplayClusterShaderParameters_ICVFX.h"
 
 #include "DisplayClusterICVFXCameraComponent.generated.h"
 
@@ -90,6 +91,12 @@ public:
 	/** Sets new depth of field parameters and updates the dynamically generated compensation LUT if needed */
 	UFUNCTION(BlueprintCallable, Category = "ICVFX Camera")
 	void SetDepthOfFieldParameters(const FDisplayClusterConfigurationICVFX_CameraDepthOfField& NewDepthOfFieldParams);
+
+	/** Get ICVFX camera frame resolution. */
+	FIntPoint GetICVFXCameraFrameSize(const FDisplayClusterConfigurationICVFX_StageSettings& InStageSettings, const FDisplayClusterConfigurationICVFX_CameraSettings& InCameraSettings);
+
+	/** Get ICVFX camera shader parameters. */
+	FDisplayClusterShaderParameters_ICVFX::FCameraSettings GetICVFXCameraShaderParameters(const FDisplayClusterConfigurationICVFX_StageSettings& InStageSettings, const FDisplayClusterConfigurationICVFX_CameraSettings& InCameraSettings);
 
 private:
 	void UpdateOverscanEstimatedFrameSize();
