@@ -10890,10 +10890,9 @@ bool FBlueprintEditor::AreDelegatesAllowed() const
 	return true;
 }
 
-FEditorViewportSelectabilityBridge& FBlueprintEditor::GetViewportSelectabilityBridge()
+FEditorViewportSelectabilityBridge* FBlueprintEditor::GetViewportSelectabilityBridge()
 {
-	check(ViewportSelectabilityBridge.IsValid());
-	return *ViewportSelectabilityBridge.Get();
+	return ViewportSelectabilityBridge.Get();
 }
 
 /////////////////////////////////////////////////////

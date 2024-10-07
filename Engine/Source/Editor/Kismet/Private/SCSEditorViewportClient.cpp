@@ -344,11 +344,13 @@ void FSCSEditorViewportClient::DrawCanvas( FViewport& InViewport, FSceneView& Vi
 	const TSharedPtr<FBlueprintEditor> BlueprintEditor = BlueprintEditorPtr.Pin();
 	if (BlueprintEditor.IsValid())
 	{
-		FEditorViewportSelectabilityBridge& SelectabilityBridge = BlueprintEditor->GetViewportSelectabilityBridge();
-		if (SelectabilityBridge.IsViewportSelectionLimited())
+		if (FEditorViewportSelectabilityBridge* SelectabilityBridge = BlueprintEditor->GetViewportSelectabilityBridge())
 		{
-			const FText SelectionLimitedText = SelectabilityBridge.GetViewportSelectionLimitedText();
-			FEditorViewportSelectability::DrawEnabledTextNotice(&Canvas, SelectionLimitedText);
+			if (SelectabilityBridge->IsViewportSelectionLimited())
+			{
+				const FText SelectionLimitedText = SelectabilityBridge->GetViewportSelectionLimitedText();
+				FEditorViewportSelectability::DrawEnabledTextNotice(&Canvas, SelectionLimitedText);
+			}
 		}
 	}
 }
@@ -1198,7 +1200,10 @@ bool FSCSEditorViewportClient::IsViewportSelectionLimited() const
 {
 	if (const TSharedPtr<FBlueprintEditor> BlueprintEditor = BlueprintEditorPtr.Pin())
 	{
-		return BlueprintEditor->GetViewportSelectabilityBridge().IsViewportSelectionLimited();
+		if (FEditorViewportSelectabilityBridge* SelectabilityBridge = BlueprintEditor->GetViewportSelectabilityBridge())
+		{
+			return SelectabilityBridge->IsViewportSelectionLimited();
+		}
 	}
 	return false;
 }
@@ -1207,7 +1212,10 @@ bool FSCSEditorViewportClient::IsObjectSelectableInViewport(UObject* const InObj
 {
 	if (const TSharedPtr<FBlueprintEditor> BlueprintEditor = BlueprintEditorPtr.Pin())
 	{
-		return BlueprintEditor->GetViewportSelectabilityBridge().IsObjectSelectableInViewport(InObject);
+		if (FEditorViewportSelectabilityBridge* SelectabilityBridge = BlueprintEditor->GetViewportSelectabilityBridge())
+		{
+			return SelectabilityBridge->IsObjectSelectableInViewport(InObject);
+		}
 	}
 	return true;
 }
