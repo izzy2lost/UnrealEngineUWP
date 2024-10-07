@@ -307,14 +307,6 @@ namespace UE::PixelStreamingVCam
 		return ResponsePromise.GetFuture();
 	}
 
-	void FVCamPixelStreamingSessionLogic::OnPreEditChange(DecoupledOutputProvider::IOutputProviderEvent& Args, FProperty* PropertyAboutToChange)
-	{
-		IOutputProviderLogic::OnPreEditChange(Args, PropertyAboutToChange);
-
-		UVCamPixelStreamingSession* This = Cast<UVCamPixelStreamingSession>(&Args.GetOutputProvider());
-		StreamId_PreEditChange = This->StreamerId;
-	}
-
 #if WITH_EDITOR
 
 	void FVCamPixelStreamingSessionLogic::OnPostEditChangeProperty(DecoupledOutputProvider::IOutputProviderEvent& Args, FPropertyChangedEvent& PropertyChangedEvent)
@@ -324,8 +316,6 @@ namespace UE::PixelStreamingVCam
 		{
 			return;
 		}
-
-		bool bHasUpdatedLiveLink = false;
 
 		FProperty* Property = PropertyChangedEvent.MemberProperty;
 		if (Property && PropertyChangedEvent.ChangeType != EPropertyChangeType::Interactive)
@@ -339,28 +329,12 @@ namespace UE::PixelStreamingVCam
 			{
 				Private::ConditionallySetLiveLinkSubjectToThis(*This);
 			}
-			else if (PropertyName == GET_MEMBER_NAME_CHECKED(UVCamPixelStreamingSession, StreamerId)
-					|| PropertyName == GET_MEMBER_NAME_CHECKED(UVCamPixelStreamingSession, bOverrideStreamerName))
-			{
-				bHasUpdatedLiveLink = true;
-				OnEditStreamId(*This, StreamId_PreEditChange);
-			}
 		}
-
-		// Just in case our StreamerId changed, update the internal Live Link subject name.
-		// There used to be a bug in Multi-User:
-		//	- Repro: 1. Create VCam, 2. Leave session, 3. Join session > StreamerId and Live Link subject name are now out of sync.
-		//	- Sequence of events:
-		//		- OnActivate creates new StreamerId and sets the subject name to some value,
-		//		- PreEditChange is called, the original StreamerId is serialized into This, followed by PostEditChange.
-		//		- PostEditChange will now take the StreamerId MU serialized into us and object the Live Link subject name making sure they match.
-		if (!bHasUpdatedLiveLink)
-		{
-			Private::UpdateLiveLinkSubject(*This);
-		}
+		
+		OnEditStreamId(*This);
 	}
 	
-	void FVCamPixelStreamingSessionLogic::OnEditStreamId(UVCamPixelStreamingSession& This, const FString& OldStreamerId) const
+	void FVCamPixelStreamingSessionLogic::OnEditStreamId(UVCamPixelStreamingSession& This) const
 	{
 		const TSharedPtr<IPixelStreamingStreamer> Streamer = MediaOutput && MediaOutput->GetStreamer() ? MediaOutput->GetStreamer() : nullptr;
 		if (!Streamer || !This.IsOutputting())
@@ -374,7 +348,8 @@ namespace UE::PixelStreamingVCam
 			RefreshStreamerName(This);
 		}
 		Private::UpdateLiveLinkSubject(This);
-
+		
+		const FString OldStreamerId = Streamer->GetId();
 		if (OldStreamerId != This.StreamerId
 			&& This.IsActive())
 		{
@@ -402,7 +377,7 @@ namespace UE::PixelStreamingVCam
 		{
 			Session->Modify();
 			Session->StreamerId = NewStreamerName;
-			OnEditStreamId(*ManagedOutputProvider, OldStreamId);
+			OnEditStreamId(*ManagedOutputProvider);
 		}
 	}
 #endif

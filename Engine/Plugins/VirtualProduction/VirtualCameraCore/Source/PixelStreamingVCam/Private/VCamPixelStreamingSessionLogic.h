@@ -36,7 +36,6 @@ namespace UE::PixelStreamingVCam
 		virtual void OnAddReferencedObjects(DecoupledOutputProvider::IOutputProviderEvent& Args, FReferenceCollector& Collector) override;
 		virtual TFuture<FVCamStringPromptResponse> PromptClientForString(DecoupledOutputProvider::IOutputProviderEvent& Args, const FVCamStringPromptRequest& Request) override;
 #if WITH_EDITOR
-		virtual void OnPreEditChange(DecoupledOutputProvider::IOutputProviderEvent& Args, FProperty* PropertyAboutToChange) override;
 		virtual void OnPostEditChangeProperty(DecoupledOutputProvider::IOutputProviderEvent& Args, FPropertyChangedEvent& PropertyChangedEvent) override;
 #endif
 		//~ End IOutputProviderLogic Interface
@@ -70,10 +69,7 @@ namespace UE::PixelStreamingVCam
 		TMap<int32, TPromise<FVCamStringPromptResponse>> StringPromptPromises;
 
 #if WITH_EDITOR
-		/** StreamerId when PreEditChange was last called. */
-		FString StreamId_PreEditChange;
-		
-		void OnEditStreamId(UVCamPixelStreamingSession& This, const FString& OldStreamerId) const;
+		void OnEditStreamId(UVCamPixelStreamingSession& This) const;
 		void OnActorLabelChanged(AActor* Actor) const;
 #endif
 		void RefreshStreamerName(UVCamPixelStreamingSession& Session) const;
