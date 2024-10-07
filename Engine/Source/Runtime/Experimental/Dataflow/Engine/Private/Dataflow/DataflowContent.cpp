@@ -427,13 +427,6 @@ UDataflowSkeletalContent::UDataflowSkeletalContent() : Super()
 void UDataflowSkeletalContent::SetSkeletalMesh(const TObjectPtr<USkeletalMesh>& SkeletalMeshAsset, const bool bHideAsset)
 {
 	SkeletalMesh = SkeletalMeshAsset;
-	if(SkeletalMesh)
-	{
-		if(SkeletalMesh && (SkeletalMesh->GetSkeleton() != Skeleton))
-		{
-			SetSkeleton(SkeletalMesh->GetSkeleton());
-		}
-	}
 	bHideSkeletalMesh = bHideAsset;
 	SetConstructionDirty(true);
 	SetSimulationDirty(true);
@@ -442,26 +435,7 @@ void UDataflowSkeletalContent::SetSkeletalMesh(const TObjectPtr<USkeletalMesh>& 
 void UDataflowSkeletalContent::SetAnimationAsset(const TObjectPtr<UAnimationAsset>& SkeletalAnimationAsset, const bool bHideAsset)
 {
 	AnimationAsset = SkeletalAnimationAsset;
-	if(AnimationAsset && (AnimationAsset->GetSkeleton()) != Skeleton)
-	{
-		SetSkeleton(AnimationAsset->GetSkeleton());
-	}
 	bHideAnimationAsset = bHideAsset;
-	SetConstructionDirty(true);
-	SetSimulationDirty(true);
-}
-
-void UDataflowSkeletalContent::SetSkeleton(const TObjectPtr<USkeleton>& SkeletonAsset)
-{
-	Skeleton = SkeletonAsset;
-	if(SkeletalMesh && (SkeletalMesh->GetSkeleton() != Skeleton))
-	{
-		SetSkeletalMesh(nullptr);
-	}
-	if(AnimationAsset && (AnimationAsset->GetSkeleton() != Skeleton))
-	{
-		SetAnimationAsset(nullptr);
-	}
 	SetConstructionDirty(true);
 	SetSimulationDirty(true);
 }
@@ -479,10 +453,6 @@ void UDataflowSkeletalContent::PostEditChangeProperty(FPropertyChangedEvent& Pro
 	if (PropertyName == GET_MEMBER_NAME_CHECKED(UDataflowSkeletalContent, AnimationAsset))
 	{
 		SetAnimationAsset(AnimationAsset);
-	}
-	if (PropertyName == GET_MEMBER_NAME_CHECKED(UDataflowSkeletalContent, Skeleton))
-	{
-		SetSkeleton(Skeleton);
 	}
 	Super::PostEditChangeProperty(PropertyChangedEvent);
 }
@@ -517,7 +487,6 @@ void UDataflowSkeletalContent::AddContentObjects(FReferenceCollector& Collector)
 void UDataflowSkeletalContent::AddReferencedObjects(UObject* InThis, FReferenceCollector& Collector)
 {
 	UDataflowSkeletalContent* This = CastChecked<UDataflowSkeletalContent>(InThis);
-	Collector.AddReferencedObject(This->Skeleton);
 	Collector.AddReferencedObject(This->SkeletalMesh);
 	Collector.AddReferencedObject(This->AnimationAsset);
 	Super::AddReferencedObjects(InThis, Collector);

@@ -94,7 +94,6 @@ void UFleshAsset::WriteDataflowContent(const TObjectPtr<UDataflowBaseContent>& D
 		SkeletalContent->SetDataflowTerminal(DataflowTerminal);
 		
 		SkeletalContent->SetSkeletalMesh(SkeletalMesh, true);
-		SkeletalContent->SetSkeleton(Skeleton);
 
 #if WITH_EDITORONLY_DATA
 		SkeletalContent->SetAnimationAsset(PreviewAnimationAsset.Get());
