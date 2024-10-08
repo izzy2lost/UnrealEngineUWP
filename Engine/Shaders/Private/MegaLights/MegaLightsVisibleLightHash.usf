@@ -8,6 +8,7 @@ Texture2D<uint> LightSampleUVTexture;
 
 RWStructuredBuffer<uint> RWVisibleLightHash;
 RWStructuredBuffer<uint> RWVisibleLightMaskHash;
+uint2 VisibleLightHashViewMinInTiles;
 uint2 VisibleLightHashViewSizeInTiles;
 
 /**
@@ -27,7 +28,7 @@ void VisibleLightHashCS(
 		VisibleLightMaskHash[IndexInHash] = 0;
 	}
 
-	const uint2 TileCoord = GroupId.xy;
+	const uint2 TileCoord = VisibleLightHashViewMinInTiles + GroupId.xy;
 	const uint2 TileSampleCoord = TileCoord * 4 * uint2(NUM_SAMPLES_PER_PIXEL_2D_X, NUM_SAMPLES_PER_PIXEL_2D_Y);
 	const uint2 TileSampleCoordMax = (TileCoord + 1) * 4 * uint2(NUM_SAMPLES_PER_PIXEL_2D_X, NUM_SAMPLES_PER_PIXEL_2D_Y);
 	

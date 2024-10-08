@@ -234,7 +234,7 @@ void ShadeLightSamplesCS(
 				#endif
 
 				int2 DownsampledScreenCoord = (int2(ScreenCoord) - 1) / DOWNSAMPLE_FACTOR + StochasticBilinearOffset;
-				DownsampledScreenCoord = clamp(DownsampledScreenCoord, int2(0, 0), int2(DownsampledViewSize - 1));
+				DownsampledScreenCoord = clamp(DownsampledScreenCoord, int2(DownsampledViewMin), int2(DownsampledViewMin) + int2(DownsampledViewSize) - 1);
 
 				// Load samples into registers
 				uint PackedLightSamples[NUM_SAMPLES_PER_PIXEL_1D];
