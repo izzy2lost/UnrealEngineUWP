@@ -274,7 +274,7 @@ namespace HordeServer
 			services.AddSingleton<IServerInfo>(serverInfo);
 
 			// Register the plugin collection
-			IPluginCollection pluginCollection = ServerApp.ConfigurePlugins();
+			IPluginCollection pluginCollection = ServerApp.Plugins;
 			services.AddSingleton<IPluginCollection>(pluginCollection);
 
 			// Register all the plugin services

@@ -122,18 +122,20 @@ namespace HordeServer.Compute
 				UserId = User.GetUserId(),
 			};
 
-			ComputeResource? computeResource;
+			ComputeResource computeResource;
 			try
 			{
 				computeResource = await _computeService.TryAllocateResourceAsync(arp, cancellationToken);
-				if (computeResource == null)
-				{
-					return StatusCode((int)HttpStatusCode.ServiceUnavailable, "No resources available");
-				}
+			}
+			catch (NoComputeResourcesException cse)
+			{
+				int statusCode = (int)HttpStatusCode.ServiceUnavailable;
+				return cse.ShowToUser ? StatusCode(statusCode, cse.Message) : StatusCode(statusCode);
 			}
 			catch (ComputeServiceException cse)
 			{
-				return cse.ShowToUser ? StatusCode((int)HttpStatusCode.InternalServerError, cse.Message) : StatusCode((int)HttpStatusCode.InternalServerError);
+				int statusCode = (int)HttpStatusCode.InternalServerError;
+				return cse.ShowToUser ? StatusCode(statusCode, cse.Message) : StatusCode(statusCode);
 			}
 
 			Dictionary<string, ConnectionMetadataPort> responsePorts = new();

@@ -37,14 +37,14 @@ namespace HordeServer.Tasks
 		readonly PerforceLoadBalancer _perforceLoadBalancer;
 		readonly ILogCollection _logCollection;
 		readonly ILogger _logger;
-		readonly IOptionsMonitor<StaticBuildConfig> _settings;
+		readonly IOptionsMonitor<BuildServerConfig> _settings;
 		readonly IOptionsMonitor<BuildConfig> _buildConfig;
 		readonly ITicker _tickConformList;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public ConformTaskSource(IMongoService mongoService, IAgentCollection agentCollection, PoolService poolService, ILogCollection logCollection, PerforceLoadBalancer perforceLoadBalancer, IClock clock, IOptionsMonitor<StaticBuildConfig> settings, IOptionsMonitor<BuildConfig> buildConfig, ILogger<ConformTaskSource> logger)
+		public ConformTaskSource(IMongoService mongoService, IAgentCollection agentCollection, PoolService poolService, ILogCollection logCollection, PerforceLoadBalancer perforceLoadBalancer, IClock clock, IOptionsMonitor<BuildServerConfig> settings, IOptionsMonitor<BuildConfig> buildConfig, ILogger<ConformTaskSource> logger)
 		{
 			_agentCollection = agentCollection;
 			_poolService = poolService;

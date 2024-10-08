@@ -61,9 +61,11 @@ namespace EpicGames.Core
 		/// Adds a new task to the pipeline.
 		/// </summary>
 		/// <param name="taskFunc">Method to execute</param>
-		public void AddTask(Func<CancellationToken, Task> taskFunc)
+		public Task AddTask(Func<CancellationToken, Task> taskFunc)
 		{
-			_tasks.Add(Task.Run(() => RunGuardedAsync(taskFunc), _cancellationSource.Token));
+			Task task = Task.Run(() => RunGuardedAsync(taskFunc), _cancellationSource.Token);
+			_tasks.Add(task);
+			return task;
 		}
 
 		/// <summary>
@@ -71,12 +73,14 @@ namespace EpicGames.Core
 		/// </summary>
 		/// <param name="count">Number of tasks to run</param>
 		/// <param name="taskFunc">Method to execute</param>
-		public void AddTasks(int count, Func<CancellationToken, Task> taskFunc)
+		public Task[] AddTasks(int count, Func<CancellationToken, Task> taskFunc)
 		{
+			Task[] tasks = new Task[count];
 			for (int idx = 0; idx < count; idx++)
 			{
-				AddTask(taskFunc);
+				tasks[idx] = AddTask(taskFunc);
 			}
+			return tasks;
 		}
 
 		async Task RunGuardedAsync(Func<CancellationToken, Task> taskFunc)
@@ -128,28 +132,60 @@ namespace EpicGames.Core
 		/// <param name="pipeline">Pipeline to add the worker to</param>
 		/// <param name="reader">Source for the items</param>
 		/// <param name="taskFunc">Action to execute for each item</param>
-		public static void AddTask<T>(this AsyncPipeline pipeline, ChannelReader<T> reader, Func<T, CancellationToken, Task> taskFunc)
+		public static Task AddTask<T>(this AsyncPipeline pipeline, ChannelReader<T> reader, Func<T, CancellationToken, ValueTask> taskFunc)
+			=> pipeline.AddTask(ctx => ProcessItemsAsync(reader, taskFunc, ctx));
+
+		/// <summary>
+		/// Adds a worker to process items from a channel
+		/// </summary>
+		/// <typeparam name="TInput">Input item type</typeparam>
+		/// <typeparam name="TOutput">Output item type</typeparam>
+		/// <param name="pipeline">Pipeline to add the worker to</param>
+		/// <param name="reader">Reader for input items</param>
+		/// <param name="writer">Writer for output items</param>
+		/// <param name="taskFunc">Action to execute for each item</param>
+		public static Task AddTask<TInput, TOutput>(this AsyncPipeline pipeline, ChannelReader<TInput> reader, ChannelWriter<TOutput> writer, Func<TInput, CancellationToken, ValueTask<TOutput>> taskFunc)
+			=> pipeline.AddTask(ctx => ProcessItemsAsync(reader, writer, taskFunc, ctx));
+
+		/// <summary>
+		/// Adds a worker to process items from a channel
+		/// </summary>
+		/// <typeparam name="T">Input item type</typeparam>
+		/// <param name="pipeline">Pipeline to add the worker to</param>
+		/// <param name="count">Number of workers to add</param>
+		/// <param name="reader">Reader for input items</param>
+		/// <param name="taskFunc">Action to execute for each item</param>
+		public static Task[] AddTasks<T>(this AsyncPipeline pipeline, int count, ChannelReader<T> reader, Func<T, CancellationToken, ValueTask> taskFunc)
 		{
-			pipeline.AddTask(ctx => ProcessItemsAsync(reader, taskFunc, ctx));
+			Task[] tasks = new Task[count];
+			for (int idx = 0; idx < count; idx++)
+			{
+				tasks[idx] = AddTask(pipeline, reader, taskFunc);
+			}
+			return tasks;
 		}
 
 		/// <summary>
 		/// Adds a worker to process items from a channel
 		/// </summary>
-		/// <typeparam name="T">Item type</typeparam>
+		/// <typeparam name="TInput">Input item type</typeparam>
+		/// <typeparam name="TOutput">Output item type</typeparam>
 		/// <param name="pipeline">Pipeline to add the worker to</param>
 		/// <param name="count">Number of workers to add</param>
-		/// <param name="reader">Source for the items</param>
+		/// <param name="reader">Reader for input items</param>
+		/// <param name="writer">Writer for output items</param>
 		/// <param name="taskFunc">Action to execute for each item</param>
-		public static void AddTasks<T>(this AsyncPipeline pipeline, int count, ChannelReader<T> reader, Func<T, CancellationToken, Task> taskFunc)
+		public static Task[] AddTasks<TInput, TOutput>(this AsyncPipeline pipeline, int count, ChannelReader<TInput> reader, ChannelWriter<TOutput> writer, Func<TInput, CancellationToken, ValueTask<TOutput>> taskFunc)
 		{
+			Task[] tasks = new Task[count];
 			for (int idx = 0; idx < count; idx++)
 			{
-				AddTask(pipeline, reader, taskFunc);
+				tasks[idx] = AddTask(pipeline, reader, writer, taskFunc);
 			}
+			return tasks;
 		}
 
-		static async Task ProcessItemsAsync<T>(ChannelReader<T> reader, Func<T, CancellationToken, Task> taskFunc, CancellationToken cancellationToken)
+		static async Task ProcessItemsAsync<T>(ChannelReader<T> reader, Func<T, CancellationToken, ValueTask> taskFunc, CancellationToken cancellationToken)
 		{
 			while (await reader.WaitToReadAsync(cancellationToken))
 			{
@@ -157,6 +193,19 @@ namespace EpicGames.Core
 				if (reader.TryRead(out item))
 				{
 					await taskFunc(item, cancellationToken);
+				}
+			}
+		}
+
+		static async Task ProcessItemsAsync<TInput, TOutput>(ChannelReader<TInput> reader, ChannelWriter<TOutput> writer, Func<TInput, CancellationToken, ValueTask<TOutput>> taskFunc, CancellationToken cancellationToken)
+		{
+			while (await reader.WaitToReadAsync(cancellationToken))
+			{
+				TInput? input;
+				if (reader.TryRead(out input))
+				{
+					TOutput output = await taskFunc(input, cancellationToken);
+					await writer.WriteAsync(output, cancellationToken);
 				}
 			}
 		}

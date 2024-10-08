@@ -2,6 +2,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Reflection;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -32,8 +33,9 @@ namespace HordeServer.Plugins
 				=> _loadedPlugin;
 		}
 
+		[DebuggerDisplay("{Name}")]
 		class LoadedPlugin<TServerConfig, TGlobalConfig, TStartup> : ILoadedPlugin
-			where TServerConfig : class, new()
+			where TServerConfig : PluginServerConfig, new()
 			where TGlobalConfig : class, IPluginConfig, new()
 			where TStartup : class, IPluginStartup
 		{
@@ -145,17 +147,18 @@ namespace HordeServer.Plugins
 		/// <summary>
 		/// Adds a plugin with the given startup class
 		/// </summary>
-		ILoadedPlugin AddLoadedPlugin(IPluginMetadata metadata, Type startupType)
+		public ILoadedPlugin Add(Type startupType)
 		{
+			PluginAttribute attr = startupType.GetCustomAttribute<PluginAttribute>()
+				?? throw new InvalidOperationException($"Cannot add {startupType.Name} as a plugin. No {nameof(PluginAttribute)} was found.");
+
+			IPluginMetadata metadata = new PluginMetadata { Name = new PluginName(attr.Name) };
 			if (!_loadedPluginNames.Add(metadata.Name))
 			{
 				throw new InvalidOperationException($"An implementation of the {metadata.Name} plugin has already been added");
 			}
 
-			PluginAttribute attr = startupType.GetCustomAttribute<PluginAttribute>()
-				?? throw new InvalidOperationException($"Cannot add {startupType.Name} as a plugin. No {nameof(PluginAttribute)} was found.");
-
-			Type pluginType = typeof(LoadedPlugin<,,>).MakeGenericType(attr.ServerConfigType ?? typeof(object), attr.GlobalConfigType ?? typeof(EmptyPluginConfig), startupType);
+			Type pluginType = typeof(LoadedPlugin<,,>).MakeGenericType(attr.ServerConfigType ?? typeof(PluginServerConfig), attr.GlobalConfigType ?? typeof(EmptyPluginConfig), startupType);
 			ILoadedPlugin loadedPlugin = (ILoadedPlugin)Activator.CreateInstance(pluginType, metadata)!;
 			_loadedPlugins.Add(loadedPlugin);
 
@@ -167,23 +170,6 @@ namespace HordeServer.Plugins
 		/// </summary>
 		/// <typeparam name="T">Type of the startup class</typeparam>
 		public ILoadedPlugin Add<T>() where T : class, IPluginStartup
-		{
-			PluginAttribute attr = typeof(T).GetCustomAttribute<PluginAttribute>()
-				?? throw new InvalidOperationException($"Cannot add {typeof(T).Name} as a plugin. No {nameof(PluginAttribute)} was found.");
-
-			return Add<T>(new PluginMetadata{ Name = new PluginName(attr.Name) });
-		}
-
-		/// <summary>
-		/// Adds a plugin with the given startup class
-		/// </summary>
-		/// <typeparam name="T">Type of the startup class</typeparam>
-		/// <param name="metadata">Metadata for the plugin</param>
-		public ILoadedPlugin Add<T>(IPluginMetadata metadata) where T : class, IPluginStartup
-		{
-			ILoadedPlugin plugin = AddLoadedPlugin(metadata, typeof(T));
-			_plugins.Add(plugin);
-			return plugin;
-		}
+			=> Add(typeof(T));
 	}
 }

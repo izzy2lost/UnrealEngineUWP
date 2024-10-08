@@ -71,7 +71,7 @@ namespace HordeServer.Devices
 		readonly ITicker _ticker;
 		readonly ITicker _telemetryTicker;
 		readonly IServerInfo _serverInfo;
-		readonly IOptionsMonitor<StaticBuildConfig> _settings;
+		readonly IOptionsMonitor<BuildServerConfig> _settings;
 		readonly IOptionsMonitor<BuildConfig> _buildConfig;
 
 		bool _runUpgrade = true;
@@ -84,7 +84,7 @@ namespace HordeServer.Devices
 		/// <summary>
 		/// Device service constructor
 		/// </summary>
-		public DeviceService(IDeviceCollection devices, IUserCollection userCollection, JobService jobService, IStreamCollection streamCollection, IServerInfo serverInfo, IOptionsMonitor<StaticBuildConfig> settings, IOptionsMonitor<BuildConfig> buildConfig, INotificationService notificationService, IClock clock, Tracer tracer, ILogger<DeviceService> logger)
+		public DeviceService(IDeviceCollection devices, IUserCollection userCollection, JobService jobService, IStreamCollection streamCollection, IServerInfo serverInfo, IOptionsMonitor<BuildServerConfig> settings, IOptionsMonitor<BuildConfig> buildConfig, INotificationService notificationService, IClock clock, Tracer tracer, ILogger<DeviceService> logger)
 		{
 			_userCollection = userCollection;
 			_devices = devices;

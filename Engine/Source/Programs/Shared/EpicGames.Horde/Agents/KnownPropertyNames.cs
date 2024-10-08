@@ -66,6 +66,11 @@ public static class KnownPropertyNames
 	/// Port used for sending compute task payloads
 	/// </summary>
 	public const string ComputePort = "ComputePort";
+	
+	/// <summary>
+	/// Protocol version for compute task payloads
+	/// </summary>
+	public const string ComputeProtocol = "ComputeProtocol";
 
 	/// <summary>
 	/// AWS: Instance ID

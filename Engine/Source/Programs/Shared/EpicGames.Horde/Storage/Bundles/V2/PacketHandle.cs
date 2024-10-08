@@ -73,6 +73,11 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 		public int PacketOffset => _packetOffset;
 
 		/// <summary>
+		/// Length of the packet within the bundle
+		/// </summary>
+		public int PacketLength => _packetLength;
+
+		/// <summary>
 		/// Constructor
 		/// </summary>
 		public FlushedPacketHandle(BundleStorageNamespace storageNamespace, BundleHandle outer, int packetOffset, int packetLength, BundleCache cache)
@@ -213,6 +218,13 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 		{
 			PacketReaderCacheKey cacheKey = new PacketReaderCacheKey(_outer, _packetOffset);
 			return await _cache.PacketReaderCache.ScopedGetOrAddAsync(cacheKey, CreatePacketReaderAsync, cancellationToken);
+		}
+
+		internal PacketReader CreatePacketReader(ReadOnlyMemory<byte> encodedData)
+		{
+			PacketReaderCacheKey cacheKey = new PacketReaderCacheKey(_outer, _packetOffset);
+			IRefCountedHandle<Packet> packet = Packet.Decode(encodedData, _cache.Allocator, cacheKey);
+			return new PacketReader(_storageNamespace, _cache, _outer, this, packet.Target, packet);
 		}
 
 		async Task<Scoped<PacketReader>> CreatePacketReaderAsync(PacketReaderCacheKey cacheKey, CancellationToken cancellationToken)

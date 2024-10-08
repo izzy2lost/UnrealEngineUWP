@@ -11,7 +11,7 @@ Name | Description
 `macros` | [ConfigMacro](#configmacro)`[]`<br>Macros within the global scope
 `dashboard` | [DashboardConfig](Dashboard.md)<br>Settings for the dashboard
 `downtime` | [ScheduledDowntime](#scheduleddowntime)`[]`<br>List of scheduled downtime
-`plugins` | `object`<br>Plugin config objects
+`plugins` | [GlobalPluginsConfig](#globalpluginsconfig)<br>Plugin config objects
 `parameters` | `object`<br>General parameters for other tools. Can be queried through the api/v1/parameters endpoint.
 `acl` | [AclConfig](#aclconfig)<br>Access control list
 
@@ -51,6 +51,19 @@ Name | Description
 `Once` | Once
 `Daily` | Every day
 `Weekly` | Every week
+
+## GlobalPluginsConfig
+
+Name | Description
+---- | -----------
+`analytics` | [AnalyticsConfig](#analyticsconfig)<br>Configuration for the analytics plugin
+`build` | [BuildConfig](#buildconfig)<br>Configuration for the build plugin
+`compute` | [ComputeConfig](#computeconfig)<br>Configuration for the compute plugin
+`ddc` | [EmptyPluginConfig](#emptypluginconfig)<br>Configuration for the ddc plugin
+`secrets` | [SecretsConfig](#secretsconfig)<br>Configuration for the secrets plugin
+`storage` | [StorageConfig](#storageconfig)<br>Configuration for the storage plugin
+`symbols` | [SymbolsConfig](#symbolsconfig)<br>Configuration for the symbols plugin
+`tools` | [ToolsConfig](#toolsconfig)<br>Configuration for the tools plugin
 
 ## AnalyticsConfig
 

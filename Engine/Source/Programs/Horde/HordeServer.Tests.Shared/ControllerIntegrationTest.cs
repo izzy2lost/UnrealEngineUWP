@@ -90,6 +90,7 @@ public class FakeHordeWebApp : IAsyncDisposable
 
 	public FakeHordeWebApp(Action<IServiceCollection>? configureServices = null, Dictionary<string, string>? settings = null)
 	{
+		ServerApp.InitializePluginsForTests();
 		MongoInstance = new MongoInstance();
 		RedisInstance = new RedisInstance();
 		Factory = new TestWebApplicationFactory<Startup>(MongoInstance, RedisInstance, configureServices, settings);

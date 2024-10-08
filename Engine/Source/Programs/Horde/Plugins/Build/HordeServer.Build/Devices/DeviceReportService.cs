@@ -134,7 +134,7 @@ namespace HordeServer.Devices
 		readonly IClock _clock;
 		readonly ITicker _ticker;
 		readonly IServerInfo _serverInfo;
-		readonly IOptions<StaticBuildConfig> _staticBuildConfig;
+		readonly IOptions<BuildServerConfig> _staticBuildConfig;
 		readonly ILogger<DeviceReportService> _logger;
 
 		readonly int _reportIntervalMinutes = 180;
@@ -142,7 +142,7 @@ namespace HordeServer.Devices
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public DeviceReportService(IMongoService mongoService, DeviceService deviceService, INotificationService notificationService, IClock clock, IServerInfo serverInfo, IOptions<StaticBuildConfig> staticBuildConfig, ILogger<DeviceReportService> logger)
+		public DeviceReportService(IMongoService mongoService, DeviceService deviceService, INotificationService notificationService, IClock clock, IServerInfo serverInfo, IOptions<BuildServerConfig> staticBuildConfig, ILogger<DeviceReportService> logger)
 		{
 			_state = new SingletonDocument<DeviceReportState>(mongoService);
 			_deviceService = deviceService;
@@ -168,7 +168,7 @@ namespace HordeServer.Devices
 
 		async ValueTask TickAsync(CancellationToken cancellationToken)
 		{
-			StaticBuildConfig staticBuildConfig = _staticBuildConfig.Value;
+			BuildServerConfig staticBuildConfig = _staticBuildConfig.Value;
 			if (String.IsNullOrEmpty(staticBuildConfig.DeviceReportChannel))
 			{
 				return;

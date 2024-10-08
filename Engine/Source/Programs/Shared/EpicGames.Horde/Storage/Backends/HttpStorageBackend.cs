@@ -97,7 +97,7 @@ namespace EpicGames.Horde.Storage.Backends
 						}
 
 						HttpResponseMessage response = await httpClient.SendAsync(request, cancellationToken);
-						response.EnsureSuccessStatusCode();
+						await EnsureSuccessAsync(response, cancellationToken);
 
 						Stream stream = await response.Content.ReadAsStreamAsync(cancellationToken);
 
@@ -265,7 +265,7 @@ namespace EpicGames.Horde.Storage.Backends
 				request.AddAliases.Add(new AddAliasRequest { Name = name, Target = target, Rank = rank, Data = data.ToArray() });
 
 				using HttpResponseMessage response = await httpClient.PostAsJsonAsync($"{_basePath}", request, cancellationToken: cancellationToken);
-				response.EnsureSuccessStatusCode();
+				await EnsureSuccessAsync(response, cancellationToken);
 			}
 		}
 
@@ -278,7 +278,7 @@ namespace EpicGames.Horde.Storage.Backends
 				request.RemoveAliases.Add(new RemoveAliasRequest { Name = name, Target = target });
 
 				using HttpResponseMessage response = await httpClient.PostAsJsonAsync($"{_basePath}", request, cancellationToken: cancellationToken);
-				response.EnsureSuccessStatusCode();
+				await EnsureSuccessAsync(response, cancellationToken);
 			}
 		}
 
@@ -298,7 +298,7 @@ namespace EpicGames.Horde.Storage.Backends
 				{
 					using (HttpResponseMessage response = await httpClient.SendAsync(request, cancellationToken))
 					{
-						response.EnsureSuccessStatusCode();
+						await EnsureSuccessAsync(response, cancellationToken);
 
 						FindNodesResponse? message = await response.Content.ReadFromJsonAsync<FindNodesResponse>(cancellationToken: cancellationToken);
 
@@ -338,7 +338,7 @@ namespace EpicGames.Horde.Storage.Backends
 							return false;
 						}
 
-						response.EnsureSuccessStatusCode();
+						await EnsureSuccessAsync(response, cancellationToken);
 						return false;
 					}
 				}
@@ -371,7 +371,8 @@ namespace EpicGames.Horde.Storage.Backends
 						}
 						else
 						{
-							response.EnsureSuccessStatusCode();
+							await EnsureSuccessAsync(response, cancellationToken);
+
 							ReadRefResponse? data = await response.Content.ReadFromJsonAsync<ReadRefResponse>(cancellationToken: cancellationToken);
 							_logger.LogDebug("Read ref {RefName} -> {Hash} / {Locator}", name, data!.Hash, data!.Target);
 
@@ -395,7 +396,7 @@ namespace EpicGames.Horde.Storage.Backends
 
 				using (HttpResponseMessage response = await httpClient.PutAsync($"{_basePath}/refs/{name}", request, cancellationToken))
 				{
-					response.EnsureSuccessStatusCode();
+					await EnsureSuccessAsync(response, cancellationToken);
 				}
 			}
 		}
@@ -411,6 +412,15 @@ namespace EpicGames.Horde.Storage.Backends
 			{
 				stats.Add("backend.http.speed_mb_sec", (long)(_numBytes / (1024.0 * 1024.0 * _readTime.Elapsed.TotalSeconds)));
 				stats.Add("backend.http.concurrency_ratio", (long)(_sequentialReadTime.TotalSeconds * 100.0 / _readTime.Elapsed.TotalSeconds));
+			}
+		}
+
+		static async Task EnsureSuccessAsync(HttpResponseMessage message, CancellationToken cancellationToken)
+		{
+			if (!message.IsSuccessStatusCode)
+			{
+				string response = await message.Content.ReadAsStringAsync(cancellationToken);
+				throw new StorageException($"Http response {message.StatusCode} (Content: {response})");
 			}
 		}
 	}

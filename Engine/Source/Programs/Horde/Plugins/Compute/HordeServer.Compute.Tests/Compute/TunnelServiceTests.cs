@@ -60,8 +60,8 @@ namespace HordeServer.Tests.Compute
 
 			_echoServerTask = StartEchoServerAsync(_echoPort, echoServerBufferSize, cts.Token);
 
-			StaticComputeConfig serverSettings = new() { ComputeTunnelPort = _tunnelPort };
-			using TunnelService tunnelService = new(new OptionsWrapper<StaticComputeConfig>(serverSettings), ComputeTestSetup.CreateConsoleLogger<TunnelService>());
+			ComputeServerConfig serverSettings = new() { ComputeTunnelPort = _tunnelPort };
+			using TunnelService tunnelService = new(new OptionsWrapper<ComputeServerConfig>(serverSettings), ComputeTestSetup.CreateConsoleLogger<TunnelService>());
 			tunnelService.Start(IPAddress.Any);
 			_tunnelServerTask = tunnelService.ServerTask!;
 

@@ -419,7 +419,7 @@ namespace HordeServer.Storage
 		readonly IMemoryCache _memoryCache;
 		readonly IObjectStoreFactory _objectStoreFactory;
 		readonly IOptionsMonitor<StorageConfig> _storageConfig;
-		readonly IOptions<StaticStorageConfig> _staticStorageConfig;
+		readonly IOptions<StorageServerConfig> _staticStorageConfig;
 		readonly Tracer _tracer;
 		readonly ILogger _logger;
 
@@ -462,7 +462,7 @@ namespace HordeServer.Storage
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public StorageService(IMongoService mongoService, IRedisService redisService, IClock clock, BundleCache bundleCache, IMemoryCache memoryCache, IObjectStoreFactory objectStoreFactory, IOptionsMonitor<StorageConfig> storageConfig, IOptions<StaticStorageConfig> staticStorageConfig, Tracer tracer, ILogger<StorageService> logger)
+		public StorageService(IMongoService mongoService, IRedisService redisService, IClock clock, BundleCache bundleCache, IMemoryCache memoryCache, IObjectStoreFactory objectStoreFactory, IOptionsMonitor<StorageConfig> storageConfig, IOptions<StorageServerConfig> staticStorageConfig, Tracer tracer, ILogger<StorageService> logger)
 		{
 			_redisService = redisService;
 			_clock = clock;
@@ -1202,7 +1202,7 @@ namespace HordeServer.Storage
 				Channel<SortedSetEntry<ObjectId>> channel = Channel.CreateBounded<SortedSetEntry<ObjectId>>(new BoundedChannelOptions(128));
 
 				await using AsyncPipeline pipeline = new AsyncPipeline(cancellationSource.Token);
-				pipeline.AddTask(ctx => FindBlobsForReachabilityCheckAsync(namespaceInfo, channel.Writer, queueChangeEvent, ctx));
+				_ = pipeline.AddTask(ctx => FindBlobsForReachabilityCheckAsync(namespaceInfo, channel.Writer, queueChangeEvent, ctx));
 				pipeline.AddTasks(8, channel.Reader, (entry, ctx) => CheckReachabilityAsync(namespaceInfo, entry, lastImportBlobInfoId, sweepState, storageConfig, queueChangeEvent, ctx));
 				await pipeline.WaitForCompletionAsync();
 
@@ -1263,7 +1263,7 @@ namespace HordeServer.Storage
 		}
 
 		// Checks whether an individual blob can be removed
-		async Task CheckReachabilityAsync(NamespaceInfo namespaceInfo, SortedSetEntry<ObjectId> entry, ObjectId lastImportBlobInfoId, GcSweepState state, StorageConfig storageConfig, AsyncEvent queueChangeEvent, CancellationToken cancellationToken)
+		async ValueTask CheckReachabilityAsync(NamespaceInfo namespaceInfo, SortedSetEntry<ObjectId> entry, ObjectId lastImportBlobInfoId, GcSweepState state, StorageConfig storageConfig, AsyncEvent queueChangeEvent, CancellationToken cancellationToken)
 		{
 			ObjectId blobInfoId = new ObjectId(((byte[]?)entry.ElementValue)!);
 
@@ -1363,7 +1363,7 @@ namespace HordeServer.Storage
 			Channel<BlobInfo> channel = Channel.CreateBounded<BlobInfo>(new BoundedChannelOptions(1000));
 
 			await using AsyncPipeline pipeline = new AsyncPipeline(cancellationToken);
-			pipeline.AddTask(ctx => FindBlobsForLengthScanAsync(channel.Writer, ctx));
+			_ = pipeline.AddTask(ctx => FindBlobsForLengthScanAsync(channel.Writer, ctx));
 			pipeline.AddTasks(8, channel.Reader, (entry, ctx) => FindBlobLengthsAsync(entry, state, ctx));
 			await pipeline.WaitForCompletionAsync();
 		}
@@ -1400,7 +1400,11 @@ namespace HordeServer.Storage
 				}
 
 				// Update the last imported blob id
-				lengthScanState = await _lengthScanState.UpdateAsync(state => state.LastImportBlobInfoId = current[^1].Id, cancellationToken);
+				lengthScanState.LastImportBlobInfoId = current[^1].Id;
+				if (!await _lengthScanState.TryUpdateAsync(lengthScanState, cancellationToken))
+				{
+					lengthScanState = await _lengthScanState.GetAsync(cancellationToken);
+				}
 				scannedCount += current.Count;
 			}
 
@@ -1408,7 +1412,7 @@ namespace HordeServer.Storage
 			writer.Complete();
 		}
 
-		async Task FindBlobLengthsAsync(BlobInfo blobInfo, State state, CancellationToken cancellationToken)
+		async ValueTask FindBlobLengthsAsync(BlobInfo blobInfo, State state, CancellationToken cancellationToken)
 		{
 			NamespaceInfo? namespaceInfo;
 			if (state.Namespaces.TryGetValue(blobInfo.NamespaceId, out namespaceInfo))

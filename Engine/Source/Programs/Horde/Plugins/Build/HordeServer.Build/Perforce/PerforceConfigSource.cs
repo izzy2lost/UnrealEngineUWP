@@ -48,7 +48,7 @@ namespace HordeServer.Perforce
 		/// <inheritdoc/>
 		public TimeSpan UpdateInterval => TimeSpan.FromMinutes(1.0);
 
-		readonly IOptionsMonitor<StaticBuildConfig> _settings;
+		readonly IOptionsMonitor<BuildServerConfig> _settings;
 		readonly IUserCollection _userCollection;
 		readonly IMemoryCache _cache;
 		readonly ILogger _logger;
@@ -56,7 +56,7 @@ namespace HordeServer.Perforce
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public PerforceConfigSource(IOptionsMonitor<StaticBuildConfig> settings, IUserCollection userCollection, IMemoryCache cache, ILogger<PerforceConfigSource> logger)
+		public PerforceConfigSource(IOptionsMonitor<BuildServerConfig> settings, IUserCollection userCollection, IMemoryCache cache, ILogger<PerforceConfigSource> logger)
 		{
 			_settings = settings;
 			_userCollection = userCollection;
@@ -147,7 +147,7 @@ namespace HordeServer.Perforce
 		{
 			_ = cancellationToken;
 
-			StaticBuildConfig settings = _settings.CurrentValue;
+			BuildServerConfig settings = _settings.CurrentValue;
 
 			PerforceConnectionId connectionId = new PerforceConnectionId();
 			if (!String.IsNullOrEmpty(host))

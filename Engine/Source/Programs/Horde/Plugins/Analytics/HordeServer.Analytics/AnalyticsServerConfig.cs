@@ -1,5 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+using HordeServer.Plugins;
 using HordeServer.Telemetry.Sinks;
 
 #pragma warning disable CA2227 // Change x to be read-only by removing the property setter
@@ -9,7 +10,7 @@ namespace HordeServer
 	/// <summary>
 	/// Server configuration for the analytics system
 	/// </summary>
-	public class AnalyticsServerConfig
+	public class AnalyticsServerConfig : PluginServerConfig
 	{
 		/// <summary>
 		/// Settings for the various telemetry sinks

@@ -485,6 +485,7 @@ namespace HordeServer.Accounts
 				properties[ClaimTypes.Email] = account.Email;
 			}
 			properties[HordeClaimTypes.AccountId] = account.Id.ToString();
+			properties[HordeClaimTypes.User] = account.Login;
 
 			foreach (IUserClaim claim in account.Claims)
 			{

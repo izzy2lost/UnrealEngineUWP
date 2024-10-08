@@ -16,16 +16,16 @@ namespace HordeServer.Storage
 	/// <summary>
 	/// Entry point for the storage plugin
 	/// </summary>
-	[Plugin("Storage", GlobalConfigType = typeof(StorageConfig), ServerConfigType = typeof(StaticStorageConfig))]
+	[Plugin("Storage", GlobalConfigType = typeof(StorageConfig), ServerConfigType = typeof(StorageServerConfig))]
 	public class StoragePlugin : IPluginStartup
 	{
 		readonly IServerInfo _serverInfo;
-		readonly StaticStorageConfig _staticConfig;
+		readonly StorageServerConfig _staticConfig;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public StoragePlugin(IServerInfo serverInfo, StaticStorageConfig staticConfig)
+		public StoragePlugin(IServerInfo serverInfo, StorageServerConfig staticConfig)
 		{
 			_serverInfo = serverInfo;
 			_staticConfig = staticConfig;

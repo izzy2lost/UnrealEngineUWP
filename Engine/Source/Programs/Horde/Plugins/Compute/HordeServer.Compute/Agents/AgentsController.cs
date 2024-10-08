@@ -365,7 +365,7 @@ namespace HordeServer.Agents
 			await _agentService.Agents.GetLogger(agentId).FindAsync(Response.BodyWriter, minTime, maxTime, index, count);
 			await Response.CompleteAsync();
 
-			return NoContent();
+			return Empty;
 		}
 
 		/// <summary>

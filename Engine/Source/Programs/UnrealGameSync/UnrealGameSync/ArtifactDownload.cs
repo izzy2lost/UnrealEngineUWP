@@ -31,7 +31,7 @@ namespace UnrealGameSync
 
 			public void Report(IExtractStats value)
 			{
-				_inner.Report($"Copied {value.Count} files ({value.Size / (1024.0 * 1024.0):n1}mb, {value.Rate / (1024.0 * 1024.0):n1}mb/s)...");
+				_inner.Report($"Copied {value.NumFiles} files ({value.ExtractSize / (1024.0 * 1024.0):n1}mb, {value.ExtractRate / (1024.0 * 1024.0):n1}mb/s)...");
 			}
 		}
 

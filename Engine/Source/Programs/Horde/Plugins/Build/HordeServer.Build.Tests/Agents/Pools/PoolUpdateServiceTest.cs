@@ -127,6 +127,7 @@ public class PoolUpdateServiceTest : BuildTestSetup
 		IAgent agent = await CreateAutoConformAgentAsync(100, autoConformThresholdsMb);
 
 		// Act
+		await _pus.UpdatePoolsAsync(CancellationToken.None);
 		await _pus.AutoConformAgentsAsync(CancellationToken.None);
 		agent = (await AgentService.GetAgentAsync(agent.Id))!;
 

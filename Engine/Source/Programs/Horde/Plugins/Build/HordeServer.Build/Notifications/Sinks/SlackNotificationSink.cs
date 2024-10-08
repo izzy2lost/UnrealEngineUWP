@@ -213,7 +213,7 @@ namespace HordeServer.Notifications.Sinks
 		readonly IUserCollection _userCollection;
 		readonly ILogCollection _logCollection;
 		readonly IWebHostEnvironment _environment;
-		readonly StaticBuildConfig _settings;
+		readonly BuildServerConfig _settings;
 		readonly IMongoCollection<MessageStateDocument> _messageStates;
 		readonly IMongoCollection<SlackUserDocument> _slackUsers;
 		readonly HashSet<string>? _allowUsers;
@@ -244,7 +244,7 @@ namespace HordeServer.Notifications.Sinks
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public SlackNotificationSink(IMongoService mongoService, IRedisService redisService, IssueService issueService, ICommitService commitService, IUserCollection userCollection, ILogCollection logCollection, IExternalIssueService externalIssueService, IWebHostEnvironment environment, IOptions<StaticBuildConfig> settings, IClock clock, IServerInfo serverInfo, IOptionsMonitor<BuildConfig> buildConfig, ILogger<SlackNotificationSink> logger)
+		public SlackNotificationSink(IMongoService mongoService, IRedisService redisService, IssueService issueService, ICommitService commitService, IUserCollection userCollection, ILogCollection logCollection, IExternalIssueService externalIssueService, IWebHostEnvironment environment, IOptions<BuildServerConfig> settings, IClock clock, IServerInfo serverInfo, IOptionsMonitor<BuildConfig> buildConfig, ILogger<SlackNotificationSink> logger)
 		{
 			_redisService = redisService;
 			_issueService = issueService;

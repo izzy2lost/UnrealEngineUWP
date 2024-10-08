@@ -28,14 +28,14 @@ namespace HordeServer.Agents.Enrollment
 		readonly RedisHashKey<string, EnrollmentRequest> _requests = new("agents:registration:requests");
 		readonly RedisHashKey<string, string> _approvals = new("agents:registration:approvals");
 		readonly AsyncEvent _approvalEvent = new AsyncEvent();
-		readonly IOptionsMonitor<StaticComputeConfig> _staticComputeConfig;
+		readonly IOptionsMonitor<ComputeServerConfig> _staticComputeConfig;
 
 		RedisSubscription? _subscription;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public EnrollmentService(IRedisService redisService, IClock clock, IOptionsMonitor<StaticComputeConfig> staticComputeConfig)
+		public EnrollmentService(IRedisService redisService, IClock clock, IOptionsMonitor<ComputeServerConfig> staticComputeConfig)
 		{
 			_redisService = redisService;
 			_clock = clock;
