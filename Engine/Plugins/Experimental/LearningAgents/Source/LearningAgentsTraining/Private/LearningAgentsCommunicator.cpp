@@ -35,9 +35,16 @@ FLearningAgentsTrainerProcess ULearningAgentsCommunicatorLibrary::SpawnSharedMem
 
 	const FString IntermediatePath = UE::Learning::Trainer::GetIntermediatePath(TrainerProcessSettings.GetIntermediatePath());
 
+	const FString CustomTrainerModulePath = TrainerProcessSettings.GetCustomTrainerModulePath();
+	if (!CustomTrainerModulePath.IsEmpty() and !FPaths::DirectoryExists(CustomTrainerModulePath))
+	{
+		UE_LOG(LogLearning, Error, TEXT("SpawnSharedMemoryTrainingProcess: Can't find custom trainer module \"%s\"."), *CustomTrainerModulePath);
+		return TrainerProcess;
+	}
+
 	TrainerProcess.TrainerProcess = MakeShared<UE::Learning::FSharedMemoryTrainerServerProcess>(
 		SharedMemorySettings.TaskName,
-		UE::Learning::Trainer::GetProjectPythonContentPath(),
+		CustomTrainerModulePath,
 		TrainerProcessSettings.TrainerFileName,
 		PythonExecutablePath,
 		PythonContentPath,
@@ -50,7 +57,6 @@ FLearningAgentsTrainerProcess ULearningAgentsCommunicatorLibrary::SpawnSharedMem
 
 FLearningAgentsCommunicator ULearningAgentsCommunicatorLibrary::MakeSharedMemoryCommunicator(
 	const FLearningAgentsTrainerProcess& TrainerProcess,
-	const FLearningAgentsTrainerProcessSettings& TrainerProcessSettings,
 	const FLearningAgentsSharedMemoryCommunicatorSettings& SharedMemorySettings)
 {
 	FLearningAgentsCommunicator Communicator;
@@ -98,8 +104,15 @@ FLearningAgentsTrainerProcess ULearningAgentsCommunicatorLibrary::SpawnSocketTra
 
 	const FString IntermediatePath = UE::Learning::Trainer::GetIntermediatePath(TrainerProcessSettings.GetIntermediatePath());
 
+	const FString CustomTrainerModulePath = TrainerProcessSettings.GetCustomTrainerModulePath();
+	if (!CustomTrainerModulePath.IsEmpty() and !FPaths::DirectoryExists(CustomTrainerModulePath))
+	{
+		UE_LOG(LogLearning, Error, TEXT("SpawnSocketTrainingProcess: Can't find custom trainer module \"%s\"."), *CustomTrainerModulePath);
+		return TrainerProcess;
+	}
+
 	TrainerProcess.TrainerProcess = MakeShared<UE::Learning::FSocketTrainerServerProcess>(
-		UE::Learning::Trainer::GetProjectPythonContentPath(),
+		CustomTrainerModulePath,
 		TrainerProcessSettings.TrainerFileName,
 		PythonExecutablePath,
 		PythonContentPath,
