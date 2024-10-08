@@ -2149,11 +2149,9 @@ void FNiagaraEditorModule::GetTargetSystemAndEmitterForDataInterface(UNiagaraDat
 
 void FNiagaraEditorModule::RegisterDefaultRendererFactories()
 {
-	bool bIsSupportedByStateless = true;
 	RegisterRendererCreationInfo(FNiagaraRendererCreationInfo(
 		UNiagaraMeshRendererProperties::StaticClass()->GetDisplayNameText(),
 		FText::FromString(UNiagaraMeshRendererProperties::StaticClass()->GetDescription()),
-		bIsSupportedByStateless,
 		UNiagaraMeshRendererProperties::StaticClass()->GetClassPathName(),
 		FNiagaraRendererCreationInfo::FRendererFactory::CreateLambda([](UObject* OuterEmitter)
 		{
@@ -2170,7 +2168,6 @@ void FNiagaraEditorModule::RegisterDefaultRendererFactories()
 	RegisterRendererCreationInfo(FNiagaraRendererCreationInfo(
 		UNiagaraSpriteRendererProperties::StaticClass()->GetDisplayNameText(),
 		FText::FromString(UNiagaraSpriteRendererProperties::StaticClass()->GetDescription()),
-		bIsSupportedByStateless,
 		UNiagaraSpriteRendererProperties::StaticClass()->GetClassPathName(),
 		FNiagaraRendererCreationInfo::FRendererFactory::CreateLambda([](UObject* OuterEmitter)
 		{
@@ -2183,7 +2180,6 @@ void FNiagaraEditorModule::RegisterDefaultRendererFactories()
 	RegisterRendererCreationInfo(FNiagaraRendererCreationInfo(
 		UNiagaraRibbonRendererProperties::StaticClass()->GetDisplayNameText(),
 		FText::FromString(UNiagaraRibbonRendererProperties::StaticClass()->GetDescription()),
-		bIsSupportedByStateless,
 		UNiagaraRibbonRendererProperties::StaticClass()->GetClassPathName(),
 		FNiagaraRendererCreationInfo::FRendererFactory::CreateLambda([](UObject* OuterEmitter)
 		{

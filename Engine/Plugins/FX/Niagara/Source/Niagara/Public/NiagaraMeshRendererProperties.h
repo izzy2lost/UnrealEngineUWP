@@ -242,7 +242,7 @@ struct FNiagaraMeshRendererMeshProperties
 	NIAGARA_API bool HasValidRenderableMesh() const;
 };
 
-UCLASS(editinlinenew, meta = (DisplayName = "Mesh Renderer"), MinimalAPI)
+UCLASS(editinlinenew, meta = (DisplayName = "Mesh Renderer", SupportsStateless), MinimalAPI)
 class UNiagaraMeshRendererProperties : public UNiagaraRendererProperties
 {
 public:
