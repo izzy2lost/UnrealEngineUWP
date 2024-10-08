@@ -130,6 +130,10 @@ public:
 
 		OutEnvironment.SetDefine(TEXT("SHADER_DEBUG"), 1);
 	}
+	static EShaderPermutationPrecacheRequest ShouldPrecachePermutation(const FGlobalShaderPermutationParameters& Parameters)
+	{
+		return EShaderPermutationPrecacheRequest::NotPrecached;
+	}
 };
 
 IMPLEMENT_GLOBAL_SHADER(FIESAtlasDebugInfoCS, "/Engine/Private/IESAtlas.usf", "MainCS", SF_Compute);

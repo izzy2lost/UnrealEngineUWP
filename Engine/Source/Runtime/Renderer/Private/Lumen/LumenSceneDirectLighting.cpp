@@ -1319,31 +1319,31 @@ static int32 ComputeShadowMaskFromLightAttenuation(
 			PermutationVector.Set<FLumenDirectLightingShadowMaskFromLightAttenuationCS::FLightFunctionAtlas>(bUseLightFunctionAtlas);
 			TShaderRef<FLumenDirectLightingShadowMaskFromLightAttenuationCS> ComputeShader = View.ShaderMap->GetShader<FLumenDirectLightingShadowMaskFromLightAttenuationCS>(PermutationVector);
 
-			const FShaderParametersMetadata* ParametersMetaData = FLumenDirectLightingShadowMaskFromLightAttenuationCS::FParameters::FTypeInfo::GetStructMetadata();
-			FRDGBufferRef IndirectArgsBuffer = LightTileScatterParameters.DispatchIndirectArgs;
-			ClearUnusedGraphResourcesImpl(ComputeShader->Bindings, ParametersMetaData, PassParameters, { IndirectArgsBuffer });
+				const FShaderParametersMetadata* ParametersMetaData = FLumenDirectLightingShadowMaskFromLightAttenuationCS::FParameters::FTypeInfo::GetStructMetadata();
+				FRDGBufferRef IndirectArgsBuffer = LightTileScatterParameters.DispatchIndirectArgs;
+				ClearUnusedGraphResourcesImpl(ComputeShader->Bindings, ParametersMetaData, PassParameters, { IndirectArgsBuffer });
 
-			GraphBuilder.AddPass(
-				RDG_EVENT_NAME("ShadowMaskFromLightAttenuationPass(LightType=%d,BatchedNum=%d)", LightTypeIndex, BatchedLightParameters.Num()),
-				PassParameters,
-				ComputePassFlags,
-				[PassParameters, ComputeShader, IndirectArgsBuffer, NumViews, ViewIndex, BatchedLightParameters](FRDGAsyncTask, FRHIComputeCommandList& RHICmdList)
-				{
-					// Marks the indirect draw parameter as used by the pass manually, given it can't be bound directly by any of the shader,
-					// meaning SetShaderParameters() won't be able to do it.
-					IndirectArgsBuffer->MarkResourceAsUsed();
-
-					for (const FPerLightParameters& LightParameterValues : BatchedLightParameters)
+				GraphBuilder.AddPass(
+					RDG_EVENT_NAME("ShadowMaskFromLightAttenuationPass(LightType=%d,BatchedNum=%d)", LightTypeIndex, BatchedLightParameters.Num()),
+					PassParameters,
+					ComputePassFlags,
+					[PassParameters, ComputeShader, IndirectArgsBuffer, NumViews, ViewIndex, BatchedLightParameters](FRDGAsyncTask, FRHIComputeCommandList& RHICmdList)
 					{
+						// Marks the indirect draw parameter as used by the pass manually, given it can't be bound directly by any of the shader,
+						// meaning SetShaderParameters() won't be able to do it.
+						IndirectArgsBuffer->MarkResourceAsUsed();
+
+						for (const FPerLightParameters& LightParameterValues : BatchedLightParameters)
+						{
 						const uint32 IndirectArgsOffset = (LightParameterValues.LightIndex * NumViews + ViewIndex) * sizeof(FRHIDispatchIndirectParameters);
 
-						// TODO: Only set changed paramters
-						PassParameters->Common.LightParameters = LightParameterValues;
-						FComputeShaderUtils::DispatchIndirect(RHICmdList, ComputeShader, *PassParameters, IndirectArgsBuffer->GetIndirectRHICallBuffer(), IndirectArgsOffset);
-					}
-				});
+							// TODO: Only set changed paramters
+							PassParameters->Common.LightParameters = LightParameterValues;
+							FComputeShaderUtils::DispatchIndirect(RHICmdList, ComputeShader, *PassParameters, IndirectArgsBuffer->GetIndirectRHICallBuffer(), IndirectArgsOffset);
+						}
+					});
+			}
 		}
-	}
 
 	return NumLightsNeedShadowMasks;
 }
@@ -1516,31 +1516,31 @@ void TraceDistanceFieldShadows(
 
 			TShaderRef<FLumenSceneDirectLightingTraceDistanceFieldShadowsCS> ComputeShader = View.ShaderMap->GetShader<FLumenSceneDirectLightingTraceDistanceFieldShadowsCS>(PermutationVector);
 
-			const FShaderParametersMetadata* ParametersMetaData = FLumenSceneDirectLightingTraceDistanceFieldShadowsCS::FParameters::FTypeInfo::GetStructMetadata();
-			FRDGBufferRef IndirectArgsBuffer = LightTileScatterParameters.DispatchIndirectArgs;
-			ClearUnusedGraphResourcesImpl(ComputeShader->Bindings, ParametersMetaData, PassParameters, { IndirectArgsBuffer });
+				const FShaderParametersMetadata* ParametersMetaData = FLumenSceneDirectLightingTraceDistanceFieldShadowsCS::FParameters::FTypeInfo::GetStructMetadata();
+				FRDGBufferRef IndirectArgsBuffer = LightTileScatterParameters.DispatchIndirectArgs;
+				ClearUnusedGraphResourcesImpl(ComputeShader->Bindings, ParametersMetaData, PassParameters, { IndirectArgsBuffer });
 
-			GraphBuilder.AddPass(
-				RDG_EVENT_NAME("DistanceFieldShadowPass LightType=%d BatchedNum=%d", LightTypeIndex, BatchedLightParameters.Num()),
-				PassParameters,
-				ComputePassFlags,
-				[PassParameters, ComputeShader, IndirectArgsBuffer, NumViews, ViewIndex, LocalBatchedLightParameters = MoveTemp(BatchedLightParameters)](FRDGAsyncTask, FRHIComputeCommandList& RHICmdList) mutable
-				{
-					// Marks the indirect draw parameter as used by the pass manually, given it can't be bound directly by any of the shader,
-					// meaning SetShaderParameters() won't be able to do it.
-					IndirectArgsBuffer->MarkResourceAsUsed();
-
-					for (FPerLightParameters& LightParameterValues : LocalBatchedLightParameters)
+				GraphBuilder.AddPass(
+					RDG_EVENT_NAME("DistanceFieldShadowPass LightType=%d BatchedNum=%d", LightTypeIndex, BatchedLightParameters.Num()),
+					PassParameters,
+					ComputePassFlags,
+					[PassParameters, ComputeShader, IndirectArgsBuffer, NumViews, ViewIndex, LocalBatchedLightParameters = MoveTemp(BatchedLightParameters)](FRDGAsyncTask, FRHIComputeCommandList& RHICmdList) mutable
 					{
+						// Marks the indirect draw parameter as used by the pass manually, given it can't be bound directly by any of the shader,
+						// meaning SetShaderParameters() won't be able to do it.
+						IndirectArgsBuffer->MarkResourceAsUsed();
+
+						for (FPerLightParameters& LightParameterValues : LocalBatchedLightParameters)
+						{
 						const uint32 IndirectArgsOffset = (LightParameterValues.LightIndex * NumViews + ViewIndex) * sizeof(FRHIDispatchIndirectParameters);
 
-						// TODO: Only set changed paramters
-						PassParameters->LightParameters = MoveTemp(LightParameterValues);
-						FComputeShaderUtils::DispatchIndirect(RHICmdList, ComputeShader, *PassParameters, IndirectArgsBuffer->GetIndirectRHICallBuffer(), IndirectArgsOffset);
-					}
-				});
+							// TODO: Only set changed paramters
+							PassParameters->LightParameters = MoveTemp(LightParameterValues);
+							FComputeShaderUtils::DispatchIndirect(RHICmdList, ComputeShader, *PassParameters, IndirectArgsBuffer->GetIndirectRHICallBuffer(), IndirectArgsOffset);
+						}
+					});
+			}
 		}
-	}
 }
 
 // Must match FLumenPackedLight in LumenSceneDirectLighting.ush
@@ -1925,9 +1925,9 @@ void FDeferredShadingSceneRenderer::BeginGatherLumenLights(const FLumenSceneFram
 		{
 			for (int32 LightTypeIndex = 0; LightTypeIndex < NumLightTypes; ++LightTypeIndex)
 			{
-				ViewLightParameters.PerLightTypeParameters[LightTypeIndex].Empty(BatchedLightCounts[LightTypeIndex]);
+					ViewLightParameters.PerLightTypeParameters[LightTypeIndex].Empty(BatchedLightCounts[LightTypeIndex]);
+				}
 			}
-		}
 
 		for (int32 LightIndex = 0; LightIndex < TaskData->GatheredLights.Num(); ++LightIndex)
 		{
@@ -2007,9 +2007,9 @@ void FDeferredShadingSceneRenderer::BeginGatherLumenLights(const FLumenSceneFram
 		{
 			for (int32 LightTypeIndex = 0; LightTypeIndex < NumLightTypes; ++LightTypeIndex)
 			{
-				check(ViewLightParameters.PerLightTypeParameters[LightTypeIndex].Num() == BatchedLightCounts[LightTypeIndex]);
+					check(ViewLightParameters.PerLightTypeParameters[LightTypeIndex].Num() == BatchedLightCounts[LightTypeIndex]);
+				}
 			}
-		}
 #endif
 	}, Prerequisites);
 }
@@ -2065,6 +2065,11 @@ class FLumenSceneDirectLightingStatsCS : public FGlobalShader
 		FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
 		OutEnvironment.SetDefine(TEXT("THREADGROUP_SIZE"), GetGroupSize());
 		OutEnvironment.SetDefine(TEXT("SHADER_DEBUG"), 1);
+	}
+
+	static EShaderPermutationPrecacheRequest ShouldPrecachePermutation(const FGlobalShaderPermutationParameters& Parameters)
+	{
+		return EShaderPermutationPrecacheRequest::NotPrecached;
 	}
 };
 
