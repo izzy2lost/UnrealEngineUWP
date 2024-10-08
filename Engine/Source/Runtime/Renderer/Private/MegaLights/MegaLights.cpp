@@ -649,6 +649,16 @@ class FVolumeGenerateLightSamplesCS : public FGlobalShader
 		OutEnvironment.CompilerFlags.Add(CFLAG_WaveOperations);
 		OutEnvironment.CompilerFlags.Add(CFLAG_Wave32);
 	}
+
+	static EShaderPermutationPrecacheRequest ShouldPrecachePermutation(const FGlobalShaderPermutationParameters& Parameters)
+	{
+		FPermutationDomain PermutationVector(Parameters.PermutationId);
+		if (PermutationVector.Get<FDebugMode>())
+		{
+			return EShaderPermutationPrecacheRequest::NotPrecached;
+		}
+		return FGlobalShader::ShouldPrecachePermutation(Parameters);
+	}
 };
 
 IMPLEMENT_GLOBAL_SHADER(FVolumeGenerateLightSamplesCS, "/Engine/Private/MegaLights/MegaLightsVolumeSampling.usf", "VolumeGenerateLightSamplesCS", SF_Compute);
@@ -686,6 +696,16 @@ class FClearLightSamplesCS : public FGlobalShader
 		FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
 		MegaLights::ModifyCompilationEnvironment(Parameters.Platform, OutEnvironment);
 		OutEnvironment.SetDefine(TEXT("THREADGROUP_SIZE"), GetGroupSize());
+	}
+
+	static EShaderPermutationPrecacheRequest ShouldPrecachePermutation(const FGlobalShaderPermutationParameters& Parameters)
+	{
+		FPermutationDomain PermutationVector(Parameters.PermutationId);
+		if (PermutationVector.Get<FDebugMode>())
+		{
+			return EShaderPermutationPrecacheRequest::NotPrecached;
+		}
+		return FGlobalShader::ShouldPrecachePermutation(Parameters);
 	}
 };
 
@@ -854,6 +874,16 @@ class FVolumeShadeLightSamplesCS : public FGlobalShader
 
 		OutEnvironment.CompilerFlags.Add(CFLAG_Wave32);
 	}
+
+	static EShaderPermutationPrecacheRequest ShouldPrecachePermutation(const FGlobalShaderPermutationParameters& Parameters)
+	{
+		FPermutationDomain PermutationVector(Parameters.PermutationId);
+		if (PermutationVector.Get<FDebugMode>())
+		{
+			return EShaderPermutationPrecacheRequest::NotPrecached;
+		}
+		return FGlobalShader::ShouldPrecachePermutation(Parameters);
+	}
 };
 
 IMPLEMENT_GLOBAL_SHADER(FVolumeShadeLightSamplesCS, "/Engine/Private/MegaLights/MegaLightsVolumeShading.usf", "VolumeShadeLightSamplesCS", SF_Compute);
@@ -935,6 +965,16 @@ class FDenoiserTemporalCS : public FGlobalShader
 		FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
 		OutEnvironment.SetDefine(TEXT("THREADGROUP_SIZE"), GetGroupSize());
 	}
+
+	static EShaderPermutationPrecacheRequest ShouldPrecachePermutation(const FGlobalShaderPermutationParameters& Parameters)
+	{
+		FPermutationDomain PermutationVector(Parameters.PermutationId);
+		if (PermutationVector.Get<FDebugMode>())
+		{
+			return EShaderPermutationPrecacheRequest::NotPrecached;
+		}
+		return FGlobalShader::ShouldPrecachePermutation(Parameters);
+	}
 };
 
 IMPLEMENT_GLOBAL_SHADER(FDenoiserTemporalCS, "/Engine/Private/MegaLights/MegaLightsDenoiserTemporal.usf", "DenoiserTemporalCS", SF_Compute);
@@ -974,6 +1014,16 @@ class FDenoiserSpatialCS : public FGlobalShader
 	{
 		FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
 		OutEnvironment.SetDefine(TEXT("THREADGROUP_SIZE"), GetGroupSize());
+	}
+
+	static EShaderPermutationPrecacheRequest ShouldPrecachePermutation(const FGlobalShaderPermutationParameters& Parameters)
+	{
+		FPermutationDomain PermutationVector(Parameters.PermutationId);
+		if (PermutationVector.Get<FDebugMode>())
+		{
+			return EShaderPermutationPrecacheRequest::NotPrecached;
+		}
+		return FGlobalShader::ShouldPrecachePermutation(Parameters);
 	}
 };
 

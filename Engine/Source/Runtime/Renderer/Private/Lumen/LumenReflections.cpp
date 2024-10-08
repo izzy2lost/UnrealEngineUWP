@@ -529,6 +529,16 @@ class FLumenReflectionResolveCS : public FGlobalShader
 	class FDownsampleFactor : SHADER_PERMUTATION_RANGE_INT("DOWNSAMPLE_FACTOR", 1, 2);
 	class FDebugMode : SHADER_PERMUTATION_BOOL("DEBUG_MODE");
 	using FPermutationDomain = TShaderPermutationDomain<FSpatialReconstruction, FFrontLayerTranslucency, FDownsampleFactor, FDebugMode>;
+
+	static EShaderPermutationPrecacheRequest ShouldPrecachePermutation(const FGlobalShaderPermutationParameters& Parameters)
+	{
+		FPermutationDomain PermutationVector(Parameters.PermutationId);
+		if (PermutationVector.Get<FDebugMode>())
+		{
+			return EShaderPermutationPrecacheRequest::NotPrecached;
+		}
+		return FGlobalShader::ShouldPrecachePermutation(Parameters);
+	}
 };
 
 IMPLEMENT_GLOBAL_SHADER(FLumenReflectionResolveCS, "/Engine/Private/Lumen/LumenReflectionResolve.usf", "LumenReflectionResolveCS", SF_Compute);
@@ -794,6 +804,16 @@ class FLumenReflectionDenoiserTemporalCS : public FGlobalShader
 		FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
 		OutEnvironment.SetDefine(TEXT("THREADGROUP_SIZE"), GetGroupSize());
 	}
+
+	static EShaderPermutationPrecacheRequest ShouldPrecachePermutation(const FGlobalShaderPermutationParameters& Parameters)
+	{
+		FPermutationDomain PermutationVector(Parameters.PermutationId);
+		if (PermutationVector.Get<FDebug>())
+		{
+			return EShaderPermutationPrecacheRequest::NotPrecached;
+		}
+		return FGlobalShader::ShouldPrecachePermutation(Parameters);
+	}
 };
 
 IMPLEMENT_GLOBAL_SHADER(FLumenReflectionDenoiserTemporalCS, "/Engine/Private/Lumen/LumenReflectionDenoiserTemporal.usf", "LumenReflectionDenoiserTemporalCS", SF_Compute);
@@ -858,6 +878,16 @@ class FLumenReflectionDenoiserSpatialCS : public FGlobalShader
 	{
 		FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
 		OutEnvironment.SetDefine(TEXT("THREADGROUP_SIZE"), GetGroupSize());
+	}
+
+	static EShaderPermutationPrecacheRequest ShouldPrecachePermutation(const FGlobalShaderPermutationParameters& Parameters)
+	{
+		FPermutationDomain PermutationVector(Parameters.PermutationId);
+		if (PermutationVector.Get<FDebugMode>())
+		{
+			return EShaderPermutationPrecacheRequest::NotPrecached;
+		}
+		return FGlobalShader::ShouldPrecachePermutation(Parameters);
 	}
 };
 
