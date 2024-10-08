@@ -148,7 +148,7 @@ public:
 	bool bOnlyConnectedToHull = false;
 
 	/** When performing Voxel Search, maximum number of voxels to use along each dimension */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = NegativeSpace, meta = (ClampMin = 4, ClampMax = 4096))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = NegativeSpace, meta = (ClampMin = 4, ClampMax = 1290))
 	int32 MaxVoxelsPerDim = 128;
 
 	/** Approximate number of spheres to consider when covering negative space */

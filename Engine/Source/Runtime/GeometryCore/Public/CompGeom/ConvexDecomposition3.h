@@ -139,7 +139,7 @@ struct FNegativeSpaceSampleSettings
 		MinSpacing = FMath::Max(0.0, MinSpacing);
 		ReduceRadiusMargin = FMath::Max(0.0, ReduceRadiusMargin);
 		MinRadius = FMath::Max(0.0, MinRadius);
-		MaxVoxelsPerDim = FMath::Clamp(MaxVoxelsPerDim, 4, 4096);
+		MaxVoxelsPerDim = FMath::Clamp(MaxVoxelsPerDim, 4, 1290);
 	}
 
 	// helper to evaluate OptionalObstacleSDF for local positions
