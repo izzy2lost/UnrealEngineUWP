@@ -1055,7 +1055,14 @@ namespace Gauntlet
 								SetAttributesNormal(SubDirectory);
 							}
 						};
-						SetAttributesNormal(SourceDirectory);
+						try
+						{
+							SetAttributesNormal(SourceDirectory);
+						}
+						catch
+						{
+							Log.Info("Could not remove the read-only attribute from {SourceDirectory}.", SourceDirectory);
+						}
 						try
 						{
 							SourceDirectory.Delete(true);
