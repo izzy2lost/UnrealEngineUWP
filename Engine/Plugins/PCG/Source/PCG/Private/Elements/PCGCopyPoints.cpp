@@ -5,6 +5,7 @@
 #include "PCGContext.h"
 #include "Compute/DataInterfaces/PCGCopyPointsDataInterface.h"
 #include "Compute/PCGComputeCommon.h"
+#include "Compute/PCGDataBinding.h"
 #include "Data/PCGPointData.h"
 #include "Data/PCGSpatialData.h"
 #include "Helpers/PCGAsync.h"
@@ -32,15 +33,15 @@ FString UPCGCopyPointsSettings::GetCookedKernelSource(const TMap<FName, FPCGKern
 	return TemplateFile;
 }
 
-FPCGDataCollectionDesc UPCGCopyPointsSettings::ComputeOutputPinDataDesc(const UPCGPin* OutputPin, const UPCGDataBinding* Binding) const
+bool UPCGCopyPointsSettings::ComputeOutputPinDataDesc(const UPCGPin* OutputPin, const UPCGDataBinding* Binding, FPCGDataCollectionDesc& OutDesc) const
 {
 	check(OutputPin);
 	check(Binding);
 
-	// If node will not execute on GPU then its data comes straight from CPU.
-	if (!ShouldExecuteOnGPU() || !bEnabled)
+	// First inspect data coming from CPU. Will return description if this node is a CPU node or in a different compute graph.
+	if (Binding->ComputeCPUOutputPinDataDesc(OutputPin, OutDesc))
 	{
-		return Super::ComputeOutputPinDataDesc(OutputPin, Binding);
+		return true;
 	}
 
 	const UPCGNode* Node = CastChecked<UPCGNode>(GetOuter());
@@ -100,7 +101,8 @@ FPCGDataCollectionDesc UPCGCopyPointsSettings::ComputeOutputPinDataDesc(const UP
 		}
 	}
 
-	return PinDesc;
+	OutDesc = PinDesc;
+	return true;
 }
 
 int UPCGCopyPointsSettings::ComputeKernelThreadCount(const UPCGDataBinding* Binding) const
@@ -108,12 +110,15 @@ int UPCGCopyPointsSettings::ComputeKernelThreadCount(const UPCGDataBinding* Bind
 	const UPCGNode* Node = CastChecked<UPCGNode>(GetOuter());
 	const UPCGPin* OutPin = Node->GetOutputPin(PCGPinConstants::DefaultOutputLabel);
 
-	const FPCGDataCollectionDesc OutputPinDesc = ComputeOutputPinDataDesc(OutPin, Binding);
 	int ThreadCount = 0;
 
-	for (const FPCGDataDesc& DataDesc : OutputPinDesc.DataDescs)
+	FPCGDataCollectionDesc OutputPinDesc;
+	if (ensure(ComputeOutputPinDataDesc(OutPin, Binding, OutputPinDesc)))
 	{
-		ThreadCount += DataDesc.ElementCount;
+		for (const FPCGDataDesc& DataDesc : OutputPinDesc.DataDescs)
+		{
+			ThreadCount += DataDesc.ElementCount;
+		}
 	}
 
 	return ThreadCount;

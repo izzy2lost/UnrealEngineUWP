@@ -268,40 +268,38 @@ FPCGDataCollectionDesc UPCGSettings::ComputeInputPinDataDesc(const UPCGPin* Inpu
 		check(UpstreamSettings);
 
 		// Add data from connected upstream output pin.
-		PinDesc.Combine(UpstreamSettings->ComputeOutputPinDataDesc(UpstreamOutputPin, Binding));
+		FPCGDataCollectionDesc EdgeDesc;
+		if (ensure(UpstreamSettings->ComputeOutputPinDataDesc(UpstreamOutputPin, Binding, EdgeDesc)))
+		{
+			PinDesc.Combine(EdgeDesc);
+		}
 	}
 
 	return PinDesc;
 }
 
-FPCGDataCollectionDesc UPCGSettings::ComputeOutputPinDataDesc(const FName& OutputPinLabel, const UPCGDataBinding* Binding) const
+bool UPCGSettings::ComputeOutputPinDataDesc(const FName& OutputPinLabel, const UPCGDataBinding* InBinding, FPCGDataCollectionDesc& OutDesc) const
 {
 	const UPCGNode* Node = CastChecked<UPCGNode>(GetOuter());
-	return ComputeOutputPinDataDesc(Node->GetOutputPin(OutputPinLabel), Binding);
+	return ComputeOutputPinDataDesc(Node->GetOutputPin(OutputPinLabel), InBinding, OutDesc);
 }
 
-FPCGDataCollectionDesc UPCGSettings::ComputeOutputPinDataDesc(const UPCGPin* OutputPin, const UPCGDataBinding* Binding) const
+bool UPCGSettings::ComputeOutputPinDataDesc(const UPCGPin* OutputPin, const UPCGDataBinding* InBinding, FPCGDataCollectionDesc& OutDesc) const
 {
 	check(OutputPin);
-	check(Binding);
+	check(InBinding);
 
-	// This base class implementation will be called on upstream CPU nodes. Get the downstream pin alias in order to
-	// pick the relevant data items out of the compute graph element's input data collection.
-	if (const FName* FoundPinAlias = Binding->Graph->OutputCPUPinToInputGPUPinAlias.Find(OutputPin))
+	const bool bSuccess = InBinding->ComputeCPUOutputPinDataDesc(OutputPin, OutDesc);
+
+	if (!bSuccess)
 	{
-		return FPCGDataCollectionDesc::BuildFromInputDataCollectionAndInputPinLabel(
-			Binding->DataForGPU.InputDataCollection,
-			*FoundPinAlias,
-			Binding->GetAttributeLookupTable(),
-			Binding->GetStringTable());
+		ensureMsgf(false, TEXT("Gathering data from CPU output pin '%s' on node '%s' failed. Pin was not present in OutputCPUPinToInputGPUPinAlias map (%d entries)."),
+			*OutputPin->Properties.Label.ToString(),
+			OutputPin->Node ? *OutputPin->Node->GetNodeTitle(EPCGNodeTitleType::ListView).ToString() : TEXT("MISSING"),
+			InBinding->Graph->OutputCPUPinToInputGPUPinAlias.Num());
 	}
 
-	ensureMsgf(false, TEXT("Gathering data from CPU output pin '%s' on node '%s' failed. Pin was not present in OutputCPUPinToInputGPUPinAlias map (%d entries)."),
-		*OutputPin->Properties.Label.ToString(),
-		OutputPin->Node ? *OutputPin->Node->GetNodeTitle(EPCGNodeTitleType::ListView).ToString() : TEXT("MISSING"),
-		Binding->Graph->OutputCPUPinToInputGPUPinAlias.Num());
-
-	return {};
+	return bSuccess;
 }
 
 uint32 UPCGSettings::GetTypeNameHash() const

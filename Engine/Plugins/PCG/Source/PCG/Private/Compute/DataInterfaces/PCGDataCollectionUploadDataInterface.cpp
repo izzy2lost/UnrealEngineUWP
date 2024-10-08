@@ -49,7 +49,20 @@ FComputeDataProviderRenderProxy* UPCGDataProviderDataCollectionUpload::GetRender
 		return nullptr;
 	}
 
-	return new FPCGDataProviderDataCollectionUploadProxy(PinDesc, MoveTemp(PackedDataCollection), DownstreamInputPinLabels);
+	FPCGDataProviderDataCollectionUploadProxy* Proxy = new FPCGDataProviderDataCollectionUploadProxy(PinDesc, MoveTemp(PackedDataCollection), DownstreamInputPinLabels);
+
+#if WITH_EDITOR
+	if (const UPCGNode* Node = Cast<UPCGNode>(ProducerSettings ? ProducerSettings->GetOuter() : nullptr))
+	{
+		Proxy->SetBufferName(FString::Format(TEXT("PCG_UDC_{0}_{1}"), { Node->GetNodeTitle(EPCGNodeTitleType::ListView).ToString(), OutputPinLabel.ToString() }));
+	}
+	else
+	{
+		Proxy->SetBufferName(TEXT("PCG_UDC"));
+	}
+#endif
+
+	return Proxy;
 }
 
 FPCGDataProviderDataCollectionUploadProxy::FPCGDataProviderDataCollectionUploadProxy(const FPCGDataCollectionDesc& InPinDesc, TArray<uint32>&& InPackedDataCollection, const TArray<FName>& InDownstreamInputPinLabels)
@@ -63,8 +76,15 @@ void FPCGDataProviderDataCollectionUploadProxy::AllocateResources(FRDGBuilder& G
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGDataProviderDataCollectionUploadProxy::AllocateResources);
 
+	const TCHAR* DebugName =
+#if WITH_EDITOR
+		*BufferName;
+#else
+		TEXT("PCGDataCollectionUploadBuffer");
+#endif
+
 	const FRDGBufferDesc Desc = FRDGBufferDesc::CreateStructuredDesc(sizeof(uint32), PackedDataCollection.Num());
-	Buffer = GraphBuilder.CreateBuffer(Desc, TEXT("PCGDataCollectionUploadBuffer"));
+	Buffer = GraphBuilder.CreateBuffer(Desc, DebugName);
 	BufferUAV = GraphBuilder.CreateUAV(Buffer);
 
 	GraphBuilder.QueueBufferUpload(Buffer, PackedDataCollection.GetData(), PackedDataCollection.Num() * PackedDataCollection.GetTypeSize(), ERDGInitialDataFlags::None);

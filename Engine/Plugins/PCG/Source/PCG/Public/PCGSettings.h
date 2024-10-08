@@ -549,8 +549,8 @@ public:
 	FPCGDataCollectionDesc ComputeInputPinDataDesc(const UPCGPin* InputPin, const UPCGDataBinding* Binding) const;
 
 	/** Compute a description of data that will be output from OutputPinLabel/OutputPin. */
-	FPCGDataCollectionDesc ComputeOutputPinDataDesc(const FName& OutputPinLabel, const UPCGDataBinding* Binding) const;
-	virtual FPCGDataCollectionDesc ComputeOutputPinDataDesc(const UPCGPin* OutputPin, const UPCGDataBinding* Binding) const;
+	bool ComputeOutputPinDataDesc(const FName& OutputPinLabel, const UPCGDataBinding* InBinding, FPCGDataCollectionDesc& OutDesc) const;
+	virtual bool ComputeOutputPinDataDesc(const UPCGPin* OutputPin, const UPCGDataBinding* InBinding, FPCGDataCollectionDesc& OutDesc) const;
 
 	/** Create additional data interfaces to marshal any data required by this settings. */
 	virtual void CreateAdditionalInputDataInterfaces(TArray<TObjectPtr<UComputeDataInterface>>& OutDataInterfaces) const {}

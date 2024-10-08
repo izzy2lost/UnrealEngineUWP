@@ -35,6 +35,29 @@ void UPCGDataBinding::Initialize(
 #endif
 }
 
+bool UPCGDataBinding::ComputeCPUOutputPinDataDesc(const UPCGPin* OutputPin, FPCGDataCollectionDesc& OutDesc) const
+{
+	check(OutputPin);
+	check(Graph);
+
+	// Find the unique alias for the virtual pin created during compilation to receive the data from the upstream OutputPin.
+	// OutputPin can either be on a CPU node or on a GPU node in a different compute graph.
+	const FName* FoundPinAlias = Graph->OutputCPUPinToInputGPUPinAlias.Find(OutputPin);
+	if (!FoundPinAlias)
+	{
+		return false;
+	}
+
+	// Create description from compute graph element input data.
+	OutDesc = FPCGDataCollectionDesc::BuildFromInputDataCollectionAndInputPinLabel(
+		DataForGPU.InputDataCollection,
+		*FoundPinAlias,
+		GetAttributeLookupTable(),
+		GetStringTable());
+
+	return true;
+}
+
 void UPCGDataBinding::InitializeInputData(const FPCGDataCollection& InComputeGraphElementInputData)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(UPCGDataBinding::InitializeInputData);
@@ -236,9 +259,16 @@ void UPCGDataBinding::DebugLogDataDescriptions()
 
 			for (const UPCGPin* Pin : Node->GetOutputPins())
 			{
-				const FPCGDataCollectionDesc DataDesc = Settings->ComputeOutputPinDataDesc(Pin, this);
-				UE_LOG(LogPCG, Display, TEXT("\tOutput Pin: %s (%d data)"), *Pin->Properties.Label.ToString(), DataDesc.DataDescs.Num());
-				LogDataDescription(DataDesc);
+				FPCGDataCollectionDesc DataDesc;
+				if (ensure(Settings->ComputeOutputPinDataDesc(Pin, this, DataDesc)))
+				{
+					UE_LOG(LogPCG, Display, TEXT("\tOutput Pin: %s (%d data)"), *Pin->Properties.Label.ToString(), DataDesc.DataDescs.Num());
+					LogDataDescription(DataDesc);
+				}
+				else
+				{
+					UE_LOG(LogPCG, Display, TEXT("\tOutput Pin: %s MISSING!"), *Pin->Properties.Label.ToString());
+				}
 			}
 		}
 	}
