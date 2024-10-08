@@ -209,6 +209,7 @@ struct FNiagaraDataInterfaceProxy_DataChannelWrite : public FNiagaraDataInterfac
 
 	virtual void PreStage(const FNDIGpuComputePreStageContext& Context)override;
 	virtual void PostStage(const FNDIGpuComputePostStageContext& Context)override;
+	virtual void PostSimulate(const FNDIGpuComputePostSimulateContext& Context)override;
 
 	/** Persistent per instance data on the RT. Constructed when consuming data passed from GT->RT. */
 	struct FInstanceData
@@ -232,6 +233,9 @@ struct FNiagaraDataInterfaceProxy_DataChannelWrite : public FNiagaraDataInterfac
 
 		//This is the buffer we'll write into for shipping data back to the CPU & Game.
 		FNiagaraDataBufferRef BufferForCPU;
+
+		//This is the main GPU buffer we'll be writing into.
+		FNiagaraDataBufferRef GPUBuffer;
 
 		bool bPublishToGame = false;
 		bool bPublishToCPU = false;

@@ -49,8 +49,17 @@ class UNiagaraDataChannelReader;
 struct FNiagaraDataChannelPublishRequest;
 struct FNiagaraDataChannelGameDataLayout;
 class FNiagaraGpuReadbackManager;
+class FRDGBuilder;
 
 //////////////////////////////////////////////////////////////////////////
+
+struct FNDCGpuReadbackInfo
+{
+	FNiagaraDataBufferRef Buffer;
+	bool bPublishToCPU = false;
+	bool bPublishToGame = false;
+	FVector3f LWCTile;
+};
 
 /** Render thread proxy of FNiagaraDataChannelData. */
 struct FNiagaraDataChannelDataProxy
@@ -65,9 +74,15 @@ struct FNiagaraDataChannelDataProxy
 
 	//Buffers coming from the CPU that we're going to copy up for reading on the GPU
 	TArray<FNiagaraDataBufferRef> PendingCPUBuffers;
+
+	//Buffers written from the GPU that we must send back to the CPU.
+	TArray<FNDCGpuReadbackInfo> PendingGPUReadbackBuffers;
 	
 	//Users that need space in this NDC Data add to this for each tick via AddGPUAllocationForNextTick().
 	int32 PendingGPUAllocations = 0;
+
+	//Track current read/write counts +ve for readers, -ve for writers. We cannot mix readers and writers in the same buffer in the same stage.
+	int32 CurrBufferAccessCounts = 0;
 
 	#if !UE_BUILD_SHIPPING
 	FNiagaraGpuComputeDispatchInterface* DispatchInterfaceForDebuggingOnly = nullptr;
@@ -80,16 +95,24 @@ struct FNiagaraDataChannelDataProxy
 
 	void Cleanup(FNiagaraGpuComputeDispatchInterface* ComputeDispatchInterface);
 	void BeginFrame(FNiagaraGpuComputeDispatchInterface* DispatchInterface, FRHICommandListImmediate& RHICmdList);
-	void EndFrame(FRHICommandListImmediate& RHICmdList);
+	void EndFrame(FNiagaraGpuComputeDispatchInterface* DispatchInterface, FRHICommandListImmediate& RHICmdList);
 	void Reset();
 
-	FNiagaraDataBufferRef AllocateBufferForCPU(FRHICommandListImmediate& RHICmdList, ERHIFeatureLevel::Type FeatureLevel, int32 AllocationSize);
-	void EnqueueReadbackForCPUBuffer(FRHICommandList& RHICmdList, FNiagaraDataBufferRef Buffer, FNiagaraGpuReadbackManager* ReadbackManager, FNiagaraGPUInstanceCountManager& InstanceCountManager, bool bPublishToGame, bool bPublishToCPU, FVector3f LWCTile);
+	FNiagaraDataBufferRef PrepareForWriteAccess(FRDGBuilder& GraphBuilder);
+	void EndWriteAccess(FRDGBuilder& GraphBuilder);
+	
+	FNiagaraDataBufferRef PrepareForReadAccess(FRDGBuilder& GraphBuilder, bool bCurrentFrame);
+	void EndReadAccess(FRDGBuilder& GraphBuilder, bool bCurrentFrame);
+
+
+	FNiagaraDataBufferRef AllocateBufferForCPU(FRDGBuilder& GraphBuilder, ERHIFeatureLevel::Type FeatureLevel, int32 AllocationSize, bool bPublishToGame, bool bPublishToCPU, FVector3f LWCTile);
 	void AddBuffersFromCPU(const TArray<FNiagaraDataBufferRef>& BuffersFromCPU);	
 	void AddGPUAllocationForNextTick(int32 AllocationCount);
 
 	FNiagaraDataBufferRef GetCurrentData()const { return CurrFrameData; }
 	FNiagaraDataBufferRef GetPrevFrameData()const { return PrevFrameData; }
+	
+	void AddTransition(FRDGBuilder& GraphBuilder, ERHIAccess AccessBefore, ERHIAccess AccessAfter, FNiagaraDataBuffer* Buffer);
 };
 
 DECLARE_MULTICAST_DELEGATE_OneParam(FOnDataChannelCreated, const UNiagaraDataChannel*);

@@ -19,6 +19,8 @@
 #endif
 #include "NiagaraDataSetReadback.h"
 
+#include "RenderGraphUtils.h"
+
 #include UE_INLINE_GENERATED_CPP_BY_NAME(NiagaraDataChannel)
 
 #define LOCTEXT_NAMESPACE "NiagaraDataChannels"
@@ -569,46 +571,180 @@ void FNiagaraDataChannelDataProxy::BeginFrame(FNiagaraGpuComputeDispatchInterfac
 	}
 }
 
-void FNiagaraDataChannelDataProxy::EndFrame(FRHICommandListImmediate& RHICmdList)
+void FNiagaraDataChannelDataProxy::EndFrame(FNiagaraGpuComputeDispatchInterface* DispatchInterface, FRHICommandListImmediate& RHICmdList)
 {
 	check(GPUDataSet);
 	check(GPUDataSet->GetSimTarget() == ENiagaraSimTarget::GPUComputeSim);
-}
 
-FNiagaraDataBufferRef FNiagaraDataChannelDataProxy::AllocateBufferForCPU(FRHICommandListImmediate& RHICmdList, ERHIFeatureLevel::Type FeatureLevel, int32 AllocationSize)
-{
-	FNiagaraDataBuffer* Ret = &GPUDataSet->AllocateBuffer();
-	Ret->AllocateGPU(RHICmdList, AllocationSize, FeatureLevel, TEXT("NDC GPU Buffers for CPU"));	
-	return Ret->UnlockForRead();
-}
+	check(CurrBufferAccessCounts == 0);
 
-void FNiagaraDataChannelDataProxy::EnqueueReadbackForCPUBuffer(FRHICommandList& RHICmdList, FNiagaraDataBufferRef Buffer, FNiagaraGpuReadbackManager* ReadbackManager, FNiagaraGPUInstanceCountManager& InstanceCountManager, bool bPublishToGame, bool bPublishToCPU, FVector3f LWCTile)
-{
-	auto PublishOnCPU = [=, LocalOwner = Owner](FNiagaraDataBufferRef ReadbackBuffer)
+	//Handle pending readbacks for GPU->CPU data.
 	{
-		if (FNiagaraDataChannelData* NDCData = LocalOwner.Pin().Get())
+		for (FNDCGpuReadbackInfo& ReadbackInfo : PendingGPUReadbackBuffers)
 		{
-			if (ReadbackBuffer && ReadbackBuffer->GetNumInstances())
-			{
-				FNiagaraDataChannelPublishRequest PublishRequest(ReadbackBuffer);
-				PublishRequest.bVisibleToGame = bPublishToGame;
-				PublishRequest.bVisibleToCPUSims = bPublishToCPU;
-				PublishRequest.bVisibleToGPUSims = false;//Don't want to ping pong back to the GPU
-				PublishRequest.LwcTile = LWCTile;
+			//We enqueue a readback for the data if we're wanting to publish it to the CPU or Game
+			check(ReadbackInfo.bPublishToCPU || ReadbackInfo.bPublishToGame);//We should be doing one or the other or we should not get here.
+
+			auto PublishOnCPU = [
+				LocalOwner = Owner,
+				PASS_PublishCPU = ReadbackInfo.bPublishToCPU,
+				PASS_PublishGame = ReadbackInfo.bPublishToGame,
+				PASS_LWCTile = ReadbackInfo.LWCTile](FNiagaraDataBufferRef ReadbackBuffer)
+				{
+					if (FNiagaraDataChannelData* NDCData = LocalOwner.Pin().Get())
+					{
+						if (ReadbackBuffer && ReadbackBuffer->GetNumInstances())
+						{
+							FNiagaraDataChannelPublishRequest PublishRequest(ReadbackBuffer);
+							PublishRequest.bVisibleToGame = PASS_PublishGame;
+							PublishRequest.bVisibleToCPUSims = PASS_PublishCPU;
+							PublishRequest.bVisibleToGPUSims = false;//Don't want to ping pong back to the GPU
+							PublishRequest.LwcTile = PASS_LWCTile;
 #if WITH_NIAGARA_DEBUGGER
-				PublishRequest.DebugSource = TEXT("NDC GPU Readback");//TODO: Feed in real source names also
+							PublishRequest.DebugSource = TEXT("NDC GPU Readback");//TODO: Feed in real source names also
 #endif
-				NDCData->PublishFromGPU(PublishRequest);
-			}
+							NDCData->PublishFromGPU(PublishRequest);
+						}
+					}
+				};
+
+			TSharedPtr<FNiagaraDataBufferReadback, ESPMode::ThreadSafe> NewReadback = MakeShared<FNiagaraDataBufferReadback, ESPMode::ThreadSafe>();
+			NewReadback->GetOnReadbackComplete().BindLambda(PublishOnCPU);
+			NewReadback->EnqueueReadback(RHICmdList, ReadbackInfo.Buffer, DispatchInterface->GetGpuReadbackManager(), DispatchInterface->GetGPUInstanceCounterManager());
+
+			uint32 Offset = ReadbackInfo.Buffer->GetGPUInstanceCountBufferOffset();
+			DispatchInterface->GetGPUInstanceCounterManager().FreeEntry(Offset);
+			ReadbackInfo.Buffer->SetGPUInstanceCountBufferOffset(INDEX_NONE);
 		}
-	};
+		PendingGPUReadbackBuffers.Reset();
+	}
+}
 
-	//We enqueue a readback for the data if we're wanting to publish it to the CPU or Game
-	check(bPublishToCPU || bPublishToGame);//We should be doing one or the other or we should not be calling this function.
+FNiagaraDataBufferRef FNiagaraDataChannelDataProxy::PrepareForWriteAccess(FRDGBuilder& GraphBuilder)
+{
+	check(IsInRenderingThread());
 
-	TSharedPtr<FNiagaraDataBufferReadback, ESPMode::ThreadSafe> NewReadback = MakeShared<FNiagaraDataBufferReadback, ESPMode::ThreadSafe>();
-	NewReadback->GetOnReadbackComplete().BindLambda(PublishOnCPU);
-	NewReadback->EnqueueReadback(RHICmdList, Buffer, ReadbackManager, InstanceCountManager);
+	if(CurrFrameData)
+	{
+		if (CurrBufferAccessCounts > 0)
+		{
+#if !UE_BUILD_SHIPPING
+			UE_LOG(LogNiagara, Warning, TEXT("Attempting to write to a Niagara Data Channel in the same stage in which it's being read. {%s}"), *DebugName);
+#endif
+			return nullptr;
+		}
+
+		//If we're prepping the first writer, transition to UAV
+		if (CurrBufferAccessCounts == 0)
+		{
+			AddTransition(GraphBuilder, ERHIAccess::SRVMask, ERHIAccess::UAVCompute, CurrFrameData.GetReference());
+		}
+
+		--CurrBufferAccessCounts;
+	}
+
+	return CurrFrameData;
+}
+
+void FNiagaraDataChannelDataProxy::EndWriteAccess(FRDGBuilder& GraphBuilder)
+{
+	check(IsInRenderingThread());
+
+	check(CurrBufferAccessCounts < 0);
+
+	++CurrBufferAccessCounts;
+
+	//If we reach 0 writers, transition back to SRV.
+	if (CurrBufferAccessCounts == 0)
+	{
+		AddTransition(GraphBuilder, ERHIAccess::UAVCompute, ERHIAccess::SRVMask, CurrFrameData.GetReference());
+	}
+}
+
+FNiagaraDataBufferRef FNiagaraDataChannelDataProxy::PrepareForReadAccess(FRDGBuilder& GraphBuilder, bool bCurrentFrame)
+{
+	check(IsInRenderingThread());
+
+	if(bCurrentFrame)
+	{
+		if (CurrBufferAccessCounts < 0)
+		{
+#if !UE_BUILD_SHIPPING
+			UE_LOG(LogNiagara, Warning, TEXT("Attempting to write to a Niagara Data Channel in the same stage in which it's being read. {%s}"), *DebugName);
+#endif
+			return nullptr;
+		}
+		
+		++CurrBufferAccessCounts;
+
+		return CurrFrameData;
+	}
+	else
+	{
+		return PrevFrameData;
+	}
+}
+
+void FNiagaraDataChannelDataProxy::EndReadAccess(FRDGBuilder& GraphBuilder, bool bCurrentFrame)
+{
+	check(IsInRenderingThread());
+	if(bCurrentFrame)
+	{
+		check(CurrBufferAccessCounts > 0);
+		--CurrBufferAccessCounts;
+	}
+}
+
+void FNiagaraDataChannelDataProxy::AddTransition(FRDGBuilder& GraphBuilder, ERHIAccess AccessBefore, ERHIAccess AccessAfter, FNiagaraDataBuffer* Buffer)
+{
+	if (Buffer)
+	{
+		TArray<FRHITransitionInfo, TInlineAllocator<6>> Transitions;
+		Transitions.Reserve(3);
+
+		Transitions.Emplace(Buffer->GetGPUBufferFloat().UAV, AccessBefore, AccessAfter);
+		Transitions.Emplace(Buffer->GetGPUBufferInt().UAV, AccessBefore, AccessAfter);
+		//TODO: Half Support | Transitions.Emplace(Buffer->GetGPUBufferHalf().UAV, AccessBefore, AccessAfter);
+
+		TArray<FRHIUnorderedAccessView*> UAVsToOverlap;
+		UAVsToOverlap.Emplace(Buffer->GetGPUBufferFloat().UAV);
+		UAVsToOverlap.Emplace(Buffer->GetGPUBufferInt().UAV);
+		//TODO: Half Support | UAVsToOverlap.Emplace(Buffer->GetGPUBufferHalf().UAV);
+
+	GraphBuilder.AddPass(
+		RDG_EVENT_NAME("NDC Proxy - Transition Buffers"),
+		ERDGPassFlags::None,
+		[Transitions, AccessAfter, UAVsToOverlap](FRHICommandListImmediate& RHICmdList)
+		{	
+			RHICmdList.Transition(Transitions);		
+			
+			//We may have multiple overlapping dispatches accessing the same NDC buffers.
+			if(AccessAfter == ERHIAccess::UAVCompute)
+			{
+				RHICmdList.BeginUAVOverlap(UAVsToOverlap);
+			}
+			else
+			{
+				RHICmdList.EndUAVOverlap(UAVsToOverlap);
+			}
+		});
+	}
+}
+
+FNiagaraDataBufferRef FNiagaraDataChannelDataProxy::AllocateBufferForCPU(FRDGBuilder& GraphBuilder, ERHIFeatureLevel::Type FeatureLevel, int32 AllocationSize, bool bPublishToGame, bool bPublishToCPU, FVector3f LWCTile)
+{
+	FNiagaraDataBuffer* Buffer = &GPUDataSet->AllocateBuffer();
+	Buffer->AllocateGPU(GraphBuilder.RHICmdList, AllocationSize, FeatureLevel, TEXT("NDC GPU Buffers for CPU"));
+
+	FNDCGpuReadbackInfo& NewReadback = PendingGPUReadbackBuffers.AddDefaulted_GetRef();
+	NewReadback.Buffer = Buffer->UnlockForRead();
+	NewReadback.bPublishToCPU = bPublishToCPU;
+	NewReadback.bPublishToGame = bPublishToGame;
+	NewReadback.LWCTile = LWCTile;
+
+	AddTransition(GraphBuilder, ERHIAccess::SRVMask, ERHIAccess::UAVCompute, Buffer);
+
+	return NewReadback.Buffer;
 }
 
 void FNiagaraDataChannelDataProxy::AddBuffersFromCPU(const TArray<FNiagaraDataBufferRef>& BuffersFromCPU)
