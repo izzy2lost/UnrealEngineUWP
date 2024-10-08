@@ -2,6 +2,7 @@
 
 #include "SPCGEditorNodeSource.h"
 
+#include "PCGSettings.h"
 #include "Compute/IPCGNodeSourceTextProvider.h"
 
 #include "PCGEditor.h"
@@ -61,7 +62,8 @@ void SPCGEditorNodeSource::Construct(const FArguments& InArgs, TSharedPtr<FPCGEd
 				.IsReadOnly(this, &SPCGEditorNodeSource::IsShaderTextReadOnly)
 				.Marshaller(SyntaxHighlighterDeclarations)
 				.OnTextChanged(this, &SPCGEditorNodeSource::OnShaderFunctionsTextChanged)
-				.OnTextChangesApplied(this, &SPCGEditorNodeSource::OnShaderTextChangesApplied)
+				.OnTextCommitted(this, &SPCGEditorNodeSource::OnShaderFunctionsTextCommitted)
+				.OnTextChangesApplied(this, &SPCGEditorNodeSource::OnShaderFunctionsTextChangesApplied)
 			]
 		]
 		+SSplitter::Slot()
@@ -80,8 +82,9 @@ void SPCGEditorNodeSource::Construct(const FArguments& InArgs, TSharedPtr<FPCGEd
 				.Text(this, &SPCGEditorNodeSource::GetShaderTextAsText)
 				.IsReadOnly(this, &SPCGEditorNodeSource::IsShaderTextReadOnly)
 				.Marshaller(SyntaxHighlighterShaderText)
-				.OnTextChanged(this, &SPCGEditorNodeSource::OnShaderTextChanged)
-				.OnTextChangesApplied(this, &SPCGEditorNodeSource::OnShaderTextChangesApplied)
+				.OnTextChanged(this, &SPCGEditorNodeSource::OnShaderSourceTextChanged)
+				.OnTextCommitted(this, &SPCGEditorNodeSource::OnShaderSourceTextCommitted)
+				.OnTextChangesApplied(this, &SPCGEditorNodeSource::OnShaderSourceTextChangesApplied)
 			]
 		]
 	];
@@ -90,6 +93,9 @@ void SPCGEditorNodeSource::Construct(const FArguments& InArgs, TSharedPtr<FPCGEd
 void SPCGEditorNodeSource::SetTextProviderObject(UObject* InProviderObject)
 {
 	ShaderTextProviderObject = InProviderObject;
+
+	ShaderFunctionsText = GetShaderFunctionsAsText();
+	ShaderSourceText = GetShaderTextAsText();
 
 	Refresh();
 }
@@ -169,30 +175,67 @@ bool SPCGEditorNodeSource::IsShaderTextReadOnly() const
 	return false;
 }
 
-void SPCGEditorNodeSource::OnShaderFunctionsTextChanged(const FText& InText) const
-{
-	if (GetTextProviderInterface())
-	{
-		GetTextProviderInterface()->SetShaderFunctionsText(InText.ToString());
-	}
-}
-
-void SPCGEditorNodeSource::OnShaderTextChanged(const FText& InText) const
+void SPCGEditorNodeSource::OnShaderFunctionsTextChanged(const FText& InText)
 {
 	// Always clear compiler messages when text is edited so that markup doesn't lurk in random places.
 	SyntaxHighlighterShaderText->ClearCompilerMessages();
 
-	if (GetTextProviderInterface())
+	ShaderFunctionsText = InText;
+}
+
+void SPCGEditorNodeSource::OnShaderSourceTextChanged(const FText& InText)
+{
+	// Always clear compiler messages when text is edited so that markup doesn't lurk in random places.
+	SyntaxHighlighterShaderText->ClearCompilerMessages();
+
+	ShaderSourceText = InText;
+}
+
+void SPCGEditorNodeSource::OnShaderFunctionsTextCommitted(const FText& InText, ETextCommit::Type InCommitInfo)
+{
+	ShaderFunctionsText = InText;
+	SetShaderFunctionsText();
+}
+
+void SPCGEditorNodeSource::OnShaderSourceTextCommitted(const FText& InText, ETextCommit::Type InCommitInfo)
+{
+	ShaderSourceText = InText;
+	SetShaderSourceText();
+}
+
+void SPCGEditorNodeSource::OnShaderFunctionsTextChangesApplied() const
+{
+	SetShaderFunctionsText();
+}
+
+void SPCGEditorNodeSource::OnShaderSourceTextChangesApplied() const
+{
+	SetShaderSourceText();
+}
+
+void SPCGEditorNodeSource::SetShaderFunctionsText() const
+{
+	if (IPCGNodeSourceTextProvider* Provider = GetTextProviderInterface())
 	{
-		GetTextProviderInterface()->SetShaderText(InText.ToString());
+		const FString ShaderFunctionsString = ShaderFunctionsText.ToString();
+
+		if (ShaderFunctionsString != Provider->GetShaderFunctionsText())
+		{
+			Provider->SetShaderFunctionsText(ShaderFunctionsString);
+		}
 	}
 }
 
-void SPCGEditorNodeSource::OnShaderTextChangesApplied() const
+void SPCGEditorNodeSource::SetShaderSourceText() const
 {
-	if (GetTextProviderInterface())
+	if (IPCGNodeSourceTextProvider* Provider = GetTextProviderInterface())
 	{
-		GetTextProviderInterface()->ApplySourceChanges();
+		const FString ShaderSourceString = ShaderSourceText.ToString();
+
+		if (ShaderSourceString != Provider->GetShaderText())
+		{
+			Provider->SetShaderText(ShaderSourceString);
+		}
 	}
 }
 

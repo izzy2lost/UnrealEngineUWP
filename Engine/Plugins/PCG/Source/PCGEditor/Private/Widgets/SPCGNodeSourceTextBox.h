@@ -56,6 +56,9 @@ public:
 		/** Called whenever the text is changed programmatically or interactively by the user */
 		SLATE_EVENT(FOnTextChanged, OnTextChanged)
 
+		/** Called whenever the text is committed. This happens when the text box loses focus. */
+		SLATE_EVENT(FOnTextCommitted, OnTextCommitted)
+
 		/** Called when user applies the changes */
 		SLATE_EVENT(FOnTextChangesApplied, OnTextChangesApplied)
 	SLATE_END_ARGS()
