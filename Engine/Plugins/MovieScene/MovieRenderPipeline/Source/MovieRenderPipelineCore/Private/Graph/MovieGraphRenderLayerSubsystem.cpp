@@ -685,13 +685,11 @@ TArray<TSharedRef<SWidget>> UMovieGraphConditionGroupQuery_Actor::GetWidgets()
 				// that one in particular won't be added.
 				FNotificationInfo Info(LOCTEXT("TransientActorsUnsupported_Notification", "Actor Conditions do not support Spawnable (Transient) actors"));
 				Info.SubText = LOCTEXT("TransientActorsUnsupported_NotificationSubtext", "Use the \"Actor Name\" Condition to add Spawnable actors to Collections.");
-				Info.Image = FAppStyle::GetBrush(TEXT("MessageLog.Warning"));
 				Info.Image = FAppStyle::GetBrush(TEXT("Icons.Warning"));
 
 				//Set a default expire duration
 				Info.ExpireDuration = 5.0f;
 
-				//And call Add Notification, this is pretty much it!
 				FSlateNotificationManager::Get().AddNotification(Info);
 			}
 

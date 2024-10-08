@@ -21,6 +21,8 @@
 #include "Widgets/Input/SCheckBox.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Notifications/SProgressBar.h"
+#include "Widgets/Notifications/SNotificationList.h"
+#include "Framework/Notifications/NotificationManager.h"
 #include "Widgets/Views/STreeView.h"
 #include "Widgets/Layout/SWidgetSwitcher.h"
 #include "Widgets/Views/SExpanderArrow.h"
@@ -1639,6 +1641,15 @@ void SMoviePipelineQueueEditor::AssignDefaultGraphPresetToJob(UMoviePipelineExec
 	if (const UMovieGraphConfig* DefaultGraph = ProjectDefaultGraph.LoadSynchronous())
 	{
 		InJob->SetGraphPreset(DefaultGraph);
+	}
+	else
+	{
+		FNotificationInfo Info(LOCTEXT("ConvertJobToGraphConfig_InvalidGraphNotification", "Unable to Convert Job"));
+		Info.SubText = LOCTEXT("ConvertJobToGraphConfig_InvalidGraphNotificationSubtext", "The Graph Asset specified in Project Settings (Movie Render Pipeline > Default Graph) could not be loaded.");
+		Info.Image = FAppStyle::GetBrush(TEXT("Icons.Warning"));
+		Info.ExpireDuration = 5.0f;
+
+		FSlateNotificationManager::Get().AddNotification(Info);
 	}
 }
 
