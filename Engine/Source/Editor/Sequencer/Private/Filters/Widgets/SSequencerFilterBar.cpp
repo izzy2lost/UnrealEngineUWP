@@ -384,6 +384,24 @@ TWeakPtr<SFilterSearchBox> SSequencerFilterBar::GetSearchBox() const
 	return WeakSearchBox;
 }
 
+void SSequencerFilterBar::SetMuted(bool bInMuted)
+{
+	if (HorizontalContainerWidget.IsValid())
+	{
+		HorizontalContainerWidget->SetEnabled(!bInMuted);
+	}
+
+	if (VerticalContainerWidget.IsValid())
+	{
+		VerticalContainerWidget->SetEnabled(!bInMuted);
+	}
+
+	if (WeakSearchBox.IsValid())
+	{
+		WeakSearchBox.Pin()->SetEnabled(!bInMuted);
+	}
+}
+
 void SSequencerFilterBar::OnFiltersChanged(const ESequencerFilterChange InChangeType, const TSharedRef<FSequencerTrackFilter>& InFilter)
 {
 	switch (InChangeType)

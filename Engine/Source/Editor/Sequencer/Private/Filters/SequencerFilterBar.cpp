@@ -292,13 +292,7 @@ void FSequencerFilterBar::MuteFilters(const bool bInMute)
 
 	if (const TSharedPtr<SSequencerFilterBar> FilterBarWidget = GetWidget())
 	{
-		FilterBarWidget->SetEnabled(!bFiltersMuted);
-
-		const TWeakPtr<SFilterSearchBox> WeakSearchBox = FilterBarWidget->GetSearchBox();
-		if (WeakSearchBox.IsValid())
-		{
-			WeakSearchBox.Pin()->SetEnabled(!bFiltersMuted);
-		}
+		FilterBarWidget->SetMuted(bFiltersMuted);
 	}
 
 	RequestFilterUpdate();
