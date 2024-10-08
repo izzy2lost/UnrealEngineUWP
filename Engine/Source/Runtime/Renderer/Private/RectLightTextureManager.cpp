@@ -477,7 +477,7 @@ static void AddSlotsPass(
 	const FIntRect Viewport(FIntPoint::ZeroValue, OutAtlas->Desc.Extent);
 	const FIntPoint Resolution(Viewport.Width(), Viewport.Height());
 
-	FRDGBufferRef SlotBuffer		= CreateSlotBuffer(GraphBuilder, Slots, TEXT("RectLight.AtlasSlotBuffer"));
+	FRDGBufferRef SlotBuffer = CreateSlotBuffer(GraphBuilder, Slots, TEXT("RectLight.AtlasSlotBuffer"));
 
 	// Batch new slots into several passes
 	const uint32 SlotCountPerPass = 8u;
@@ -1753,8 +1753,8 @@ FAtlasTextureInvalidationScope::FAtlasTextureInvalidationScope(const UTexture* I
 			// its data during the next update
 			if (Slot.SourceTexture == In->TextureReference.TextureReferenceRHI)
 			{
-					// Sanity check, allow a single lock/capture refresh at a time.
-					check(GRectLightTextureManager.bLock == false);
+				// Sanity check, allow a single lock/capture refresh at a time.
+				check(GRectLightTextureManager.bLock == false);
 
 				bLocked = true;
 				Slot.bForceRefresh = true;
