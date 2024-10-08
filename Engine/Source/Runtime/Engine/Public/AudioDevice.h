@@ -1547,6 +1547,11 @@ private:
 	void AddNewActiveSoundInternal(const FActiveSound& InActiveSound, TArray<FAudioParameter>&& InDefaultParams, FAudioVirtualLoop* InVirtualLoopToRetrigger = nullptr);
 
 	/**
+	 * Initializes the parameters on the active sound.
+	 */
+	void InitSoundParams(FActiveSound& InOutActiveSound, TArray<FAudioParameter> InDefaultParams, bool bInIsVirtualLoopRealzing) const;
+
+	/**
 	 * Reports if a sound fails to start when attempting to create a new active sound.
 	 */
 	void ReportSoundFailedToStart(const uint64 AudioComponentID, FAudioVirtualLoop* VirtualLoop);

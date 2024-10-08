@@ -125,11 +125,6 @@ bool FAudioVirtualLoop::Virtualize(const FActiveSound& InActiveSound, FAudioDevi
 	OutVirtualLoop.ActiveSound = ActiveSound;
 	OutVirtualLoop.CalculateUpdateInterval();
 
-	if (Audio::IParameterTransmitter* ParameterTransmitter = ActiveSound->GetTransmitter())
-	{
-		ParameterTransmitter->OnVirtualizeActiveSound();
-	}
-
 #if UE_AUDIO_PROFILERTRACE_ENABLED
 	const bool bChannelEnabled = UE_TRACE_CHANNELEXPR_IS_ENABLED(AudioChannel);
 	if (bChannelEnabled)
@@ -313,27 +308,7 @@ bool FAudioVirtualLoop::Update(float DeltaTime, bool bForceUpdate)
 		return false;
 	}
 
-	// Update parameters on virtual loop realization
-	if (Audio::IParameterTransmitter* ParameterTransmitter = ActiveSound->GetTransmitter())
-	{
-		uint64 AudioComponentID = ActiveSound->GetAudioComponentID();
-		if (AudioComponentID > 0)
-		{
-			if (UAudioComponent* AudioComponent = UAudioComponent::GetAudioComponentFromID(AudioComponentID))
-			{
-				if (ensure(AudioComponent->Sound != nullptr))
-				{
-					// Use instance parameters which will not contain transient parameters
-					TArray<FAudioParameter> InstanceParams = AudioComponent->GetInstanceParameters();
 
-					// create proxies from the UObject references in InstanceParams
-					AudioComponent->Sound->InitParameters(InstanceParams);
-
-					ParameterTransmitter->OnRealizeVirtualizedActiveSound(MoveTemp(InstanceParams));
-				}
-			}
-		}
-	}
 
 #if UE_AUDIO_PROFILERTRACE_ENABLED
 	if (bChannelEnabled)
