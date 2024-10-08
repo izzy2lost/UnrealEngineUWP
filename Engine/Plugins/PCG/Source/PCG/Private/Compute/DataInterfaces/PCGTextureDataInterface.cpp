@@ -83,20 +83,23 @@ UComputeDataProvider* UPCGTextureDataInterface::CreateDataProvider(TObjectPtr<UO
 	if (!TaggedDatas.IsEmpty())
 	{
 		ensure(TaggedDatas.Num() == 1); // There should only be one texture data
+		ensure(TaggedDatas[0].Data->IsA<UPCGTextureData>());
 
-		const UPCGTextureData* TextureData = CastChecked<UPCGTextureData>(TaggedDatas[0].Data);
-		const UTexture* Texture = TextureData->Texture.IsValid() ? TextureData->Texture.Get() : nullptr;
-
-		// TODO: Support texture2d array, texture3d
-		// TODO: Bindless resources to handle multiple textures
-
-		if (Texture)
+		if (const UPCGTextureData* TextureData = Cast<UPCGTextureData>(TaggedDatas[0].Data))
 		{
-			const FTextureResource* TextureResource = Texture->GetResource();
+			const UTexture* Texture = TextureData->Texture.IsValid() ? TextureData->Texture.Get() : nullptr;
 
-			if (TextureResource && TextureResource->TextureRHI)
+			// TODO: Support texture2d array, texture3d
+			// TODO: Bindless resources to handle multiple textures
+
+			if (Texture)
 			{
-				DataProvider->Texture = TextureResource->TextureRHI;
+				const FTextureResource* TextureResource = Texture->GetResource();
+
+				if (TextureResource && TextureResource->TextureRHI)
+				{
+					DataProvider->Texture = TextureResource->TextureRHI;
+				}
 			}
 		}
 	}

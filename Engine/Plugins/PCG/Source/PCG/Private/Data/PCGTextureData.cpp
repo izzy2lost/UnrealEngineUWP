@@ -432,8 +432,15 @@ void UPCGTextureData::InitializeInternal(UTexture* InTexture, uint32 InTextureIn
 		UTexture2D* Texture2D = Cast<UTexture2D>(Texture);
 		if (!Texture2D)
 		{
-			UTexture2DArray* Texture2DArray = CastChecked<UTexture2DArray>(Texture);
-			Texture2D = Texture2DArray->SourceTextures.IsValidIndex(TextureIndex) ? Texture2DArray->SourceTextures[TextureIndex] : nullptr;
+			if (UTexture2DArray* Texture2DArray = Cast<UTexture2DArray>(Texture))
+			{
+				Texture2D = Texture2DArray->SourceTextures.IsValidIndex(TextureIndex) ? Texture2DArray->SourceTextures[TextureIndex] : nullptr;
+			}
+			else
+			{
+				SetInitCompleted(true);
+				return;
+			}
 		}
 
 		TOptional<bool> CanGPUTextureBeCPUAccessed = PCGTextureSamplingHelpers::CanGPUTextureBeCPUAccessed(Texture2D);
