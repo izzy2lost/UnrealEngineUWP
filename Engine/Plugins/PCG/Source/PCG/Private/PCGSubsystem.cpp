@@ -932,9 +932,25 @@ void UPCGSubsystem::RefreshAllRuntimeGenComponents(EPCGChangeType ChangeType)
 {
 	for (UPCGComponent* Component : GetAllRegisteredComponents())
 	{
-		RefreshRuntimeGenComponent(Component, ChangeType);
+		if (Component->GenerationTrigger == EPCGComponentGenerationTrigger::GenerateAtRuntime)
+		{
+			RefreshRuntimeGenComponent(Component, ChangeType);
+		}
 	}
 }
+
+#if WITH_EDITOR
+void UPCGSubsystem::RefreshAllComponentsFiltered(const TFunction<bool(UPCGComponent*)>& ComponentFilter, EPCGChangeType ChangeType)
+{
+	for (UPCGComponent* Component : GetAllRegisteredComponents())
+	{
+		if (ComponentFilter(Component))
+		{
+			Component->Refresh(ChangeType);
+		}
+	}
+}
+#endif
 
 bool UPCGSubsystem::IsGraphCurrentlyExecuting(UPCGGraph* Graph)
 {

@@ -5,6 +5,7 @@
 #include "PCGComponent.h"
 #include "PCGModule.h"
 #include "PCGManagedResource.h"
+#include "PCGSubsystem.h"
 #include "Helpers/PCGHelpers.h"
 #include "MeshSelectors/PCGISMDescriptor.h"
 
@@ -220,6 +221,23 @@ UPCGProceduralISMComponent::UPCGProceduralISMComponent(const FObjectInitializer&
 #endif
 }
 
+#if WITH_EDITOR
+void UPCGProceduralISMComponent::OnRegister()
+{
+	Super::OnRegister();
+
+	USceneComponent::MarkRenderStateDirtyEvent.RemoveAll(this);
+	USceneComponent::MarkRenderStateDirtyEvent.AddUObject(this, &UPCGProceduralISMComponent::OnRenderStateDirty);
+}
+
+void UPCGProceduralISMComponent::OnUnregister()
+{
+	USceneComponent::MarkRenderStateDirtyEvent.RemoveAll(this);
+
+	Super::OnUnregister();
+}
+#endif
+
 FPrimitiveSceneProxy* UPCGProceduralISMComponent::CreateStaticMeshSceneProxy(Nanite::FMaterialAudit& NaniteMaterials, bool bCreateNanite)
 {
 	LLM_SCOPE(ELLMTag::InstancedMesh);
@@ -379,6 +397,77 @@ void UPCGProceduralISMComponent::ValidateComponentSetup()
 		bVisibleInRayTracing = false;
 	}
 }
+
+#if WITH_EDITOR
+void UPCGProceduralISMComponent::OnRenderStateDirty(UActorComponent& InComponent)
+{
+	// Currently, there is no explicit persistence of instance data in the GPU scene. When this component is dirtied, the instance data is cleared.
+	// TODO: This function is a stop gap that requests a refresh of the PCG Component managing this component, and should be removed later.
+
+	if (&InComponent != this)
+	{
+		return;
+	}
+
+	UPCGSubsystem* Subsystem = GetOwner() ? UPCGSubsystem::GetInstance(GetOwner()->GetWorld()) : nullptr;
+	if (!Subsystem)
+	{
+		return;
+	}
+
+	// Helper that returns true if the given PCG component is managing this PISMC.
+	auto PCGComponentManagesThisPISMC = [this](UPCGComponent* InComponent) -> bool
+	{
+		bool bManagesThis = false;
+
+		if (InComponent->bGenerated && InComponent->AreProceduralInstancesInUse())
+		{
+			InComponent->ForEachManagedResource([this, InComponent, &bManagesThis](UPCGManagedResource* InResource)
+			{
+				if (!bManagesThis)
+				{
+					const UPCGManagedProceduralISMComponent* PISMC = Cast<UPCGManagedProceduralISMComponent>(InResource);
+					if (PISMC && PISMC->GetComponent() == this)
+					{
+						bManagesThis = true;
+					}
+				}
+			});
+		}
+
+		return bManagesThis;
+	};
+
+	Subsystem->RefreshAllComponentsFiltered(
+		[this, Subsystem, &PCGComponentManagesThisPISMC](UPCGComponent* InComponent) -> bool
+		{
+			// If the original component manages this PISMC, request a refresh of it and we're done. If it has local components they will also be refreshed.
+			if (PCGComponentManagesThisPISMC(InComponent))
+			{
+				return true;
+			}
+
+			// A local component of the original component might manage this, so check those.
+			bool bManagesThis = false;
+
+			if (InComponent->bIsComponentPartitioned)
+			{
+				Subsystem->ForAllRegisteredLocalComponents(
+					InComponent,
+					[this, &bManagesThis, &PCGComponentManagesThisPISMC](UPCGComponent* InComponent)
+					{
+						if (!bManagesThis)
+						{
+							bManagesThis = PCGComponentManagesThisPISMC(InComponent);
+						}
+					});
+			}
+
+			return bManagesThis;
+		},
+		EPCGChangeType::Structural);
+}
+#endif // WITH_EDITOR
 
 void UPCGProceduralISMComponent::SetNumInstances(int32 InNumInstances)
 {

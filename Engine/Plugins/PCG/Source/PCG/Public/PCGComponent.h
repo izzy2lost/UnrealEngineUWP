@@ -239,6 +239,9 @@ public:
 	/** Called during execution if one or more procedural ISM components are in use. */
 	void NotifyProceduralInstancesInUse() { bProceduralInstancesInUse = true; }
 
+	/** Whether this component created one or more procedural ISM components when last generated. */
+	bool AreProceduralInstancesInUse() const { return bProceduralInstancesInUse; }
+
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (DisplayPriority = 600))
 	int Seed = 42;
 
