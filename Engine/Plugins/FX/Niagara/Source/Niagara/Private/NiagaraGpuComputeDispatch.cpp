@@ -2114,7 +2114,7 @@ void FNiagaraGpuComputeDispatch::PostRenderOpaque(FRDGBuilder& GraphBuilder, TCo
 
 				for (FNiagaraDataChannelDataProxy* NDCProxy : NDCDataProxies)
 				{
-					NDCProxy->EndFrame(RHICmdList);
+					NDCProxy->EndFrame(this, RHICmdList);
 				}
 			}
 		}

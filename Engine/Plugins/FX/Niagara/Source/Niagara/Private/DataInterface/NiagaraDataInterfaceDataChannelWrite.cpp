@@ -83,25 +83,28 @@ namespace NDIDataChannelWriteLocal
 		return Sig;
 	}
 
-	const FNiagaraFunctionSignature& GetFunctionSig_Allocate()
-	{
-		static FNiagaraFunctionSignature Sig;
-		if (!Sig.IsValid())
-		{
-			Sig.Name = TEXT("Allocate");
-#if WITH_EDITORONLY_DATA
-			NIAGARA_ADD_FUNCTION_SOURCE_INFO(Sig)
-			Sig.Description = LOCTEXT("AllocateFunctionDescription", "Adds an amount to allocated into the bound NDC data for the given emitter to write into.");
-#endif
-			Sig.bMemberFunction = true;
-			Sig.bRequiresExecPin = true;
-			Sig.ModuleUsageBitmask = ENiagaraScriptUsageMask::Emitter | ENiagaraScriptUsageMask::System;
-			Sig.AddInput(FNiagaraVariable(FNiagaraTypeDefinition(UNiagaraDataInterfaceDataChannelWrite::StaticClass()), TEXT("DataChannel interface")));
-			Sig.AddInputWithoutDefault(FNiagaraVariable(FNiagaraTypeDefinition(FNiagaraEmitterID::StaticStruct()), TEXT("Emitter ID")), LOCTEXT("EmitterIDDesc", "ID of the emitter that will be writing into this allocated space."));
-			Sig.AddInputWithDefault(FNiagaraVariable(FNiagaraTypeDefinition::GetIntDef(), TEXT("Allocation Count")), 0, LOCTEXT("AllocationCountDesc", "The number of elements to allocate in the NDC for writing from the given emitter."));
-		}
-		return Sig;
-	}
+	//For now, disable the allocate function as we don't have time to test it thoroughly.
+	// TODO: Make experimental?
+// 	const FNiagaraFunctionSignature& GetFunctionSig_Allocate()
+// 	{
+// 		static FNiagaraFunctionSignature Sig;
+// 		if (!Sig.IsValid())
+// 		{
+// 			Sig.Name = TEXT("Allocate");
+// #if WITH_EDITORONLY_DATA
+// 			NIAGARA_ADD_FUNCTION_SOURCE_INFO(Sig)
+// 			Sig.Description = LOCTEXT("AllocateFunctionDescription", "Adds an amount to allocated into the bound NDC data for the given emitter to write into.");
+// #endif
+// 			Sig.bMemberFunction = true;
+// 			Sig.bRequiresExecPin = true;
+// 			Sig.bWriteFunction = true;
+// 			Sig.ModuleUsageBitmask = ENiagaraScriptUsageMask::Emitter | ENiagaraScriptUsageMask::System;
+// 			Sig.AddInput(FNiagaraVariable(FNiagaraTypeDefinition(UNiagaraDataInterfaceDataChannelWrite::StaticClass()), TEXT("DataChannel interface")));
+// 			Sig.AddInputWithoutDefault(FNiagaraVariable(FNiagaraTypeDefinition(FNiagaraEmitterID::StaticStruct()), TEXT("Emitter ID")), LOCTEXT("EmitterIDDesc", "ID of the emitter that will be writing into this allocated space."));
+// 			Sig.AddInputWithDefault(FNiagaraVariable(FNiagaraTypeDefinition::GetIntDef(), TEXT("Allocation Count")), 0, LOCTEXT("AllocationCountDesc", "The number of elements to allocate in the NDC for writing from the given emitter."));
+// 		}
+// 		return Sig;
+// 	}
 
 	const FNiagaraFunctionSignature& GetFunctionSig_Write()
 	{
@@ -117,6 +120,7 @@ namespace NDIDataChannelWriteLocal
 #endif
 			Sig.bMemberFunction = true;
 			Sig.bRequiresExecPin = true;
+			Sig.bWriteFunction = true;
 			Sig.bSupportsGPU = false;//Cannot use direct index writes on GPU as we write into one shared buffer with all DIs using the same NDC data.
 			Sig.AddInput(FNiagaraVariable(FNiagaraTypeDefinition(UNiagaraDataInterfaceDataChannelWrite::StaticClass()), TEXT("DataChannel interface")));
 			Sig.AddInput(EmitVar, LOCTEXT("ExecuteAppendFlagTooltip", "If true then the append is executed, if false then the append call is skipped"));
@@ -142,6 +146,7 @@ namespace NDIDataChannelWriteLocal
 #endif
 			Sig.bMemberFunction = true;
 			Sig.bRequiresExecPin = true;
+			Sig.bWriteFunction = true;
 			Sig.AddInput(FNiagaraVariable(FNiagaraTypeDefinition(UNiagaraDataInterfaceDataChannelWrite::StaticClass()), TEXT("DataChannel interface")));
 			Sig.AddInput(EmitVar, LOCTEXT("ExecuteAppendFlagTooltip", "If true then the append is executed, if false then the append call is skipped"));
 			Sig.AddOutput(FNiagaraVariable(FNiagaraTypeDefinition::GetBoolDef(), TEXT("Success")));
@@ -932,7 +937,7 @@ bool UNiagaraDataInterfaceDataChannelWrite::CopyToInternal(UNiagaraDataInterface
 void UNiagaraDataInterfaceDataChannelWrite::GetFunctionsInternal(TArray<FNiagaraFunctionSignature>& OutFunctions) const
 {
 	OutFunctions.Add(NDIDataChannelWriteLocal::GetFunctionSig_Num());
-	OutFunctions.Add(NDIDataChannelWriteLocal::GetFunctionSig_Allocate());
+	//OutFunctions.Add(NDIDataChannelWriteLocal::GetFunctionSig_Allocate());
 	OutFunctions.Add(NDIDataChannelWriteLocal::GetFunctionSig_Write());
 	OutFunctions.Add(NDIDataChannelWriteLocal::GetFunctionSig_Append());
 }
@@ -944,10 +949,10 @@ void UNiagaraDataInterfaceDataChannelWrite::GetVMExternalFunction(const FVMExter
 	{
 		OutFunc = FVMExternalFunction::CreateLambda([this](FVectorVMExternalFunctionContext& Context) { this->Num(Context); });
 	}
-	else if (BindingInfo.Name == NDIDataChannelWriteLocal::GetFunctionSig_Allocate().Name)
-	{
-		OutFunc = FVMExternalFunction::CreateLambda([this](FVectorVMExternalFunctionContext& Context) { this->Allocate(Context); });
-	}
+// 	else if (BindingInfo.Name == NDIDataChannelWriteLocal::GetFunctionSig_Allocate().Name)
+// 	{
+// 		OutFunc = FVMExternalFunction::CreateLambda([this](FVectorVMExternalFunctionContext& Context) { this->Allocate(Context); });
+// 	}
 	else
 	{
 		int32 FuncIndex = CompiledData.FindFunctionInfoIndex(BindingInfo.Name, BindingInfo.VariadicInputs, BindingInfo.VariadicOutputs);
@@ -998,7 +1003,7 @@ void UNiagaraDataInterfaceDataChannelWrite::Allocate(FVectorVMExternalFunctionCo
 	uint32 Count = InAllocationCount.GetAndAdvance();
 	
 	//Store the count so we can pass this to the GPU for allocating space in the main GPU write buffer.
-	InstData->DynamicAllocationCount = Count;
+	InstData->DynamicAllocationCount += Count;
 	
 	//If we have a CPU write buffer, allocate that now. Do this here so the emitter/system script itself can write data if it wants to.
 	if(InstData->DestinationData)
@@ -1323,26 +1328,10 @@ void UNiagaraDataInterfaceDataChannelWrite::SetShaderParameters(const FNiagaraDa
 
 		if (InstanceData->ChannelDataRTProxy && ParameterOffsetTableIndex != INDEX_NONE)
 		{
-			FNiagaraDataBuffer* GPUBuffer = InstanceData->bPublishToGPU ? InstanceData->ChannelDataRTProxy->GetCurrentData() : nullptr;
-			FNiagaraDataBuffer* BufferForCPU = InstanceData->bPublishToCPU || InstanceData->bPublishToGame ? InstanceData->BufferForCPU.GetReference() : nullptr;
+			FNiagaraDataBuffer* GPUBuffer = InstanceData->GPUBuffer.GetReference();
+			FNiagaraDataBuffer* BufferForCPU = InstanceData->BufferForCPU.GetReference();
 			if (GPUBuffer || BufferForCPU)
 			{
-				TArray<FRHITransitionInfo, TInlineAllocator<3>> Transitions;
-				Transitions.Reserve(6);
-				if(GPUBuffer)
-				{
-					Transitions.Emplace(GPUBuffer->GetGPUBufferFloat().UAV, ERHIAccess::Unknown, ERHIAccess::UAVCompute);
-					Transitions.Emplace(GPUBuffer->GetGPUBufferInt().UAV, ERHIAccess::Unknown, ERHIAccess::UAVCompute);
-					//TODO: Half Support | Transitions.Emplace(GPUBuffer->GetGPUBufferHalf().UAV, ERHIAccess::Unknown, ERHIAccess::UAVCompute);
-				}
-				if(BufferForCPU)
-				{
-					Transitions.Emplace(BufferForCPU->GetGPUBufferFloat().UAV, ERHIAccess::Unknown, ERHIAccess::UAVCompute);
-					Transitions.Emplace(BufferForCPU->GetGPUBufferInt().UAV, ERHIAccess::Unknown, ERHIAccess::UAVCompute);
-					//TODO: Half Support | Transitions.Emplace(BufferForCPU->GetGPUBufferHalf().UAV, ERHIAccess::Unknown, ERHIAccess::UAVCompute);
-				}
-				Context.GetGraphBuilder().RHICmdList.Transition(Transitions);
-
 				const FReadBuffer& ParameterLayoutBuffer = InstanceData->ParameterLayoutBuffer;
 
 				if (ParameterLayoutBuffer.SRV.IsValid() && ParameterLayoutBuffer.NumBytes > 0)
@@ -1463,45 +1452,49 @@ void FNiagaraDataInterfaceProxy_DataChannelWrite::PreStage(const FNDIGpuComputeP
 
 	if (InstanceData && InstanceData->ChannelDataRTProxy)
 	{
-		if(InstanceData->bPublishToGame || InstanceData->bPublishToCPU)
+		if( InstanceData->BufferForCPU == nullptr && (InstanceData->bPublishToGame || InstanceData->bPublishToCPU) )
 		{
 			//Allocate a separate buffer that we will write into and ship back to the CPU.			 
-			InstanceData->BufferForCPU = InstanceData->ChannelDataRTProxy->AllocateBufferForCPU(Context.GetGraphBuilder().RHICmdList, Context.GetComputeDispatchInterface().GetFeatureLevel(), InstanceData->AllocationCount);
+			InstanceData->BufferForCPU = InstanceData->ChannelDataRTProxy->AllocateBufferForCPU(Context.GetGraphBuilder(), Context.GetComputeDispatchInterface().GetFeatureLevel(), InstanceData->AllocationCount, InstanceData->bPublishToGame, InstanceData->bPublishToCPU, InstanceData->LwcTile);
 
 			//Get a new instance count.
 			uint32 Offset = InstanceData->BufferForCPU->GetGPUInstanceCountBufferOffset();
 			Context.GetInstanceCountManager().FreeEntry(Offset);
 			InstanceData->BufferForCPU->SetGPUInstanceCountBufferOffset(Context.GetInstanceCountManager().AcquireOrAllocateEntry(Context.GetGraphBuilder().RHICmdList));
 		}
+
+		if(InstanceData->bPublishToGPU)
+		{
+			check(InstanceData->GPUBuffer == nullptr);
+			InstanceData->GPUBuffer = InstanceData->ChannelDataRTProxy->PrepareForWriteAccess(Context.GetGraphBuilder());
+		}
 	}
 }
+
 
 void FNiagaraDataInterfaceProxy_DataChannelWrite::PostStage(const FNDIGpuComputePostStageContext& Context)
 {
 	FNiagaraDataInterfaceProxy_DataChannelWrite::FInstanceData* InstanceData = SystemInstancesToProxyData_RT.Find(Context.GetSystemInstanceID());
 
-	if (InstanceData && InstanceData->ChannelDataRTProxy)
+	if(InstanceData && InstanceData->ChannelDataRTProxy)
 	{
-		if (InstanceData->BufferForCPU)
+		if (InstanceData->GPUBuffer)
 		{
-			Context.GetGraphBuilder().AddPass(
-				RDG_EVENT_NAME("NDC Write Enqueue CPU Readback"),
-				ERDGPassFlags::None,
-				[PASS_ReadbackManager = Context.GetComputeDispatchInterface().GetGpuReadbackManager(), 
-				PASS_InstCountManager = &Context.GetInstanceCountManager(), 
-				PASS_Buffer = InstanceData->BufferForCPU,
-				PASS_Proxy = InstanceData->ChannelDataRTProxy,
-				PASS_bPublishToGame = InstanceData->bPublishToGame,
-				PASS_bPublishToCPU = InstanceData->bPublishToCPU,
-				PASS_LwcTile = InstanceData->LwcTile]
-				(FRHICommandListImmediate& RHICmdList)
-				{
-					PASS_Proxy->EnqueueReadbackForCPUBuffer(RHICmdList, PASS_Buffer, PASS_ReadbackManager, *PASS_InstCountManager, PASS_bPublishToGame, PASS_bPublishToCPU, PASS_LwcTile);
-					uint32 Offset = PASS_Buffer->GetGPUInstanceCountBufferOffset();
-					PASS_InstCountManager->FreeEntry(Offset);
-					PASS_Buffer->SetGPUInstanceCountBufferOffset(INDEX_NONE);
-				});
-		
+			InstanceData->ChannelDataRTProxy->EndWriteAccess(Context.GetGraphBuilder());
+			InstanceData->GPUBuffer = nullptr;
+		}
+	}
+}
+
+void FNiagaraDataInterfaceProxy_DataChannelWrite::PostSimulate(const FNDIGpuComputePostSimulateContext& Context)
+{
+	FNiagaraDataInterfaceProxy_DataChannelWrite::FInstanceData* InstanceData = SystemInstancesToProxyData_RT.Find(Context.GetSystemInstanceID());
+	
+	if (InstanceData && InstanceData->ChannelDataRTProxy && Context.IsFinalPostSimulate())
+	{
+		if(InstanceData->BufferForCPU)
+		{
+			InstanceData->ChannelDataRTProxy->AddTransition(Context.GetGraphBuilder(), ERHIAccess::UAVCompute, ERHIAccess::SRVMask, InstanceData->BufferForCPU.GetReference());
 			InstanceData->BufferForCPU = nullptr;
 		}
 	}

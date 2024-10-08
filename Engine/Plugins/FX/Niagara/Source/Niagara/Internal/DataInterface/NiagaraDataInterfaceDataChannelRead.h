@@ -335,6 +335,8 @@ struct FNiagaraDataInterfaceProxy_DataChannelRead : public FNiagaraDataInterface
 		FRDGBufferRef NDCSpawnDataBuffer;
 
 		uint32 ConsumeInstanceCountOffset = INDEX_NONE;
+
+		FNiagaraDataBufferRef GPUBuffer;
 	};
 
 	TMap<FNiagaraSystemInstanceID, FInstanceData> SystemInstancesToProxyData_RT;
