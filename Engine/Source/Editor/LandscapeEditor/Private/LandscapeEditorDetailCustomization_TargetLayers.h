@@ -41,6 +41,7 @@ protected:
 	static EVisibility GetPaintingRestrictionVisibility();
 	static EVisibility GetVisibilityMaskTipVisibility();
 	static EVisibility GetPopulateTargetLayersInfoTipVisibility();
+	static EVisibility GetFilteredTargetLayersListInfoTipVisibility();
 };
 
 class FLandscapeEditorCustomNodeBuilder_TargetLayers : public IDetailCustomNodeBuilder, public TSharedFromThis<FLandscapeEditorCustomNodeBuilder_TargetLayers>
@@ -56,6 +57,8 @@ public:
 	virtual bool RequiresTick() const override { return false; }
 	virtual bool InitiallyCollapsed() const override { return false; }
 	virtual FName GetName() const override { return "TargetLayers"; }
+
+	static TArray<TSharedRef<FLandscapeTargetListInfo>> PrepareTargetLayerList(bool bInSort, bool bInFilter);
 
 protected:
 	TSharedRef<FAssetThumbnailPool> ThumbnailPool;
@@ -113,6 +116,7 @@ protected:
 	bool IsSelectedDisplayOrder(ELandscapeLayerDisplayMode InDisplayOrder) const;
 
 	TSharedRef<SWidget> GetTargetLayerShowUnusedButtonMenuContent();
+	const FSlateBrush* GetShowUnusedBrush() const;
 	void ShowUnusedLayers(bool Result);
 	bool ShouldShowUnusedLayers(bool Result) const;
 	EVisibility ShouldShowLayer(TSharedRef<FLandscapeTargetListInfo> Target) const;

@@ -129,7 +129,7 @@ FEdModeLandscape::FEdModeLandscape()
 	, ToolActiveViewport(nullptr)
 	, bIsPaintingInVR(false)
 	, InteractorPainting(nullptr)
-	, bNeedsUpdateShownLayerList(false)
+	, bNeedsUpdateLayerUsageInformation(false)
 	, bUpdatingLandscapeInfo(false)
 {
 	using namespace UE::Landscape::Editor::Tool;
@@ -343,9 +343,9 @@ void FEdModeLandscape::OnCanHaveLayersContentChanged()
 
 void FEdModeLandscape::PostUpdateLayerContent()
 {
-	if (bNeedsUpdateShownLayerList)
+	if (bNeedsUpdateLayerUsageInformation)
 	{
-		UpdateShownLayerList();
+		UpdateLayerUsageInformation();
 	}
 }
 
@@ -612,7 +612,6 @@ void FEdModeLandscape::Enter()
 
 	// It is cleared on exit so update here even if LandscapeInfo hasn't changed
 	UpdateTargetList();
-	UpdateShownLayerList();
 
 	FName ToolkitPalette = NAME_None;
 
@@ -2399,7 +2398,7 @@ int32 FEdModeLandscape::UpdateLandscapeList()
 
 			SetCurrentLayer(0);
 
-			UpdateShownLayerList();
+			UpdateLayerUsageInformation();
 						
 			if (!CurrentToolName.IsNone())
 			{
@@ -2475,7 +2474,7 @@ void FEdModeLandscape::SetTargetLandscape(const TWeakObjectPtr<ULandscapeInfo>& 
 		}
 	}
 
-	UpdateShownLayerList();
+	UpdateLayerUsageInformation();
 }
 
 bool FEdModeLandscape::CanEditCurrentTarget(FText* Reason) const
@@ -2611,7 +2610,7 @@ void FEdModeLandscape::UpdateTargetList()
 
 	TargetsListUpdated.Broadcast();
 
-	UpdateShownLayerList();
+	UpdateLayerUsageInformation();
 }
 
 void FEdModeLandscape::UpdateTargetLayerDisplayOrder(ELandscapeLayerDisplayMode InTargetDisplayOrder)
@@ -2731,68 +2730,20 @@ void FEdModeLandscape::OnLandscapeMaterialChangedDelegate()
 	UpdateTargetList();
 }
 
-void FEdModeLandscape::RequestUpdateShownLayerList()
+void FEdModeLandscape::RequestUpdateLayerUsageInformation()
 {
-	bNeedsUpdateShownLayerList = true;
+	bNeedsUpdateLayerUsageInformation = true;
 
 	if (CurrentToolTarget.LandscapeInfo.IsValid() && !CurrentToolTarget.LandscapeInfo->CanHaveLayersContent())
 	{
-		UpdateShownLayerList(); // do it sync when not in lanscape mode.
-	}
-}
-
-void FEdModeLandscape::UpdateShownLayerList()
-{
-	bNeedsUpdateShownLayerList = false;
-
-	if (!CurrentToolTarget.LandscapeInfo.IsValid())
-	{
-		return;
-	}
-
-	// Make sure usage information is up to date
-	UpdateLayerUsageInformation();
-
-	bool DetailPanelRefreshRequired = false;
-
-	ShownTargetLayerList.Empty();
-
-	const TArray<FName>* DisplayOrderList = GetTargetDisplayOrderList();
-
-	if (DisplayOrderList == nullptr)
-	{
-		return;
-	}
-
-	for (const FName& LayerName : *DisplayOrderList)
-	{
-		for (const TSharedRef<FLandscapeTargetListInfo>& TargetInfo : GetTargetList())
-		{
-			if (TargetInfo->LayerName == LayerName)
-			{
-				// Keep a mapping of visible layer name to display order list so we can drag & drop proper items
-				if (ShouldShowLayer(TargetInfo))
-				{
-					ShownTargetLayerList.Add(TargetInfo->LayerName);
-					DetailPanelRefreshRequired = true;
-				}
-
-				break;
-			}
-		}
-	}	
-
-	if (DetailPanelRefreshRequired)
-	{
-		if (Toolkit.IsValid())
-		{
-			StaticCastSharedPtr<FLandscapeToolKit>(Toolkit)->RefreshDetailPanel();
-		}
+		UpdateLayerUsageInformation(); // do it synchronously when not in edit layers mode
 	}
 }
 
 void FEdModeLandscape::UpdateLayerUsageInformation(TWeakObjectPtr<ULandscapeLayerInfoObject>* LayerInfoObjectThatChanged)
 {
+	bNeedsUpdateLayerUsageInformation = false;
+
 	if (!CurrentToolTarget.LandscapeInfo.IsValid())
 	{
 		return;
@@ -2852,6 +2803,21 @@ void FEdModeLandscape::UpdateLayerUsageInformation(TWeakObjectPtr<ULandscapeLaye
 
 bool FEdModeLandscape::ShouldShowLayer(TSharedRef<FLandscapeTargetListInfo> Target) const
 {
+	if (CurrentToolTarget.TargetType == ELandscapeToolTargetType::Heightmap)
+	{
+		return (Target->TargetType == ELandscapeToolTargetType::Heightmap);
+	}
+	else if (CurrentToolTarget.TargetType == ELandscapeToolTargetType::Visibility)
+	{
+		return (Target->TargetType == ELandscapeToolTargetType::Visibility);
+	}
+
+	// Weightmap case : 
+	if (Target->TargetType != ELandscapeToolTargetType::Weightmap)
+	{
+		return false;
+	}
+
 	if (!UISettings->ShowUnusedLayers && (!Target->LayerInfoObj.IsValid() || !Target->LayerInfoObj.Get()->IsReferencedFromLoadedData))
 	{
 		return false;
@@ -2878,11 +2844,6 @@ bool FEdModeLandscape::ShouldShowLayer(TSharedRef<FLandscapeTargetListInfo> Targ
 	}
 
 	return true;
-}
-
-const TArray<FName>& FEdModeLandscape::GetTargetShownList() const
-{
-	return ShownTargetLayerList;
 }
 
 int32 FEdModeLandscape::GetTargetLayerStartingIndex() const
@@ -2928,8 +2889,7 @@ void FEdModeLandscape::MoveTargetLayerDisplayOrder(int32 IndexToMove, int32 Inde
 	LandscapeProxy->TargetDisplayOrder = ELandscapeLayerDisplayMode::UserSpecific;
 	UISettings->TargetDisplayOrder = ELandscapeLayerDisplayMode::UserSpecific;
 
-	// Everytime we move something from the display order we must rebuild the shown layer list
-	UpdateShownLayerList();
+	RefreshDetailPanel();
 }
 
 FEdModeLandscape::FTargetsListUpdated FEdModeLandscape::TargetsListUpdated;
@@ -2957,6 +2917,7 @@ void FEdModeLandscape::HandleLevelsChanged()
 
 void FEdModeLandscape::OnMaterialCompilationFinished(UMaterialInterface* MaterialInterface)
 {
+	// TODO [jonathan.bard] : we should remove this now that the target layer list is not automatically filled anymore
 	if (CurrentToolTarget.LandscapeInfo.IsValid() &&
 		CurrentToolTarget.LandscapeInfo->GetLandscapeProxy() != nullptr &&
 		CurrentToolTarget.LandscapeInfo->GetLandscapeProxy()->GetLandscapeMaterial() != nullptr &&
