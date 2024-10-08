@@ -9,18 +9,6 @@
 
 namespace UE::Editor::DataStorage
 {
-	FDynamicColumnGenerator::~FDynamicColumnGenerator()
-	{
-		FReload ReloadContext(EActiveReloadType::Reinstancing, TEXT("REINSTANCING"), *GLog);
-		ReloadContext.SetEnableReinstancing(true);
-		ReloadContext.SetSendReloadCompleteNotification(false);
-		
-		for (FGeneratedColumnRecord& GeneratedColumnRecord : GeneratedColumnData)
-		{
-			GeneratedColumnRecord.Type->DeferCppStructOps(GeneratedColumnRecord.AssetPath, nullptr);
-		}
-	}
-
 	FDynamicColumnGeneratorInfo FDynamicColumnGenerator::GenerateColumn(const UScriptStruct& Template, const FName& Identifier)
 	{
 		const FGeneratedColumnKey Key

@@ -46,7 +46,6 @@ namespace UE::Editor::DataStorage
 	class FDynamicColumnGenerator
 	{
 	public:
-		~FDynamicColumnGenerator();
 		/**
 		 * Generates a dynamic TEDS column type based on a Template type (if it hasn't been generated before)
 		 */
