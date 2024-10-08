@@ -23,6 +23,15 @@ UMovieGraphCoreTimeStep::UMovieGraphCoreTimeStep()
 	ResetForEndOfOutputFrame();
 }
 
+void UMovieGraphCoreTimeStep::Shutdown()
+{
+	// Clear out the evaluated config during shutdown. It's a strong object ptr, so references to it should be removed to ensure everything
+	// gets cleaned up properly.
+	CurrentFrameData.EvaluatedConfig.Reset();
+	
+	Super::Shutdown();
+}
+
 void UMovieGraphCoreTimeStep::TickProducingFrames()
 {
 	int32 CurrentShotIndex = GetOwningGraph()->GetCurrentShotIndex();

@@ -166,16 +166,15 @@ void UMovieGraphPipeline::Initialize(UMoviePipelineExecutorJob* InJob, const FMo
 
 void UMovieGraphPipeline::DuplicateJobAndConfiguration()
 {
-	// Contains all duplicated graphs. Maps the original graph (key) to the duplicated graph (value).
-	TMap<UMovieGraphConfig*, UMovieGraphConfig*> DuplicatedGraphs;
-	
 	// Scripting is likely to want to modify both the job (to set variable assignments) and 
 	// the configuration itself (to add nodes, or override an output directory, etc. If scripts
 	// directly modified the job/configuration it would lead to a lot of unintentional mutation
 	// of assets and queues, so we instead choose to duplicate the job and configurations for
 	// the duration of a render, and all of the Graph Pipeline code should look at the duplicates.
-	FObjectDuplicationParameters JobDuplicationParms = FObjectDuplicationParameters(CurrentJob, GetTransientPackage());
+	FObjectDuplicationParameters JobDuplicationParms = FObjectDuplicationParameters(CurrentJob, this);
 	JobDuplicationParms.DestName = FName(FString::Format(TEXT("{0}_Duplicate"), {CurrentJob->GetFName().ToString()}));
+	JobDuplicationParms.FlagMask = RF_AllFlags & ~RF_Transactional;
+	JobDuplicationParms.ApplyFlags = RF_Transient;
 	CurrentJobDuplicate = Cast<UMoviePipelineExecutorJob>(StaticDuplicateObjectEx(JobDuplicationParms));
 
 	// The duplicate job is a mix of duplicated objects and non-duplicated objects. Objects that 
@@ -238,7 +237,7 @@ void UMovieGraphPipeline::DuplicateJobAndConfiguration()
 
 }
 
-UMovieGraphConfig* UMovieGraphPipeline::DuplicateConfigRecursive(UMovieGraphConfig* InGraphToDuplicate, TMap<UMovieGraphConfig*, UMovieGraphConfig*>& OutDuplicatedGraphs)
+UMovieGraphConfig* UMovieGraphPipeline::DuplicateConfigRecursive(UMovieGraphConfig* InGraphToDuplicate, TMap<TObjectPtr<UMovieGraphConfig>, TObjectPtr<UMovieGraphConfig>>& OutDuplicatedGraphs)
 {
 	UMovieGraphConfig* DuplicateConfig;
 
@@ -252,6 +251,8 @@ UMovieGraphConfig* UMovieGraphPipeline::DuplicateConfigRecursive(UMovieGraphConf
 		// The transient package is used because graphs don't belong to the executor job usually (they belong to an asset package)
 		FObjectDuplicationParameters GraphDuplicationParams(InGraphToDuplicate, GetTransientPackage());
 		GraphDuplicationParams.DestName = FName(FString::Format(TEXT("{0}_Duplicate"), {InGraphToDuplicate->GetFName().ToString()}));
+		GraphDuplicationParams.FlagMask = RF_AllFlags & ~(RF_Standalone | RF_Transactional);
+		GraphDuplicationParams.ApplyFlags = RF_Transient;
 		DuplicateConfig = Cast<UMovieGraphConfig>(StaticDuplicateObjectEx(GraphDuplicationParams));
 		
 		OutDuplicatedGraphs.Add(InGraphToDuplicate, DuplicateConfig);
@@ -273,7 +274,7 @@ UMovieGraphConfig* UMovieGraphPipeline::DuplicateConfigRecursive(UMovieGraphConf
 			// to prevent recursion. Checking the key ensures that we only duplicate if this graph has never been encountered. Checking the value
 			// ensures that we don't re-duplicate a graph that has already been duplicated (the subgraph node was already updated).
 			bool bHasBeenDuplicated = false;
-			for (const TPair<UMovieGraphConfig*, UMovieGraphConfig*>& DuplicateMapping : OutDuplicatedGraphs)
+			for (const TPair<TObjectPtr<UMovieGraphConfig>, TObjectPtr<UMovieGraphConfig>>& DuplicateMapping : OutDuplicatedGraphs)
 			{
 				if ((DuplicateMapping.Key == SubgraphConfig) || (DuplicateMapping.Value == SubgraphConfig))
 				{
@@ -289,7 +290,7 @@ UMovieGraphConfig* UMovieGraphPipeline::DuplicateConfigRecursive(UMovieGraphConf
 
 			// Update the subgraph node to use the duplicated graph. This should always be done, even if the graph was already duplicated (since
 			// a graph can be included as a subgraph in multiple locations).
-			if (UMovieGraphConfig** DuplicatedGraph = OutDuplicatedGraphs.Find(SubgraphConfig))
+			if (const TObjectPtr<UMovieGraphConfig>* DuplicatedGraph = OutDuplicatedGraphs.Find(SubgraphConfig))
 			{
 				SubgraphNode->SetSubGraphAsset(*DuplicatedGraph);
 			}
@@ -300,18 +301,18 @@ UMovieGraphConfig* UMovieGraphPipeline::DuplicateConfigRecursive(UMovieGraphConf
 }
 
 template <typename JobType>
-void UMovieGraphPipeline::UpdateVariableAssignmentsHelper(JobType* InTargetJob, TMap<UMovieGraphConfig*, UMovieGraphConfig*>& InOriginalToDuplicateGraphMap)
+void UMovieGraphPipeline::UpdateVariableAssignmentsHelper(JobType* InTargetJob, TMap<TObjectPtr<UMovieGraphConfig>, TObjectPtr<UMovieGraphConfig>>& InOriginalToDuplicateGraphMap)
 {
 	// Remaps the provided variable assignments to point to the the duplicated graphs.
 	auto UpdateVariableAssignments = [&InOriginalToDuplicateGraphMap](TArray<TObjectPtr<UMovieJobVariableAssignmentContainer>>& InVariableAssignments)
 	{
 		for (const TObjectPtr<UMovieJobVariableAssignmentContainer>& VariableAssignment : InVariableAssignments)
 		{
-			for (const TPair<UMovieGraphConfig*, UMovieGraphConfig*>& GraphMapping : InOriginalToDuplicateGraphMap)
+			for (const TPair<TObjectPtr<UMovieGraphConfig>, TObjectPtr<UMovieGraphConfig>>& GraphMapping : InOriginalToDuplicateGraphMap)
 			{
-				if (VariableAssignment->GetGraphConfig() == GraphMapping.Key)
+				if (VariableAssignment->GetGraphConfig().LoadSynchronous() == GraphMapping.Key.Get())
 				{
-					VariableAssignment->SetGraphConfig(GraphMapping.Value);
+					VariableAssignment->SetGraphConfig(MakeSoftObjectPtr(GraphMapping.Value.Get()));
 					break;
 				}
 			}
@@ -1325,6 +1326,10 @@ void UMovieGraphPipeline::ShutdownImpl(bool bIsError)
 		constexpr bool bForceFinish = true;
 		TickPostFinalizeExport(bForceFinish);
 	}
+
+	// Duplicated graphs are part of the transient package, so by default they'll stick around after the pipeline is destroyed. To prevent
+	// the graphs from hanging onto references after the render is finished, remove them during pipeline shutdown (so they are GC'd).
+	DuplicatedGraphs.Empty();
 }
 
 void UMovieGraphPipeline::TransitionToState(const EMovieRenderPipelineState InNewState)
@@ -1757,6 +1762,15 @@ bool UMovieGraphPipeline::IsPostShotCallbackNeeded() const
 	}
 
 	return bAnyScriptNeedsCallbacks;
+}
+
+void UMovieGraphPipeline::BeginDestroy()
+{
+	// Ask the output merger to clean up. It can hold strong obj pointers, and those should not stick around after the pipeline shuts down. Generally
+	// this shouldn't be needed, but could be necessary if pending frames were not flushed for some reason.
+	GetOutputMerger()->AbandonOutstandingWork();
+	
+	Super::BeginDestroy();
 }
 
 void UMovieGraphPipeline::ExecutePreJobScripts()

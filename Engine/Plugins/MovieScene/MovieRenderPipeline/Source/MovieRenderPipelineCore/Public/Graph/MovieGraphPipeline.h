@@ -175,11 +175,11 @@ protected:
 	 * Helps duplicate graph configs. Prevents re-duplications, duplicates sub-graphs (updates subgraph nodes accordingly), and potentially more.
 	 * Returns the duplicated graph.
 	 */
-	UMovieGraphConfig* DuplicateConfigRecursive(UMovieGraphConfig* InGraphToDuplicate, TMap<UMovieGraphConfig*, UMovieGraphConfig*>& OutDuplicatedGraphs);
+	UMovieGraphConfig* DuplicateConfigRecursive(UMovieGraphConfig* InGraphToDuplicate, TMap<TObjectPtr<UMovieGraphConfig>, TObjectPtr<UMovieGraphConfig>>& OutDuplicatedGraphs);
 
 	/** Helps update variable assignments on the provided job to use duplicated graphs (reflected in the original-to-duplicate graph mapping). */
 	template<typename JobType>
-	void UpdateVariableAssignmentsHelper(JobType* InTargetJob, TMap<UMovieGraphConfig*, UMovieGraphConfig*>& InOriginalToDuplicateGraphMap);
+	void UpdateVariableAssignmentsHelper(JobType* InTargetJob, TMap<TObjectPtr<UMovieGraphConfig>, TObjectPtr<UMovieGraphConfig>>& InOriginalToDuplicateGraphMap);
 
 	// Update our data source to isolate the shot we're currently working on, so that expanded shots don't interfere with each other.
 	virtual void SetSoloShot(const TObjectPtr<UMoviePipelineExecutorShot>& InShot);
@@ -201,6 +201,10 @@ protected:
 	virtual EMovieRenderPipelineState GetPipelineStateImpl() const override { return PipelineState; }
 	virtual bool IsPostShotCallbackNeeded() const override;
 	// ~UMoviePipelineBase Interface
+	
+	// UObject Interface
+	virtual void BeginDestroy() override;
+	// ~UObject Interface
 
 protected:
 	/** Time step instances for each shot, where the index into the array corresponds to the shot index. */
@@ -248,7 +252,7 @@ protected:
 	TObjectPtr<UMoviePipelineExecutorJob> CurrentJob;
 
 	/**
-	* This is the duplicated job, parented to the Transient package. The shots inside
+	* This is the duplicated job, parented to the pipeline. The shots inside
 	* have been duplicated as well, and their graph configurations duplicated. Graph
 	* configurations are assets and scripting may want to modify them, or it may want
 	* to modify the variables in a job, so we have to duplicate both to allow a cleanly
@@ -256,6 +260,13 @@ protected:
 	*/
 	UPROPERTY(Transient)
 	TObjectPtr<UMoviePipelineExecutorJob> CurrentJobDuplicate;
+
+	/**
+	 * Contains all duplicated graphs (for scripting purposes). Maps the original graph (key) to the duplicated graph (value).
+	 * Duplicated graphs are part of the transient package.
+	 */
+	UPROPERTY(Transient)
+	TMap<TObjectPtr<UMovieGraphConfig>, TObjectPtr<UMovieGraphConfig>> DuplicatedGraphs;
 
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<UMoviePipelineExecutorShot>> ActiveShotList;
