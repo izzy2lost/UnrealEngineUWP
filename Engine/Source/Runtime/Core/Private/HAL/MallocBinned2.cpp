@@ -95,9 +95,11 @@ static constexpr uint16 SmallBinSizes[] =
 	9360,		// /7	16b
 	10912,		// /6	64b
 	13104,		// /5	16b
+#if !AGGRESSIVE_MEMORY_SAVING
 	16384-16,	// /4
 	21840,		// /3	16b
 	32768-16	// /2
+#endif
 };
 
 MS_ALIGN(PLATFORM_CACHE_LINE_SIZE) static uint8 UnusedAlignPadding[PLATFORM_CACHE_LINE_SIZE] GCC_ALIGN(PLATFORM_CACHE_LINE_SIZE) = { 0 };

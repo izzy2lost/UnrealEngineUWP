@@ -25,8 +25,14 @@ struct FGenericMemoryStats;
 #endif
 
 #define UE_MB2_LARGE_ALLOC					65536		// Alignment of OS-allocated pointer - pool-allocated pointers will have a non-aligned pointer
-#define UE_MB2_MAX_SMALL_POOL_SIZE			(32768-16)	// Maximum bin size in SmallBinSizes in cpp file
-#define UE_MB2_SMALL_POOL_COUNT				51
+
+#if AGGRESSIVE_MEMORY_SAVING
+#	define UE_MB2_MAX_SMALL_POOL_SIZE		(13104)		// Maximum bin size in SmallBinSizes in cpp file
+#	define UE_MB2_SMALL_POOL_COUNT			48
+#else
+#	define UE_MB2_MAX_SMALL_POOL_SIZE		(32768-16)	// Maximum bin size in SmallBinSizes in cpp file
+#	define UE_MB2_SMALL_POOL_COUNT			51
+#endif
 
 
 // When book keeping is at the end of FFreeBlock, MallocBinned2 cannot tell if the allocation comes from a large allocation (higher than 64KB, also named as "OSAllocation") 
