@@ -582,7 +582,7 @@ public:
 private:
 	
 	// actually run the weight transfer to copy weights from the source to the target
-	void TransferWeightsFromOtherMesh();
+	void TransferWeightsFromOtherMeshOrSubset();
 
 	// actually run the weight transfer to copy weights from the source to the target
 	void TransferWeightsFromSameMeshAndLOD();
