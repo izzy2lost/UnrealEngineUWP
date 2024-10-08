@@ -1708,7 +1708,7 @@ namespace Audio
 
 			if (SubmixWeakPtr.IsValid())
 			{
-				AudioRenderThreadCommand([MixerSubmixWeakPtr, VolumeMod = InOutputModulation, WetMod = InOutputModulation, DryMod = InOutputModulation]()
+				AudioRenderThreadCommand([MixerSubmixWeakPtr, VolumeMod = InOutputModulation, WetMod = InWetLevelModulation, DryMod = InDryLevelModulation]()
 				{
 					FMixerSubmixPtr MixerSubmixPtr = MixerSubmixWeakPtr.Pin();
 				    if (MixerSubmixPtr.IsValid())
