@@ -94,6 +94,7 @@ namespace NiagaraStatelessComputeManagerPrivate
 		}
 
 		FNiagaraEmptyUAVPoolScopedAccess UAVPoolAccessScope(ComputeInterface->GetEmptyUAVPool());
+		FRHIUnorderedAccessView* EmptyFloatBufferUAV = ComputeInterface->GetEmptyUAVFromPool(RHICmdList, PF_R32_FLOAT, ENiagaraEmptyUAVType::Buffer);
 		FRHIUnorderedAccessView* EmptyIntBufferUAV = ComputeInterface->GetEmptyUAVFromPool(RHICmdList, PF_R32_SINT, ENiagaraEmptyUAVType::Buffer);
 
 		// Execute Simulations
@@ -124,7 +125,7 @@ namespace NiagaraStatelessComputeManagerPrivate
 			ShaderParameters->Common_SimulationInvDeltaTime = EmitterInstance->DeltaTime > 0.0f ? (1.0f / EmitterInstance->DeltaTime) : 0.0f;
 			ShaderParameters->Common_OutputBufferStride = DestinationData->GetFloatStride() / sizeof(float);
 			ShaderParameters->Common_GPUCountBufferOffset = DestinationData->GetGPUInstanceCountBufferOffset();
-			ShaderParameters->Common_FloatOutputBuffer = DestinationData->GetGPUBufferFloat().UAV;
+			ShaderParameters->Common_FloatOutputBuffer = DestinationData->GetGPUBufferFloat().UAV.IsValid() ? DestinationData->GetGPUBufferFloat().UAV.GetReference() : EmptyFloatBufferUAV;
 			//ShaderParameters->Common_HalfOutputBuffer		= DestinationData->GetGPUBufferHalf().UAV;
 			ShaderParameters->Common_IntOutputBuffer = DestinationData->GetGPUBufferInt().UAV.IsValid() ? DestinationData->GetGPUBufferInt().UAV.GetReference() : EmptyIntBufferUAV;
 			ShaderParameters->Common_GPUCountBuffer = CountBufferUAV;

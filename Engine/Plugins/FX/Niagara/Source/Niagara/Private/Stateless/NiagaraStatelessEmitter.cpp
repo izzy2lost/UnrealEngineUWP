@@ -64,6 +64,12 @@ namespace NiagaraStatelessInternal
 			return false;
 		}
 
+		// Validate we have output components if we don't there's no point simulating the emitter
+		if (!EmitterData.ParticleDataSetCompiledData.Get() || !EmitterData.ParticleDataSetCompiledData->Variables.Num())
+		{
+			return false;
+		}
+
 		// Validate the shader is correct
 		const FShaderParametersMetadata* ShaderParametersMetadata = EmitterData.GetShaderParametersMetadata();
 		if (!EmitterData.GetShader().IsValid() || !ShaderParametersMetadata)
@@ -632,14 +638,28 @@ void UNiagaraStatelessEmitter::AddRenderer(UNiagaraRendererProperties* Renderer,
 
 	Modify();
 	Renderer->OuterEmitterVersion = EmitterVersion;
-//	FVersionedNiagaraEmitterData* EmitterData = GetEmitterData(EmitterVersion);
 	RendererProperties.Add(Renderer);
 #if WITH_EDITOR
-//	Renderer->OnChanged().AddUObject(this, &UNiagaraEmitter::RendererChanged);
-//	UpdateChangeId(TEXT("Renderer added"));
+	// When pasting a renderer from stateful they can come with bindings which are not supported for stateless
+	// temporarily we reset them to default values.  We will need to upgrade all these calls to take in an adapter to be able to
+	// interop between different emitter types, or introduce a base emitter type.
+	if (UNiagaraRendererProperties* RendererCDO = Renderer->GetClass()->GetDefaultObject<UNiagaraRendererProperties>())
+	{
+		for (TFieldIterator<FStructProperty> PropIt(Renderer->GetClass()); PropIt; ++PropIt)
+		{
+			FStructProperty* StructProp = *PropIt;
+			if (!StructProp || !StructProp->Struct || !StructProp->Struct->IsChildOf(FNiagaraVariableAttributeBinding::StaticStruct()))
+			{
+				continue;
+			}
+			FNiagaraVariableAttributeBinding* ParameterBinding = StructProp->ContainerPtrToValuePtr<FNiagaraVariableAttributeBinding>(Renderer);
+			FNiagaraVariableAttributeBinding* ParameterBindingDefault = StructProp->ContainerPtrToValuePtr<FNiagaraVariableAttributeBinding>(RendererCDO);
+			*ParameterBinding = *ParameterBindingDefault;
+		}
+	}
+
 	OnRenderersChangedDelegate.Broadcast();
 #endif
-//	EmitterData->RebuildRendererBindings(*this);
 }
 
 void UNiagaraStatelessEmitter::RemoveRenderer(UNiagaraRendererProperties* Renderer, FGuid EmitterVersion)
