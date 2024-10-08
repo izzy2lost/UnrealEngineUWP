@@ -128,8 +128,8 @@ static TAutoConsoleVariable<int32> CVarMegaLightsDebug(
 	0,
 	TEXT("Whether to enabled debug mode, which prints various extra debug information from shaders.")
 	TEXT("0 - Disable\n")
-	TEXT("1 - Visualize sampling\n")
-	TEXT("2 - Visualize tracing\n"),
+	TEXT("1 - Visualize tracing\n")
+	TEXT("2 - Visualize sampling"),
 	ECVF_RenderThreadSafe
 );
 
@@ -242,8 +242,8 @@ static TAutoConsoleVariable<int32> CVarMegaLightsVolumeDebug(
 	0,
 	TEXT("Whether to enabled debug mode, which prints various extra debug information from volume shaders.")
 	TEXT("0 - Disable\n")
-	TEXT("1 - Visualize sampling\n")
-	TEXT("2 - Visualize tracing\n"),
+	TEXT("1 - Visualize tracing\n")
+	TEXT("2 - Visualize sampling"),
 	ECVF_RenderThreadSafe);
 
 static TAutoConsoleVariable<int32> CVarMegaLightsVolumeDebugSliceIndex(
@@ -258,8 +258,8 @@ FAutoConsoleVariableRef CMegaLightsDefaultShadowMethod(
 	TEXT("r.MegaLights.DefaultShadowMethod"),
 	GMegaLightsDefaultShadowMethod,
 	TEXT("The default shadowing method for MegaLights, unless over-ridden on the light component.\n")
-	TEXT("0: Ray Tracing (Recommended). Accurate, scalable shadows.\n")
-	TEXT("1: Virtual Shadow Maps. Less accuate and scalable but can be preferable in some cases with low detail ray tracing geometry."),
+	TEXT("0 - Ray Tracing. Preferred method, which guarantees fixed MegaLights cost and correct area shadows, but is dependent on the BVH representation quality.\n")
+	TEXT("1 - Virtual Shadow Maps. Has a significant per light cost, but can cast shadows directly from the Nanite geometry using rasterization."),
 	ECVF_RenderThreadSafe
 );
 

@@ -162,6 +162,11 @@ class ULightComponent : public ULightComponentBase
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Light, meta = (DisplayName = "Allow MegaLights"), AdvancedDisplay)
 	uint32 bAllowMegaLights : 1;
 
+	/**
+	* Selects which shadowing method should MegaLights use for this light.
+	* RayTracing - Preferred method, which guarantees fixed MegaLights cost and correct area shadows, but is dependent on the BVH representation quality.
+	* VirtualShadowMap - Has a significant per light cost, but can cast shadows directly from the Nanite geometry using rasterization.
+	*/
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Light, meta = (DisplayName = "MegaLights Shadow Method"), AdvancedDisplay)
 	TEnumAsByte<EMegaLightsShadowMethod::Type> MegaLightsShadowMethod;
 
