@@ -32,6 +32,7 @@ namespace UnrealToolbox
 
 		Thread? _settingsThread;
 		ManualResetEvent? _settingsThreadStop;
+		bool _shutdownOnClose;
 
 		/// <summary>
 		/// Constructor
@@ -140,6 +141,10 @@ namespace UnrealToolbox
 			if (_settingsWindow == null)
 			{
 				((IClassicDesktopStyleApplicationLifetime)ApplicationLifetime!).Shutdown();
+			}
+			else
+			{
+				_shutdownOnClose = true;
 			}
 		}
 
@@ -287,6 +292,11 @@ namespace UnrealToolbox
 		private void SettingsWindow_Closed(object? sender, EventArgs e)
 		{
 			_settingsWindow = null;
+
+			if (_shutdownOnClose)
+			{
+				((IClassicDesktopStyleApplicationLifetime)ApplicationLifetime!).Shutdown();
+			}
 		}
 
 		private void TrayIcon_Exit(object? sender, EventArgs e)
