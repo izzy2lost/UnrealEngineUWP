@@ -106,7 +106,7 @@ namespace ENiagaraSpriteVFLayout
 class FAssetThumbnailPool;
 class SWidget;
 
-UCLASS(editinlinenew, meta = (DisplayName = "Sprite Renderer"), MinimalAPI)
+UCLASS(editinlinenew, meta = (DisplayName = "Sprite Renderer", SupportsStateless), MinimalAPI)
 class UNiagaraSpriteRendererProperties : public UNiagaraRendererProperties
 {
 public:

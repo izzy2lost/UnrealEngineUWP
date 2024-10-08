@@ -182,9 +182,10 @@ void FNiagaraStackRenderersOwnerStateless::GetRenderers(TArray<UNiagaraRendererP
 	}
 }
 
-bool FNiagaraStackRenderersOwnerStateless::IsRenderCreationInfoSupported(const FNiagaraRendererCreationInfo& RendererCreationInfo) const
+bool FNiagaraStackRenderersOwnerStateless::SupportsRendererClass(const UClass* RendererClass) const
 {
-	return RendererCreationInfo.bIsSupportedByStateless;
+	static const FName NAME_SupportsStateless("SupportsStateless");
+	return RendererClass->HasMetaData(NAME_SupportsStateless);
 }
 
 void FNiagaraStackRenderersOwnerStateless::AddRenderer(UNiagaraRendererProperties* RendererToAdd)
