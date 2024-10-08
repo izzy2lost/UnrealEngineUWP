@@ -65,7 +65,7 @@ bool IsTexturedLightTileType(uint TileType)
 // Keep in sync with MegaLights.cpp
 #define DOWNSAMPLE_FACTOR			2
 #define TILE_SIZE					8
-// Limited by PackLightSample
+// Limited by PackLightSample and PackCandidateLightSample
 #define MAX_LOCAL_LIGHT_NUM			4096
 #define MAX_LOCAL_LIGHT_INDEX		(MAX_LOCAL_LIGHT_NUM - 1)
 #define SHARED_LIGHT_MASK_SIZE		(MAX_LOCAL_LIGHT_NUM / 32)

@@ -28,6 +28,39 @@
 
 ADAPTIVE_LICM
 
+struct FCandidateLightSample
+{
+	uint LocalLightIndex;
+	bool bLightWasVisible;
+	float Weight;
+};
+
+FCandidateLightSample InitCandidateLightSample()
+{
+	FCandidateLightSample LightSample;
+	LightSample.LocalLightIndex = MAX_LOCAL_LIGHT_INDEX;
+	LightSample.bLightWasVisible = true;
+	LightSample.Weight = 0.0f;
+	return LightSample;
+}
+
+uint PackCandidateLightSample(FCandidateLightSample LightSample)
+{
+	uint PackedSample = LightSample.LocalLightIndex & 0xFFF;
+	PackedSample |= LightSample.bLightWasVisible ? 0x8000 : 0;
+	PackedSample |= f32tof16(LightSample.Weight) << 16;
+	return PackedSample;
+}
+
+FCandidateLightSample UnpackCandidateLightSample(uint PackedSample)
+{
+	FCandidateLightSample LightSample;
+	LightSample.LocalLightIndex = PackedSample & 0xFFF;
+	LightSample.bLightWasVisible = PackedSample & 0x8000 ? true : false;
+	LightSample.Weight = f16tof32(PackedSample >> 16);
+	return LightSample;
+}
+
 struct FLightTargetPDF
 {
 	float Weight;
@@ -133,8 +166,8 @@ uint GetLightVisibilityMask(uint VisibleLightMaskHash[VISIBLE_LIGHT_HASH_SIZE], 
 
 struct FLightSampler
 {
+	uint PackedSamples[NUM_SAMPLES_PER_PIXEL_1D];
 	float LightIndexRandom[NUM_SAMPLES_PER_PIXEL_1D];
-	FLightSample LightSamples[NUM_SAMPLES_PER_PIXEL_1D];
 	float WeightSum;
 };
 
@@ -209,8 +242,12 @@ void SampleLight(uint2 ScreenCoord, float3 TranslatedWorldPosition, const FMegaL
 			{
 				// Select this sample
 				LightSampler.LightIndexRandom[LightSampleIndex] = (LightSampler.LightIndexRandom[LightSampleIndex] - Tau) / (1.0f - Tau);
-				LightSampler.LightSamples[LightSampleIndex].LocalLightIndex = LocalLightIndex;
-				LightSampler.LightSamples[LightSampleIndex].Weight = LightTargetPDF.Weight;
+
+				FCandidateLightSample LightSample = InitCandidateLightSample();
+				LightSample.LocalLightIndex = LocalLightIndex;
+				LightSample.bLightWasVisible = bWasVisibleInLastFrame;
+				LightSample.Weight = LightTargetPDF.Weight;
+				LightSampler.PackedSamples[LightSampleIndex] = PackCandidateLightSample(LightSample);
 			}
 
 			LightSampler.LightIndexRandom[LightSampleIndex] = clamp(LightSampler.LightIndexRandom[LightSampleIndex], 0, 0.9999f);
@@ -254,7 +291,7 @@ void GenerateLightSamplesCS(
 			LightSampler.WeightSum = 0.0f;
 			for (uint LightSampleIndex = 0; LightSampleIndex < NUM_SAMPLES_PER_PIXEL_1D; ++LightSampleIndex)
 			{
-				LightSampler.LightSamples[LightSampleIndex] = InitLightSample();
+				LightSampler.PackedSamples[LightSampleIndex] = PackCandidateLightSample(InitCandidateLightSample());
 				LightSampler.LightIndexRandom[LightSampleIndex] = 0.0f;
 			}
 
@@ -438,7 +475,12 @@ void GenerateLightSamplesCS(
 				// Finalize samples
 				for (uint LightSampleIndex = 0; LightSampleIndex < NUM_SAMPLES_PER_PIXEL_1D; ++LightSampleIndex)
 				{
-					FLightSample LightSample = LightSampler.LightSamples[LightSampleIndex];
+					FLightSample LightSample = InitLightSample();
+
+					FCandidateLightSample CandidateLightSample = UnpackCandidateLightSample(LightSampler.PackedSamples[LightSampleIndex]);
+					LightSample.LocalLightIndex = CandidateLightSample.LocalLightIndex;
+					LightSample.Weight = CandidateLightSample.Weight;
+
 					const FLocalLightData LocalLightData = GetLocalLightDataNonStereo(LightSample.LocalLightIndex);
 					FDeferredLightData LightData = ConvertToDeferredLight(LocalLightData);
 
@@ -451,15 +493,14 @@ void GenerateLightSamplesCS(
 					#if GUIDE_BY_HISTORY
 					if (bHasValidHistory && LocalLightData.PrevLocalLightIndex >= 0)
 					{
-						bool bLightWasVisible = GetLightVisibility(VisibleLightHash, LocalLightData.PrevLocalLightIndex);
 						uint VisibleInLastFrameMask = GetLightVisibilityMask(VisibleLightMaskHash, LocalLightData.PrevLocalLightIndex);
-						LightSample.bGuidedAsVisible = bLightWasVisible;
+						LightSample.bGuidedAsVisible = CandidateLightSample.bLightWasVisible;
 
 						if (GuideByHistoryMode == 2)
 						{
 							// If entire light is fully visible or invisible then no need to guide samples towards the visible parts
 							const bool bAreaLight = LightData.SourceRadius > 0.0f || LightData.SourceLength > 0.0f;
-							if (bLightWasVisible && VisibleInLastFrameMask != 0 && VisibleInLastFrameMask != 0xF && bAreaLight)
+							if (CandidateLightSample.bLightWasVisible && VisibleInLastFrameMask != 0 && VisibleInLastFrameMask != 0xF && bAreaLight)
 							{
 								// Probabilities of hitting of 2x2 light UV regions based on the visibility from the previous frame
 								const float Weight00 = VisibleInLastFrameMask & 0x1 ? 1.0f : LightWasHiddenPDFWeightScale;
