@@ -29,7 +29,10 @@ RWTexture2D<UNORM float> RWShadingConfidence;
 
 int2 SampleViewMin;
 int2 SampleViewSize;
+uint2 DownsampledViewMin;
 uint2 DownsampledViewSize;
+Texture2D<float> DownsampledSceneDepth;
+float2 DownsampledBufferInvSize;
 
 StructuredBuffer<uint> TileAllocator;
 StructuredBuffer<uint> TileData;
@@ -37,7 +40,6 @@ uint TileDataStride;
 
 Texture2D<uint> LightSamples;
 Texture2D<uint> LightSampleUVTexture;
-Texture2D<float4> CompositeUpsampleWeights;
 
 float LightWasHiddenPDFWeightScale;
 uint UseShadingConfidence;
@@ -77,6 +79,11 @@ void AccumulateLightSample(uint PackedLightSamples[NUM_SAMPLES_PER_PIXEL_1D], ui
 			}
 		}
 	}
+}
+
+bool IsValidDownsampledCoord(uint2 DownsampledScreenCoord)
+{
+	return all(DownsampledScreenCoord.xy < DownsampledViewMin + DownsampledViewSize);
 }
 
 /**
@@ -121,7 +128,73 @@ void ShadeLightSamplesCS(
 
 				float3 TranslatedWorldPosition = GetTranslatedWorldPositionFromScreenUV(ScreenUV, Material.Depth);
 				float3 CameraVector = normalize(TranslatedWorldPosition - View.TranslatedWorldCameraOrigin);
-				float4 DownsampledScreenWeights = CompositeUpsampleWeights[ScreenCoord];
+
+				// Prepare weights for upsampling
+				float4 DownsampledScreenWeights = 0.0f;
+				{
+					int2 DownsampledScreenCoord00 = floor(ScreenUV * View.BufferSizeAndInvSize.xy / DOWNSAMPLE_FACTOR - 0.5f);
+					float2 DownsampledGatherUV = (DownsampledScreenCoord00 + 1.0f) * DownsampledBufferInvSize;
+
+					float4 CornerDepths = DownsampledSceneDepth.GatherRed(GlobalPointClampedSampler, DownsampledGatherUV).wzxy;
+
+					int2 ScreenCoordOffset = ScreenCoord - DownsampledScreenCoord00 * 2;
+					int2 SampleOffset00 = GetSampleScreenCoordJitter(DownsampledScreenCoord00 + uint2(0, 0)) + uint2(0, 0) * 2 - ScreenCoordOffset;
+					int2 SampleOffset10 = GetSampleScreenCoordJitter(DownsampledScreenCoord00 + uint2(1, 0)) + uint2(1, 0) * 2 - ScreenCoordOffset;
+					int2 SampleOffset01 = GetSampleScreenCoordJitter(DownsampledScreenCoord00 + uint2(0, 1)) + uint2(0, 1) * 2 - ScreenCoordOffset;
+					int2 SampleOffset11 = GetSampleScreenCoordJitter(DownsampledScreenCoord00 + uint2(1, 1)) + uint2(1, 1) * 2 - ScreenCoordOffset;
+
+					// Triangle filter weights between pixel and 4 samples
+					float4 InterpolationWeights;
+					InterpolationWeights.x = (2.0f - abs(SampleOffset00.x)) * (2.0f - abs(SampleOffset00.y));
+					InterpolationWeights.y = (2.0f - abs(SampleOffset10.x)) * (2.0f - abs(SampleOffset10.y));
+					InterpolationWeights.z = (2.0f - abs(SampleOffset01.x)) * (2.0f - abs(SampleOffset01.y));
+					InterpolationWeights.w = (2.0f - abs(SampleOffset11.x)) * (2.0f - abs(SampleOffset11.y));
+
+					float4 DepthWeights = 0.0f;	
+
+					#define PLANE_WEIGHTING 1
+					#if PLANE_WEIGHTING
+					{
+						float4 ScenePlane = float4(Material.WorldNormalForPositionBias, dot(TranslatedWorldPosition, Material.WorldNormalForPositionBias));
+
+						float3 Position00 = GetTranslatedWorldPositionFromScreenUV(DownsampledScreenCoordToScreenUV(DownsampledScreenCoord00 + uint2(0, 0)), CornerDepths.x);
+						float3 Position10 = GetTranslatedWorldPositionFromScreenUV(DownsampledScreenCoordToScreenUV(DownsampledScreenCoord00 + uint2(1, 0)), CornerDepths.y);
+						float3 Position01 = GetTranslatedWorldPositionFromScreenUV(DownsampledScreenCoordToScreenUV(DownsampledScreenCoord00 + uint2(0, 1)), CornerDepths.z);
+						float3 Position11 = GetTranslatedWorldPositionFromScreenUV(DownsampledScreenCoordToScreenUV(DownsampledScreenCoord00 + uint2(1, 1)), CornerDepths.w);
+
+						float4 PlaneDistances;
+						PlaneDistances.x = abs(dot(float4(Position00, -1), ScenePlane));
+						PlaneDistances.y = abs(dot(float4(Position10, -1), ScenePlane));
+						PlaneDistances.z = abs(dot(float4(Position01, -1), ScenePlane));
+						PlaneDistances.w = abs(dot(float4(Position11, -1), ScenePlane));
+
+						float4 RelativeDepthDifference = PlaneDistances / Material.Depth;
+
+						DepthWeights = select(CornerDepths > 0.0f, exp2(-10000.0f * (RelativeDepthDifference * RelativeDepthDifference)), 0.0f);
+					}
+					#else
+					{
+						float4 DepthDifference = abs(CornerDepths - Material.Depth.xxxx);
+						float4 RelativeDepthDifference = DepthDifference / Material.Depth;
+
+						DepthWeights = select(CornerDepths > 0.0f, exp2(-100.0f * (RelativeDepthDifference * RelativeDepthDifference)), 0.0f);
+					}
+					#endif
+
+					InterpolationWeights *= DepthWeights;
+
+					// Skip out of view samples
+					InterpolationWeights.x = IsValidDownsampledCoord(DownsampledScreenCoord00.xy + uint2(0, 0)) ? InterpolationWeights.x : 0.0f;
+					InterpolationWeights.y = IsValidDownsampledCoord(DownsampledScreenCoord00.xy + uint2(1, 0)) ? InterpolationWeights.y : 0.0f;
+					InterpolationWeights.z = IsValidDownsampledCoord(DownsampledScreenCoord00.xy + uint2(0, 1)) ? InterpolationWeights.z : 0.0f;
+					InterpolationWeights.w = IsValidDownsampledCoord(DownsampledScreenCoord00.xy + uint2(1, 1)) ? InterpolationWeights.w : 0.0f;
+
+					// Renormalize
+					float Epsilon = 0.001f;
+					InterpolationWeights /= max(dot(InterpolationWeights, 1), Epsilon);
+					DownsampledScreenWeights = InterpolationWeights;
+				}
+
 				uint2 StochasticBilinearOffset = 0;
 
 				// Stochastic sample interpolation
@@ -151,10 +224,11 @@ void ShadeLightSamplesCS(
 					Print(Context, TEXT("ShadeSamples"), FontTitle);
 					Newline(Context);
 					Print(Context, TEXT("ScreenCoord         : "));
-					Print(Context, ScreenCoord.x, FontValue);
-					Print(Context, ScreenCoord.y, FontValue);
+					Print(Context, ScreenCoord, FontValue);
 					Newline(Context);
-
+					Print(Context, TEXT("DownsampledWeights  : "));
+					Print(Context, DownsampledScreenWeights, FontValue);
+					Newline(Context);
 					Print(Context, TEXT("LightId    | Weight  | Diffuse  | Specular"), FontSilver); 
 				}
 				#endif
