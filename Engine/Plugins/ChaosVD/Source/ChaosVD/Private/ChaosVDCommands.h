@@ -17,4 +17,5 @@ public:
 public:
 	TSharedPtr<FUICommandInfo> ToggleFollowSelectedObject;
 	TSharedPtr<FUICommandInfo> OverridePlaybackFrameRate;
+	TSharedPtr<FUICommandInfo> AllowTranslucentSelection;
 };

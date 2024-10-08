@@ -58,6 +58,8 @@ public:
 	
 	static void ExecuteExternalViewportInvalidateRequest();
 
+	virtual void OnFocusViewportToSelection() override;
+
 protected:
 
 	virtual TSharedRef<FEditorViewportClient> MakeEditorViewportClient() override;

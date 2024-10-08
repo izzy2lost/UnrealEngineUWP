@@ -35,10 +35,16 @@ public:
 	void GoToLocation(const FVector& InLocation);
 
 	void TrackSelectedObject();
+
+	void FocusOnSelectedObject();
 	
 	virtual void UpdateMouseDelta() override;
 
 	void HandleCVDSceneUpdated();
+
+	bool GetCanSelectTranslucentGeometry() const { return bAllowTranslucentHitProxies; };
+	void SetCanSelectTranslucentGeometry(bool bCanSelect);
+	void ToggleCanSelectTranslucentGeometry();
 
 private:
 
@@ -51,5 +57,5 @@ private:
 
 	bool bAutoTrackSelectedObject = false;
 	float TrackingViewDistance = 120.0f;
-
+	bool bAllowTranslucentHitProxies = true;
 };

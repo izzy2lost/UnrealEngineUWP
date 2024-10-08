@@ -128,15 +128,12 @@ void SChaosVDPlaybackViewport::BindCommands()
 		const TSharedRef<FChaosVDPlaybackViewportClient> ViewportClientRef = StaticCastSharedRef<FChaosVDPlaybackViewportClient>(Client.ToSharedRef());
 		FUIAction ToggleObjectTrackingAction;
 		ToggleObjectTrackingAction.ExecuteAction.BindSP(ViewportClientRef, &FChaosVDPlaybackViewportClient::ToggleObjectTrackingIfSelected);
-		ToggleObjectTrackingAction.GetActionCheckState.BindLambda([WeakThis = ViewportClientRef.ToWeakPtr()]()
+		ToggleObjectTrackingAction.GetActionCheckState.BindLambda([WeakViewportClient = ViewportClientRef.ToWeakPtr()]()
 		{
-			TSharedPtr<const FChaosVDPlaybackViewportClient> ViewportPtr = StaticCastSharedPtr<const FChaosVDPlaybackViewportClient>(WeakThis.Pin());
+			TSharedPtr<const FChaosVDPlaybackViewportClient> ViewportPtr = WeakViewportClient.Pin();
 			return ViewportPtr.IsValid() && ViewportPtr->IsAutoTrackingSelectedObject() ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
 		});
-	
-		CommandList->MapAction(
-			Commands.ToggleFollowSelectedObject,
-			ToggleObjectTrackingAction);
+		CommandList->MapAction(Commands.ToggleFollowSelectedObject, ToggleObjectTrackingAction);
 
 		FUIAction ToggleOverrideFrameRateAction;
 		ToggleOverrideFrameRateAction.ExecuteAction.BindSP(SharedThis(this), &SChaosVDPlaybackViewport::ToggleUseFrameRateOverride);
@@ -145,10 +142,16 @@ void SChaosVDPlaybackViewport::BindCommands()
 			TSharedPtr<const SChaosVDPlaybackViewport> ViewportPtr = StaticCastSharedPtr<const SChaosVDPlaybackViewport>(WeakThis.Pin());
 			return ViewportPtr.IsValid() && ViewportPtr->IsUsingFrameRateOverride() ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
 		});
+		CommandList->MapAction(Commands.OverridePlaybackFrameRate, ToggleOverrideFrameRateAction);
 
-		CommandList->MapAction(
-			Commands.OverridePlaybackFrameRate,
-			ToggleOverrideFrameRateAction);
+		FUIAction ToggleTranslucentGeometrySelectionAction;
+		ToggleTranslucentGeometrySelectionAction.ExecuteAction.BindSP(ViewportClientRef, &FChaosVDPlaybackViewportClient::ToggleCanSelectTranslucentGeometry);
+		ToggleTranslucentGeometrySelectionAction.GetActionCheckState.BindLambda([WeakViewportClient = ViewportClientRef.ToWeakPtr()]()
+		{
+			TSharedPtr<const FChaosVDPlaybackViewportClient> ViewportPtr = WeakViewportClient.Pin();
+			return ViewportPtr.IsValid() && ViewportPtr->GetCanSelectTranslucentGeometry() ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
+		});
+		CommandList->MapAction(Commands.AllowTranslucentSelection, ToggleTranslucentGeometrySelectionAction);
 	}
 }
 
@@ -202,6 +205,11 @@ void SChaosVDPlaybackViewport::SetCurrentTargetFrameRateOverride(int32 NewTarget
 void SChaosVDPlaybackViewport::ExecuteExternalViewportInvalidateRequest()
 {
 	ExternalViewportInvalidationRequestHandler.Broadcast();
+}
+
+void SChaosVDPlaybackViewport::OnFocusViewportToSelection()
+{
+	PlaybackViewportClient->FocusOnSelectedObject();
 }
 
 TSharedRef<FEditorViewportClient> SChaosVDPlaybackViewport::MakeEditorViewportClient()
