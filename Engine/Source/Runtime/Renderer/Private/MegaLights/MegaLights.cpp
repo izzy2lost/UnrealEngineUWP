@@ -197,6 +197,12 @@ static TAutoConsoleVariable<int32> CVarMegaLightsVolume(
 	TEXT("Whether to enable a translucency volume used for Volumetric Fog and Volume Lit Translucency."),
 	ECVF_Scalability | ECVF_RenderThreadSafe);
 
+static TAutoConsoleVariable<int32> CVarMegaLightsVolumeHZBOcclusionTest(
+	TEXT("r.MegaLights.Volume.HZBOcclusionTest"),
+	1,
+	TEXT("Whether to skip computation for cells occluded by HZB."),
+	ECVF_Scalability | ECVF_RenderThreadSafe);
+
 static TAutoConsoleVariable<int32> CVarMegaLightsVolumeNumSamplesPerVoxel(
 	TEXT("r.MegaLights.Volume.NumSamplesPerVoxel"),
 	2,
@@ -1294,6 +1300,7 @@ void FDeferredShadingSceneRenderer::RenderMegaLights(FRDGBuilder& GraphBuilder, 
 			MegaLightsParameters.VolumePhaseG = Scene->ExponentialFogs.Num() > 0 ? Scene->ExponentialFogs[0].VolumetricFogScatteringDistribution : 0.0f;
 			MegaLightsParameters.VolumeInverseSquaredLightDistanceBiasScale = GInverseSquaredLightDistanceBiasScale;
 			MegaLightsParameters.VolumeFrameJitterOffset = VolumetricFogTemporalRandom(View.Family->FrameNumber);
+			MegaLightsParameters.UseHZBOcclusionTest = CVarMegaLightsVolumeHZBOcclusionTest.GetValueOnRenderThread();
 			MegaLightsParameters.FurthestHZBTexture = View.HZB;
 			MegaLightsParameters.HZBMipLevel = FMath::Max<float>((int32)FMath::FloorLog2(MegaLightsParameters.MegaLightsVolumePixelSize) - 1, 0.0f);
 			MegaLightsParameters.ViewportUVToHZBBufferUV = FVector2f(
