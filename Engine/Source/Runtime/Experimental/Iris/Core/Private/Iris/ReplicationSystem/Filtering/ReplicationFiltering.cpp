@@ -2275,21 +2275,16 @@ bool FReplicationFiltering::ClearGroupInclusionFilterEffectsForObject(uint32 Obj
 
 	if (!IsIncludedByAnyGroup(ObjectIndex, ConnectionId))
 	{
+		// Dynamically filtered objects are subject to hysteresis.
+		if (HysteresisState.Mode == EHysteresisProcessingMode::Enabled && DynamicFilterEnabledObjects.GetBit(ObjectIndex))
+		{
+			// Force processing of dynamically filtered object. If the object is still in scope and dynamically filtered out it should cause hysteresis to kick in.
+			ObjectsRequiringDynamicFilterUpdate.SetBit(ObjectIndex);
+		}
+
 		FNetBitArray& GroupIncludedObjects = ConnectionInfo.GroupIncludedObjects;
 		
 		GroupIncludedObjects.ClearBit(ObjectIndex);
-
-		// Dynamically filtered objects are subject to hysteresis.
-		if (HysteresisState.Mode == EHysteresisProcessingMode::Enabled)
-		{
-			const uint8 HysteresisFrameCount = DynamicFilterEnabledObjects.GetBit(ObjectIndex) ? ObjectScopeHysteresisFrameCounts[ObjectIndex] : uint8(0);
-			if (HysteresisFrameCount)
-			{
-				const uint32 ConnIdMod = ConnectionId % HysteresisState.ConnectionIdStride;
-				const uint32 AdjustHysteresisForUpdateThrottling = (HysteresisState.ConnectionStartId + HysteresisState.ConnectionIdStride - ConnIdMod) % HysteresisState.ConnectionIdStride;
-				ConnectionInfo.HysteresisUpdater.SetHysteresisFrameCount(ObjectIndex, static_cast<uint16>(HysteresisFrameCount + AdjustHysteresisForUpdateThrottling));
-			}
-		}
 
 		for (const FInternalNetRefIndex SubObjectIndex : NetRefHandleManager->GetSubObjects(ObjectIndex))
 		{
