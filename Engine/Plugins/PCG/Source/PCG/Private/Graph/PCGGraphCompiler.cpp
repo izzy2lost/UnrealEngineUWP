@@ -279,6 +279,7 @@ TArray<FPCGGraphTask> FPCGGraphCompiler::CompileGraph(UPCGGraph* InGraph, FPCGTa
 				if (bRequiresDataFromPreTask || Subtask.Inputs.IsEmpty())
 				{
 					Subtask.Inputs.Emplace(PreId, /*InUpstreamPin=*/FPCGGraphTaskInput::NoPin, /*InDownstreamPin=*/FPCGGraphTaskInput::NoPin, bRequiresDataFromPreTask);
+					Subtask.bWasHookedToPreTask = true;
 				}
 			}
 
@@ -1352,9 +1353,14 @@ void FPCGGraphCompiler::CompileTopGraph(UPCGGraph* InGraph, uint32 GenerationGri
 	for (int TaskIndex = 0; TaskIndex < TaskNum; ++TaskIndex)
 	{
 		FPCGGraphTask& Task = CompiledTasks[TaskIndex];
-		if (Task.Inputs.IsEmpty())
+		const UPCGSettings* Settings = Task.Node ? Task.Node->GetSettings() : nullptr;
+		const bool bRequiresDataFromPreTask = Settings && Settings->RequiresDataFromPreTask();
+
+		// Tasks could have already been hooked to the pre task of the subgraph, so don't re-hook it if that was the case.
+		if (!Task.bWasHookedToPreTask && (Task.Inputs.IsEmpty() || bRequiresDataFromPreTask))
 		{
-			Task.Inputs.Emplace(PreExecuteTaskId);
+			Task.Inputs.Emplace(PreExecuteTaskId, /*InUpstreamPin=*/FPCGGraphTaskInput::NoPin, /*InDownstreamPin=*/FPCGGraphTaskInput::NoPin, bRequiresDataFromPreTask);
+			Task.bWasHookedToPreTask = true;
 		}
 
 		Task.CompiledTaskId = Task.NodeId;
