@@ -9,7 +9,7 @@
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
 namespace Dataflow = UE::Dataflow;
 #else
-namespace UE_DEPRECATED(5.5, "Use UE::Dafaflow instead.") Dataflow {}
+namespace UE_DEPRECATED(5.5, "Use UE::Dataflow instead.") Dataflow {}
 #endif
 
 /** Reverse the geometry's normals or/and winding order of the simulation or/and render meshes stored in the cloth collection. */
