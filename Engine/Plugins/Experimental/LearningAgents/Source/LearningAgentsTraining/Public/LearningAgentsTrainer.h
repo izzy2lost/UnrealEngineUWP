@@ -140,6 +140,10 @@ public:
 	UPROPERTY(EditAnywhere, Category = "LearningAgents")
 	FString NonEditorIntermediateRelativePath;
 
+	/** The complete path to a custom trainer module when training with a custom trainer. */
+	UPROPERTY(EditAnywhere, Category = "LearningAgents")
+	FDirectoryPath CustomTrainerModulePath;
+
 	/** Trainer file name. The name of the python file to use for training. Do NOT include the '.py' file extension. */
 	UPROPERTY(EditAnywhere, Category = "LearningAgents")
 	FString TrainerFileName = TEXT("train_ppo");
@@ -151,4 +155,7 @@ public:
 
 	/** Gets the Relative Intermediate Path  */
 	FString GetIntermediatePath() const;
+
+	/** Gets the Custom Trainer Module Path  */
+	FString GetCustomTrainerModulePath() const;
 };

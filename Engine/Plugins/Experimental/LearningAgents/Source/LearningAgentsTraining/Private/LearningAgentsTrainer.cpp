@@ -197,3 +197,8 @@ FString FLearningAgentsTrainerProcessSettings::GetIntermediatePath() const
 	return NonEditorIntermediateRelativePath;
 #endif
 }
+
+FString FLearningAgentsTrainerProcessSettings::GetCustomTrainerModulePath() const
+{
+	return CustomTrainerModulePath.Path;
+}
