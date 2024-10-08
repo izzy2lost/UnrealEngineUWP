@@ -45,7 +45,7 @@ FPCGElementPtr UPCGRerouteSettings::CreateElement() const
 	return MakeShared<FPCGRerouteElement>();
 }
 
-FPCGDataCollectionDesc UPCGRerouteSettings::ComputeOutputPinDataDesc(const UPCGPin* OutputPin, const UPCGDataBinding* Binding) const
+bool UPCGRerouteSettings::ComputeOutputPinDataDesc(const UPCGPin* OutputPin, const UPCGDataBinding* Binding, FPCGDataCollectionDesc& OutDesc) const
 {
 	// Reroutes always trivially forward data. Reroutes are culled and not visible to compute graph compilation and therefore we
 	// transparently forward the data here.
@@ -53,11 +53,12 @@ FPCGDataCollectionDesc UPCGRerouteSettings::ComputeOutputPinDataDesc(const UPCGP
 	{
 		if (const UPCGPin* Pin = Node->GetInputPin(PCGPinConstants::DefaultInputLabel))
 		{
-			return ComputeInputPinDataDesc(Pin, Binding);
+			OutDesc = ComputeInputPinDataDesc(Pin, Binding);
+			return true;
 		}
 	}
 
-	return {};
+	return false;
 }
 
 TArray<FPCGPinProperties> UPCGNamedRerouteDeclarationSettings::OutputPinProperties() const

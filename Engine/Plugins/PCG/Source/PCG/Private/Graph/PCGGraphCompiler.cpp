@@ -974,6 +974,74 @@ void FPCGGraphCompiler::AddReferencedObjects(FReferenceCollector& Collector)
 	}
 }
 
+bool FPCGGraphCompiler::VisitTasksInExecutionOrder(const TArray<FPCGGraphTask>& InTasks, const TMap<FPCGTaskId, TArray<FPCGTaskId>>& InTaskToTaskSuccessors, const TFunction<bool(FPCGTaskId)>& InVisitor)
+{
+	// Populate initial sets of tasks that are ready to consume vs ones that currently blocked.
+	TArray<FPCGTaskId> ReadyTaskIds;
+	TSet<FPCGTaskId> RemainingTaskIds;
+	ReadyTaskIds.Reserve(InTasks.Num());
+	RemainingTaskIds.Reserve(InTasks.Num());
+
+	// Sort tasks into those that don't have inputs (ready tasks) vs those that cannot execute yet (remaining).
+	for (FPCGTaskId TaskId = 0; TaskId < InTasks.Num(); ++TaskId)
+	{
+		if (InTasks[TaskId].Inputs.IsEmpty())
+		{
+			ReadyTaskIds.Add(TaskId);
+		}
+		else
+		{
+			RemainingTaskIds.Add(TaskId);
+		}
+	}
+
+	// Loop until we have consumed all tasks.
+	while (!ReadyTaskIds.IsEmpty() || !RemainingTaskIds.IsEmpty())
+	{
+		FPCGTaskId ReadyTaskId = ReadyTaskIds.Pop();
+
+		if (!InVisitor(ReadyTaskId))
+		{
+			return false;
+		}
+
+		// Queue up any successors that are ready to go.
+		const TArray<FPCGTaskId>* Successors = InTaskToTaskSuccessors.Find(ReadyTaskId);
+		if (!Successors)
+		{
+			continue;
+		}
+
+		for (FPCGTaskId Successor : *Successors)
+		{
+			const bool bSuccessorQueued = ReadyTaskIds.Contains(Successor);
+
+			// All successors should either be already queued, or waiting to be queued.
+			check(bSuccessorQueued || RemainingTaskIds.Contains(Successor));
+
+			if (!bSuccessorQueued)
+			{
+				bool bSuccessorReady = true;
+				for (const FPCGGraphTaskInput& Input : InTasks[Successor].Inputs)
+				{
+					if (ReadyTaskIds.Contains(Input.TaskId) || RemainingTaskIds.Contains(Input.TaskId))
+					{
+						bSuccessorReady = false;
+						break;
+					}
+				}
+
+				if (bSuccessorReady)
+				{
+					ReadyTaskIds.Add(Successor);
+					RemainingTaskIds.Remove(Successor);
+				}
+			}
+		}
+	}
+
+	return true;
+}
 
 void FPCGGraphCompiler::PostCullStackCleanup(TArray<FPCGGraphTask>& InCompiledTasks, FPCGStackContext& InOutStackContext)
 {

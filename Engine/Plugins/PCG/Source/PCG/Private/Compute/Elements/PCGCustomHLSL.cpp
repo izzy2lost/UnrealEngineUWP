@@ -224,8 +224,11 @@ int UPCGCustomHLSLSettings::GetProcessingElemCountForInputPin(const UPCGPin* Inp
 			const UPCGSettings* UpstreamSettings = UpstreamOutputPin->Node ? UpstreamOutputPin->Node->GetSettings() : nullptr;
 			check(UpstreamSettings);
 
-			const FPCGDataCollectionDesc PinDesc = UpstreamSettings->ComputeOutputPinDataDesc(UpstreamOutputPin, Binding);
-			ProcessingElemCount += PinDesc.ComputeDataElementCount(InputPin->Properties.AllowedTypes);
+			FPCGDataCollectionDesc PinDesc;
+			if (ensure(UpstreamSettings->ComputeOutputPinDataDesc(UpstreamOutputPin, Binding, PinDesc)))
+			{
+				ProcessingElemCount += PinDesc.ComputeDataElementCount(InputPin->Properties.AllowedTypes);
+			}
 		}
 	}
 
@@ -255,8 +258,11 @@ int UPCGCustomHLSLSettings::ComputeKernelThreadCount(const UPCGDataBinding* Bind
 		{
 			if (const UPCGPin* OutputPin = GetFirstOutputPin())
 			{
-				const FPCGDataCollectionDesc Desc = ComputeOutputPinDataDesc(OutputPin, Binding);
-				ThreadCount = Desc.ComputeDataElementCount(EPCGDataType::Any);
+				FPCGDataCollectionDesc Desc;
+				if (ensure(ComputeOutputPinDataDesc(OutputPin, Binding, Desc)))
+				{
+					ThreadCount = Desc.ComputeDataElementCount(EPCGDataType::Any);
+				}
 			}
 		}
 		else if (DispatchThreadCount == EPCGDispatchThreadCount::FromProductOfInputPins)
@@ -287,15 +293,15 @@ int UPCGCustomHLSLSettings::ComputeKernelThreadCount(const UPCGDataBinding* Bind
 	return ThreadCount;
 }
 
-FPCGDataCollectionDesc UPCGCustomHLSLSettings::ComputeOutputPinDataDesc(const UPCGPin* OutputPin, const UPCGDataBinding* Binding) const
+bool UPCGCustomHLSLSettings::ComputeOutputPinDataDesc(const UPCGPin* OutputPin, const UPCGDataBinding* Binding, FPCGDataCollectionDesc& OutDesc) const
 {
 	check(OutputPin);
 	check(Binding);
 
-	// If node will not execute on GPU then its data comes straight from CPU.
-	if (!ShouldExecuteOnGPU() || !bEnabled)
+	// First inspect data coming from CPU. Will return description if this node is a CPU node or in a different compute graph.
+	if (Binding->ComputeCPUOutputPinDataDesc(OutputPin, OutDesc))
 	{
-		return Super::ComputeOutputPinDataDesc(OutputPin, Binding);
+		return true;
 	}
 
 	FPCGDataCollectionDesc PinDesc;
@@ -449,7 +455,8 @@ FPCGDataCollectionDesc UPCGCustomHLSLSettings::ComputeOutputPinDataDesc(const UP
 		}
 	}
 
-	return PinDesc;
+	OutDesc = PinDesc;
+	return true;
 }
 
 #if WITH_EDITOR
@@ -1493,7 +1500,12 @@ bool UPCGCustomHLSLSettings::AreKernelAttributesValid(FPCGContext* InContext, FT
 		for (const UPCGPin* OutputPin : OutPins)
 		{
 			check(OutputPin);
-			OutputPinDescs.Add(OutputPin->Properties.Label, ComputeOutputPinDataDesc(OutputPin, DataBinding));
+
+			FPCGDataCollectionDesc PinDesc;
+			if (ensure(ComputeOutputPinDataDesc(OutputPin, DataBinding, PinDesc)))
+			{
+				OutputPinDescs.Add(OutputPin->Properties.Label, PinDesc);
+			}
 		}
 
 		const FString Source = ShaderFunctions + ShaderSource;

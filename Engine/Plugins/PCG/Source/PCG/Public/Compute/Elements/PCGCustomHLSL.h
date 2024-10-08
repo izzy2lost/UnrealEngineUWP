@@ -68,7 +68,7 @@ public:
 	virtual FString GetCookedKernelSource(const TMap<FName, FPCGKernelAttributeIDAndType>& GlobalAttributeLookupTable) const override;
 	virtual const TArray<FPCGKernelAttributeKey> GetKernelAttributeKeys() const override { return KernelAttributeKeys; }
 	virtual int ComputeKernelThreadCount(const UPCGDataBinding* Binding) const override;
-	virtual FPCGDataCollectionDesc ComputeOutputPinDataDesc(const UPCGPin* OutputPin, const UPCGDataBinding* Binding) const override;
+	virtual bool ComputeOutputPinDataDesc(const UPCGPin* OutputPin, const UPCGDataBinding* Binding, FPCGDataCollectionDesc& OutDesc) const override;
 
 protected:
 #if WITH_EDITOR

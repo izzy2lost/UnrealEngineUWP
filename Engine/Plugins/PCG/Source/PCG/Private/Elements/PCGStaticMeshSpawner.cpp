@@ -107,15 +107,15 @@ FString UPCGStaticMeshSpawnerSettings::GetCookedKernelSource(const TMap<FName, F
 	return TemplateFile;
 }
 
-FPCGDataCollectionDesc UPCGStaticMeshSpawnerSettings::ComputeOutputPinDataDesc(const UPCGPin* OutputPin, const UPCGDataBinding* Binding) const
+bool UPCGStaticMeshSpawnerSettings::ComputeOutputPinDataDesc(const UPCGPin* OutputPin, const UPCGDataBinding* Binding, FPCGDataCollectionDesc& OutDesc) const
 {
 	check(OutputPin);
 	check(Binding);
 
-	// If node will not execute on GPU then its data comes straight from CPU.
-	if (!ShouldExecuteOnGPU() || !bEnabled)
+	// First inspect data coming from CPU. Will return description if this node is a CPU node or in a different compute graph.
+	if (Binding->ComputeCPUOutputPinDataDesc(OutputPin, OutDesc))
 	{
-		return Super::ComputeOutputPinDataDesc(OutputPin, Binding);
+		return true;
 	}
 
 	const FPCGDataCollectionDesc InputPinDesc = ComputeInputPinDataDesc(PCGPinConstants::DefaultInputLabel, Binding);
@@ -176,7 +176,8 @@ FPCGDataCollectionDesc UPCGStaticMeshSpawnerSettings::ComputeOutputPinDataDesc(c
 		}
 	}
 
-	return OutputPinDesc;
+	OutDesc = OutputPinDesc;
+	return true;
 }
 
 const TArray<FPCGKernelAttributeKey> UPCGStaticMeshSpawnerSettings::GetKernelAttributeKeys() const

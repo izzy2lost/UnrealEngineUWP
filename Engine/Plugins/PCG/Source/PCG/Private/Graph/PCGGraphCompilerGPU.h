@@ -37,16 +37,23 @@ public:
 	* using unique virtual input pin labels. */
 	static void CreateGatherTasksAtGPUInputs(UPCGGraph* InGraph, const TSet<FPCGTaskId>& InGPUCompatibleTaskIds, TArray<FPCGGraphTask>& InOutCompiledTasks);
 	
+	/** The compute graph element does not have a node or pins, so create maps of unique "virtual pins" that will allow us to marshal
+	 * data properly from an input data collection at execution time. */
+	static void SetupVirtualPins(
+		const TSet<FPCGTaskId>& InCollapsedTasks,
+		const TArray<FPCGGraphTask>& InCompiledTasks,
+		const TMap<FPCGTaskId, TArray<FPCGTaskId>>& InTaskSuccessors,
+		FOriginalToVirtualPin& OutOriginalToVirtualPin,
+		TMap<TSoftObjectPtr<const UPCGPin>, FName>& OutOutputCPUPinToVirtualPin);
+
 	/** Wires in a compute graph element alongside each set of GPU compatible nodes. The tasks for each node will be culled later. */
 	static void WireGPUGraphNode(
 		FPCGTaskId InGPUGraphTaskId,
 		const TSet<FPCGTaskId>& InCollapsedTasks,
-		const TSet<FPCGTaskId>& InGPUCompatibleTaskIds,
 		TArray<FPCGGraphTask>& InOutCompiledTasks,
-		const TMap<FPCGTaskId,
-		TArray<FPCGTaskId>>&InTaskSuccessors,
-		FOriginalToVirtualPin& OutOriginalToVirtualPin,
-		TMap<TSoftObjectPtr<const UPCGPin>, FName>& OutOutputCPUPinToVirtualPin);
+		const TMap<FPCGTaskId, TArray<FPCGTaskId>>& InTaskSuccessors,
+		const FOriginalToVirtualPin& InOriginalToVirtualPin,
+		const TMap<TSoftObjectPtr<const UPCGPin>, FName>& InOutputCPUPinToVirtualPin);
 	
 	/** Compiles a compute graph. */
 	static void BuildGPUGraphTask(
@@ -55,6 +62,7 @@ public:
 		uint32 InGridSize,
 		FPCGTaskId InGPUGraphTaskId,
 		const TSet<FPCGTaskId>& InCollapsedTasks,
+		const TSet<FPCGTaskId>& InAllGPUCompatibleTasks,
 		const FTaskToSuccessors& InTaskSuccessors,
 		TArray<FPCGGraphTask>& InOutCompiledTasks,
 		const FOriginalToVirtualPin& InOriginalToVirtualPin,

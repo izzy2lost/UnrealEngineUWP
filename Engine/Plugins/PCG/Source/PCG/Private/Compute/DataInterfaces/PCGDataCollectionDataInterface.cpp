@@ -411,9 +411,11 @@ void UPCGDataCollectionDataInterface::GetHLSL(FString& OutHLSL, FString const& I
 UComputeDataProvider* UPCGDataCollectionDataInterface::CreateDataProvider(TObjectPtr<UObject> InBinding, uint64 InInputMask, uint64 InOutputMask) const
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(UPCGDataCollectionDataInterface::CreateDataProvider);
+	check(ProducerSettings);
 	UPCGDataBinding* Binding = CastChecked<UPCGDataBinding>(InBinding);
 
-	FPCGDataCollectionDesc PinDataDesc = ProducerSettings->ComputeOutputPinDataDesc(OutputPinLabel, Binding);
+	FPCGDataCollectionDesc PinDataDesc;
+	ensure(ProducerSettings->ComputeOutputPinDataDesc(OutputPinLabel, Binding, PinDataDesc));
 
 	if (PCGComputeHelpers::IsBufferSizeTooLarge(PinDataDesc.ComputePackedSizeBytes()))
 	{
@@ -463,6 +465,17 @@ FComputeDataProviderRenderProxy* UPCGDataCollectionDataProvider::GetRenderProxy(
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(UPCGDataCollectionDataProvider::GetRenderProxy);
 	FPCGDataCollectionDataProviderProxy* Proxy = new FPCGDataCollectionDataProviderProxy(PinDesc, ReadbackMode);
+
+#if WITH_EDITOR
+	if (const UPCGNode* Node = Cast<UPCGNode>(ProducerSettings ? ProducerSettings->GetOuter() : nullptr))
+	{
+		Proxy->SetBufferName(FString::Format(TEXT("PCG_DC_{0}_{1}"), { Node->GetNodeTitle(EPCGNodeTitleType::ListView).ToString(), OutputPinLabel.ToString()}));
+	}
+	else
+	{
+		Proxy->SetBufferName(TEXT("PCG_DC"));
+	}
+#endif
 
 	if (ReadbackMode != EPCGReadbackMode::None)
 	{
@@ -624,8 +637,15 @@ void FPCGDataCollectionDataProviderProxy::AllocateResources(FRDGBuilder& GraphBu
 	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGDataCollectionDataProviderProxy::AllocateResources);
 	check(SizeBytes > 0);
 
+	const TCHAR* DebugName =
+#if WITH_EDITOR
+		*BufferName;
+#else
+		TEXT("PCGDataCollectionBuffer");
+#endif
+
 	FRDGBufferDesc Desc = FRDGBufferDesc::CreateStructuredDesc(sizeof(uint32), SizeBytes >> 2);
-	Buffer = GraphBuilder.CreateBuffer(Desc, TEXT("PCGDataCollectionBuffer"));
+	Buffer = GraphBuilder.CreateBuffer(Desc, DebugName);
 	BufferUAV = GraphBuilder.CreateUAV(Buffer);
 
 	// Initialize with an empty data collection. The kernel may not run, for example if indirect dispatch args end up being 0. Ensure
@@ -648,5 +668,12 @@ void FPCGDataCollectionDataProviderProxy::GetReadbackData(TArray<FReadbackData>&
 		OutReadbackData.Add(MoveTemp(Data));
 	}
 }
+
+#if WITH_EDITOR
+void FPCGDataCollectionDataProviderProxy::SetBufferName(const FString& InBufferName)
+{
+	BufferName = InBufferName;
+}
+#endif
 
 #undef LOCTEXT_NAMESPACE

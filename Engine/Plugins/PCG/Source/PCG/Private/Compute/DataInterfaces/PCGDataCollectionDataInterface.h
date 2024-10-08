@@ -118,6 +118,10 @@ public:
 	void GetReadbackData(TArray<FReadbackData>& OutReadbackData) const override;
 	//~ End FComputeDataProviderRenderProxy Interface
 
+#if WITH_EDITOR
+	void SetBufferName(const FString& InBufferName);
+#endif
+
 public:
 	FReadbackCallback AsyncReadbackCallback_RenderThread;
 
@@ -132,4 +136,8 @@ protected:
 
 	FRDGBufferRef Buffer = nullptr;
 	FRDGBufferUAVRef BufferUAV = nullptr;
+
+#if WITH_EDITOR
+	FString BufferName;
+#endif
 };

@@ -5,6 +5,8 @@
 #include "PCGGraph.h"
 #include "PCGModule.h"
 #include "PCGPin.h"
+#include "Compute/PCGComputeCommon.h"
+#include "Compute/PCGComputeKernelSource.h"
 #include "Compute/DataInterfaces/PCGCustomKernelDataInterface.h"
 #include "Compute/DataInterfaces/PCGDataCollectionDataInterface.h"
 #include "Compute/DataInterfaces/PCGDataCollectionUploadDataInterface.h"
@@ -12,8 +14,6 @@
 #include "Compute/DataInterfaces/PCGLandscapeDataInterface.h"
 #include "Compute/DataInterfaces/PCGTextureDataInterface.h"
 #include "Compute/Elements/PCGComputeGraphElement.h"
-#include "Compute/PCGComputeCommon.h"
-#include "Compute/PCGComputeKernelSource.h"
 #include "Elements/PCGStaticMeshSpawner.h"
 #include "Graph/PCGGraphCompiler.h"
 #include "Graph/PCGGraphExecutor.h"
@@ -95,167 +95,132 @@ void FPCGGraphCompilerGPU::CollectGPUNodeSubsets(
 	const TSet<FPCGTaskId>& InGPUCompatibleTaskIds,
 	TArray<TSet<FPCGTaskId>>& OutNodeSubsetsToConvertToCFGraph)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGGraphCompilerGPU::CollectGPUNodeSubsets);
+
 	// Identifies connected sets of GPU nodes, giving each a non-zero ID value.
 	TArray<uint32> ConnectedGPUNodeIslandIDs;
 	LabelConnectedGPUNodeIslands(InCompiledTasks, InGPUCompatibleTaskIds, InTaskSuccessors, ConnectedGPUNodeIslandIDs);
 
-	// Populate initial sets of tasks that are ready to consume vs ones that currently blocked.
-	TSet<FPCGTaskId> ReadyTaskIds;
-	TSet<FPCGTaskId> RemainingTaskIds;
-	ReadyTaskIds.Reserve(InCompiledTasks.Num());
-	RemainingTaskIds.Reserve(InCompiledTasks.Num());
+	// For every CPU node that has one or more downstream GPU node connected, check for a GPU -> CPU -> GPU pattern where data flows
+	// from a GPU node island to the CPU and then back to the same island. For such cases, we traverse the entire tree of GPU nodes that
+	// are in the island and downstream of the CPU node and bump their island ID - splitting the island into a portion that is independent
+	// of the CPU node and a portion that is dependent on it, so that we can read the data back to CPU, execute the CPU portion, then
+	// re-upload to GPU.
+	
+	// Any new island IDs will be created from the task count which will be larger than any island IDs presently set.
+	uint32 NextIslandId = InCompiledTasks.Num();
 
+	// Cache dependencies. Since our islands are only ever split (rather than replaced or removed), the dependency on each island ID is invariant.
+	TMap<TPair<FPCGTaskId, /*IslandId*/uint32>, /*bIsDependent*/bool> CPUNodeIsDependentOnIslandCached;
+
+	// Visit tasks in execution order so that splits happen as upstream to minimize island splits.
+	FPCGGraphCompiler::VisitTasksInExecutionOrder(
+		InCompiledTasks,
+		InTaskSuccessors,
+		[&InCompiledTasks, &InTaskSuccessors, &InGPUCompatibleTaskIds, &ConnectedGPUNodeIslandIDs, &NextIslandId, &CPUNodeIsDependentOnIslandCached](FPCGTaskId InTaskId) -> bool
+		{
+			if (InGPUCompatibleTaskIds.Contains(InTaskId))
+			{
+				// Skip GPU nodes.
+				return true;
+			}
+
+			if (const TArray<FPCGTaskId>* Successors = InTaskSuccessors.Find(InTaskId))
+			{
+				for (FPCGTaskId SuccessorTaskId : *Successors)
+				{
+					if (!InGPUCompatibleTaskIds.Contains(SuccessorTaskId))
+					{
+						continue;
+					}
+
+					const uint32 SuccessorIsland = ConnectedGPUNodeIslandIDs[SuccessorTaskId];
+
+					// Recursively check entire node tree upstream of this CPU node to see if it can be fed by any node in the GPU island.
+					auto CPUNodeIsDependentOnIsland = [&InCompiledTasks, &InTaskSuccessors, &InGPUCompatibleTaskIds, &ConnectedGPUNodeIslandIDs, &CPUNodeIsDependentOnIslandCached](FPCGTaskId InTaskId, uint32 InIslandID, auto&& RecursiveCall) -> bool
+					{
+						if (bool* CachedValue = CPUNodeIsDependentOnIslandCached.Find({ InTaskId, InIslandID }))
+						{
+							return *CachedValue;
+						}
+
+						// Is this task is part of the specified island.
+						bool bIsDependent = ConnectedGPUNodeIslandIDs[InTaskId] == InIslandID;
+
+						if (!bIsDependent)
+						{
+							// Check upstream tasks recursively.
+							for (const FPCGGraphTaskInput& Input : InCompiledTasks[InTaskId].Inputs)
+							{
+								if (RecursiveCall(Input.TaskId, InIslandID, RecursiveCall))
+								{
+									bIsDependent = true;
+									break;
+								}
+							}
+						}
+
+						CPUNodeIsDependentOnIslandCached.Add({ InTaskId, InIslandID }, bIsDependent);
+
+						return bIsDependent;
+					};
+
+					if (CPUNodeIsDependentOnIsland(InTaskId, SuccessorIsland, CPUNodeIsDependentOnIsland))
+					{
+						// Propagate a new island ID to all downstream GPU tasks within the island.
+
+						auto PropagateIslandIDDownstream = [&InCompiledTasks, &InTaskSuccessors, &InGPUCompatibleTaskIds, &ConnectedGPUNodeIslandIDs](FPCGTaskId InTaskId, uint32 InOldIslandID, uint32 InNewIslandID, auto&& RecursiveCall) -> void
+						{
+							ConnectedGPUNodeIslandIDs[InTaskId] = InNewIslandID;
+
+							if (const TArray<FPCGTaskId>* Successors = InTaskSuccessors.Find(InTaskId))
+							{
+								for (FPCGTaskId Successor : *Successors)
+								{
+									if (ConnectedGPUNodeIslandIDs[Successor] == InOldIslandID && InGPUCompatibleTaskIds.Contains(Successor))
+									{
+										RecursiveCall(Successor, InOldIslandID, InNewIslandID, RecursiveCall);
+									}
+								}
+							}
+						};
+
+						PropagateIslandIDDownstream(SuccessorTaskId, SuccessorIsland, NextIslandId++, PropagateIslandIDDownstream);
+					}
+				}
+			}
+
+			return true;
+		});
+
+	// Island IDs now correctly identify subsets of nodes that will be assembled into compute graphs for GPU execution.
 	for (FPCGTaskId TaskId = 0; TaskId < InCompiledTasks.Num(); ++TaskId)
 	{
-		if (InCompiledTasks[TaskId].Inputs.IsEmpty())
+		if (ConnectedGPUNodeIslandIDs[TaskId] != 0)
 		{
-			ReadyTaskIds.Add(TaskId);
-		}
-		else
-		{
-			RemainingTaskIds.Add(TaskId);
-		}
-	}
+			TSet<FPCGTaskId> GPUNodeSubset;
 
-	// Queue all successors of InTaskId that are ready to go (all upstream input tasks have been processed).
-	auto QueueSuccessors = [&InTaskSuccessors, &ReadyTaskIds, &RemainingTaskIds, &InCompiledTasks](int InTaskId)
-	{
-		bool bQueuedTask = false;
+			const uint32 IslandId = ConnectedGPUNodeIslandIDs[TaskId];
 
-		// Queue up any successors that are ready to go.
-		if (const TArray<FPCGTaskId>* Successors = InTaskSuccessors.Find(InTaskId))
-		{
-			for (FPCGTaskId Successor : *Successors)
+			for (FPCGTaskId OtherTaskId = TaskId; OtherTaskId < InCompiledTasks.Num(); ++OtherTaskId)
 			{
-				const bool bSuccessorQueued = ReadyTaskIds.Contains(Successor);
-
-				// All successors should either be already queued, or waiting to be queued.
-				check(bSuccessorQueued || RemainingTaskIds.Contains(Successor));
-
-				if (!bSuccessorQueued)
+				if (ConnectedGPUNodeIslandIDs[OtherTaskId] == IslandId)
 				{
-					bool bSuccessorReady = true;
-					for (const FPCGGraphTaskInput& Input : InCompiledTasks[Successor].Inputs)
-					{
-						if (ReadyTaskIds.Contains(Input.TaskId) || RemainingTaskIds.Contains(Input.TaskId))
-						{
-							bSuccessorReady = false;
-						}
-					}
+					GPUNodeSubset.Add(OtherTaskId);
 
-					if (bSuccessorReady)
-					{
-						ReadyTaskIds.Add(Successor);
-						RemainingTaskIds.Remove(Successor);
-						bQueuedTask = true;
-					}
-				}
-			}
-		}
-
-		return bQueuedTask;
-	};
-
-	// Local to loops below but pulled out for performance.
-	TArray<FPCGTaskId> FoundReadyTaskIds;
-	TSet<FPCGTaskId> GPUSubsetTaskIds;
-	FoundReadyTaskIds.Reserve(InCompiledTasks.Num());
-	GPUSubsetTaskIds.Reserve(InCompiledTasks.Num());
-
-	// Build subsets of nodes that are GPU compatible and can be dispatched together.
-	while (!ReadyTaskIds.IsEmpty() || !RemainingTaskIds.IsEmpty())
-	{
-		// Consume as many CPU nodes as we can.
-		bool bQueuedTasks = true;
-		while (bQueuedTasks)
-		{
-			FoundReadyTaskIds.Reset();
-
-			for (FPCGTaskId ReadyTaskId : ReadyTaskIds)
-			{
-				const bool bIsCPUNode = ConnectedGPUNodeIslandIDs[ReadyTaskId] == 0;
-				if (bIsCPUNode)
-				{
-					FoundReadyTaskIds.Add(ReadyTaskId);
+					ConnectedGPUNodeIslandIDs[OtherTaskId] = 0;
 				}
 			}
 
-			bQueuedTasks = false;
-
-			for (FPCGTaskId ReadyCPUTaskId : FoundReadyTaskIds)
-			{
-				ReadyTaskIds.Remove(ReadyCPUTaskId);
-				bQueuedTasks |= QueueSuccessors(ReadyCPUTaskId);
-			}
-		}
-
-		GPUSubsetTaskIds.Reset();
-
-		int StackIndex = INDEX_NONE;
-		uint32 IslandID = INDEX_NONE;
-
-		// Now the opposite - consume as many GPU nodes as we can and accumulate them into a set that will be compiled into a compute graph.
-		bQueuedTasks = !ReadyTaskIds.IsEmpty();
-		while (bQueuedTasks)
-		{
-			FoundReadyTaskIds.Reset();
-
-			for (FPCGTaskId ReadyTaskId : ReadyTaskIds)
-			{
-				const uint32 TaskIslandID = ConnectedGPUNodeIslandIDs[ReadyTaskId];
-				if (TaskIslandID == 0)
-				{
-					// Non-gpu task - skip
-					continue;
-				}
-
-				const bool bIslandMatches = (IslandID == INDEX_NONE) || (IslandID == TaskIslandID);
-
-				// For now don't mix tasks from different execution stacks (in and out of subgraphs for instance) into one compute graph.
-				const bool bStackMatches = (StackIndex == INDEX_NONE) || (InCompiledTasks[ReadyTaskId].StackIndex == StackIndex);
-
-				if (bIslandMatches && bStackMatches)
-				{
-					IslandID = TaskIslandID;
-					StackIndex = InCompiledTasks[ReadyTaskId].StackIndex;
-
-					FoundReadyTaskIds.Add(ReadyTaskId);
-				}
-			}
-
-			bQueuedTasks = false;
-
-			for (FPCGTaskId ReadyGPUTaskId : FoundReadyTaskIds)
-			{
-				GPUSubsetTaskIds.Add(ReadyGPUTaskId);
-				ReadyTaskIds.Remove(ReadyGPUTaskId);
-				bQueuedTasks |= QueueSuccessors(ReadyGPUTaskId);
-			}
-		}
-
-		if (!GPUSubsetTaskIds.IsEmpty())
-		{
-			bool bAllNodesValid = true;
-			for (FPCGTaskId& TaskId : GPUSubsetTaskIds)
-			{
-				const UPCGSettings* Settings = InCompiledTasks[TaskId].Node ? InCompiledTasks[TaskId].Node->GetSettings() : nullptr;
-				if (Settings && !Settings->IsKernelValid())
-				{
-					bAllNodesValid = false;
-					break;
-				}
-			}
-
-			if (bAllNodesValid)
-			{
-				OutNodeSubsetsToConvertToCFGraph.Add(MoveTemp(GPUSubsetTaskIds));
-			}
+			OutNodeSubsetsToConvertToCFGraph.Add(MoveTemp(GPUNodeSubset));
 		}
 	}
 }
 
 void FPCGGraphCompilerGPU::CreateGatherTasksAtGPUInputs(UPCGGraph* InGraph, const TSet<FPCGTaskId>& InGPUCompatibleTaskIds, TArray<FPCGGraphTask>& InOutCompiledTasks)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGGraphCompilerGPU::CreateGatherTasksAtGPUInputs);
+
 	using FOriginalInputPinKey = TPair<FPCGTaskId /* Original GPU task */, FName /* Input pin label */>;
 
 	// These are local to loop below but hoisted here for efficiency.
@@ -358,16 +323,14 @@ void FPCGGraphCompilerGPU::CreateGatherTasksAtGPUInputs(UPCGGraph* InGraph, cons
 	}
 }
 
-void FPCGGraphCompilerGPU::WireGPUGraphNode(
-	FPCGTaskId InGPUGraphTaskId,
+void FPCGGraphCompilerGPU::SetupVirtualPins(
 	const TSet<FPCGTaskId>& InCollapsedTasks,
-	const TSet<FPCGTaskId>& InGPUCompatibleTaskIds,
-	TArray<FPCGGraphTask>& InOutCompiledTasks,
+	const TArray<FPCGGraphTask>& InCompiledTasks,
 	const FTaskToSuccessors& InTaskSuccessors,
 	FOriginalToVirtualPin& OutOriginalToVirtualPin,
 	TMap<TSoftObjectPtr<const UPCGPin>, FName>& OutOutputCPUPinToVirtualPin)
 {
-	FPCGGraphTask& GPUGraphTask = InOutCompiledTasks[InGPUGraphTaskId];
+	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGGraphCompilerGPU::SetupVirtualPins);
 
 	// Used to construct unique input/output labels, ultimately consumed in graph executor in BuildTaskInput and PostExecute for input/output respectively.
 	int InputCount = 0;
@@ -376,28 +339,25 @@ void FPCGGraphCompilerGPU::WireGPUGraphNode(
 	// Add all compute graph task inputs and outputs.
 	for (FPCGTaskId GPUTaskId : InCollapsedTasks)
 	{
-		// First find CPU to GPU edges and wire in the GPU graph node inputs.
-		for (const FPCGGraphTaskInput& Input : InOutCompiledTasks[GPUTaskId].Inputs)
+		// First input edges to the compute graph.
+		for (const FPCGGraphTaskInput& Input : InCompiledTasks[GPUTaskId].Inputs)
 		{
-			if (InGPUCompatibleTaskIds.Contains(Input.TaskId))
+			if (InCollapsedTasks.Contains(Input.TaskId))
 			{
 				continue;
 			}
 
-			FPCGGraphTaskInput& AddedInput = GPUGraphTask.Inputs.Add_GetRef(Input);
-
 			// TODO is pinless fine with skipping?
-			if (AddedInput.DownstreamPin.IsSet())
+			if (Input.DownstreamPin.IsSet())
 			{
-				const FName VirtualLabel = *FString::Format(TEXT("{0}-VirtualIn{1}"), { AddedInput.DownstreamPin->Label.ToString(), InputCount });
+				const FName VirtualLabel = *FString::Format(TEXT("{0}-VirtualIn{1}"), { Input.DownstreamPin->Label.ToString(), InputCount });
 				const bool bIsInputPin = true;
-				OutOriginalToVirtualPin.Add({ GPUTaskId, AddedInput.DownstreamPin->Label, bIsInputPin }, VirtualLabel);
-				AddedInput.DownstreamPin->Label = VirtualLabel;
+				OutOriginalToVirtualPin.Add({ GPUTaskId, Input.DownstreamPin->Label, bIsInputPin }, VirtualLabel);
 
 				++InputCount;
 
-				const FPCGGraphTask& UpstreamTask = InOutCompiledTasks[Input.TaskId];
-				const UPCGPin* OutputPin = UpstreamTask.Node ? UpstreamTask.Node->GetOutputPin(AddedInput.UpstreamPin->Label) : nullptr;
+				const FPCGGraphTask& UpstreamTask = InCompiledTasks[Input.TaskId];
+				const UPCGPin* OutputPin = UpstreamTask.Node ? UpstreamTask.Node->GetOutputPin(Input.UpstreamPin->Label) : nullptr;
 
 				// Grid Linkages don't have a node associated, so ask the GridLinkageElement for the output pin instead.
 				if (!OutputPin)
@@ -428,10 +388,86 @@ void FPCGGraphCompilerGPU::WireGPUGraphNode(
 			continue;
 		}
 
+		// Next consider output edges of the compute graph.
+		for (FPCGTaskId Successor : InTaskSuccessors[GPUTaskId])
+		{
+			if (InCollapsedTasks.Contains(Successor))
+			{
+				continue;
+			}
+
+			// Rewire inputs of this downstream CPU node to the outputs of the compute graph task.
+			const FPCGGraphTask& DownstreamCPUNode = InCompiledTasks[Successor];
+
+			for (int SuccessorInputIndex = 0; SuccessorInputIndex < DownstreamCPUNode.Inputs.Num(); ++SuccessorInputIndex)
+			{
+				// Skip irrelevant edges.
+				if (DownstreamCPUNode.Inputs[SuccessorInputIndex].TaskId != GPUTaskId)
+				{
+					continue;
+				}
+
+				if (DownstreamCPUNode.Inputs[SuccessorInputIndex].UpstreamPin.IsSet())
+				{
+					const FNodePin PinKey = { GPUTaskId, DownstreamCPUNode.Inputs[SuccessorInputIndex].UpstreamPin->Label, /*Pin is input*/false };
+					if (!OutOriginalToVirtualPin.Contains(PinKey))
+					{
+						const FName VirtualLabel = *FString::Format(TEXT("{0}-VirtualOut{1}"), { DownstreamCPUNode.Inputs[SuccessorInputIndex].UpstreamPin->Label.ToString(), OutputCount });
+						OutOriginalToVirtualPin.Add(PinKey, VirtualLabel);
+
+						++OutputCount;
+					}
+				}
+			}
+		}
+	}
+}
+
+void FPCGGraphCompilerGPU::WireGPUGraphNode(
+	FPCGTaskId InGPUGraphTaskId,
+	const TSet<FPCGTaskId>& InCollapsedTasks,
+	TArray<FPCGGraphTask>& InOutCompiledTasks,
+	const FTaskToSuccessors& InTaskSuccessors,
+	const FOriginalToVirtualPin& InOriginalToVirtualPin,
+	const TMap<TSoftObjectPtr<const UPCGPin>, FName>& InOutputCPUPinToVirtualPin)
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGGraphCompilerGPU::WireGPUGraphNode);
+
+	FPCGGraphTask& GPUGraphTask = InOutCompiledTasks[InGPUGraphTaskId];
+
+	// Add all compute graph task inputs and outputs.
+	for (FPCGTaskId GPUTaskId : InCollapsedTasks)
+	{
+		// First find CPU to GPU edges and wire in the GPU graph node inputs.
+		for (const FPCGGraphTaskInput& Input : InOutCompiledTasks[GPUTaskId].Inputs)
+		{
+			if (InCollapsedTasks.Contains(Input.TaskId))
+			{
+				continue;
+			}
+
+			FPCGGraphTaskInput& AddedInput = GPUGraphTask.Inputs.Add_GetRef(Input);
+
+			// TODO is pinless fine with skipping?
+			if (AddedInput.DownstreamPin.IsSet())
+			{
+				const FName* FoundVirtualLabel = InOriginalToVirtualPin.Find({ GPUTaskId, AddedInput.DownstreamPin->Label, /*bIsInputPin=*/true });
+				if (ensure(FoundVirtualLabel))
+				{
+					AddedInput.DownstreamPin->Label = *FoundVirtualLabel;
+				}
+			}
+		}
+
+		if (!InTaskSuccessors.Contains(GPUTaskId))
+		{
+			continue;
+		}
+
 		// Next consider GPU to CPU edges to wire in the GPU graph node outputs.
 		for (FPCGTaskId Successor : InTaskSuccessors[GPUTaskId])
 		{
-			if (InGPUCompatibleTaskIds.Contains(Successor))
+			if (InCollapsedTasks.Contains(Successor))
 			{
 				continue;
 			}
@@ -459,19 +495,11 @@ void FPCGGraphCompilerGPU::WireGPUGraphNode(
 				if (DownstreamCPUNode.Inputs[SuccessorInputIndex].UpstreamPin.IsSet())
 				{
 					const FNodePin PinKey = { GPUTaskId, InputCopy.UpstreamPin->Label, /*Pin is input*/false };
-					if (const FName* FoundVirtualPinLabel = OutOriginalToVirtualPin.Find(PinKey))
+					const FName* FoundVirtualPinLabel = InOriginalToVirtualPin.Find(PinKey);
+					if (ensure(FoundVirtualPinLabel))
 					{
 						// Wire to the existing virtual output pin.
 						InputCopy.UpstreamPin->Label = *FoundVirtualPinLabel;
-					}
-					else
-					{
-						const FName VirtualLabel = *FString::Format(TEXT("{0}-VirtualOut{1}"), { InputCopy.UpstreamPin->Label.ToString(), OutputCount });
-						OutOriginalToVirtualPin.Add(PinKey, VirtualLabel);
-
-						InputCopy.UpstreamPin->Label = VirtualLabel;
-
-						++OutputCount;
 					}
 				}
 
@@ -487,11 +515,14 @@ void FPCGGraphCompilerGPU::BuildGPUGraphTask(
 	uint32 InGridSize,
 	FPCGTaskId InGPUGraphTaskId,
 	const TSet<FPCGTaskId>& InCollapsedTasks,
+	const TSet<FPCGTaskId>& InAllGPUCompatibleTasks,
 	const FTaskToSuccessors& InTaskSuccessors,
 	TArray<FPCGGraphTask>& InOutCompiledTasks,
 	const FOriginalToVirtualPin& InOriginalToVirtualPin,
 	const TMap<TSoftObjectPtr<const UPCGPin>, FName>& InOutputCPUPinToVirtualPin)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGGraphCompilerGPU::BuildGPUGraphTask);
+
 	check(InGraph);
 	const FName GraphName = MakeUniqueObjectName(InGraph, UPCGComputeGraph::StaticClass(), InGraph->GetFName());
 
@@ -507,6 +538,8 @@ void FPCGGraphCompilerGPU::BuildGPUGraphTask(
 	// For CPU->GPU edges, an upload data interface is created. For GPU->CPU edges, a readback data interface is created.
 	auto CreateDataInterface = [&InCollapsedTasks, &InOutCompiledTasks, ComputeGraph](FPCGTaskId InTaskId, bool bRequiresReadback, const FPCGPinProperties& InOutputPinProperties) -> UPCGComputeDataInterface*
 	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(CreateDataInterface);
+
 		const bool bUpstreamIsGPUTask = InCollapsedTasks.Contains(InTaskId);
 
 		EPCGDataType PinType = InOutputPinProperties.AllowedTypes;
@@ -646,11 +679,11 @@ void FPCGGraphCompilerGPU::BuildGPUGraphTask(
 			}
 		}
 
-		// Create any DIs for upstream CPU nodes.
+		// Create any DIs for upstream nodes outside of this compute graph.
 		for (const FPCGGraphTaskInput& Input : InOutCompiledTasks[TaskId].Inputs)
 		{
-			// Only deal with upstream CPU tasks.
-			if (InCollapsedTasks.Contains(Input.TaskId))
+			// Never wire directly to the GPU-compatible tasks, these are collapsed into compute graphs (and will be culled in a next step).
+			if (InAllGPUCompatibleTasks.Contains(Input.TaskId))
 			{
 				continue;
 			}
@@ -744,6 +777,15 @@ void FPCGGraphCompilerGPU::BuildGPUGraphTask(
 
 		for (const FPCGGraphTaskInput& Input : InOutCompiledTasks[TaskId].Inputs)
 		{
+			// Currently the new compute graph tasks are wired into the graph in parallel to each GPU node task. The GPU node tasks
+			// will be culled at the end, leaving only the compute graphs. Only create DIs for tasks within this compute graph (in InCollapsedTasks),
+			// or for tasks that will not be culled (not in InAllGPUCompatibleTasks).
+			const bool bValidInput = InCollapsedTasks.Contains(Input.TaskId) || !InAllGPUCompatibleTasks.Contains(Input.TaskId);
+			if (!bValidInput)
+			{
+				continue;
+			}
+
 			if (!Input.UpstreamPin.IsSet())
 			{
 				// Execution-only dependencies not supported currently. Unclear if this should ever be supported for GPU graphs.
@@ -1101,6 +1143,8 @@ void FPCGGraphCompilerGPU::BuildGPUGraphTask(
 
 	if (FApp::CanEverRender())
 	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(UpdateResources);
+
 		// Compile shader resources and create render proxies.
 		ComputeGraph->UpdateResources();
 	}
@@ -1152,6 +1196,27 @@ void FPCGGraphCompilerGPU::CreateGPUNodes(FPCGGraphCompiler& InOutCompiler, UPCG
 	TArray<TSet<FPCGTaskId>> NodeSubsetsToConvertToCFGraph;
 	CollectGPUNodeSubsets(InOutCompiledTasks, TaskSuccessors, GPUCompatibleTaskIds, NodeSubsetsToConvertToCFGraph);
 
+	// Mapping from task ID & pin label to a virtual pin label. Compute graphs are executed within a generated element,
+	// and the input and output pins of this element must have unique virtual pin labels so that we can parse the data that
+	// PCG provides through the input data collection correctly, and route the output data to the downstream pins correctly.
+	TArray<FOriginalToVirtualPin> OriginalToVirtualPin;
+
+	TArray<TMap<TSoftObjectPtr<const UPCGPin>, FName>> OutputCPUPinToVirtualPin;
+
+	OriginalToVirtualPin.SetNum(NodeSubsetsToConvertToCFGraph.Num());
+	OutputCPUPinToVirtualPin.SetNum(NodeSubsetsToConvertToCFGraph.Num());
+
+	// Setup mappings from existing pins to compute graph element virtual pins as a prestep before wiring in the compute graph tasks.
+	for (int32 ComputeGraphIndex = 0; ComputeGraphIndex < NodeSubsetsToConvertToCFGraph.Num(); ++ComputeGraphIndex)
+	{
+		SetupVirtualPins(
+			NodeSubsetsToConvertToCFGraph[ComputeGraphIndex],
+			InOutCompiledTasks,
+			TaskSuccessors,
+			OriginalToVirtualPin[ComputeGraphIndex],
+			OutputCPUPinToVirtualPin[ComputeGraphIndex]);
+	}
+
 	// Do actual collapsing now, one subset at a time. Each collapse will do all fixup of task ids? That will invalidate
 	// ids in NodeSubsetsToConvertToCFGraph, so may need remap table. But can ignore this for now.
 	for (int32 ComputeGraphIndex = 0; ComputeGraphIndex < NodeSubsetsToConvertToCFGraph.Num(); ++ComputeGraphIndex)
@@ -1177,22 +1242,14 @@ void FPCGGraphCompilerGPU::CreateGPUNodes(FPCGGraphCompiler& InOutCompiler, UPCG
 			break;
 		}
 
-		// Mapping from task ID & pin label to a virtual pin label. Compute graphs are executed within a generated element,
-		// and the input and output pins of this element must have unique virtual pin labels so that we can parse the data that
-		// PCG provides through the input data collection correctly, and route the output data to the downstream pins correctly.
-		FOriginalToVirtualPin OriginalToVirtualPin;
-
-		TMap<TSoftObjectPtr<const UPCGPin>, FName> OutputCPUPinToVirtualPin;
-
 		// Wire in the compute graph task, side by side with the individual GPU tasks, which will be culled below.
 		WireGPUGraphNode(
 			ComputeGraphTaskId,
 			NodeSubsetToConvertToCFGraph,
-			GPUCompatibleTaskIds,
 			InOutCompiledTasks,
 			TaskSuccessors,
-			OriginalToVirtualPin,
-			OutputCPUPinToVirtualPin);
+			OriginalToVirtualPin[ComputeGraphIndex],
+			OutputCPUPinToVirtualPin[ComputeGraphIndex]);
 
 		// Generate a compute graph from all of the individual GPU tasks.
 		BuildGPUGraphTask(
@@ -1201,10 +1258,11 @@ void FPCGGraphCompilerGPU::CreateGPUNodes(FPCGGraphCompiler& InOutCompiler, UPCG
 			InGridSize,
 			ComputeGraphTaskId,
 			NodeSubsetToConvertToCFGraph,
+			GPUCompatibleTaskIds,
 			TaskSuccessors,
 			InOutCompiledTasks,
-			OriginalToVirtualPin,
-			OutputCPUPinToVirtualPin);
+			OriginalToVirtualPin[ComputeGraphIndex],
+			OutputCPUPinToVirtualPin[ComputeGraphIndex]);
 	}
 
 	// Now cull all the GPU compatible nodes. The compute graph task are already wired in so we're fine to just delete.

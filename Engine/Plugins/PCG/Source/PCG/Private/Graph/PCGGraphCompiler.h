@@ -98,10 +98,14 @@ public:
 
 	void AddReferencedObjects(FReferenceCollector& Collector);
 
+	/** Executes lambda over provided tasks in execution order (task is not visited until all upstream dependencies are visited). Aborts if visitor lambda returns false.
+	* Returns true if all tasks visited. */
+	static bool VisitTasksInExecutionOrder(const TArray<FPCGGraphTask>& InTasks, const TMap<FPCGTaskId, TArray<FPCGTaskId>>& InTaskToTaskSuccessors, const TFunction<bool(FPCGTaskId)>& InVisitor);
+
 private:
 	TArray<FPCGGraphTask> CompileGraph(UPCGGraph* InGraph, FPCGTaskId& NextId, FPCGStackContext& InOutStackContext);
 
-	/** Compiles the top graph and applies culling optimizations if a non-unitialized grid size is provided. */
+	/** Compiles the top graph and applies culling optimizations if a non-uninitialized grid size is provided. */
 	void CompileTopGraph(UPCGGraph* InGraph, uint32 GenerationGridSize);
 
 	/** Propagates grid sizes through a graph's compiled tasks. */
