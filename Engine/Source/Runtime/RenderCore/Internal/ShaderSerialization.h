@@ -29,7 +29,18 @@ struct FShaderSerializeContext
 	/* Constructor which accepts an FArchive reference, used for simple serialization cases */
 	FShaderSerializeContext(FArchive& InArchive) : Ar(&InArchive) {}
 
-	/* Archive pointer which should be used for serializing the object, possibly excluding shader code if the SerializeCodeFunc is set */
+	virtual ~FShaderSerializeContext() = default;
+
+	/* If this is overridden to return true, SerializeCode will be called to serialize shader code separately from the rest of the serialized object. */
+	virtual bool EnableCustomCodeSerialize() { return false; }
+
+	/* Optional function which must be implemented if EnableCustomCodeSerialize returns true; use to serialize shader code separately from the main object */
+	virtual void SerializeCode(FShaderCodeResource& Resource, int32 Index) {};
+
+	/* Optional function that can be used to reserve space for the given number of code objects by derived classes. */
+	virtual void ReserveCode(int32 Count) {};
+
+	/* Archive pointer which should be used for serializing the object, possibly excluding shader code if the EnableCustomCodeSerialize returns true */
 	FArchive* Ar = nullptr;
 
 	/* Flag indicating whether this serialization is a cooked load; used to change serialization behaviour for cooked data vs cached data */
@@ -37,11 +48,6 @@ struct FShaderSerializeContext
 
 	/* FName of the asset which triggered the serialization, this is used only for diagnostic messages */
 	FName SerializingAsset = NAME_None;
-
-	/* Optional function which can be used to serialize shader code separately from the main object; if this is set serialization of bytecode 
-	 * will be excluded from the main object (i.e. not using the Ar member archive reference) and is the responsibility of this function.
-	 */
-	TFunction<void(FShaderCodeResource&, int32)> SerializeCodeFunc{};
 
 	/* Optional function which can be used to reserve space for a number of code entries as a minor optimization. */
 	TFunction<void(int32)> ReserveCodeFunc{};
@@ -65,6 +71,8 @@ struct FShaderCacheSerializeContext : public FShaderSerializeContext
 		ShaderCode = OwnedShaderCode;
 	}
 
+	virtual ~FShaderCacheSerializeContext() = default;
+
 	/* Buffer which stores the main object data for a cache entry - i.e. a shadermap or job structure */
 	FSharedBuffer ShaderObjectData;
 
@@ -77,6 +85,9 @@ struct FShaderCacheSerializeContext : public FShaderSerializeContext
 	 * where the array of ShaderCode buffers is stored externally.
 	 */
 	TArray<FCompositeBuffer> OwnedShaderCode;
+
+	/* Subclasses of this type must implement custom code serialization function */
+	virtual bool EnableCustomCodeSerialize() override { return true; }
 
 	/* Get the total serialized size of data for this context; note that this will return 0 if called prior to the FSharedBuffers
 	 * being set (this is done in the derived implementations, see below).
@@ -110,15 +121,21 @@ struct FShaderCacheSerializeContext : public FShaderSerializeContext
 /* Implementation of FShaderCacheSerializeContext used for saving data to caches. */
 struct FShaderCacheSaveContext : public FShaderCacheSerializeContext
 {
-	/* Default constructor; sets up base class TFunctions to save bytecode independently of object structure, as
-	 * well as base class FArchive pointing to the owned memory writer.
-	 */
+	/* Default constructor; sets up base class FArchive pointing to the owned memory writer. */
 	RENDERCORE_API FShaderCacheSaveContext();
+
+	virtual ~FShaderCacheSaveContext() = default;
 
 	/* Converts the raw serialized object data into the ShaderObjectData FSharedBuffer.
 	 * Note that this is called by BuildCacheRecord as well, calls subsequent to the first will have no effect.
 	 */
 	RENDERCORE_API void Finalize();
+
+	/* Overridden code serialize implementation. */
+	RENDERCORE_API virtual void SerializeCode(FShaderCodeResource& Resource, int32 Index) override;
+
+	/* Overridden code reserve implementation. */
+	RENDERCORE_API virtual void ReserveCode(int32 Count) override;
 
 #if WITH_EDITOR
 	/* Helper function to generate a DDC record from the data serialized using this context. Serialization must
@@ -141,12 +158,21 @@ struct FShaderCacheSaveContext : public FShaderCacheSerializeContext
 struct FShaderCacheLoadContext : public FShaderCacheSerializeContext
 {
 	/*	Default constructor, use when array of code buffers will be allocated via ReadFromRecord */
-	RENDERCORE_API FShaderCacheLoadContext();
+	FShaderCacheLoadContext() = default;
+
 	/* Constructor which references buffers (and an array of code buffers) owned elsewhere, does not allocate the OwnedShaderCode array */
 	RENDERCORE_API FShaderCacheLoadContext(FSharedBuffer ShaderObjectData, TArrayView<FCompositeBuffer> CodeBuffers);
 
+	virtual ~FShaderCacheLoadContext() = default;
+
+	/* Resets internal state to point to the given buffers and recreates the owned memoryreader */
+	RENDERCORE_API void Reset(FSharedBuffer ShaderObjectData, TArrayView<FCompositeBuffer> CodeBuffers);
+
 	/* Call to reset reader to start position so the same load context can be used to populate multiple objects. */
 	RENDERCORE_API void Reuse();
+
+	/* Overridden code serialize implementation. */
+	RENDERCORE_API virtual void SerializeCode(FShaderCodeResource& Resource, int32 Index) override;
 
 #if WITH_EDITOR
 	/* Helper function to populate the internal state (FSharedBuffers defined on FShaderCacheSerializeContext) from a DDC record. */

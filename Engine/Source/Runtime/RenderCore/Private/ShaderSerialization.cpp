@@ -12,18 +12,6 @@
 
 FShaderCacheSaveContext::FShaderCacheSaveContext()
 {
-	SerializeCodeFunc = [this](FShaderCodeResource& Res, int32 Index)
-		{
-			OwnedShaderCode.Add(Res.GetCacheBuffer());
-			// reset the array view any time an entry is added; we do this instead of calling Resize in the reserve delegate
-			// and setting it there since not all code paths (i.e. single job cache records) call reserve
-			ShaderCode = OwnedShaderCode;
-		};
-
-	ReserveCodeFunc = [this](int32 Num)
-		{
-			OwnedShaderCode.Reserve(Num);
-		};
 	Reset();
 }
 
@@ -32,6 +20,19 @@ const UE::DerivedData::FValueId ShaderObjectDataValue = UE::DerivedData::FValueI
 const UE::DerivedData::FValueId ShaderCodeDataValue = UE::DerivedData::FValueId::FromName(TEXT("ShaderCodeData"));
 const FAnsiStringView CodeCountMetaField = ANSITEXTVIEW("CodeCount");
 #endif
+
+void FShaderCacheSaveContext::SerializeCode(FShaderCodeResource& Resource, int32 Index)
+{
+	OwnedShaderCode.Add(Resource.GetCacheBuffer());
+	// reset the array view any time an entry is added; we do this instead of calling Resize in the reserve delegate
+	// and setting it there since not all code paths (i.e. single job cache records) call reserve
+	ShaderCode = OwnedShaderCode;
+}
+
+void FShaderCacheSaveContext::ReserveCode(int32 Count)
+{
+	OwnedShaderCode.Reserve(Count);
+}
 
 void FShaderCacheSaveContext::Reset()
 {
@@ -76,21 +77,24 @@ UE::DerivedData::FCacheRecord FShaderCacheSaveContext::BuildCacheRecord(const UE
 }
 #endif
 
-FShaderCacheLoadContext::FShaderCacheLoadContext()
+
+FShaderCacheLoadContext::FShaderCacheLoadContext(FSharedBuffer InShaderObjectData, TArrayView<FCompositeBuffer> InCodeBuffers)
 {
-	SerializeCodeFunc = [this](FShaderCodeResource& Res, int32 Index)
-		{
-			Res.PopulateFromComposite(ShaderCode[Index]);
-		};
+	Reset(InShaderObjectData, InCodeBuffers);
 }
 
-FShaderCacheLoadContext::FShaderCacheLoadContext(FSharedBuffer InShaderObjectData, TArrayView<FCompositeBuffer> InCodeBuffers) : FShaderCacheLoadContext()
+void FShaderCacheLoadContext::Reset(FSharedBuffer InShaderObjectData, TArrayView<FCompositeBuffer> InCodeBuffers)
 {
 	ShaderObjectData = InShaderObjectData;
 	ShaderCode = InCodeBuffers;
 
 	Reader = MakeUnique<FMemoryReaderView>(ShaderObjectData);
 	Ar = Reader.Get();
+}
+
+void FShaderCacheLoadContext::SerializeCode(FShaderCodeResource& Resource, int32 Index)
+{
+	Resource.PopulateFromComposite(ShaderCode[Index]);
 }
 
 void FShaderCacheLoadContext::Reuse()

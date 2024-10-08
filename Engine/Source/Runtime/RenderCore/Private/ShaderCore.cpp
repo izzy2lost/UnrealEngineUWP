@@ -4050,7 +4050,8 @@ void FShaderCompileJob::SerializeOutput(FShaderCacheSerializeContext& Ctx, int32
 		CodeResource = Output.GetFinalizedCodeResource();
 	}
 
-	Ctx.SerializeCodeFunc(CodeResource, CodeIndex);
+	check(Ctx.EnableCustomCodeSerialize());
+	Ctx.SerializeCode(CodeResource, CodeIndex);
 
 	// we intentionally re-set the internal ShaderCode even when saving; GetCodeResource moves the code array into the
 	// FShaderCodeResource's internal array and this moves it back (preventing an unnecessary temporary copy of the code)

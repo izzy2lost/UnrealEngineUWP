@@ -363,7 +363,7 @@ void FShaderMapResourceCode::Serialize(FShaderSerializeContext& Ctx)
 	FArchive& Ar = Ctx.GetMainArchive();
 	Ar << ResourceHash;
 	Ar << ShaderHashes;
-	if (!Ctx.SerializeCodeFunc)
+	if (!Ctx.EnableCustomCodeSerialize())
 	{
 		Ar << ShaderCodeResources;
 	}
@@ -381,7 +381,7 @@ void FShaderMapResourceCode::Serialize(FShaderSerializeContext& Ctx)
 
 		for (int32 CodeIndex = 0; CodeIndex < ShaderCodeResources.Num(); ++CodeIndex)
 		{
-			Ctx.SerializeCodeFunc(ShaderCodeResources[CodeIndex], CodeIndex);
+			Ctx.SerializeCode(ShaderCodeResources[CodeIndex], CodeIndex);
 		}
 	}
 	check(ShaderCodeResources.Num() == ShaderHashes.Num());
