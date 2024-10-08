@@ -128,6 +128,7 @@ StructuredBuffer<uint> DownsampledTileData;
 
 StructuredBuffer<uint> VisibleLightHashHistory;
 StructuredBuffer<uint> VisibleLightMaskHashHistory;
+uint2 HistoryVisibleLightHashViewMinInTiles;
 uint2 HistoryVisibleLightHashViewSizeInTiles;
 uint GuideByHistoryMode;
 float LightWasHiddenPDFWeightScale;
@@ -410,7 +411,7 @@ void GenerateLightSamplesCS(
 
 					#if GUIDE_BY_HISTORY
 					{
-						const uint2 PrevScreenTileCoord = min(PrevScreenCoord / TILE_SIZE, HistoryVisibleLightHashViewSizeInTiles - 1);
+						const uint2 PrevScreenTileCoord = clamp(PrevScreenCoord / TILE_SIZE, HistoryVisibleLightHashViewMinInTiles, HistoryVisibleLightHashViewMinInTiles + HistoryVisibleLightHashViewSizeInTiles - 1);
 						const uint HistoryBufferBase = VISIBLE_LIGHT_HASH_SIZE * (PrevScreenTileCoord.y * HistoryVisibleLightHashViewSizeInTiles.x + PrevScreenTileCoord.x);
 						VisibleLightHash[IndexInHash] = VisibleLightHashHistory[HistoryBufferBase + IndexInHash];
 						VisibleLightMaskHash[IndexInHash] = VisibleLightMaskHashHistory[HistoryBufferBase + IndexInHash];

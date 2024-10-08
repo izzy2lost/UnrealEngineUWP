@@ -561,6 +561,7 @@ class FGenerateLightSamplesCS : public FGlobalShader
 		SHADER_PARAMETER(FVector4f, HistoryScreenPositionScaleBias)
 		SHADER_PARAMETER(FVector4f, HistoryUVMinMax)
 		SHADER_PARAMETER(FVector4f, HistoryGatherUVMinMax)
+		SHADER_PARAMETER(FIntPoint, HistoryVisibleLightHashViewMinInTiles)
 		SHADER_PARAMETER(FIntPoint, HistoryVisibleLightHashViewSizeInTiles)
 	END_SHADER_PARAMETER_STRUCT()
 
@@ -1161,6 +1162,7 @@ void FDeferredShadingSceneRenderer::RenderMegaLights(FRDGBuilder& GraphBuilder, 
 			TEXT("MegaLights.LightSampleRayDistance"));
 
 		const FIntPoint VisibleLightHashSizeInTiles = FMath::DivideAndRoundUp<FIntPoint>(SceneTextures.Config.Extent, MegaLights::TileSize);
+		const FIntPoint VisibleLightHashViewMinInTiles = FMath::DivideAndRoundUp<FIntPoint>(View.ViewRect.Min, MegaLights::TileSize);
 		const FIntPoint VisibleLightHashViewSizeInTiles = FMath::DivideAndRoundUp<FIntPoint>(View.ViewRect.Size(), MegaLights::TileSize);
 		const uint32 VisibleLightHashBufferSize = VisibleLightHashSizeInTiles.X * VisibleLightHashSizeInTiles.Y * MegaLights::VisibleLightHashSize;
 
@@ -1169,6 +1171,7 @@ void FDeferredShadingSceneRenderer::RenderMegaLights(FRDGBuilder& GraphBuilder, 
 		FVector4f HistoryScreenPositionScaleBias = FVector4f(0.0f, 0.0f, 0.0f, 0.0f);
 		FVector4f HistoryUVMinMax = FVector4f(0.0f, 0.0f, 0.0f, 0.0f);
 		FVector4f HistoryGatherUVMinMax = FVector4f(0.0f, 0.0f, 0.0f, 0.0f);
+		FIntPoint HistoryVisibleLightHashViewMinInTiles = 0;
 		FIntPoint HistoryVisibleLightHashViewSizeInTiles = 0;
 		FRDGTextureRef DiffuseLightingAndSecondMomentHistory = nullptr;
 		FRDGTextureRef SpecularLightingAndSecondMomentHistory = nullptr;
@@ -1190,6 +1193,7 @@ void FDeferredShadingSceneRenderer::RenderMegaLights(FRDGBuilder& GraphBuilder, 
 				HistoryScreenPositionScaleBias = MegaLightsViewState.HistoryScreenPositionScaleBias;
 				HistoryUVMinMax = MegaLightsViewState.HistoryUVMinMax;
 				HistoryGatherUVMinMax = MegaLightsViewState.HistoryGatherUVMinMax;
+				HistoryVisibleLightHashViewMinInTiles = MegaLightsViewState.HistoryVisibleLightHashViewMinInTiles;
 				HistoryVisibleLightHashViewSizeInTiles = MegaLightsViewState.HistoryVisibleLightHashViewSizeInTiles;
 
 				if (StochasticLightingViewState.SceneDepthHistory)
@@ -1314,6 +1318,7 @@ void FDeferredShadingSceneRenderer::RenderMegaLights(FRDGBuilder& GraphBuilder, 
 				float(View.ViewRect.Height()) / float(2 * View.HZBMipmap0Size.Y));
 			MegaLightsParameters.VolumeDebugMode = MegaLights::GetVolumeDebugMode();
 			MegaLightsParameters.VolumeDebugSliceIndex = CVarMegaLightsVolumeDebugSliceIndex.GetValueOnRenderThread();
+			MegaLightsParameters.VisibleLightHashViewMinInTiles = VisibleLightHashViewMinInTiles;
 			MegaLightsParameters.VisibleLightHashViewSizeInTiles = VisibleLightHashViewSizeInTiles;
 
 			if (bDebug || bVolumeDebug)
@@ -1477,6 +1482,7 @@ void FDeferredShadingSceneRenderer::RenderMegaLights(FRDGBuilder& GraphBuilder, 
 				PassParameters->HistoryScreenPositionScaleBias = HistoryScreenPositionScaleBias;
 				PassParameters->HistoryUVMinMax = HistoryUVMinMax;
 				PassParameters->HistoryGatherUVMinMax = HistoryGatherUVMinMax;
+				PassParameters->HistoryVisibleLightHashViewMinInTiles = HistoryVisibleLightHashViewMinInTiles;
 				PassParameters->HistoryVisibleLightHashViewSizeInTiles = HistoryVisibleLightHashViewSizeInTiles;
 
 				FGenerateLightSamplesCS::FPermutationDomain PermutationVector;
@@ -1817,6 +1823,7 @@ void FDeferredShadingSceneRenderer::RenderMegaLights(FRDGBuilder& GraphBuilder, 
 				(View.ViewRect.Max.X - 0.51f) * InvBufferSize.X,
 				(View.ViewRect.Max.Y - 0.51f) * InvBufferSize.Y);
 
+			MegaLightsViewState.HistoryVisibleLightHashViewMinInTiles = VisibleLightHashViewMinInTiles;
 			MegaLightsViewState.HistoryVisibleLightHashViewSizeInTiles = VisibleLightHashViewSizeInTiles;
 
 			if (DiffuseLightingAndSecondMoment && SpecularLightingAndSecondMoment && NumFramesAccumulated && bTemporal)

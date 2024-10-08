@@ -68,7 +68,7 @@ void TileClassificationCS(
 		const float SceneDepth = Material.Depth;
 
 		const uint EyeIndex = 0;
-		const uint GridIndex = ComputeLightGridCellIndex(EffectiveScreenCoord, SceneDepth, EyeIndex);
+		const uint GridIndex = ComputeLightGridCellIndex(EffectiveScreenCoord - View.ViewRectMin.xy, SceneDepth, EyeIndex);
 		const FCulledLightsGridHeader CulledLightGridHeader = GetCulledLightsGridHeader(GridIndex, EyeIndex);
 
 		if (CulledLightGridHeader.bHasRectLight)
