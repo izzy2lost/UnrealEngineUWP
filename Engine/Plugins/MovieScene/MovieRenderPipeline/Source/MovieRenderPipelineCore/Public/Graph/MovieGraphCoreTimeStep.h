@@ -27,6 +27,7 @@ public:
 	UMovieGraphCoreTimeStep();
 
 	// UMovieGraphTimeStepBase Interface
+	virtual void Shutdown() override;
 	virtual void TickProducingFrames() override;
 	virtual FMovieGraphTimeStepData GetCalculatedTimeData() const override { return CurrentTimeStepData; }
 	virtual bool IsExpansionForTSRequired(const TObjectPtr<UMovieGraphEvaluatedConfig>& InConfig) const override;

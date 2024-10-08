@@ -19,6 +19,7 @@
 #include "MovieGraphUtils.h"
 #include "MoviePipelineQueue.h"
 #include "MovieRenderPipelineCoreModule.h"
+#include "UObject/Package.h"
 
 #define LOCTEXT_NAMESPACE "MovieGraphConfig"
 
@@ -1935,7 +1936,13 @@ UMovieGraphEvaluatedConfig* UMovieGraphConfig::CreateFlattenedGraph(const FMovie
 
 	OutError.Empty();
 
-	UMovieGraphEvaluatedConfig* NewContext = NewObject<UMovieGraphEvaluatedConfig>(this);
+	// Create the evaluated config with the transient package as the outer. The transient package is used here in order to avoid some potentially
+	// tricky GC-related issues. Evaluated configs are frequently held via TStrongObjectPtr, which means they're added to the root set. This will cause
+	// everything in the evaluated config's outer chain to not be GC'd until the strong object ptr is deleted. If there's an issue in the pipeline
+	// somewhere that causes the strong object ptr to not be cleaned up when expected, it can cause a cascade that causes multiple objects (the outers)
+	// to not be GC'd in a timely manner, leading to issues like the PIE world not being GC'd (since the pipeline has the PIE world as the outer). Avoid
+	// these (unlikely) issues altogether by using the transient package as the outer.
+	UMovieGraphEvaluatedConfig* NewContext = NewObject<UMovieGraphEvaluatedConfig>(GetTransientPackage(), NAME_None, RF_Transient);
 
 	if (OutputNode)
 	{

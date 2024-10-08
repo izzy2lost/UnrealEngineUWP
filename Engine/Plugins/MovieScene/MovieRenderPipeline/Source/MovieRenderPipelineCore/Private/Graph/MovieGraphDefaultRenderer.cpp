@@ -250,7 +250,12 @@ void UMovieGraphDefaultRenderer::Render(const FMovieGraphTimeStepData& InTimeSte
 	// Hide the progress widget before we render anything. This allows widget captures to not include the progress bar.
 	GetOwningGraph()->SetPreviewWidgetVisible(false);
 
-	if (InTimeStepData.bIsFirstTemporalSampleForFrame)
+	const FMoviePipelineCameraCutInfo& CurrentCameraCut = GetOwningGraph()->GetActiveShotList()[GetOwningGraph()->GetCurrentShotIndex()]->ShotInfo;
+	const FMovieGraphTraversalContext CurrentTraversalContext = GetOwningGraph()->GetCurrentTraversalContext();
+
+	// Allocate a new output merger frame and determine the render passes in use. However, only do this if the pipeline state is Rendering (ie, don't
+	// do this if warm-ups are happening because they do not output to disk).
+	if (InTimeStepData.bIsFirstTemporalSampleForFrame && (CurrentCameraCut.State == EMovieRenderShotState::Rendering))
 	{
 		// If this is the first sample for this output frame, then we need to 
 		// talk to all of our render passes and ask them for what data they will
@@ -259,7 +264,7 @@ void UMovieGraphDefaultRenderer::Render(const FMovieGraphTimeStepData& InTimeSte
 
 		// Get the Traversal Context (not specific to any render pass) at the first sample. This is so
 		// we can easily fetch things that are shared between all render layers later.
-		NewOutputFrame.TraversalContext = GetOwningGraph()->GetCurrentTraversalContext();
+		NewOutputFrame.TraversalContext = CurrentTraversalContext;
 		NewOutputFrame.EvaluatedConfig = TStrongObjectPtr<UMovieGraphEvaluatedConfig>(InTimeStepData.EvaluatedConfig);
 
 		for (const TObjectPtr<UMovieGraphRenderPassNode>& RenderPass : RenderPassesInUse)
@@ -312,8 +317,7 @@ void UMovieGraphDefaultRenderer::Render(const FMovieGraphTimeStepData& InTimeSte
 	for (const TObjectPtr<UMovieGraphRenderPassNode>& RenderPass : RenderPassesInUse)
 	{
 		// Pass in a copy of the traversal context so the renderer can decide what to do with it.
-		UE::MovieGraph::FMovieGraphOutputMergerFrame& OutputFrame = GetOwningGraph()->GetOutputMerger()->GetOutputFrame_GameThread(InTimeStepData.RenderedFrameNumber);
-		RenderPass->Render(OutputFrame.TraversalContext, InTimeStepData);
+		RenderPass->Render(CurrentTraversalContext, InTimeStepData);
 	}
 
 	if (NumSceneViewsRendered > 1)

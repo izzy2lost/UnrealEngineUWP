@@ -231,7 +231,7 @@ void UMoviePipelinePIEExecutor::OnPIEStartupFinished(bool)
 	}
 
 	// This Pipeline belongs to the world being created so that they have context for things they execute.
-	ActiveMoviePipeline = NewObject<UMoviePipelineBase>(ExecutingWorld, PipelineClass);
+	ActiveMoviePipeline = NewObject<UMoviePipelineBase>(ExecutingWorld, PipelineClass, NAME_None, RF_Transient);
 
 	UMoviePipeline* PipelineAsLegacy = Cast<UMoviePipeline>(ActiveMoviePipeline);
 
