@@ -257,6 +257,7 @@ namespace UnrealToolbox
 		{
 			if (_settingsWindow != null)
 			{
+				_settingsWindow.WindowState &= ~WindowState.Minimized;
 				_settingsWindow.BringIntoView();
 			}
 			else
