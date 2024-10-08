@@ -292,19 +292,21 @@ UComputeDataProvider* UPCGLandscapeDataInterface::CreateDataProvider(TObjectPtr<
 	if (!TaggedDatas.IsEmpty())
 	{
 		ensure(TaggedDatas.Num() == 1); // There should only be one landscape data
+		ensure(TaggedDatas[0].Data->IsA<UPCGLandscapeData>());
 
-		const UPCGLandscapeData* LandscapeData = CastChecked<UPCGLandscapeData>(TaggedDatas[0].Data);
-
-		for (TSoftObjectPtr<ALandscapeProxy> LandscapeProxyPtr : LandscapeData->Landscapes)
+		if (const UPCGLandscapeData* LandscapeData = Cast<UPCGLandscapeData>(TaggedDatas[0].Data))
 		{
-			if (ALandscapeProxy* LandscapeProxy = LandscapeProxyPtr.Get())
+			for (TSoftObjectPtr<ALandscapeProxy> LandscapeProxyPtr : LandscapeData->Landscapes)
 			{
-				if (ALandscape* Landscape = LandscapeProxy->GetLandscapeActor())
+				if (ALandscapeProxy* LandscapeProxy = LandscapeProxyPtr.Get())
 				{
-					if (TestLandscape(Landscape))
+					if (ALandscape* Landscape = LandscapeProxy->GetLandscapeActor())
 					{
-						DataProvider->Initialize(Landscape, ComponentBounds);
-						break;
+						if (TestLandscape(Landscape))
+						{
+							DataProvider->Initialize(Landscape, ComponentBounds);
+							break;
+						}
 					}
 				}
 			}
