@@ -383,6 +383,15 @@ public:
 		return SerializedShaders.GetShaderIndices()[ShaderMapEntry.ShaderIndicesOffset + i];
 	}
 
+	virtual void GetAllShaderIndices(int32 ShaderMapIndex, TArray<int32>& ShaderIndices)
+	{
+		const FShaderMapEntry& ShaderMapEntry = SerializedShaders.GetShaderMapEntries()[ShaderMapIndex];
+		for (uint32 i = 0u; i < ShaderMapEntry.NumShaders; ++i)
+		{
+			ShaderIndices.AddUnique(ShaderIndices[ShaderMapEntry.ShaderIndicesOffset + i]);
+		}
+	}
+
 	virtual int32 FindShaderMapIndex(const FSHAHash& Hash) override
 	{
 		return SerializedShaders.FindShaderMap(Hash);
@@ -641,6 +650,15 @@ public:
 	{
 		const FIoStoreShaderMapEntry& ShaderMapEntry = Header.ShaderMapEntries[ShaderMapIndex];
 		return Header.ShaderIndices[ShaderMapEntry.ShaderIndicesOffset + i];
+	}
+
+	virtual void GetAllShaderIndices(int32 ShaderMapIndex, TArray<int32>& ShaderIndices)
+	{
+		const FIoStoreShaderMapEntry& ShaderMapEntry = Header.ShaderMapEntries[ShaderMapIndex];
+		for (uint32 i = 0u; i < ShaderMapEntry.NumShaders; ++i)
+		{
+			ShaderIndices.AddUnique(Header.ShaderIndices[ShaderMapEntry.ShaderIndicesOffset + i]);
+		}
 	}
 
 	virtual int32 FindShaderMapIndex(const FSHAHash& Hash) override;
