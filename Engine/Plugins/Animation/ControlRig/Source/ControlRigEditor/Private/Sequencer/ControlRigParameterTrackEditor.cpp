@@ -4216,10 +4216,12 @@ FKeyPropertyResult FControlRigParameterTrackEditor::AddKeysToControlRigHandle(UO
 		{
 			if (!bTrackCreated)
 			{
+				//make sure to use weight on section to key
+				Weight = MovieSceneHelpers::CalculateWeightForBlending(SectionToKey, KeyTime);
 				ModifyOurGeneratedKeysByCurrentAndWeight(InObject, InControlRig, RigControlName, Track, SectionToKey, EvaluateTime, GeneratedKeys, Weight);
 			}
 			const UMovieSceneControlRigParameterSection* ParamSection = Cast<UMovieSceneControlRigParameterSection>(SectionToKey);
-			if (!ParamSection->GetDoNotKey())
+			if (ParamSection && !ParamSection->GetDoNotKey())
 			{
 				KeyPropertyResult |= AddKeysToSection(SectionToKey, KeyTime, GeneratedKeys, KeyMode, EKeyFrameTrackEditorSetDefault::SetDefaultOnAddKeys);
 			}
