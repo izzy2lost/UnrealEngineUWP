@@ -339,6 +339,8 @@ bool FSphereCovering::AddNegativeSpace(const TFastWindingTree<FDynamicMesh3>& Sp
 		{
 			MarchingCubes.Bounds = HullAABB.GetBoundingBox();
 			MarchingCubes.Bounds.Expand(SampleSettings.MinRadius + SampleSettings.ReduceRadiusMargin + UE_DOUBLE_KINDA_SMALL_NUMBER);
+			// enforce max voxels per dim after bounds expand
+			MarchingCubes.CubeSize = FMath::Max(MarchingCubes.CubeSize, MarchingCubes.Bounds.MaxDim() / (double)SampleSettings.MaxVoxelsPerDim);
 			const double MinRadSq = SampleSettings.MinRadius * SampleSettings.MinRadius;
 			MarchingCubes.Implicit = [&HullMeshWrap, &HullAABB, &Spatial, WindingSign, &SampleSettings, MinRadSq](const FVector3d& Pt) -> double
 			{
