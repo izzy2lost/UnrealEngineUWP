@@ -140,8 +140,7 @@ uint UseHZBOcclusionTest;
 float GetMaxVisibleDepth(uint2 GridCoordinate)
 {
 	float2 HZBScreenUV = (GridCoordinate.xy + 0.5f) * (1U << MegaLightsVolumePixelSizeShift) * View.ViewSizeAndInvSize.zw * ViewportUVToHZBBufferUV;
-	float TrilinearFootprintMipBias = 1.0f;
-	return ConvertFromDeviceZ(FurthestHZBTexture.SampleLevel(GlobalPointClampedSampler, HZBScreenUV, HZBMipLevel + TrilinearFootprintMipBias).x);
+	return ConvertFromDeviceZ(FurthestHZBTexture.SampleLevel(GlobalPointClampedSampler, HZBScreenUV, HZBMipLevel).x);
 }
 
 bool IsFroxelVisible(uint3 GridCoordinate)

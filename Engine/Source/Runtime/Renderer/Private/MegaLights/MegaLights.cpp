@@ -203,6 +203,12 @@ static TAutoConsoleVariable<int32> CVarMegaLightsVolumeHZBOcclusionTest(
 	TEXT("Whether to skip computation for cells occluded by HZB."),
 	ECVF_Scalability | ECVF_RenderThreadSafe);
 
+static TAutoConsoleVariable<int32> CVarMegaLightsVolumeHZBOcclusionTestMipBias(
+	TEXT("r.MegaLights.Volume.HZBOcclusionTestMipBias"),
+	1,
+	TEXT("HZB Occlusion test mip bias. 1 is minimum for trilinear filtering. Larger values make it more conservative."),
+	ECVF_Scalability | ECVF_RenderThreadSafe);
+
 static TAutoConsoleVariable<int32> CVarMegaLightsVolumeNumSamplesPerVoxel(
 	TEXT("r.MegaLights.Volume.NumSamplesPerVoxel"),
 	2,
@@ -1302,7 +1308,7 @@ void FDeferredShadingSceneRenderer::RenderMegaLights(FRDGBuilder& GraphBuilder, 
 			MegaLightsParameters.VolumeFrameJitterOffset = VolumetricFogTemporalRandom(View.Family->FrameNumber);
 			MegaLightsParameters.UseHZBOcclusionTest = CVarMegaLightsVolumeHZBOcclusionTest.GetValueOnRenderThread();
 			MegaLightsParameters.FurthestHZBTexture = View.HZB;
-			MegaLightsParameters.HZBMipLevel = FMath::Max<float>((int32)FMath::FloorLog2(MegaLightsParameters.MegaLightsVolumePixelSize) - 1, 0.0f);
+			MegaLightsParameters.HZBMipLevel = FMath::Max<float>((int32)FMath::FloorLog2(MegaLightsParameters.MegaLightsVolumePixelSize) - 1 + CVarMegaLightsVolumeHZBOcclusionTestMipBias.GetValueOnRenderThread(), 0.0f);
 			MegaLightsParameters.ViewportUVToHZBBufferUV = FVector2f(
 				float(View.ViewRect.Width()) / float(2 * View.HZBMipmap0Size.X),
 				float(View.ViewRect.Height()) / float(2 * View.HZBMipmap0Size.Y));
