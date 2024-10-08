@@ -762,7 +762,8 @@ namespace UnrealBuildTool
 					(Token == "-weak_framework") ||
 					(Token == "-framework") ||
 					(Token == "/sourceDependencies") ||
-					(Token == "/sourceDependencies:directives"))
+					(Token == "/sourceDependencies:directives") ||
+					(Token.Contains("/experimental")))
 				{
 					++i;
 				}
