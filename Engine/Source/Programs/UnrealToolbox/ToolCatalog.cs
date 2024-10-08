@@ -8,6 +8,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Win32;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
+using System.Text;
 using System.Text.Json;
 
 #nullable enable
@@ -485,7 +486,7 @@ namespace UnrealToolbox
 			catch (Exception ex)
 			{
 				_logger.LogError(ex, "Error updating deployment: {Message}", ex.Message);
-				UpdateStateAndNotify(item, state => state with { Pending = new PendingToolDeploymentInfo(true, $"Error updating. See log.", deploymentInfo) });
+				UpdateStateAndNotify(item, state => state with { Pending = new PendingToolDeploymentInfo(true, $"Error updating. View Log for info.", deploymentInfo, ShowLogLink: true) });
 			}
 		}
 
@@ -493,7 +494,7 @@ namespace UnrealToolbox
 		{
 			ToolConfig toolConfig = LoadToolConfig(toolDir);
 
-			await UninstallAsync(item, cancellationToken);
+			await UninstallInternalAsync(item, cancellationToken);
 
 			if (toolConfig.InstallCommand != null)
 			{
@@ -547,6 +548,12 @@ namespace UnrealToolbox
 
 		async Task UninstallAsync(Item item, CancellationToken cancellationToken)
 		{
+			await UninstallInternalAsync(item, cancellationToken);
+			UpdateStateAndNotify(item, state => state with { Pending = null, Current = null });
+		}
+
+		async Task UninstallInternalAsync(Item item, CancellationToken cancellationToken)
+		{
 			CurrentToolDeploymentInfo? current = item._state.Current;
 			if (current != null)
 			{
@@ -555,7 +562,7 @@ namespace UnrealToolbox
 					PendingToolDeploymentInfo? pending = new PendingToolDeploymentInfo(false, $"Removing {current.Version}", null);
 					UpdateStateAndNotify(item, state => state with { Pending = pending, Current = null });
 
-					await RunCommandAsync(current.Id.ToString(), current.Config.UninstallCommand, current.Dir.FullName, cancellationToken);
+					await RunCommandAsync(item.Id.ToString(), current.Config.UninstallCommand, current.Dir.FullName, cancellationToken);
 				}
 				else if (OperatingSystem.IsWindows() && !String.IsNullOrEmpty(item._state.MsiProductId) && IsMsiInstalled(item._state.MsiProductId))
 				{
@@ -565,7 +572,7 @@ namespace UnrealToolbox
 					ToolCommand uninstallCommand = new ToolCommand { FileName = "msiexec.exe" };
 					uninstallCommand.Arguments = new List<string> { "/x", $"{{{item._state.MsiProductId}}}" };
 
-					int exitCode = await RunCommandAsync(current.Id.ToString(), uninstallCommand, current.Dir.FullName, cancellationToken);
+					int exitCode = await RunCommandAsync(item.Id.ToString(), uninstallCommand, current.Dir.FullName, cancellationToken);
 					if (exitCode == 1602)
 					{
 						// User cancelled (https://learn.microsoft.com/en-us/windows/win32/msi/error-codes)
@@ -580,8 +587,6 @@ namespace UnrealToolbox
 					}
 				}
 			}
-
-			UpdateStateAndNotify(item, state => state with { Pending = null, Current = null });
 		}
 
 		async Task<int> RunCommandAsync(string toolName, ToolCommand command, string workingDir, CancellationToken cancellationToken)
@@ -597,6 +602,8 @@ namespace UnrealToolbox
 			{
 				fileName = command.FileName;
 			}
+
+			_logger.LogInformation("{ToolName}> Running {FileName} {Arguments}", toolName, CommandLineArguments.Quote(fileName), arguments);
 
 			using (ManagedProcessGroup newProcessGroup = new ManagedProcessGroup())
 			using (ManagedProcess newProcess = new ManagedProcess(newProcessGroup, fileName, arguments, workingDir, null, null, ProcessPriorityClass.Normal))
@@ -619,9 +626,45 @@ namespace UnrealToolbox
 		{
 			lock (_workerThreadLockObject)
 			{
+				string prevState = GetItemStateMessage(item._state);
 				item._state = update(item._state);
+
+				string nextState = GetItemStateMessage(item._state);
+				if (!String.Equals(prevState, nextState, StringComparison.Ordinal))
+				{
+					_logger.LogInformation("{ToolName}> {State}", item.Id, nextState);
+				}
 			}
 			PostMainThreadUpdate();
+		}
+
+		static string GetItemStateMessage(ItemState state)
+		{
+			List<string> messages = new List<string>();
+
+			if (state.Current != null)
+			{
+				messages.Add($"Current: {state.Current.Version} ({state.Current.Id})");
+			}
+
+			if (state.Pending != null)
+			{
+				if (state.Pending.Failed)
+				{
+					messages.Add($"Pending: {state.Pending.Message} (Failed)");
+				}
+				else if (state.Pending.Deployment != null)
+				{
+					messages.Add($"Pending: {state.Pending.Message} ({state.Pending.Deployment.Id}@{state.Pending.Deployment.Version})");
+				}
+			}
+
+			if (messages.Count == 0)
+			{
+				messages.Add("Not installed");
+			}
+
+			return String.Join(", ", messages);
 		}
 
 		#region Cleanup

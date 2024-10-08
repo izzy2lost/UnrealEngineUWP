@@ -2,7 +2,9 @@
 
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Diagnostics;
 using CommunityToolkit.Mvvm.ComponentModel;
+using EpicGames.Core;
 
 namespace UnrealToolbox
 {
@@ -113,6 +115,12 @@ namespace UnrealToolbox
 		string _status = String.Empty;
 
 		[ObservableProperty]
+		bool _showStatusLink;
+
+		[ObservableProperty]
+		bool _showStatusText;
+
+		[ObservableProperty]
 		bool _showAdd;
 
 		[ObservableProperty]
@@ -160,9 +168,22 @@ namespace UnrealToolbox
 				IsBusy = false;
 			}
 
+			ShowStatusLink = _item.Pending != null && _item.Pending.ShowLogLink;
+			ShowStatusText = !String.IsNullOrEmpty(Status) && !ShowStatusLink;
 			ShowAdd = _item.Latest != null && _item.Current == null;
 			ShowUpdate = _item.Latest != null && _item.Current != null && _item.Latest.Id != _item.Current.Id;
 			ShowRemove = _item.Current != null;
+		}
+
+		public void ShowLog()
+		{
+			if (OperatingSystem.IsWindows() && Program.LogFile != null)
+			{
+				ProcessStartInfo info = new ProcessStartInfo();
+				info.FileName = Program.LogFile.FullName;
+				info.UseShellExecute = true;
+				Process.Start(info);
+			}
 		}
 
 		public void Add()

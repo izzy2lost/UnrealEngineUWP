@@ -18,6 +18,8 @@ namespace UnrealToolbox
 
 		public static SelfUpdateState? Update { get; private set; }
 
+		public static FileReference? LogFile { get; } = GetLogFile();
+
 		[STAThread]
 		public static int Main(string[] args)
 		{
@@ -69,6 +71,11 @@ namespace UnrealToolbox
 				return 1;
 			}
 
+			if (LogFile != null)
+			{
+				Log.AddFileWriter("Default", LogFile);
+			}
+
 			AppBuilder builder = BuildAvaloniaApp();
 			try
 			{
@@ -91,6 +98,16 @@ namespace UnrealToolbox
 			return AppBuilder.Configure<App>()
 				.UsePlatformDetect()
 				.LogToTrace();
+		}
+
+		static FileReference? GetLogFile()
+		{
+			DirectoryReference? appDataDir = DirectoryReference.GetSpecialFolder(Environment.SpecialFolder.LocalApplicationData);
+			if (appDataDir == null)
+			{
+				return null;
+			}
+			return FileReference.Combine(appDataDir, "Epic Games", "Unreal Toolbox", "Log.txt");
 		}
 	}
 

@@ -83,5 +83,6 @@ namespace UnrealToolbox
 	/// <param name="Failed">Whether the installation failed</param>
 	/// <param name="Message">Current status message</param>
 	/// <param name="Deployment">Information about the pending deployment</param>
-	public record class PendingToolDeploymentInfo(bool Failed, string? Message, ToolDeploymentInfo? Deployment);
+	/// <param name="ShowLogLink">Whether to show a link to the log</param>
+	public record class PendingToolDeploymentInfo(bool Failed, string? Message, ToolDeploymentInfo? Deployment, bool ShowLogLink = false);
 }
