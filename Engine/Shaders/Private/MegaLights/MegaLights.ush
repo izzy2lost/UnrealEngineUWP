@@ -57,11 +57,10 @@ bool IsTexturedLightTileType(uint TileType)
 #endif
 
 #include "../Lumen/LumenPosition.ush"
-
 #include "../HairStrands/HairStrandsEnvironmentLightingCommon.ush"
 
-#define DEBUG_MODE_VISUALIZE_SAMPLING 1
-#define DEBUG_MODE_VISUALIZE_TRACING  2
+#define DEBUG_MODE_VISUALIZE_TRACING  1
+#define DEBUG_MODE_VISUALIZE_SAMPLING 2
 
 // Keep in sync with MegaLights.cpp
 #define DOWNSAMPLE_FACTOR			2

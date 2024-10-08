@@ -510,9 +510,9 @@ namespace EMegaLightsShadowMethod
 	{
 		/** Recommended. Uses the default MegaLights shadow method. */
 		Default,
-		/** Uses ray tracing for accurate, scalable shadows. */
+		/** Preferred method, which guarantees fixed MegaLights cost and correct area shadows, but is dependent on the BVH representation quality. */
 		RayTracing,
-		/** Uses Virtual Shadow Maps which is less accuate and scalable but can be preferable in some cases with low detail ray tracing geometry. */
+		/** Has a significant per light cost, but can cast shadows directly from the Nanite geometry using rasterization. */
 		VirtualShadowMap,
 	};
 }
