@@ -489,6 +489,28 @@ namespace Metasound::Frontend
 		FProxyDataCache ProxyDataCache;
 		ProxyDataCache.CreateAndCacheProxies(Document);
 
+#if !NO_LOGGING
+		if (UE_LOG_ACTIVE(LogMetaSound, Verbose))
+		{
+			const FGuid PageID = IDocumentBuilderRegistry::GetChecked().ResolveTargetPageID(Document.RootGraph);
+			const bool bContainsMultipleGraphs = Document.RootGraph.GetConstGraphPages().Num() > 1;
+			if (bContainsMultipleGraphs || PageID != Metasound::Frontend::DefaultPageID)
+			{
+				UE_LOG(LogMetaSound, Verbose, TEXT("Registered MetaSound '%s' Graph Page with PageID '%s'."),
+					*AssetPath.GetAssetName().ToString(),
+					*PageID.ToString());
+				if (bContainsMultipleGraphs)
+				{
+					UE_LOG(LogMetaSound, Verbose, TEXT("Graphs found with following PageIDs Implemented:"));
+					Document.RootGraph.IterateGraphPages([](const FMetasoundFrontendGraph& Graph)
+					{
+						UE_LOG(LogMetaSound, Verbose, TEXT("    - %s'"), *Graph.PageID.ToString());
+					});
+				}
+			}
+		}
+#endif // !NO_LOGGING
+
 		// Store update to newly registered node in history so nodes
 		// can be queried by transaction ID
 		FNodeClassInfo NodeClassInfo(Document.RootGraph, AssetPath);

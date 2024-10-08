@@ -3229,7 +3229,7 @@ void FMetaSoundFrontendDocumentBuilder::Reload(TSharedPtr<Metasound::Frontend::F
 }
 
 #if WITH_EDITORONLY_DATA
-bool FMetaSoundFrontendDocumentBuilder::RemoveGraphInputDefault(FName InputName, const FGuid& InPageID)
+bool FMetaSoundFrontendDocumentBuilder::RemoveGraphInputDefault(FName InputName, const FGuid& InPageID, bool bClearInheritsDefault)
 {
 	using namespace Metasound;
 
@@ -3246,11 +3246,12 @@ bool FMetaSoundFrontendDocumentBuilder::RemoveGraphInputDefault(FName InputName,
 		{
 			DocumentDelegates->InterfaceDelegates.OnInputDefaultChanged.Broadcast(Index);
 
-			// Set the input as no longer inheriting default for presets
-			if (IsPreset())
+			if (bClearInheritsDefault)
 			{
+				// Set the input as no longer inheriting default for presets
+				// (No-ops if MetaSound isn't preset or isn't set to inherit default).
 				constexpr bool bInputInheritsDefault = false;
-				return SetGraphInputInheritsDefault(InputName, bInputInheritsDefault);
+				SetGraphInputInheritsDefault(InputName, bInputInheritsDefault);
 			}
 
 			return true;
@@ -3772,11 +3773,9 @@ bool FMetaSoundFrontendDocumentBuilder::ResetGraphInputDefault(FName InputName)
 		DocumentDelegates->InterfaceDelegates.OnInputDefaultChanged.Broadcast(Index);
 
 		// Set the input as inheriting default for presets
-		if (IsPreset())
-		{
-			constexpr bool bInputInheritsDefault = true;
-			return SetGraphInputInheritsDefault(InputName, bInputInheritsDefault);
-		}
+		// (No-ops if MetaSound isn't preset or is already set to inherit default).
+		constexpr bool bInputInheritsDefault = true;
+		SetGraphInputInheritsDefault(InputName, bInputInheritsDefault);
 
 		Document.Metadata.ModifyContext.AddMemberIDModified(Input.NodeID);
 		return true;
@@ -4033,12 +4032,10 @@ bool FMetaSoundFrontendDocumentBuilder::SetGraphInputDefault(FName InputName, FM
 			}
 			DocumentDelegates->InterfaceDelegates.OnInputDefaultChanged.Broadcast(Index);
 
-			// Set the input as no longer inheriting default for presets
-			if (IsPreset())
-			{
-				constexpr bool bInputInheritsDefault = false;
-				return SetGraphInputInheritsDefault(InputName, bInputInheritsDefault);
-			}
+			// Set the input as inheriting default for presets
+			// (No-ops if MetaSound isn't preset or is already set to inherit default).
+			constexpr bool bInputInheritsDefault = false;
+			SetGraphInputInheritsDefault(InputName, bInputInheritsDefault);
 
 			return true;
 		}
@@ -4071,12 +4068,9 @@ bool FMetaSoundFrontendDocumentBuilder::SetGraphInputDefaults(FName InputName, T
 			DocumentDelegates->InterfaceDelegates.OnInputDefaultChanged.Broadcast(Index);
 
 			// Set the input as no longer inheriting default for presets
-			if (IsPreset())
-			{
-				constexpr bool bInputInheritsDefault = false;
-				return SetGraphInputInheritsDefault(InputName, bInputInheritsDefault);
-			}
-
+			// (No-ops if MetaSound isn't preset or isn't set to inherit default).
+			constexpr bool bInputInheritsDefault = false;
+			SetGraphInputInheritsDefault(InputName, bInputInheritsDefault);
 			return true;
 		}
 		UE_LOG(LogMetaSound, Error, TEXT("Attempting to set graph input of type '%s' with unsupported literal type(s)"), *Input.TypeName.ToString());

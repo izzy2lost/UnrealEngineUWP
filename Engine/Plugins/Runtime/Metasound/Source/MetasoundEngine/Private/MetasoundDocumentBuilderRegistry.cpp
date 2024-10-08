@@ -109,7 +109,14 @@ namespace Metasound::Engine
 		const TArray<FGuid> PlatformTargetPageIDs = Settings->GetCookedTargetPageIDs(PlatformName);
 		checkf(!PlatformTargetPageIDs.IsEmpty(), TEXT("Must have at least one targeted page ID to cook MetaSound."));
 
-		auto StripPageEntries = [&](TArray<FGuid>& PageIdsToResolve, TSet<FGuid>& ResolveTargetScratch, TFunctionRef<bool(const FGuid&)> RemovePageItem)
+		const FString DebugName = Builder.GetDebugName();
+
+		auto StripPageEntries = [&](
+			TArray<FGuid>& PageIdsToResolve,
+			TSet<FGuid>& ResolveTargetScratch,
+			TFunctionRef<bool(const FGuid&)> RemovePageItem,
+			const FName& ItemName,
+			const FString& ItemType)
 		{
 			ResolveTargetScratch.Reset();
 			for (const FGuid& TargetPage : PlatformTargetPageIDs)
@@ -124,7 +131,16 @@ namespace Metasound::Engine
 
 			for (const FGuid& PageID : PageIdsToResolve)
 			{
-				bModified |= RemovePageItem(PageID);
+				const bool bRemovedPageItem = RemovePageItem(PageID);
+				if (bRemovedPageItem)
+				{
+					UE_LOG(LogMetaSound, Display, TEXT("%s: Removed %s %s w/PageID '%s'"),
+						*DebugName,
+						ItemName.IsNone() ? TEXT("paged") : *ItemName.ToString(),
+						*ItemType,
+						*PageID.ToString());
+				}
+				bModified |= bRemovedPageItem;
 			}
 		};
 
@@ -142,7 +158,8 @@ namespace Metasound::Engine
 			};
 
 			const int32 NumInitGraphs = Document.RootGraph.GetConstGraphPages().Num();
-			StripPageEntries(ResolvePageIDs, ResolvedTargetScratchIDs, RemoveGraphPage);
+			StripPageEntries(ResolvePageIDs, ResolvedTargetScratchIDs, RemoveGraphPage, FName(), TEXT("graph"));
+
 			const int32 NumRemainingGraphs = Document.RootGraph.GetConstGraphPages().Num();
 
 			checkf(NumRemainingGraphs > 0,
@@ -166,11 +183,13 @@ namespace Metasound::Engine
 
 				auto RemoveDefault = [&Builder, &GraphInput](const FGuid& InPageID)
 				{
-					return Builder.RemoveGraphInputDefault(GraphInput.Name, InPageID);
+					const bool bClearInheritsDefault = false;
+					return Builder.RemoveGraphInputDefault(GraphInput.Name, InPageID, bClearInheritsDefault);
 				};
 
 				const int32 NumInitDefaults = GraphInput.GetDefaults().Num();
-				StripPageEntries(ResolvePageIDs, ResolvedTargetScratchIDs, RemoveDefault);
+				StripPageEntries(ResolvePageIDs, ResolvedTargetScratchIDs, RemoveDefault, GraphInput.Name, TEXT("input default"));
+
 				const int32 NumRemainingDefaults = GraphInput.GetDefaults().Num();
 
 				checkf(NumRemainingDefaults > 0,
