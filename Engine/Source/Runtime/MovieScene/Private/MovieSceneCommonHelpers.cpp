@@ -551,10 +551,12 @@ float MovieSceneHelpers::CalculateWeightForBlending(UMovieSceneSection* SectionT
 	float Weight = 1.0f;
 	UMovieSceneTrack* Track = SectionToKey->GetTypedOuter<UMovieSceneTrack>();
 	FOptionalMovieSceneBlendType BlendType = SectionToKey->GetBlendType();
-	if (Track && BlendType.IsValid() && (BlendType.Get() == EMovieSceneBlendType::Additive || BlendType.Get() == EMovieSceneBlendType::Absolute))
+	if (Track && BlendType.IsValid() && (( BlendType.Get() == EMovieSceneBlendType::Additive) || 
+										 ( BlendType.Get() == EMovieSceneBlendType::Absolute) || 
+										 (BlendType.Get() == EMovieSceneBlendType::Override)  ))
 	{
 		//if additive weight is just the inverse of any weight on it
-		if (BlendType.Get() == EMovieSceneBlendType::Additive)
+		if ((BlendType.Get() == EMovieSceneBlendType::Additive) || (BlendType.Get() == EMovieSceneBlendType::Override))
 		{
 			float TotalWeightValue = SectionToKey->GetTotalWeightValue(Time);
 			Weight = !FMath::IsNearlyZero(TotalWeightValue) ? 1.0f / TotalWeightValue : 0.0f;
