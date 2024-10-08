@@ -28,6 +28,13 @@ class UPCGProceduralISMComponent : public UStaticMeshComponent
 	GENERATED_UCLASS_BODY()
 
 public:
+#if WITH_EDITOR
+	//~Begin UActorComponent Interface
+	virtual void OnRegister() override;
+	virtual void OnUnregister() override;
+	//~End UActorComponent Interface
+#endif
+
 	UFUNCTION(BlueprintCallable, Category = "Components|PCGProceduralISMC")
 	int32 GetNumInstances() const { return NumInstances; }
 
@@ -99,6 +106,12 @@ protected:
 protected:
 	/** Validate component setup, disable features that are not supported (typically those that require instance transforms on CPU). */
 	virtual void ValidateComponentSetup();
+
+#if WITH_EDITOR
+private:
+	/** Executed when the render state of any actor component is dirtied. */
+	void OnRenderStateDirty(UActorComponent& InComponent);
+#endif
 
 protected:
 	UPROPERTY(EditAnywhere, Category = Instances)

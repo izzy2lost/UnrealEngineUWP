@@ -184,6 +184,11 @@ public:
 	/** Asks the runtime generation scheduler to refresh all GenerateAtRuntime components. ChangeType should be 'GenerationGrid' to perform a full cleanup of PAs and local components. */
 	void RefreshAllRuntimeGenComponents(EPCGChangeType ChangeType = EPCGChangeType::None);
 
+#if WITH_EDITOR
+	/** Refresh all components selected by the filter (runtime generated or otherwise). */
+	void RefreshAllComponentsFiltered(const TFunction<bool(UPCGComponent*)>& ComponentFilter, EPCGChangeType ChangeType = EPCGChangeType::None);
+#endif
+
 	FPCGRuntimeGenScheduler* GetRuntimeGenScheduler() const { return RuntimeGenScheduler; }
 
 	/** Returns true if there are any tasks for this graph currently scheduled or executing. */
