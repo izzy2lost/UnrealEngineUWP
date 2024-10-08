@@ -1355,7 +1355,7 @@ void UGroomBindingAsset::BeginCacheForCookedPlatformData(const ITargetPlatform* 
 	Super::BeginCacheForCookedPlatformData(TargetPlatform);
 
 	// 1. Build the key for each group
-	const TArray<FString> GroupDerivedDataKeys = GetGroupDerivedDataKeys(this, TargetPlatform, true /*bForceSkelMeshDataCachingForCookingOnly */);
+	const TArray<FString> GroupDerivedDataKeys = GetGroupDerivedDataKeys(this, TargetPlatform, false /*bForceSkelMeshDataCachingForCookingOnly */);
 
 	// 2. Find existing cached cooked data
 	UGroomBindingAsset::FCachedCookedPlatformData* TargetPlatformData = FindCachedCookedPlatformData(GroupDerivedDataKeys, CachedCookedPlatformDatas);
