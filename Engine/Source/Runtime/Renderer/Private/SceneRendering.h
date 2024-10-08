@@ -2122,7 +2122,8 @@ public:
 
 	/** Logic to update render targets across all GPUs */
 	static void PreallocateCrossGPUFences(const TArray<FSceneRenderer*>& SceneRenderers);
-	void DoCrossGPUTransfers(FRDGBuilder& GraphBuilder, FRDGTextureRef ViewFamilyTexture, TArrayView<FViewInfo> InViews, bool bCrossGPUTransferFencesDefer, FRHIGPUMask RenderTargetGPUMask);
+	void DoCrossGPUTransfers(FRDGBuilder& GraphBuilder, FRDGTextureRef ViewFamilyTexture, TArrayView<FViewInfo> InViews, bool bCrossGPUTransferFencesDefer, FRHIGPUMask RenderTargetGPUMask, class FCrossGPUTransfersDeferred* TransfersDeferred);
+	void FlushCrossGPUTransfers(FRDGBuilder& GraphBuilder);
 	void FlushCrossGPUFences(FRDGBuilder& GraphBuilder);
 
 	bool DoOcclusionQueries() const;
@@ -2282,6 +2283,9 @@ protected:
 	 */
 	TArray<FCrossGPUTransferFence*> CrossGPUTransferFencesDefer;
 	TArray<FCrossGPUTransferFence*> CrossGPUTransferFencesWait;
+
+	/** Deferred transfers to be executed in the last scene renderer */
+	TRefCountPtr<class FCrossGPUTransfersDeferred> CrossGPUTransferDeferred;
 
 	FRHIGPUMask AllViewsGPUMask;
 	bool IsShadowCached(FProjectedShadowInfo* ProjectedShadowInfo) const;

@@ -123,6 +123,8 @@ void FRenderResource::ReleaseRHIForAllResources()
 void FRenderResource::InitPreRHIResources()
 {
 	FRHICommandListImmediate& RHICmdList = FRHICommandListImmediate::Get();
+	SCOPED_GPU_MASK(RHICmdList, FRHIGPUMask::All());
+
 	RHICmdList.InitializeImmediateContexts();
 
 	FRenderResourceList& PreResourceList = FRenderResourceList::Get<FRenderResource::EInitPhase::Pre>();

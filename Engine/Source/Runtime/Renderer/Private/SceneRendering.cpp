@@ -505,6 +505,15 @@ static TAutoConsoleVariable<float> CVarTranslucencyAutoBeforeDOF(
 	TEXT("Automatically bin After DOF translucency before DOF if behind focus distance (Experimental)"),
 	ECVF_Default);
 
+static TAutoConsoleVariable<int32> CVarCrossGPUTransferOption(
+	TEXT("r.MultiGPU.Transfer"),
+	2,
+	TEXT("Mode to use for cross GPU transfers when multiple nDisplay views are active\n")
+	TEXT(" 0: immediate pull transfer\n")
+	TEXT(" 1: optimized push transfer (source GPU runs copy, with deferred fence wait on destination GPU)\n")
+	TEXT(" 2: optimized pull transfer (destination GPU runs copy, with transfers delayed to last view's render); (default)"),
+	ECVF_Default);
+
 
 FOcclusionSubmittedFenceState FSceneRenderer::OcclusionSubmittedFence[FOcclusionQueryHelpers::MaxBufferedOcclusionFrames];
 
@@ -3618,6 +3627,19 @@ struct FCrossGPUTransfer
 	}
 };
 
+struct FCrossGPUTarget
+{
+	const FRenderTarget* RenderTarget = nullptr;
+	FRDGTextureRef RenderTargetTexture = nullptr;
+	TArray<FCrossGPUTransfer> Transfers;
+};
+
+class FCrossGPUTransfersDeferred : public FRefCountBase
+{
+public:
+	TArray<FCrossGPUTarget> Targets;
+};
+
 static void GetCrossGPUTransfers(FSceneRenderer* SceneRenderer, TArray<FCrossGPUTransfer>& OutTransfers, TArrayView<FViewInfo> InViews, const FIntPoint RenderTargetSize, FRHIGPUMask RenderTargetGPUMask)
 {
 	check(SceneRenderer->bGPUMasksComputed);
@@ -3647,47 +3669,60 @@ static void GetCrossGPUTransfers(FSceneRenderer* SceneRenderer, TArray<FCrossGPU
 void FSceneRenderer::PreallocateCrossGPUFences(const TArray<FSceneRenderer*>& SceneRenderers)
 {
 #if WITH_MGPU
-	if (SceneRenderers.Num() > 1)
+	if (SceneRenderers.Num() > 1 && GNumExplicitGPUsForRendering > 1)
 	{
-		// Allocated fences to wait on are placed in the last scene renderer
-		TArray<FCrossGPUTransferFence*>& LastRendererFencesWait = SceneRenderers.Last()->CrossGPUTransferFencesWait;
-
-		check(LastRendererFencesWait.IsEmpty());
-
-		// Each prior renderer allocates fences and also adds them to last renderer
-		for (int32 RendererIndex = 0; RendererIndex < SceneRenderers.Num() - 1; RendererIndex++)
+		int32 CrossGPUOption = CVarCrossGPUTransferOption.GetValueOnAnyThread();
+		if (CrossGPUOption == 1)
 		{
-			FSceneRenderer* SceneRenderer = SceneRenderers[RendererIndex];
+			// Allocated fences to wait on are placed in the last scene renderer
+			TArray<FCrossGPUTransferFence*>& LastRendererFencesWait = SceneRenderers.Last()->CrossGPUTransferFencesWait;
 
-			check(SceneRenderer->CrossGPUTransferFencesDefer.IsEmpty());
+			check(LastRendererFencesWait.IsEmpty());
 
-			SceneRenderer->ComputeGPUMasks(nullptr);
-
-			if (SceneRenderer->ViewFamily.bMultiGPUForkAndJoin)
+			// Each prior renderer allocates fences and also adds them to last renderer
+			for (int32 RendererIndex = 0; RendererIndex < SceneRenderers.Num() - 1; RendererIndex++)
 			{
-				// Check if we can do optimized transfers, which requires a single index
-				if (SceneRenderer->AllViewsGPUMask.HasSingleIndex())
+				FSceneRenderer* SceneRenderer = SceneRenderers[RendererIndex];
+
+				check(SceneRenderer->CrossGPUTransferFencesDefer.IsEmpty());
+
+				SceneRenderer->ComputeGPUMasks(nullptr);
+
+				if (SceneRenderer->ViewFamily.bMultiGPUForkAndJoin)
 				{
-					TArray<FCrossGPUTransfer> Transfers;
-					GetCrossGPUTransfers(SceneRenderer, Transfers, SceneRenderer->Views, SceneRenderer->ViewFamily.RenderTarget->GetSizeXY(), SceneRenderer->RenderTargetGPUMask);
-
-					SceneRenderer->CrossGPUTransferFencesDefer.SetNumUninitialized(Transfers.Num());
-
-					for (int32 TransferIndex = 0; TransferIndex < Transfers.Num(); TransferIndex++)
+					// Check if we can do optimized transfers, which requires a single index
+					if (SceneRenderer->AllViewsGPUMask.HasSingleIndex())
 					{
-						FCrossGPUTransferFence* FenceData = RHICreateCrossGPUTransferFence();
+						TArray<FCrossGPUTransfer> Transfers;
+						GetCrossGPUTransfers(SceneRenderer, Transfers, SceneRenderer->Views, SceneRenderer->ViewFamily.RenderTarget->GetSizeXY(), SceneRenderer->RenderTargetGPUMask);
 
-						SceneRenderer->CrossGPUTransferFencesDefer[TransferIndex] = FenceData;
-						LastRendererFencesWait.Add(FenceData);
+						SceneRenderer->CrossGPUTransferFencesDefer.SetNumUninitialized(Transfers.Num());
+
+						for (int32 TransferIndex = 0; TransferIndex < Transfers.Num(); TransferIndex++)
+						{
+							FCrossGPUTransferFence* FenceData = RHICreateCrossGPUTransferFence();
+
+							SceneRenderer->CrossGPUTransferFencesDefer[TransferIndex] = FenceData;
+							LastRendererFencesWait.Add(FenceData);
+						}
 					}
 				}
+			}
+		}
+		else if (CrossGPUOption == 2)
+		{
+			TRefCountPtr<FCrossGPUTransfersDeferred> TransfersDeferred = new FCrossGPUTransfersDeferred;
+			for (FSceneRenderer* SceneRenderer : SceneRenderers)
+			{
+				// Each scene renderer will add transfers to the shared structure, then the last will emit the transfers
+				SceneRenderer->CrossGPUTransferDeferred = TransfersDeferred;
 			}
 		}
 	}
 #endif
 }
 
-void FSceneRenderer::DoCrossGPUTransfers(FRDGBuilder& GraphBuilder, FRDGTextureRef RenderTargetTexture, TArrayView<FViewInfo> InViews, bool bCrossGPUTransferFencesDefer, FRHIGPUMask InRenderTargetGPUMask)
+void FSceneRenderer::DoCrossGPUTransfers(FRDGBuilder& GraphBuilder, FRDGTextureRef RenderTargetTexture, TArrayView<FViewInfo> InViews, bool bCrossGPUTransferFencesDefer, FRHIGPUMask InRenderTargetGPUMask, class FCrossGPUTransfersDeferred* TransfersDeferred)
 {
 #if WITH_MGPU
 	// Must be all GPUs because context redirector only supports single or all GPUs
@@ -3700,11 +3735,19 @@ void FSceneRenderer::DoCrossGPUTransfers(FRDGBuilder& GraphBuilder, FRDGTextureR
 	TArray<FCrossGPUTransfer> Transfers;
 	GetCrossGPUTransfers(this, Transfers, InViews, RenderTargetTexture->Desc.Extent, InRenderTargetGPUMask);
 
-	if (Transfers.Num() > 0)
+	if (TransfersDeferred)
 	{
-		// Check if we can go through the optimized code path, with delay for the cross GPU transfer fence wait
+		// Accumulate transfers from each scene renderer
+		if (Transfers.Num() > 0)
+		{
+			TransfersDeferred->Targets.Add({ ViewFamily.RenderTarget, nullptr, MoveTemp(Transfers) });
+		}
+	}
+	else if (Transfers.Num() > 0)
+	{
 		if (bCrossGPUTransferFencesDefer)
 		{
+			// Optimized push transfer code path, with delay for the cross GPU transfer fence wait
 			// A readback pass is the closest analog to what this is doing. There isn't a way to express cross-GPU transfers via the RHI barrier API.
 			AddReadbackTexturePass(GraphBuilder, RDG_EVENT_NAME("CrossGPUTransfers"), RenderTargetTexture,
 				[this, RenderTargetTexture, LocalTransfers = MoveTemp(Transfers), PostTransferFences = MoveTemp(CrossGPUTransferFencesDefer)](FRHICommandListImmediate& RHICmdList)
@@ -3733,12 +3776,50 @@ void FSceneRenderer::DoCrossGPUTransfers(FRDGBuilder& GraphBuilder, FRDGTextureR
 				TArray<FTransferResourceParams> TransferParams;
 				for (const FCrossGPUTransfer& Transfer : LocalTransfers)
 				{
-					TransferParams.Add(FTransferResourceParams(RenderTargetTexture->GetRHI(), Transfer.SrcGPUIndex, Transfer.DestGPUIndex, false, false));
+					TransferParams.Add(FTransferResourceParams(RenderTargetTexture->GetRHI(), Transfer.SrcGPUIndex, Transfer.DestGPUIndex, true, false));
 				}
 
 				RHICmdList.TransferResources(TransferParams);
 			});
 		}
+	}
+#endif // WITH_MGPU
+}
+
+void FSceneRenderer::FlushCrossGPUTransfers(FRDGBuilder& GraphBuilder)
+{
+#if WITH_MGPU
+	if (CrossGPUTransferDeferred)
+	{
+		// If this is the last scene renderer, flush the transfers
+		if (CrossGPUTransferDeferred->GetRefCount() == 1 && CrossGPUTransferDeferred->Targets.Num())
+		{
+			// Create RDG textures for each render target
+			for (FCrossGPUTarget& Target : CrossGPUTransferDeferred->Targets)
+			{
+				FRHITexture* TextureRHI = Target.RenderTarget->GetRenderTargetTexture();
+				check(TextureRHI);
+				Target.RenderTargetTexture = RegisterExternalTexture(GraphBuilder, TextureRHI, TEXT("CrossGPUTexture"));
+			}
+
+			AddPass(GraphBuilder, RDG_EVENT_NAME("CrossGPUTransfers"),
+				[LocalTransfers = CrossGPUTransferDeferred](FRHICommandList& RHICmdList)
+			{
+				TArray<FTransferResourceParams> TransferParams;
+				for (const FCrossGPUTarget& Target : LocalTransfers->Targets)
+				{
+					for (const FCrossGPUTransfer& Transfer : Target.Transfers)
+					{
+						TransferParams.Add(FTransferResourceParams(Target.RenderTargetTexture->GetRHI(), Transfer.SrcGPUIndex, Transfer.DestGPUIndex, true, true));
+					}
+				}
+
+				RHICmdList.TransferResources(TransferParams);
+			});
+		}
+
+		// Remove reference to the deferred transfers in the flush for each scene
+		CrossGPUTransferDeferred = nullptr;
 	}
 #endif // WITH_MGPU
 }
