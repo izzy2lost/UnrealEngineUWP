@@ -1015,8 +1015,11 @@ void FLevelInstanceEditorModule::ShutdownModule()
 		if (TSharedPtr<ILevelEditor> FirstLevelEditor = LevelEditorModule.GetFirstLevelEditor())
 		{
 			FirstLevelEditor->RemoveActorDetailsSCSEditorUICustomization(FLevelInstanceActorDetailsSCSEditorUICustomization::GetInstance());
-			FirstLevelEditor->GetEditorModeManager().OnEditorModeIDChanged().RemoveAll(this);
-			FirstLevelEditor->GetEditorModeManager().GetInteractiveToolsContext()->InputRouter->DeregisterSource(DefaultBehaviorSource.GetInterface());
+			if (!IsEngineExitRequested())
+			{
+				FirstLevelEditor->GetEditorModeManager().OnEditorModeIDChanged().RemoveAll(this);
+				FirstLevelEditor->GetEditorModeManager().GetInteractiveToolsContext()->InputRouter->DeregisterSource(DefaultBehaviorSource.GetInterface());
+			}
 		}
 
 		DefaultBehaviorSource = nullptr;
