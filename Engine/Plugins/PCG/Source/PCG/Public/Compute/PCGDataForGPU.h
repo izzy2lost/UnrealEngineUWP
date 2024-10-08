@@ -16,7 +16,8 @@ enum class EPCGMetadataTypes : uint8;
 enum class EPCGUnpackDataCollectionResult
 {
 	Success,
-	DataMismatch
+	DataMismatch,
+	NoData
 };
 
 UENUM()
