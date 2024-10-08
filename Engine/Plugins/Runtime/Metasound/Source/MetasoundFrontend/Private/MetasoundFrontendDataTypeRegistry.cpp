@@ -862,9 +862,16 @@ namespace Metasound
 				if (const IDataTypeRegistryEntry* Entry = FindDataTypeEntry(InDataType))
 				{
 					ProxyPtr = Entry->CreateProxy(InObject);
-					if (!ProxyPtr && InObject)
+					if (ProxyPtr)
 					{
-						UE_LOG(LogMetaSound, Error, TEXT("Failed to create a valid proxy from UObject '%s'."), *InObject->GetName());
+						UE_LOG(LogMetaSound, VeryVerbose, TEXT("Created UObject proxy for '%s'."), *InObject->GetName());
+					}
+					else
+					{
+						if (InObject)
+						{
+							UE_LOG(LogMetaSound, Error, TEXT("Failed to create a valid proxy from UObject '%s'."), *InObject->GetName());
+						}
 					}
 				}
 
