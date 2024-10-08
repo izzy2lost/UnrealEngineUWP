@@ -197,12 +197,6 @@ void ULandscapeEditorObject::PostEditChangeProperty(FPropertyChangedEvent& Prope
 	{
 		UpdateTargetLayerDisplayOrder();
 	}
-
-	if (PropertyChangedEvent.MemberProperty == nullptr ||
-		PropertyChangedEvent.MemberProperty->GetFName() == GET_MEMBER_NAME_CHECKED(ULandscapeEditorObject, ShowUnusedLayers))
-	{
-		UpdateShowUnusedLayers();
-	}
 }
 
 /** Load UI settings from ini file */
@@ -986,14 +980,6 @@ void ULandscapeEditorObject::UpdateTargetLayerDisplayOrder()
 	if (ParentMode != nullptr)
 	{
 		ParentMode->UpdateTargetLayerDisplayOrder(TargetDisplayOrder);
-	}
-}
-
-void ULandscapeEditorObject::UpdateShowUnusedLayers()
-{
-	if (ParentMode != nullptr)
-	{
-		ParentMode->UpdateShownLayerList();
 	}
 }
 

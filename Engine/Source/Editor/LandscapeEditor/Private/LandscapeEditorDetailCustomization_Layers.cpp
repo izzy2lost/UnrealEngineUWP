@@ -704,7 +704,7 @@ void FLandscapeEditorCustomNodeBuilder_Layers::ClearTargetLayerOnLayer(int32 InL
 			{
 				const FScopedTransaction Transaction(LOCTEXT("Landscape_Layers_TargetClear", "Clear Target Layer"));
 				Landscape->ClearPaintLayer(InLayerIndex, InLayerInfo);
-				LandscapeEdMode->RequestUpdateShownLayerList();
+				LandscapeEdMode->RequestUpdateLayerUsageInformation();
 			}
 		}
 	}
@@ -799,7 +799,7 @@ void FLandscapeEditorCustomNodeBuilder_Layers::ClearTargetLayersOnLayer(int32 In
 				OnLayerSelectionChanged(InLayerIndex);
 				if (InClearMode & ELandscapeClearMode::Clear_Weightmap)
 				{
-					LandscapeEdMode->RequestUpdateShownLayerList();
+					LandscapeEdMode->RequestUpdateLayerUsageInformation();
 				}
 			}
 		}

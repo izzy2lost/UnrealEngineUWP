@@ -103,6 +103,17 @@ void FLandscapeEditorDetailCustomization_TargetLayers::CustomizeDetails(IDetailL
 				.Text(LOCTEXT("PopulateTargetLayers_Tip", "There are currently no target layers assigned to this landscape. Use the buttons above to add new ones or populate them from the material(s) currently assigned to the landscape"))
 				.AutoWrapText(true)
 		];
+
+	TargetsCategory.AddCustomRow(FText())
+		.Visibility(TAttribute<EVisibility>::Create(TAttribute<EVisibility>::FGetter::CreateStatic(&FLandscapeEditorDetailCustomization_TargetLayers::GetFilteredTargetLayersListInfoTipVisibility)))
+		[
+			SNew(SMultiLineEditableTextBox)
+				.IsReadOnly(true)
+				.Font(DetailBuilder.GetDetailFontBold())
+				.BackgroundColor(FAppStyle::GetColor("InfoReporting.BackgroundColor"))
+				.Text(LOCTEXT("FilteredTargetLayers_Tip", "All target layers assigned to this landscape are currently filtered. Use the buttons and/or the filter above to un-hide them."))
+				.AutoWrapText(true)
+		];
 }
 END_SLATE_FUNCTION_BUILD_OPTIMIZATION
 
@@ -181,6 +192,25 @@ EVisibility FLandscapeEditorDetailCustomization_TargetLayers::GetPopulateTargetL
 		{
 			ULandscapeInfo* LandscapeInfo = LandscapeEdMode->CurrentToolTarget.LandscapeInfo.Get();
 			return LandscapeInfo->Layers.IsEmpty() ? EVisibility::Visible : EVisibility::Collapsed;
+		}
+	}
+
+	return EVisibility::Collapsed;
+}
+
+EVisibility FLandscapeEditorDetailCustomization_TargetLayers::GetFilteredTargetLayersListInfoTipVisibility()
+{
+	FEdModeLandscape* LandscapeEdMode = GetEditorMode();
+	if (LandscapeEdMode && LandscapeEdMode->CurrentToolTarget.LandscapeInfo.IsValid())
+	{
+		if ((LandscapeEdMode->CurrentToolTarget.TargetType == ELandscapeToolTargetType::Weightmap)
+			|| (LandscapeEdMode->CurrentToolTarget.TargetType == ELandscapeToolTargetType::Invalid)) // ELandscapeToolTargetType::Invalid means "weightmap with no valid paint layer" 
+		{
+			const TArray<TSharedRef<FLandscapeTargetListInfo>>& TargetList = LandscapeEdMode->GetTargetList();
+			// The first target layers are for heightmap and visibility so only consider target layers above the starting index : 
+			const bool bHasTargetLayers = TargetList.Num() > LandscapeEdMode->GetTargetLayerStartingIndex();
+			const TArray<TSharedRef<FLandscapeTargetListInfo>> TargetDisplayList = FLandscapeEditorCustomNodeBuilder_TargetLayers::PrepareTargetLayerList(/*bInSort =*/ false, /*bInFilter = */true);
+			return (bHasTargetLayers && TargetDisplayList.IsEmpty()) ? EVisibility::Visible : EVisibility::Collapsed;
 		}
 	}
 
@@ -298,7 +328,7 @@ void FLandscapeEditorCustomNodeBuilder_TargetLayers::GenerateHeaderRowContent(FD
 						.HeightOverride(16.0f)
 						[
 							SNew(SImage)
-							.Image(FAppStyle::GetBrush("GenericViewButton"))
+								.Image(this, &FLandscapeEditorCustomNodeBuilder_TargetLayers::GetShowUnusedBrush)
 						]
 					]
 				]
@@ -483,6 +513,16 @@ TSharedRef<SWidget> FLandscapeEditorCustomNodeBuilder_TargetLayers::GetTargetLay
 	return MenuBuilder.MakeWidget();
 }
 
+const FSlateBrush* FLandscapeEditorCustomNodeBuilder_TargetLayers::GetShowUnusedBrush() const
+{
+	const FSlateBrush* Brush = FAppStyle::GetBrush("Level.VisibleIcon16x");
+	if (FEdModeLandscape* LandscapeEdMode = GetEditorMode(); (LandscapeEdMode != nullptr) && !LandscapeEdMode->UISettings->ShowUnusedLayers)
+	{
+		Brush = FAppStyle::GetBrush("Level.NotVisibleIcon16x");
+	}
+	return Brush;
+}
+
 void FLandscapeEditorCustomNodeBuilder_TargetLayers::ShowUnusedLayers(bool Result)
 {
 	TargetShowUnusedLayersPropertyHandle->SetValue(Result);
@@ -490,8 +530,7 @@ void FLandscapeEditorCustomNodeBuilder_TargetLayers::ShowUnusedLayers(bool Resul
 
 bool FLandscapeEditorCustomNodeBuilder_TargetLayers::ShouldShowUnusedLayers(bool Result) const
 {
-	FEdModeLandscape* LandscapeEdMode = GetEditorMode();
-	if (LandscapeEdMode != nullptr)
+	if (FEdModeLandscape* LandscapeEdMode = GetEditorMode())
 	{
 		return LandscapeEdMode->UISettings->ShowUnusedLayers == Result;
 	}
@@ -534,7 +573,8 @@ const FSlateBrush* FLandscapeEditorCustomNodeBuilder_TargetLayers::GetTargetLaye
 
 EVisibility FLandscapeEditorCustomNodeBuilder_TargetLayers::ShouldShowLayer(TSharedRef<FLandscapeTargetListInfo> Target) const
 {
-	if (Target->TargetType == ELandscapeToolTargetType::Weightmap)
+	if ((Target->TargetType == ELandscapeToolTargetType::Weightmap)
+		|| (Target->TargetType == ELandscapeToolTargetType::Invalid)) // Invalid means weightmap with no selected target layer
 	{
 		FEdModeLandscape* LandscapeEdMode = GetEditorMode();
 
@@ -598,6 +638,38 @@ FText FLandscapeEditorCustomNodeBuilder_TargetLayers::GetLayersFilterText() cons
 	return FText();
 }
 
+TArray<TSharedRef<FLandscapeTargetListInfo>> FLandscapeEditorCustomNodeBuilder_TargetLayers::PrepareTargetLayerList(bool bInSort, bool bInFilter)
+{
+	FEdModeLandscape* LandscapeEdMode = GetEditorMode();
+	if (LandscapeEdMode == nullptr)
+	{
+		return {};
+	}
+	const TArray<TSharedRef<FLandscapeTargetListInfo>>& TargetList = LandscapeEdMode->GetTargetList();
+	const TArray<FName>* TargetDisplayOrderList = LandscapeEdMode->GetTargetDisplayOrderList();
+	if (TargetDisplayOrderList == nullptr)
+	{
+		return {};
+	}
+
+	TArray<TSharedRef<FLandscapeTargetListInfo>> FinalList(TargetList);
+	if (bInFilter)
+	{
+		FinalList.RemoveAllSwap([LandscapeEdMode](TSharedRef<FLandscapeTargetListInfo> InTargetInfo)
+			{
+				return !LandscapeEdMode->ShouldShowLayer(InTargetInfo);
+			});
+	}
+
+	if (bInSort)
+	{
+		Algo::SortBy(FinalList, [TargetDisplayOrderList](TSharedRef<FLandscapeTargetListInfo> InTargetInfo)
+			{
+				return TargetDisplayOrderList->Find(InTargetInfo->GetLayerName());
+			});
+	}
+	return FinalList;
+}
 
 BEGIN_SLATE_FUNCTION_BUILD_OPTIMIZATION
 void FLandscapeEditorCustomNodeBuilder_TargetLayers::GenerateChildContent(IDetailChildrenBuilder& ChildrenBuilder)
@@ -605,15 +677,6 @@ void FLandscapeEditorCustomNodeBuilder_TargetLayers::GenerateChildContent(IDetai
 	FEdModeLandscape* LandscapeEdMode = GetEditorMode();
 	if (LandscapeEdMode != nullptr)
 	{
-		const TArray<TSharedRef<FLandscapeTargetListInfo>>& TargetList = LandscapeEdMode->GetTargetList();
-		const TArray<FName>* TargetDisplayOrderList = LandscapeEdMode->GetTargetDisplayOrderList();
-		const TArray<FName>& TargetShownLayerList = LandscapeEdMode->GetTargetShownList();
-
-		if (TargetDisplayOrderList == nullptr)
-		{
-			return;
-		}
-
 		TSharedPtr<SDragAndDropVerticalBox> TargetLayerList = SNew(SDragAndDropVerticalBox)
 			.OnCanAcceptDrop(this, &FLandscapeEditorCustomNodeBuilder_TargetLayers::HandleCanAcceptDrop)
 			.OnAcceptDrop(this, &FLandscapeEditorCustomNodeBuilder_TargetLayers::HandleAcceptDrop)
@@ -652,25 +715,18 @@ void FLandscapeEditorCustomNodeBuilder_TargetLayers::GenerateChildContent(IDetai
 					]
 			];
 
-		for (int32 i = 0; i < TargetDisplayOrderList->Num(); ++i)
+		// Generate a row for all target layers, including those that will be filtered and let the row's visibility lambda to compute their visibility dynamically. This allows 
+		//  filtering to work without refreshing the details panel (which causes the search box to lose focus) :
+		for (const TSharedRef<FLandscapeTargetListInfo>& TargetInfo : PrepareTargetLayerList(/*bInSort = */true, /*bInFilter = */false))
 		{
-			for (const TSharedRef<FLandscapeTargetListInfo>& TargetInfo : TargetList)
+			TSharedPtr<SWidget> GeneratedRowWidget = GenerateRow(TargetInfo);
+			if (GeneratedRowWidget.IsValid())
 			{
-				if (TargetInfo->LayerName == (*TargetDisplayOrderList)[i] && (TargetInfo->TargetType != ELandscapeToolTargetType::Weightmap || TargetShownLayerList.Find(TargetInfo->LayerName) != INDEX_NONE))
-				{
-					TSharedPtr<SWidget> GeneratedRowWidget = GenerateRow(TargetInfo);
-
-					if (GeneratedRowWidget.IsValid())
-					{
-						TargetLayerList->AddSlot()
-						.AutoHeight()						
-						[
-							GeneratedRowWidget.ToSharedRef()
-						];
-					}
-
-					break;
-				}
+				TargetLayerList->AddSlot()
+					.AutoHeight()
+					[
+						GeneratedRowWidget.ToSharedRef()
+					];
 			}
 		}
 	}
@@ -1034,33 +1090,16 @@ FReply FLandscapeEditorCustomNodeBuilder_TargetLayers::HandleDragDetected(const 
 
 	if (LandscapeEdMode != nullptr)
 	{
-		const TArray<FName>& TargetShownList = LandscapeEdMode->GetTargetShownList();
-
-		if (TargetShownList.IsValidIndex(SlotIndex))
+		// The slot index corresponds to what is actually shown, so we need to both sort and filter the target layer list here :
+		TArray<TSharedRef<FLandscapeTargetListInfo>> TargetDisplayList = PrepareTargetLayerList(/*bInSort =*/ true, /*bInFilter = */true);
+		if (TargetDisplayList.IsValidIndex(SlotIndex))
 		{
-			const TArray<FName>* TargetDisplayOrderList = LandscapeEdMode->GetTargetDisplayOrderList();
-
-			if (TargetDisplayOrderList != nullptr)
+			if (const TArray<FName>* TargetDisplayOrderList = LandscapeEdMode->GetTargetDisplayOrderList())
 			{
-				FName ShownTargetName = LandscapeEdMode->UISettings->ShowUnusedLayers && TargetShownList.IsValidIndex(SlotIndex + LandscapeEdMode->GetTargetLayerStartingIndex()) ? TargetShownList[SlotIndex + LandscapeEdMode->GetTargetLayerStartingIndex()] : TargetShownList[SlotIndex];
-				int32 DisplayOrderLayerIndex = TargetDisplayOrderList->Find(ShownTargetName);
-
-				if (TargetDisplayOrderList->IsValidIndex(DisplayOrderLayerIndex))
+				TSharedPtr<SWidget> Row = GenerateRow(TargetDisplayList[SlotIndex]);
+				if (Row.IsValid())
 				{
-					const TArray<TSharedRef<FLandscapeTargetListInfo>>& TargetList = LandscapeEdMode->GetTargetList();
-
-					for (const TSharedRef<FLandscapeTargetListInfo>& TargetInfo : TargetList)
-					{
-						if (TargetInfo->LayerName == (*TargetDisplayOrderList)[DisplayOrderLayerIndex])
-						{
-							TSharedPtr<SWidget> Row = GenerateRow(TargetInfo);
-
-							if (Row.IsValid())
-							{
-								return FReply::Handled().BeginDragDrop(FTargetLayerDragDropOp::New(SlotIndex, Slot, Row));
-							}
-						}
-					}
+					return FReply::Handled().BeginDragDrop(FTargetLayerDragDropOp::New(SlotIndex, Slot, Row));
 				}
 			}
 		}
@@ -1091,21 +1130,20 @@ FReply FLandscapeEditorCustomNodeBuilder_TargetLayers::HandleAcceptDrop(FDragDro
 
 		if (LandscapeEdMode != nullptr)
 		{
-			const TArray<FName>& TargetShownList = LandscapeEdMode->GetTargetShownList();
+			// The slot index corresponds to what is actually shown, so we need to both sort and filter the target layer list here :
+			TArray<TSharedRef<FLandscapeTargetListInfo>> TargetDisplayList = PrepareTargetLayerList(/*bInSort =*/ true, /*bInFilter = */true);
 
-			if (TargetShownList.IsValidIndex(DragDropOperation->SlotIndexBeingDragged) && TargetShownList.IsValidIndex(SlotIndex))
+			if (TargetDisplayList.IsValidIndex(DragDropOperation->SlotIndexBeingDragged) && TargetDisplayList.IsValidIndex(SlotIndex))
 			{
-				const TArray<FName>* TargetDisplayOrderList = LandscapeEdMode->GetTargetDisplayOrderList();
-
-				if (TargetDisplayOrderList != nullptr && TargetShownList.IsValidIndex(DragDropOperation->SlotIndexBeingDragged + LandscapeEdMode->GetTargetLayerStartingIndex()) && TargetShownList.IsValidIndex(SlotIndex + LandscapeEdMode->GetTargetLayerStartingIndex()))
+				const FName TargetLayerNameBeingDragged = TargetDisplayList[DragDropOperation->SlotIndexBeingDragged]->GetLayerName();
+				const FName DestinationTargetLayerName = TargetDisplayList[SlotIndex]->GetLayerName();
+				if (const TArray<FName>* TargetDisplayOrderList = LandscapeEdMode->GetTargetDisplayOrderList())
 				{
-					int32 StartingLayerIndex = TargetDisplayOrderList->Find(LandscapeEdMode->UISettings->ShowUnusedLayers ? TargetShownList[DragDropOperation->SlotIndexBeingDragged + LandscapeEdMode->GetTargetLayerStartingIndex()] : TargetShownList[DragDropOperation->SlotIndexBeingDragged]);
-					int32 DestinationLayerIndex = TargetDisplayOrderList->Find(LandscapeEdMode->UISettings->ShowUnusedLayers ? TargetShownList[SlotIndex + LandscapeEdMode->GetTargetLayerStartingIndex()] : TargetShownList[SlotIndex]);
-
+					int32 StartingLayerIndex = TargetDisplayOrderList->Find(TargetLayerNameBeingDragged);
+					int32 DestinationLayerIndex = TargetDisplayOrderList->Find(DestinationTargetLayerName);
 					if (StartingLayerIndex != INDEX_NONE && DestinationLayerIndex != INDEX_NONE)
 					{
 						LandscapeEdMode->MoveTargetLayerDisplayOrder(StartingLayerIndex, DestinationLayerIndex);
-
 						return FReply::Handled();
 					}
 				}
@@ -1386,7 +1424,7 @@ void FLandscapeEditorCustomNodeBuilder_TargetLayers::OnClearLayer(const TSharedR
 			FScopedSetLandscapeEditingLayer Scope(LandscapeEdMode->GetLandscape(), LandscapeEdMode->GetCurrentLayerGuid(), [&] { LandscapeEdMode->RequestLayersContentUpdateForceAll(); });
 			FLandscapeEditDataInterface LandscapeEdit(Target->LandscapeInfo.Get());
 			LandscapeEdit.DeleteLayer(Target->LayerInfoObj.Get());
-			LandscapeEdMode->RequestUpdateShownLayerList();
+			LandscapeEdMode->RequestUpdateLayerUsageInformation();
 		}
 	}
 }

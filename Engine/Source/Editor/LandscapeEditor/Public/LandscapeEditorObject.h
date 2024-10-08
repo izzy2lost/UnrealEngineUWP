@@ -811,7 +811,6 @@ public:
 	}
 
 	void UpdateTargetLayerDisplayOrder();
-	void UpdateShowUnusedLayers();
 
 	float GetCurrentToolStrength() const;
 	void SetCurrentToolStrength(float NewToolStrength);

@@ -528,7 +528,6 @@ public:
 	const TArray<TSharedRef<FLandscapeTargetListInfo>>& GetTargetList() const;
 	UMaterialInterface* GetTargetLandscapeMaterial() const { return CachedLandscapeMaterial; }
 	const TArray<FName>* GetTargetDisplayOrderList() const;
-	const TArray<FName>& GetTargetShownList() const;
 	int32 GetTargetLayerStartingIndex() const;
 	const TArray<FLandscapeListInfo>& GetLandscapeList();
 
@@ -541,9 +540,7 @@ public:
 	void UpdateTargetLayerDisplayOrder(ELandscapeLayerDisplayMode InTargetDisplayOrder);
 	void MoveTargetLayerDisplayOrder(int32 IndexToMove, int32 IndexToDestination);
 
-	/** Update shown layer list */	
-	void RequestUpdateShownLayerList();
-	void UpdateShownLayerList();
+	void RequestUpdateLayerUsageInformation();
 	bool ShouldShowLayer(TSharedRef<FLandscapeTargetListInfo> Target) const;
 	void UpdateLayerUsageInformation(TWeakObjectPtr<ULandscapeLayerInfoObject>* LayerInfoObjectThatChanged = nullptr);
 	void OnLandscapeMaterialChangedDelegate();
@@ -650,8 +647,7 @@ private:
 	TArray<TSharedRef<FLandscapeTargetListInfo>> LandscapeTargetList;
 	TArray<FLandscapeListInfo> LandscapeList;
 	TArray<ALandscapeBlueprintBrushBase*> BrushList;
-	TArray<FName> ShownTargetLayerList;
-	
+
 	/** Represent the index offset of the target layer in LandscapeTargetList */
 	int32 TargetLayerStartingIndex;
 
@@ -674,6 +670,6 @@ private:
 	class UViewportInteractor* InteractorPainting;
 
 	/** Delayed refresh */
-	bool bNeedsUpdateShownLayerList;
+	bool bNeedsUpdateLayerUsageInformation;
 	bool bUpdatingLandscapeInfo;
 };
