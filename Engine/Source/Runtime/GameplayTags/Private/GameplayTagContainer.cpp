@@ -1351,7 +1351,7 @@ namespace UE::GameplayTags::GameplayTagDynamicSerialization
 		else if (Ar.IsLoading())
 		{
 			// Read TagNetToken
-			TagTokenDataStore->ReadNetToken(Ar);
+			TagToken = TagTokenDataStore->ReadNetToken(Ar);
 
 			if (Ar.IsError())
 			{
