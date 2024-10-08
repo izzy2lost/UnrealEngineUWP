@@ -111,22 +111,15 @@ TSharedRef<IDetailCustomization> FMovieGraphModifiersCustomization::MakeInstance
 
 void FMovieGraphModifiersCustomization::CustomizeDetails(IDetailLayoutBuilder& InDetailBuilder)
 {
-	TArray<TWeakObjectPtr<UMovieGraphModifierNode>> ModifierNodes =
-		InDetailBuilder.GetObjectsOfTypeBeingCustomized<UMovieGraphModifierNode>();
-	if (ModifierNodes.Num() != 1)
-	{
-		// Showing more than one modifier node is not supported
-		return;
-	}
-
-	const TWeakObjectPtr<UMovieGraphModifierNode> ModifierNode = ModifierNodes[0];
+	// The customization only supports editing a single Modifier node
+	const TWeakObjectPtr<UMovieGraphModifierNode> ModifierNode = GetSelectedModifierNode();
 	if (!ModifierNode.IsValid())
 	{
 		return;
 	}
 
 	// Update the data source
-	ListDataSource = ModifierNode->GetCollections();
+	RefreshListDataSource();
 	
 	// Generate a (multi-layered) icon for the "Add" menu
 	const TSharedRef<SLayeredImage> AddIcon =
@@ -236,6 +229,7 @@ void FMovieGraphModifiersCustomization::CustomizeDetails(IDetailLayoutBuilder& I
 				ModifierNode.Get()->SetCollectionEnabled(InCollectionName, bNewEnableState);
 			}
 		})
+		.OnRefreshDataSourceRequested(this, &FMovieGraphModifiersCustomization::RefreshListDataSource)
 	];
 
 	// For all modifiers added to the node, add a category for each, and add each modifier's EditAnywhere properties to the category
@@ -278,6 +272,38 @@ const FSlateBrush* FMovieGraphModifiersCustomization::GetCollectionRowIcon(const
 FText FMovieGraphModifiersCustomization::GetCollectionRowText(const FName CollectionName)
 {
 	return FText::FromName(CollectionName);
+}
+
+TWeakObjectPtr<UMovieGraphModifierNode> FMovieGraphModifiersCustomization::GetSelectedModifierNode() const
+{
+	if (const TSharedPtr<IDetailLayoutBuilder> DetailBuilderPin = DetailBuilder.Pin())
+	{
+		TArray<TWeakObjectPtr<UMovieGraphModifierNode>> ModifierNodes =
+			DetailBuilderPin->GetObjectsOfTypeBeingCustomized<UMovieGraphModifierNode>();
+		if (ModifierNodes.Num() != 1)
+		{
+			return nullptr;
+		}
+
+		const TWeakObjectPtr<UMovieGraphModifierNode> ModifierNode = ModifierNodes[0];
+		if (ModifierNode.IsValid())
+		{
+			return ModifierNode;
+		}
+	}
+
+	return nullptr;
+}
+
+void FMovieGraphModifiersCustomization::RefreshListDataSource()
+{
+	const TWeakObjectPtr<UMovieGraphModifierNode> ModifierNode = GetSelectedModifierNode();
+	
+	if (const TStrongObjectPtr<UMovieGraphModifierNode> ModifierNodePin = ModifierNode.Pin())
+	{
+		// Update the data source
+		ListDataSource = ModifierNodePin->GetCollections();
+	}
 }
 
 #undef LOCTEXT_NAMESPACE

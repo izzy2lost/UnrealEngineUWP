@@ -629,11 +629,7 @@ TArray<TSharedRef<SWidget>> UMovieGraphConditionGroupQuery_Actor::GetWidgets()
 	TArray<TSharedRef<SWidget>> Widgets;
 
 	// Create the data source for the list view
-	ListDataSource.Empty();
-	for (TSoftObjectPtr<AActor>& Actor : ActorsToMatch)
-	{
-		ListDataSource.Add(MakeShared<TSoftObjectPtr<AActor>>(Actor));
-	}
+	RefreshListDataSource();
 
 	auto GetValidActorsFromOperation = [](TSharedPtr<FDragDropOperation> InOperation, TArray<AActor*>& OutActors, bool& bHadTransient) {
 
@@ -718,6 +714,7 @@ TArray<TSharedRef<SWidget>> UMovieGraphConditionGroupQuery_Actor::GetWidgets()
 				
 				RemoveActors(ActorsToRemove);
 			})
+			.OnRefreshDataSourceRequested_UObject(this, &UMovieGraphConditionGroupQuery_Actor::RefreshListDataSource)
 		]
 	);
 
@@ -925,7 +922,16 @@ void UMovieGraphConditionGroupQuery_Actor::RemoveActors(const TArray<TSoftObject
 	
 	ActorsList->Refresh();
 }
-		
+
+void UMovieGraphConditionGroupQuery_Actor::RefreshListDataSource()
+{
+	ListDataSource.Empty();
+	for (TSoftObjectPtr<AActor>& Actor : ActorsToMatch)
+	{
+		ListDataSource.Add(MakeShared<TSoftObjectPtr<AActor>>(Actor));
+	}
+}
+
 FName UMovieGraphConditionGroupQuery_Actor::FActorSelectionColumn::GetID()
 {
 	static const FName ColumnId = FName("ActorSelection");
@@ -1855,11 +1861,7 @@ TArray<TSharedRef<SWidget>> UMovieGraphConditionGroupQuery_Sublevel::GetWidgets(
 	TArray<TSharedRef<SWidget>> Widgets;
 
 	// Create the data source for the list view
-	ListDataSource.Empty();
-	for (TSoftObjectPtr<UWorld>& Sublevel : Sublevels)
-	{
-		ListDataSource.Add(MakeShared<TSoftObjectPtr<UWorld>>(Sublevel));
-	}
+	RefreshListDataSource();
 
 	Widgets.Add(
 		SNew(SDropTarget)
@@ -1942,6 +1944,7 @@ TArray<TSharedRef<SWidget>> UMovieGraphConditionGroupQuery_Sublevel::GetWidgets(
 				constexpr bool bUpdateSources = true;
 				RefreshLevelPicker.ExecuteIfBound(bUpdateSources);
 			})
+			.OnRefreshDataSourceRequested_UObject(this, &UMovieGraphConditionGroupQuery_Sublevel::RefreshListDataSource)
 		]
 	);
 
@@ -2053,6 +2056,15 @@ void UMovieGraphConditionGroupQuery_Sublevel::AddLevels(const TArray<UWorld*>& I
 
 	constexpr bool bUpdateSources = false;
 	RefreshLevelPicker.ExecuteIfBound(bUpdateSources);
+}
+
+void UMovieGraphConditionGroupQuery_Sublevel::RefreshListDataSource()
+{
+	ListDataSource.Empty();
+	for (TSoftObjectPtr<UWorld>& Sublevel : Sublevels)
+	{
+		ListDataSource.Add(MakeShared<TSoftObjectPtr<UWorld>>(Sublevel));
+	}
 }
 #endif	// WITH_EDITOR
 
@@ -2238,11 +2250,7 @@ TArray<TSharedRef<SWidget>> UMovieGraphConditionGroupQuery_DataLayer::GetWidgets
 	TArray<TSharedRef<SWidget>> Widgets;
 
 	// Create the data source for the list view
-	ListDataSource.Empty();
-	for (TSoftObjectPtr<UDataLayerAsset>& DataLayer : DataLayers)
-	{
-		ListDataSource.Add(MakeShared<TSoftObjectPtr<UDataLayerAsset>>(DataLayer));
-	}
+	RefreshListDataSource();
 
 	Widgets.Add(
 		SNew(SDropTarget)
@@ -2309,6 +2317,7 @@ TArray<TSharedRef<SWidget>> UMovieGraphConditionGroupQuery_DataLayer::GetWidgets
 				constexpr bool bUpdateSources = true;
 				RefreshDataLayerPicker.ExecuteIfBound(bUpdateSources);
 			})
+			.OnRefreshDataSourceRequested_UObject(this, &UMovieGraphConditionGroupQuery_DataLayer::RefreshListDataSource)
 		]
 	);
 
@@ -2409,6 +2418,15 @@ void UMovieGraphConditionGroupQuery_DataLayer::AddDataLayers(const TArray<const 
 
 	constexpr bool bUpdateSources = false;
 	RefreshDataLayerPicker.ExecuteIfBound(bUpdateSources);
+}
+
+void UMovieGraphConditionGroupQuery_DataLayer::RefreshListDataSource()
+{
+	ListDataSource.Empty();
+	for (TSoftObjectPtr<UDataLayerAsset>& DataLayer : DataLayers)
+	{
+		ListDataSource.Add(MakeShared<TSoftObjectPtr<UDataLayerAsset>>(DataLayer));
+	}
 }
 #endif	// WITH_EDITOR
 
