@@ -61,21 +61,23 @@ namespace UE::PixelStreamingVCam
 
 	FPixelStreamingLiveLinkSource* FLiveLinkManager::GetOrCreateLiveLinkSource()
 	{
-		if (LiveLinkSource)
-		{
-			return LiveLinkSource.Get();
-		}
-		
 		IModularFeatures& ModularFeatures = IModularFeatures::Get();
 		if (!ModularFeatures.IsModularFeatureAvailable(ILiveLinkClient::ModularFeatureName))
 		{
 			UE_LOG(LogPixelStreamingVCam, Warning, TEXT("Live Link is not enabled."))
 			return nullptr;
 		}
-
 		ILiveLinkClient* LiveLinkClient = &ModularFeatures.GetModularFeature<ILiveLinkClient>(ILiveLinkClient::ModularFeatureName);
-		LiveLinkSource = MakeShared<FPixelStreamingLiveLinkSource>();
-		LiveLinkClient->AddSource(LiveLinkSource);
+		
+		LiveLinkSource = LiveLinkSource ? LiveLinkSource : MakeShared<FPixelStreamingLiveLinkSource>();
+		// HasSourceBeenAdded is obviously false right after MakeShared is called.
+		// However, when in subsequent GetOrCreateLiveLinkSource calls, the user may have manually removed the live link source in the UI.
+		// It must be re-added, or we won't get any LiveLink for Pixel Streaming for the rest of the editor session.
+		if (!LiveLinkClient->HasSourceBeenAdded(LiveLinkSource))
+		{
+			LiveLinkClient->AddSource(LiveLinkSource);
+		}
+		
 		return LiveLinkSource.Get();
 	}
 }
