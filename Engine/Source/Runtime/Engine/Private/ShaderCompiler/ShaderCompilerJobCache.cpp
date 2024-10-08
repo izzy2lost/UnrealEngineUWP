@@ -1954,7 +1954,7 @@ FShaderCacheLoadContext FShaderJobCache::FindOrAdd(const FShaderCompilerInputHas
 							JobLock.WriteUnlock();
 
 							// Re-initialize load context pointing to the stored code array in the cache and reuse for each duplicate job needing population
-							LoadContext = FShaderCacheLoadContext(StoredOutput->JobOutput, StoredOutput->JobCode);
+							LoadContext.Reset(StoredOutput->JobOutput, StoredOutput->JobCode);
 
 							// Call ProcessFinishedJob on main job and duplicates
 							for (FShaderCommonCompileJob* FinishedJob : FinishedJobs)
