@@ -827,6 +827,7 @@ namespace Metasound
 
 						const FGuid BuildPageID = Builder.GetBuildPageID();
 						DefaultFloat->SetFromLiteral(OutputLiteral, BuildPageID);
+						DefaultFloat->OnDefaultValueChanged.Broadcast(BuildPageID, Value);
 
 						constexpr bool bPostTransaction = true;
 						GraphMember->UpdateFrontendDefaultLiteral(bPostTransaction, &BuildPageID);
