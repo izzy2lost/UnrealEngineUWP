@@ -691,35 +691,6 @@ class FClearLightSamplesCS : public FGlobalShader
 
 IMPLEMENT_GLOBAL_SHADER(FClearLightSamplesCS, "/Engine/Private/MegaLights/MegaLightsSampling.usf", "ClearLightSamplesCS", SF_Compute);
 
-class FInitCompositeUpsampleWeightsCS : public FGlobalShader
-{
-	DECLARE_GLOBAL_SHADER(FInitCompositeUpsampleWeightsCS)
-	SHADER_USE_PARAMETER_STRUCT(FInitCompositeUpsampleWeightsCS, FGlobalShader)
-
-	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
-		SHADER_PARAMETER_STRUCT_INCLUDE(FMegaLightsParameters, MegaLightsParameters)
-		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float4>, RWCompositeUpsampleWeights)
-	END_SHADER_PARAMETER_STRUCT()
-
-	static int32 GetGroupSize()
-	{
-		return 8;
-	}
-
-	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
-	{
-		return MegaLights::ShouldCompileShaders(Parameters.Platform);
-	}
-
-	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
-	{
-		FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
-		OutEnvironment.SetDefine(TEXT("THREADGROUP_SIZE"), GetGroupSize());
-	}
-};
-
-IMPLEMENT_GLOBAL_SHADER(FInitCompositeUpsampleWeightsCS, "/Engine/Private/MegaLights/MegaLights.usf", "InitCompositeUpsampleWeightsCS", SF_Compute);
-
 class FShadeLightSamplesCS : public FGlobalShader
 {
 	DECLARE_GLOBAL_SHADER(FShadeLightSamplesCS)
@@ -733,7 +704,6 @@ class FShadeLightSamplesCS : public FGlobalShader
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float>, RWShadingConfidence)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, TileAllocator)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, TileData)
-		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<flaot4>, CompositeUpsampleWeights)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<uint>, LightSamples)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<uint>, LightSampleUVTexture)
 		SHADER_PARAMETER(uint32, UseShadingConfidence)
@@ -1515,28 +1485,6 @@ void FDeferredShadingSceneRenderer::RenderMegaLights(FRDGBuilder& GraphBuilder, 
 			MegaLightsParameters
 		);
 
-		FRDGTextureRef CompositeUpsampleWeights = GraphBuilder.CreateTexture(
-			FRDGTextureDesc::Create2D(SceneTextures.Config.Extent, PF_FloatRGBA, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV),
-			TEXT("MegaLights.CompositeUpsampleWeights"));
-
-		// Init composite upsample weights
-		{
-			FInitCompositeUpsampleWeightsCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FInitCompositeUpsampleWeightsCS::FParameters>();
-			PassParameters->MegaLightsParameters = MegaLightsParameters;
-			PassParameters->RWCompositeUpsampleWeights = GraphBuilder.CreateUAV(CompositeUpsampleWeights);
-
-			auto ComputeShader = View.ShaderMap->GetShader<FInitCompositeUpsampleWeightsCS>();
-
-			const FIntVector GroupCount = FComputeShaderUtils::GetGroupCount(View.ViewRect.Size(), FInitCompositeUpsampleWeightsCS::GetGroupSize());
-
-			FComputeShaderUtils::AddPass(
-				GraphBuilder,
-				RDG_EVENT_NAME("InitCompositeUpsampleWeights"),
-				ComputeShader,
-				PassParameters,
-				GroupCount);
-		}
-
 		FRDGTextureRef ResolvedDiffuseLighting = GraphBuilder.CreateTexture(
 			FRDGTextureDesc::Create2D(View.GetSceneTexturesConfig().Extent, PF_FloatRGB, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV),
 			TEXT("MegaLights.ResolvedDiffuseLighting"));
@@ -1603,7 +1551,6 @@ void FDeferredShadingSceneRenderer::RenderMegaLights(FRDGBuilder& GraphBuilder, 
 				PassParameters->MegaLightsParameters = MegaLightsParameters;
 				PassParameters->TileAllocator = GraphBuilder.CreateSRV(TileAllocator);
 				PassParameters->TileData = GraphBuilder.CreateSRV(TileData);
-				PassParameters->CompositeUpsampleWeights = CompositeUpsampleWeights;
 				PassParameters->LightSamples = LightSamples;
 				PassParameters->LightSampleUVTexture = LightSampleUV;
 				PassParameters->UseShadingConfidence = CVarMegaLightsShadingConfidence.GetValueOnRenderThread();

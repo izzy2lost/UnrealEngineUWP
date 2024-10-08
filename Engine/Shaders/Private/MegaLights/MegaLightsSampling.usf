@@ -181,7 +181,7 @@ void SampleLight(uint2 ScreenCoord, float3 TranslatedWorldPosition, const FMegaL
 		Newline(Debug.Context);
 		Print(Debug.Context, LocalLightData.LightSceneId, Select(LocalLightData.LightSceneId == DebugLightId, FontSelected, FontValue));
 		Print(Debug.Context, LocalLightIndex, Select(LocalLightData.LightSceneId == DebugLightId, FontSelected, FontValue));
-		Print(Debug.Context, LightTargetPDF.Weight);
+		Print(Debug.Context, LightTargetPDF.Weight, Select(LightTargetPDF.Weight > MinSampleWeight, FontWhite, FontValue));
 		Print(Debug.Context, LightData.LightFunctionAtlasLightIndex, Select(LightData.LightFunctionAtlasLightIndex != 0, FontWhite, FontGrey));
 		Print(Debug.Context, LightData.IESAtlasIndex, Select(LightData.IESAtlasIndex != -1, FontWhite, FontGrey));
 		Print(Debug.Context, bWasVisibleInLastFrame ? 1u : 0u, Select(bWasVisibleInLastFrame, FontWhite, FontGrey));
