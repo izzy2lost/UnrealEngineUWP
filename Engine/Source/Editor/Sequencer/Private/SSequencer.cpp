@@ -1336,6 +1336,8 @@ TSharedRef<SWidget> SSequencer::ConstructSearchAndFilterRow()
 		FilterComboButtonWidget = FilterBar->MakeAddFilterButton();
 	}
 
+	FilterBarWidget->SetMuted(Sequencer->GetFilterBar()->AreFiltersMuted());
+
 	return SNew(SHorizontalBox)
 
 		// Add Button

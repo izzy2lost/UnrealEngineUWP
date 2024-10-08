@@ -85,6 +85,9 @@ public:
 
 	TWeakPtr<SFilterSearchBox> GetSearchBox() const;
 
+	// Set the state of the filter bar. Muted means that the filters are muted, but the context menu is still enabled and accessible.
+	void SetMuted(bool bInMuted);
+
 protected:
 	void AddWidgetToLayout(const TSharedRef<SWidget>& InWidget);
 	void RemoveWidgetFromLayout(const TSharedRef<SWidget>& InWidget);
