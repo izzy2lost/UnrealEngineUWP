@@ -18,7 +18,7 @@ namespace HordeServer.Compute
 		private const int BufferSize = 4096;
 
 		private readonly CancellationTokenSource _cancellationSource;
-		private readonly StaticComputeConfig _staticComputeConfig;
+		private readonly ComputeServerConfig _staticComputeConfig;
 		private readonly ILogger _logger;
 		private Task? _serverTask;
 
@@ -30,7 +30,7 @@ namespace HordeServer.Compute
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public TunnelService(IOptions<StaticComputeConfig> staticComputeConfig, ILogger<TunnelService> logger)
+		public TunnelService(IOptions<ComputeServerConfig> staticComputeConfig, ILogger<TunnelService> logger)
 		{
 			_cancellationSource = new CancellationTokenSource();
 			_staticComputeConfig = staticComputeConfig.Value;

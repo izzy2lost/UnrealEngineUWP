@@ -109,7 +109,7 @@ namespace HordeServer.Tests
 			ServerSettings settings = new ServerSettings();
 			ConfigureSettings(settings);
 
-			services.Configure<StaticComputeConfig>(x => x.WithAws = true);
+			services.Configure<ComputeServerConfig>(x => x.WithAws = true);
 
 			ServerInfo serverInfo = new ServerInfo(configuration, Options.Create(settings));
 			services.AddSingleton<IServerInfo>(serverInfo);

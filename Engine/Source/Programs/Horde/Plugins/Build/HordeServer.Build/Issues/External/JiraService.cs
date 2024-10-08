@@ -96,7 +96,7 @@ namespace HordeServer.Issues.External
 		/// <summary>
 		/// The server settings
 		/// </summary>
-		readonly StaticBuildConfig _settings;
+		readonly BuildServerConfig _settings;
 		readonly HttpClient _client;
 		readonly AsyncPolicy<HttpResponseMessage> _retryPolicy;
 		readonly ConcurrentDictionary<string, JiraCacheValue> _issueCache = new ConcurrentDictionary<string, JiraCacheValue>();
@@ -122,7 +122,7 @@ namespace HordeServer.Issues.External
 		/// <param name="clock"></param>
 		/// <param name="buildConfig"></param>
 		/// <param name="logger"></param>
-		public JiraService(IOptions<StaticBuildConfig> settings, IssueService issueService, IClock clock, IOptionsMonitor<BuildConfig> buildConfig, ILogger<JiraService> logger)
+		public JiraService(IOptions<BuildServerConfig> settings, IssueService issueService, IClock clock, IOptionsMonitor<BuildConfig> buildConfig, ILogger<JiraService> logger)
 		{
 			_settings = settings.Value;
 			_logger = logger;

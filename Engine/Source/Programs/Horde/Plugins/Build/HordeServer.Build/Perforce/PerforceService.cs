@@ -248,7 +248,7 @@ namespace HordeServer.Perforce
 		readonly string? _perforceServerOverride;
 		readonly string? _perforceUserOverride;
 
-		readonly StaticBuildConfig _settings;
+		readonly BuildServerConfig _settings;
 		readonly Dictionary<string, Dictionary<string, Credentials>> _userCredentialsByCluster = new Dictionary<string, Dictionary<string, Credentials>>(StringComparer.OrdinalIgnoreCase);
 		readonly IUserCollection _userCollection;
 		readonly MemoryCache _userCache = new MemoryCache(new MemoryCacheOptions { SizeLimit = 2000 });
@@ -259,7 +259,7 @@ namespace HordeServer.Perforce
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public PerforceService(PerforceLoadBalancer loadBalancer, IUserCollection userCollection, IOptions<StaticBuildConfig> settings, IOptionsMonitor<BuildConfig> buildConfig, Tracer tracer, ILogger<PerforceService> logger)
+		public PerforceService(PerforceLoadBalancer loadBalancer, IUserCollection userCollection, IOptions<BuildServerConfig> settings, IOptionsMonitor<BuildConfig> buildConfig, Tracer tracer, ILogger<PerforceService> logger)
 		{
 			_loadBalancer = loadBalancer;
 			_userCollection = userCollection;

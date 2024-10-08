@@ -40,7 +40,7 @@ public sealed class FleetManagerFactory : IFleetManagerFactory
 	private readonly IClock _clock;
 	private readonly Meter _meter;
 	private readonly IServiceProvider _provider;
-	private readonly IOptionsMonitor<StaticComputeConfig> _staticComputeConfig;
+	private readonly IOptionsMonitor<ComputeServerConfig> _staticComputeConfig;
 	private readonly Tracer _tracer;
 	private readonly ILoggerFactory _loggerFactory;
 
@@ -50,7 +50,7 @@ public sealed class FleetManagerFactory : IFleetManagerFactory
 	/// <summary>
 	/// Constructor
 	/// </summary>
-	public FleetManagerFactory(IAgentCollection agentCollection, IClock clock, Meter meter, IServiceProvider provider, IOptionsMonitor<StaticComputeConfig> staticComputeConfig, Tracer tracer, ILoggerFactory loggerFactory)
+	public FleetManagerFactory(IAgentCollection agentCollection, IClock clock, Meter meter, IServiceProvider provider, IOptionsMonitor<ComputeServerConfig> staticComputeConfig, Tracer tracer, ILoggerFactory loggerFactory)
 	{
 		_agentCollection = agentCollection;
 		_clock = clock;
@@ -114,7 +114,7 @@ public sealed class FleetManagerFactory : IFleetManagerFactory
 		_awsEc2 = _provider.GetService<IAmazonEC2>();
 		if (_staticComputeConfig.CurrentValue.WithAws == false || _awsEc2 == null)
 		{
-			throw new ArgumentException($"Unable to create fleet manager {type} requiring AWS specific classes. Check that setting '{nameof(StaticComputeConfig.WithAws)}' is enabled");
+			throw new ArgumentException($"Unable to create fleet manager {type} requiring AWS specific classes. Check that setting '{nameof(ComputeServerConfig.WithAws)}' is enabled");
 		}
 
 		return _awsEc2;
@@ -130,7 +130,7 @@ public sealed class FleetManagerFactory : IFleetManagerFactory
 		_awsAutoScaling = _provider.GetService<IAmazonAutoScaling>();
 		if (_staticComputeConfig.CurrentValue.WithAws == false || _awsAutoScaling == null)
 		{
-			throw new ArgumentException($"Unable to create fleet manager {type} requiring AWS specific classes. Check that setting '{nameof(StaticComputeConfig.WithAws)}' is enabled");
+			throw new ArgumentException($"Unable to create fleet manager {type} requiring AWS specific classes. Check that setting '{nameof(ComputeServerConfig.WithAws)}' is enabled");
 		}
 
 		return _awsAutoScaling;

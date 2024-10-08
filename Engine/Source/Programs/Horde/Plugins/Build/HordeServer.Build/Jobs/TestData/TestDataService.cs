@@ -16,14 +16,14 @@ namespace HordeServer.Jobs.TestData
 	{
 
 		readonly ITestDataCollection _testData;
-		readonly IOptionsMonitor<StaticBuildConfig> _settings;
+		readonly IOptionsMonitor<BuildServerConfig> _settings;
 		readonly ITicker _ticker;
 		readonly ILogger<TestDataService> _logger;
 
 		/// <summary>
 		/// Device service constructor
 		/// </summary>
-		public TestDataService(ITestDataCollection testData, IOptionsMonitor<StaticBuildConfig> settings, IClock clock, ILogger<TestDataService> logger)
+		public TestDataService(ITestDataCollection testData, IOptionsMonitor<BuildServerConfig> settings, IClock clock, ILogger<TestDataService> logger)
 		{
 			_testData = testData;
 			_settings = settings;

@@ -115,6 +115,11 @@ namespace HordeServer.Compute
 		/// Agent version on the remote machine
 		/// </summary>
 		public string? AgentVersion { get; }
+		
+		/// <summary>
+		/// Compute protocol this resource is using
+		/// </summary>
+		public ComputeProtocol Protocol { get; }
 
 		/// <summary>
 		/// Lease id on the remote machine
@@ -133,6 +138,7 @@ namespace HordeServer.Compute
 			IReadOnlyList<string> properties,
 			AgentId agentId,
 			string? agentVersion,
+			ComputeProtocol protocol,
 			LeaseId leaseId)
 		{
 			ConnectionMode = connectionMode;
@@ -143,6 +149,7 @@ namespace HordeServer.Compute
 			Properties = properties;
 			AgentId = agentId;
 			AgentVersion = agentVersion;
+			Protocol = protocol;
 			LeaseId = leaseId;
 		}
 	}

@@ -196,7 +196,7 @@ namespace HordeServer.Jobs
 		readonly PerforceLoadBalancer _perforceLoadBalancer;
 		readonly IClock _clock;
 		readonly IServerInfo _serverInfo;
-		readonly IOptionsMonitor<StaticBuildConfig> _settings;
+		readonly IOptionsMonitor<BuildServerConfig> _settings;
 		readonly IOptionsMonitor<BuildConfig> _buildConfig;
 		readonly ILogger<JobTaskSource> _logger;
 		readonly Tracer _tracer;
@@ -233,7 +233,7 @@ namespace HordeServer.Jobs
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public JobTaskSource(IAclService aclService, Lazy<AgentService> agentService, IJobCollection jobs, IJobStepRefCollection jobStepRefs, IBisectTaskCollection bisectTasks, IGraphCollection graphs, IPoolCollection pools, PoolService poolService, IUgsMetadataCollection ugsMetadataCollection, IStreamCollection streamCollection, ILogCollection logCollection, PerforceLoadBalancer perforceLoadBalancer, IClock clock, IServerInfo serverInfo, IOptionsMonitor<StaticBuildConfig> settings, IOptionsMonitor<BuildConfig> buildConfig, Tracer tracer, ILogger<JobTaskSource> logger)
+		public JobTaskSource(IAclService aclService, Lazy<AgentService> agentService, IJobCollection jobs, IJobStepRefCollection jobStepRefs, IBisectTaskCollection bisectTasks, IGraphCollection graphs, IPoolCollection pools, PoolService poolService, IUgsMetadataCollection ugsMetadataCollection, IStreamCollection streamCollection, ILogCollection logCollection, PerforceLoadBalancer perforceLoadBalancer, IClock clock, IServerInfo serverInfo, IOptionsMonitor<BuildServerConfig> settings, IOptionsMonitor<BuildConfig> buildConfig, Tracer tracer, ILogger<JobTaskSource> logger)
 		{
 			_aclService = aclService;
 			_agentService = agentService;

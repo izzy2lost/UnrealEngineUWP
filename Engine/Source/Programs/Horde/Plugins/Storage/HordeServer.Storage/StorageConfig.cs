@@ -171,7 +171,7 @@ namespace HordeServer.Storage
 	/// <summary>
 	/// Static settings for the storage system
 	/// </summary>
-	public class StaticStorageConfig
+	public class StorageServerConfig : PluginServerConfig
 	{
 		/// <summary>
 		/// Directory to use for the coarse-grained backend cache. This caches full bundles downloaded from the upstream object store.

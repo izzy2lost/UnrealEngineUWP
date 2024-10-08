@@ -65,7 +65,7 @@ namespace HordeServer.Agents.Fleet
 		private readonly ITicker _tickerHighFrequency;
 		private readonly TimeSpan _defaultScaleOutCooldown;
 		private readonly TimeSpan _defaultScaleInCooldown;
-		private readonly IOptions<StaticComputeConfig> _staticComputeConfig;
+		private readonly IOptions<ComputeServerConfig> _staticComputeConfig;
 		private readonly IOptionsMonitor<ComputeConfig> _computeConfig;
 		private readonly Tracer _tracer;
 		private readonly ILogger<FleetService> _logger;
@@ -81,7 +81,7 @@ namespace HordeServer.Agents.Fleet
 			IFleetManagerFactory fleetManagerFactory,
 			IClock clock,
 			IEnumerable<IPoolSizeStrategyFactory> poolSizeStrategyFactories,
-			IOptions<StaticComputeConfig> staticComputeConfig,
+			IOptions<ComputeServerConfig> staticComputeConfig,
 			IOptionsMonitor<ComputeConfig> computeConfig,
 			Tracer tracer,
 			ILogger<FleetService> logger)

@@ -82,7 +82,7 @@ public sealed class AwsAutoScalingLifecycleService : IHostedService, IAsyncDispo
 		IRedisService redisService,
 		IAgentCollection agents,
 		IClock clock,
-		IOptionsMonitor<StaticComputeConfig> staticComputeConfig,
+		IOptionsMonitor<ComputeServerConfig> staticComputeConfig,
 		IServiceProvider serviceProvider,
 		Tracer tracer,
 		ILogger<AwsAutoScalingLifecycleService> logger)

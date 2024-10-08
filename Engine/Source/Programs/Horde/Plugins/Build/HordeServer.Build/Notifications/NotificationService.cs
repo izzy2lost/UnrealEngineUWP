@@ -93,7 +93,7 @@ namespace HordeServer.Notifications
 		/// <summary>
 		/// Settings for the application.
 		/// </summary>
-		private readonly IOptionsMonitor<StaticBuildConfig> _settings;
+		private readonly IOptionsMonitor<BuildServerConfig> _settings;
 
 		/// <summary>
 		/// List of asychronous tasks currently executing
@@ -132,7 +132,7 @@ namespace HordeServer.Notifications
 		/// </summary>
 		public NotificationService(
 			IEnumerable<INotificationSink> sinks,
-			IOptionsMonitor<StaticBuildConfig> settings,
+			IOptionsMonitor<BuildServerConfig> settings,
 			ILogger<NotificationService> logger,
 			IGraphCollection graphCollection,
 			ISubscriptionCollection subscriptionCollection,

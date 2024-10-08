@@ -23,10 +23,10 @@ namespace HordeServer.Tasks
 		readonly IToolCollection _toolCollection;
 		readonly ILogCollection _logCollection;
 		readonly IOptionsMonitor<ComputeConfig> _computeConfig;
-		readonly IOptions<StaticComputeConfig> _staticComputeConfig;
+		readonly IOptions<ComputeServerConfig> _staticComputeConfig;
 		readonly IClock _clock;
 
-		public UpgradeTaskSource(IToolCollection toolCollection, ILogCollection logCollection, IOptionsMonitor<ComputeConfig> computeConfig, IOptions<StaticComputeConfig> staticComputeConfig, IClock clock)
+		public UpgradeTaskSource(IToolCollection toolCollection, ILogCollection logCollection, IOptionsMonitor<ComputeConfig> computeConfig, IOptions<ComputeServerConfig> staticComputeConfig, IClock clock)
 		{
 			_toolCollection = toolCollection;
 			_logCollection = logCollection;

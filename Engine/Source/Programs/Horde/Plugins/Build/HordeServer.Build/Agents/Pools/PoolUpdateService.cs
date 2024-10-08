@@ -152,7 +152,8 @@ namespace HordeServer.Agents.Pools
 					}
 				}
 
-				if (freeDiskSpace != null && conformDiskSpaceNeeded > 0 && freeDiskSpace < conformDiskSpaceNeeded && agent.ConformAttemptCount is null or 0)
+				if (freeDiskSpace != null && conformDiskSpaceNeeded > 0 && freeDiskSpace < conformDiskSpaceNeeded &&
+				    agent.ConformAttemptCount is null or 0 && !agent.RequestFullConform)
 				{
 					await agent.TryUpdateAsync(new UpdateAgentOptions { RequestFullConform = true }, cancellationToken: cancellationToken);
 					_logger.LogInformation("Auto-conforming {AgentId} as workspace conform disk space needed ({ConformDiskSpace:F1} MB) is less than free disk space ({FreeDiskSpace:F1} MB)",
@@ -166,7 +167,7 @@ namespace HordeServer.Agents.Pools
 		/// </summary>
 		/// <param name="cancellationToken">Cancellation token for the async task</param>
 		/// <returns>Async task</returns>
-		async ValueTask UpdatePoolsAsync(CancellationToken cancellationToken)
+		internal async ValueTask UpdatePoolsAsync(CancellationToken cancellationToken)
 		{
 			using TelemetrySpan span = _tracer.StartActiveSpan($"{nameof(PoolUpdateService)}.{nameof(UpdatePoolsAsync)}");
 

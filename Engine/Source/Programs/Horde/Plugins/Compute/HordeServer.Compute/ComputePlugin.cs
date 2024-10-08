@@ -31,16 +31,16 @@ namespace HordeServer
 	/// <summary>
 	/// Entry point for the storage plugin
 	/// </summary>
-	[Plugin("Compute", GlobalConfigType = typeof(ComputeConfig), ServerConfigType = typeof(StaticComputeConfig))]
+	[Plugin("Compute", GlobalConfigType = typeof(ComputeConfig), ServerConfigType = typeof(ComputeServerConfig))]
 	public class ComputePlugin : IPluginStartup
 	{
 		readonly IServerInfo _serverInfo;
-		readonly StaticComputeConfig _staticComputeConfig;
+		readonly ComputeServerConfig _staticComputeConfig;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public ComputePlugin(IServerInfo serverInfo, StaticComputeConfig staticComputeConfig)
+		public ComputePlugin(IServerInfo serverInfo, ComputeServerConfig staticComputeConfig)
 		{
 			_serverInfo = serverInfo;
 			_staticComputeConfig = staticComputeConfig;

@@ -463,7 +463,7 @@ namespace HordeAgent.Services
 			}
 
 			// Add the max supported compute protocol version
-			capabilities.Properties.Add($"ComputeProtocol={(int)ComputeProtocol.Latest}");
+			capabilities.Properties.Add($"{KnownPropertyNames.ComputeProtocol}={(int)ComputeProtocol.Latest}");
 
 			// Whether the agent is packaged as a self-contained .NET app
 			// Used during the transition period over from multi-platform, non-self-contained agent packages.

@@ -2,6 +2,7 @@
 
 using System.Diagnostics.Metrics;
 using System.Net;
+using EpicGames.Horde.Agents;
 using EpicGames.Horde.Agents.Pools;
 using EpicGames.Horde.Compute;
 using HordeServer.Acls;
@@ -191,19 +192,19 @@ namespace HordeServer.Tests.Compute
 			ClusterId clusterId = new("default");
 
 			AllocateResourceParams arp1 = new(clusterId, ComputeProtocol.Latest, new Requirements { Pool = "foo" }) { RequestId = "req1", RequesterIp = ip, ParentLeaseId = null };
-			ComputeResource? resource1 = await ComputeService.TryAllocateResourceAsync(arp1, CancellationToken.None);
+			ComputeResource resource1 = await ComputeService.TryAllocateResourceAsync(arp1, CancellationToken.None);
 			Assert.AreEqual(agent1.Id, resource1!.AgentId);
 
 			AllocateResourceParams arp2 = new(clusterId, ComputeProtocol.Latest, new Requirements { Pool = "bar-%REQUESTER_NETWORK_ID%" }) { RequestId = "req2", RequesterIp = IPAddress.Parse("15.0.0.1"), ParentLeaseId = null };
-			ComputeResource? resource2 = await ComputeService.TryAllocateResourceAsync(arp2, CancellationToken.None);
+			ComputeResource resource2 = await ComputeService.TryAllocateResourceAsync(arp2, CancellationToken.None);
 			Assert.AreEqual(agent2.Id, resource2!.AgentId);
 
 			AllocateResourceParams arp3 = new(clusterId, ComputeProtocol.Latest, new Requirements { Pool = "bar-%REQUESTER_NETWORK_ID%" }) { RequestId = "req3", RequesterIp = ip, ParentLeaseId = null };
-			ComputeResource? resource3 = await ComputeService.TryAllocateResourceAsync(arp3, CancellationToken.None);
+			ComputeResource resource3 = await ComputeService.TryAllocateResourceAsync(arp3, CancellationToken.None);
 			Assert.AreEqual(agent3.Id, resource3!.AgentId);
 
 			AllocateResourceParams arp4 = new(clusterId, ComputeProtocol.Latest, new Requirements { Pool = "qux-%REQUESTER_COMPUTE_ID%" }) { RequestId = "req4", RequesterIp = ip, ParentLeaseId = null };
-			ComputeResource? resource4 = await ComputeService.TryAllocateResourceAsync(arp4, CancellationToken.None);
+			ComputeResource resource4 = await ComputeService.TryAllocateResourceAsync(arp4, CancellationToken.None);
 			Assert.AreEqual(agent4.Id, resource4!.AgentId);
 		}
 
@@ -217,10 +218,10 @@ namespace HordeServer.Tests.Compute
 
 			IAgent agent = await CreateAgentAsync(new PoolId("foo"), properties: ["ComputeIp=11.0.0.1", "ComputePort=5000"]);
 
-			ComputeResource? resource1 = await ComputeService.TryAllocateResourceAsync(CreateParams("11.0.0.1"), CancellationToken.None);
-			Assert.IsNull(resource1);
+			await Assert.ThrowsExceptionAsync<NoComputeResourcesException>(() => ComputeService.TryAllocateResourceAsync(CreateParams("11.0.0.1"), CancellationToken.None));
+			await Assert.ThrowsExceptionAsync<NoComputeResourcesException>(() => ComputeService.TryAllocateResourceAsync(CreateParams("11.0.0.1"), CancellationToken.None));
 
-			ComputeResource? resource2 = await ComputeService.TryAllocateResourceAsync(CreateParams("11.0.0.2"), CancellationToken.None);
+			ComputeResource resource2 = await ComputeService.TryAllocateResourceAsync(CreateParams("11.0.0.2"), CancellationToken.None);
 			Assert.AreEqual(agent.Id, resource2!.AgentId);
 		}
 
@@ -235,13 +236,43 @@ namespace HordeServer.Tests.Compute
 			IAgent agent1 = await CreateAgentAsync(new PoolId("foo"), properties: ["ComputeIp=11.0.0.1", "ComputePort=5000"]);
 			IAgent agent2 = await CreateAgentAsync(new PoolId("bar"), properties: ["ComputeIp=11.0.0.2", "ComputePort=5000"]);
 
-			ComputeResource? resource1 = await ComputeService.TryAllocateResourceAsync(CreateParams("foo"), CancellationToken.None);
+			ComputeResource resource1 = await ComputeService.TryAllocateResourceAsync(CreateParams("foo"), CancellationToken.None);
 			Assert.AreEqual(agent1.Id, resource1!.AgentId);
 
-			ComputeResource? resource2 = await ComputeService.TryAllocateResourceAsync(CreateParams("bar"), CancellationToken.None);
+			ComputeResource resource2 = await ComputeService.TryAllocateResourceAsync(CreateParams("bar"), CancellationToken.None);
 			Assert.AreEqual(agent2.Id, resource2!.AgentId);
 
-			Assert.IsNull(await ComputeService.TryAllocateResourceAsync(CreateParams("does-not-exist"), CancellationToken.None));
+			await Assert.ThrowsExceptionAsync<NoComputeResourcesException>(() => ComputeService.TryAllocateResourceAsync(CreateParams("does-not-exist"), CancellationToken.None));
+		}
+		
+		[TestMethod]
+		public async Task Assignment_Protocol_Async()
+		{
+			await CreateComputeAgentAsync("pool1", protocol: ComputeProtocol.Initial);
+			Assert.AreEqual(ComputeProtocol.Initial, (await AllocateAsync("pool1"))!.Protocol);
+			
+			await CreateComputeAgentAsync("pool2", protocol: ComputeProtocol.Latest);
+			Assert.AreEqual(ComputeProtocol.Latest, (await AllocateAsync("pool2"))!.Protocol);
+			
+			await CreateComputeAgentAsync("pool3", protocol: ComputeProtocol.Latest);
+			Assert.AreEqual(ComputeProtocol.Initial, (await AllocateAsync("pool3", protocol: ComputeProtocol.Initial))!.Protocol);
+		}
+		
+		[TestMethod]
+		public async Task Assignment_NoResources_Async()
+		{
+			AllocateResourceParams CreateParams(string pool)
+			{
+				return new AllocateResourceParams(new ClusterId("default"), ComputeProtocol.Latest, new Requirements { Pool = pool, Exclusive = true });
+			}
+			
+			await CreateAgentAsync(new PoolId("foo"), properties: ["ComputeIp=11.0.0.1", "ComputePort=5000"]);
+			await ComputeService.TryAllocateResourceAsync(CreateParams("foo"), CancellationToken.None);
+			NoComputeResourcesException ex1 = await Assert.ThrowsExceptionAsync<NoComputeResourcesException>(() => ComputeService.TryAllocateResourceAsync(CreateParams("foo"), CancellationToken.None));
+			Assert.AreEqual(NoComputeResourcesException.AllResourcesInUse, ex1.Message);
+			
+			NoComputeResourcesException ex2 = await Assert.ThrowsExceptionAsync<NoComputeResourcesException>(() => ComputeService.TryAllocateResourceAsync(CreateParams("bar"), CancellationToken.None));
+			Assert.AreEqual(NoComputeResourcesException.NoMatchingResources, ex2.Message);
 		}
 
 		[TestMethod]
@@ -269,12 +300,12 @@ namespace HordeServer.Tests.Compute
 				Assert.AreEqual(agent1.Id, (await ComputeService.TryAllocateResourceAsync(arpFoo, CancellationToken.None))!.AgentId);
 
 				AllocateResourceParams arpBar = new(cluster1, ComputeProtocol.Latest, new Requirements { Pool = poolBar.ToString() });
-				Assert.IsNull(await ComputeService.TryAllocateResourceAsync(arpBar, CancellationToken.None));
+				await Assert.ThrowsExceptionAsync<NoComputeResourcesException>(() => ComputeService.TryAllocateResourceAsync(arpBar, CancellationToken.None));
 			}
 
 			{
 				AllocateResourceParams arpFoo = new(cluster2, ComputeProtocol.Latest, new Requirements { Pool = poolFoo.ToString() });
-				Assert.IsNull(await ComputeService.TryAllocateResourceAsync(arpFoo, CancellationToken.None));
+				await Assert.ThrowsExceptionAsync<NoComputeResourcesException>(() => ComputeService.TryAllocateResourceAsync(arpFoo, CancellationToken.None));
 
 				AllocateResourceParams arpBar = new(cluster2, ComputeProtocol.Latest, new Requirements { Pool = poolBar.ToString() });
 				Assert.AreEqual(agent2.Id, (await ComputeService.TryAllocateResourceAsync(arpBar, CancellationToken.None))!.AgentId);
@@ -321,7 +352,7 @@ namespace HordeServer.Tests.Compute
 		[TestMethod]
 		public async Task Connection_Direct_IpConnection_Async()
 		{
-			ComputeResource? cr = await AllocateAsync(ConnectionMode.Direct);
+			ComputeResource? cr = await AllocateWithAgentAsync(ConnectionMode.Direct);
 			Assert.AreEqual(ConnectionMode.Direct, cr!.ConnectionMode);
 			Assert.AreEqual("11.0.0.1", cr.Ip.ToString());
 			Assert.IsNull(cr.ConnectionAddress);
@@ -330,7 +361,7 @@ namespace HordeServer.Tests.Compute
 		[TestMethod]
 		public async Task Connection_Direct_PortsAreMapped_Async()
 		{
-			ComputeResource? cr = await AllocateAsync(ConnectionMode.Direct, ports: new Dictionary<string, int> { { "myOtherPort", 13000 }, { "myPort", 12000 } });
+			ComputeResource? cr = await AllocateWithAgentAsync(ConnectionMode.Direct, ports: new Dictionary<string, int> { { "myOtherPort", 13000 }, { "myPort", 12000 } });
 			Assert.AreEqual(3, cr!.Ports.Count);
 			Assert.AreEqual(new ComputeResourcePort(5000, 5000), cr.Ports[ConnectionMetadataPort.ComputeId]);
 			Assert.AreEqual(new ComputeResourcePort(12000, 12000), cr.Ports["myPort"]);
@@ -340,7 +371,7 @@ namespace HordeServer.Tests.Compute
 		[TestMethod]
 		public async Task Connection_Tunnel_IpConnection_Async()
 		{
-			ComputeResource? cr = await AllocateAsync(ConnectionMode.Tunnel, tunnelAddress: "localhost:3344");
+			ComputeResource? cr = await AllocateWithAgentAsync(ConnectionMode.Tunnel, tunnelAddress: "localhost:3344");
 			Assert.AreEqual(ConnectionMode.Tunnel, cr!.ConnectionMode);
 			Assert.AreEqual("11.0.0.1", cr.Ip.ToString());
 			Assert.AreEqual("localhost:3344", cr.ConnectionAddress);
@@ -349,7 +380,7 @@ namespace HordeServer.Tests.Compute
 		[TestMethod]
 		public async Task Connection_Tunnel_PortsAreMapped_Async()
 		{
-			ComputeResource? cr = await AllocateAsync(ConnectionMode.Tunnel, tunnelAddress: "localhost:3344", ports: new Dictionary<string, int> { { "myOtherPort", 13000 }, { "myPort", 12000 } });
+			ComputeResource? cr = await AllocateWithAgentAsync(ConnectionMode.Tunnel, tunnelAddress: "localhost:3344", ports: new Dictionary<string, int> { { "myOtherPort", 13000 }, { "myPort", 12000 } });
 			Assert.AreEqual(3, cr!.Ports.Count);
 			Assert.AreEqual(new ComputeResourcePort(-1, 5000), cr.Ports[ConnectionMetadataPort.ComputeId]);
 			Assert.AreEqual(new ComputeResourcePort(-1, 12000), cr.Ports["myPort"]);
@@ -359,7 +390,7 @@ namespace HordeServer.Tests.Compute
 		[TestMethod]
 		public async Task Connection_Relay_IpConnection_Async()
 		{
-			ComputeResource? cr = await AllocateAsync(ConnectionMode.Relay);
+			ComputeResource? cr = await AllocateWithAgentAsync(ConnectionMode.Relay);
 			Assert.AreEqual(ConnectionMode.Relay, cr!.ConnectionMode);
 			Assert.AreEqual("11.0.0.1", cr.Ip.ToString());
 			Assert.AreEqual("192.168.1.1", cr.ConnectionAddress);
@@ -368,7 +399,7 @@ namespace HordeServer.Tests.Compute
 		[TestMethod]
 		public async Task Connection_Relay_PortsAreMapped_Async()
 		{
-			ComputeResource? cr = await AllocateAsync(ConnectionMode.Relay, ports: new Dictionary<string, int> { { "myOtherPort", 13000 }, { "myPort", 12000 } });
+			ComputeResource? cr = await AllocateWithAgentAsync(ConnectionMode.Relay, ports: new Dictionary<string, int> { { "myOtherPort", 13000 }, { "myPort", 12000 } });
 			Assert.AreEqual(ConnectionMode.Relay, cr!.ConnectionMode);
 			Assert.AreEqual(3, cr.Ports.Count);
 			Assert.AreEqual(new ComputeResourcePort(12214, 5000), cr.Ports[ConnectionMetadataPort.ComputeId]);
@@ -379,9 +410,9 @@ namespace HordeServer.Tests.Compute
 		private async Task<ComputeService> CreateComputeServiceAsync(string? tunnelAddress, string pool, ComputeClusterConfig ccc)
 		{
 			IOptionsMonitor<ComputeConfig> computeConfig = ServiceProvider.GetRequiredService<IOptionsMonitor<ComputeConfig>>();
-			StaticComputeConfig ss = new() { ComputeTunnelAddress = tunnelAddress };
+			ComputeServerConfig ss = new() { ComputeTunnelAddress = tunnelAddress };
 			ComputeService cs = new(AgentCollection, ServiceProvider.GetRequiredService<IAgentScheduler>(), LogCollection, AgentService, AgentRelayService, GetRedisServiceSingleton(),
-				new TestOptionsMonitor<StaticComputeConfig>(ss), computeConfig, Clock, Tracer, Meter,
+				new TestOptionsMonitor<ComputeServerConfig>(ss), computeConfig, Clock, Tracer, Meter,
 				NullLogger<ComputeService>.Instance);
 			await CreateAgentAsync(new PoolId(pool), properties: ["ComputeIp=11.0.0.1", "ComputePort=5000"]);
 			computeConfig.CurrentValue.Clusters = [ccc];
@@ -390,16 +421,17 @@ namespace HordeServer.Tests.Compute
 			return cs;
 		}
 
-		private async Task<ComputeResource?> AllocateAsync(
+		private async Task<ComputeResource?> AllocateWithAgentAsync(
 			ConnectionMode connectionMode = ConnectionMode.Direct,
 			Dictionary<string, int>? ports = null,
 			bool usePublicIp = false,
 			string[]? relayIps = null,
 			string? tunnelAddress = null,
+			ComputeProtocol protocol = ComputeProtocol.Latest,
 			string pool = "myPool")
 		{
 			await using ComputeService cs = await CreateComputeServiceAsync(tunnelAddress, pool, new ComputeClusterConfig { Id = _cluster1 });
-			AllocateResourceParams arp = new(_cluster1, ComputeProtocol.Latest, new Requirements() { Pool = pool })
+			AllocateResourceParams arp = new(_cluster1, protocol, new Requirements() { Pool = pool })
 			{
 				ConnectionMode = connectionMode,
 				Ports = ports ?? new Dictionary<string, int>(),
@@ -408,6 +440,32 @@ namespace HordeServer.Tests.Compute
 			IPAddress[] defaultRelayIps = { IPAddress.Parse("192.168.1.1") };
 			await AgentRelayService.UpdateAgentHeartbeatAsync(_cluster1, "myrelay", relayIps?.Select(IPAddress.Parse) ?? defaultRelayIps);
 			return await cs.TryAllocateResourceAsync(arp, CancellationToken.None);
+		}
+		
+		private async Task<ComputeResource?> AllocateAsync(
+			string pool = "defaultTestPool",
+			ConnectionMode connectionMode = ConnectionMode.Direct,
+			Dictionary<string, int>? ports = null,
+			bool usePublicIp = false,
+			ComputeProtocol protocol = ComputeProtocol.Latest)
+		{
+			AllocateResourceParams arp = new(new ClusterId("default"), protocol, new Requirements() { Pool = pool })
+			{
+				ConnectionMode = connectionMode,
+				Ports = ports ?? new Dictionary<string, int>(),
+				UsePublicIp = usePublicIp
+			};
+			return await ComputeService.TryAllocateResourceAsync(arp, CancellationToken.None);
+		}
+		
+		private Task<IAgent> CreateComputeAgentAsync(
+			string poolId = "defaultTestPool",
+			string ip = "10.0.0.1",
+			int port = 5000,
+			ComputeProtocol protocol = ComputeProtocol.Latest)
+		{
+			List<string> props = [$"{KnownPropertyNames.ComputeIp}={ip}", $"{KnownPropertyNames.ComputePort}={port}", $"{KnownPropertyNames.ComputeProtocol}={(int)protocol}"];
+			return CreateAgentAsync(new PoolId(poolId), properties: props);
 		}
 
 		private static void AssertContainsMeasurement(List<Measurement<int>> actualMeasurements, int expectedValue, string expectedResource, string expectedClusterId, string expectedPool)

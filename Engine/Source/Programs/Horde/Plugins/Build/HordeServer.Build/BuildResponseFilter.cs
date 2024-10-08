@@ -9,9 +9,9 @@ namespace HordeServer
 {
 	class BuildResponseFilter : IPluginResponseFilter
 	{
-		readonly StaticBuildConfig _staticBuildConfig;
+		readonly BuildServerConfig _staticBuildConfig;
 
-		public BuildResponseFilter(IOptions<StaticBuildConfig> staticBuildConfig)
+		public BuildResponseFilter(IOptions<BuildServerConfig> staticBuildConfig)
 		{
 			_staticBuildConfig = staticBuildConfig.Value;
 		}

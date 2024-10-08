@@ -459,7 +459,7 @@ namespace HordeServer.Streams
 			await channel.FindAsync(HttpContext.Response.BodyWriter, minTime, maxTime, index, count);
 			await Response.CompleteAsync();
 
-			return NoContent();
+			return Empty;
 		}
 
 		/// <summary>

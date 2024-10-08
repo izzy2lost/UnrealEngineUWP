@@ -2,6 +2,7 @@
 
 using System.Diagnostics.CodeAnalysis;
 using EpicGames.Horde.Tools;
+using HordeServer.Plugins;
 using HordeServer.Tools;
 
 #pragma warning disable CA2227 // Change x to be read-only by removing the property setter
@@ -11,7 +12,7 @@ namespace HordeServer
 	/// <summary>
 	/// Server configuration for bundled tools
 	/// </summary>
-	public class ToolsServerConfig
+	public class ToolsServerConfig : PluginServerConfig
 	{
 		/// <summary>
 		/// Tools bundled along with the server. Data for each tool can be produced using the 'bundle create' command, and should be stored in the Tools directory.

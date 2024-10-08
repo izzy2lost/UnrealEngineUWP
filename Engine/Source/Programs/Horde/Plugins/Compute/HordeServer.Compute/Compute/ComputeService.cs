@@ -48,7 +48,16 @@ namespace HordeServer.Compute
 		{
 		}
 	}
-
+	
+	/// <summary>
+	/// Exception when no compute resources available
+	/// </summary>
+	public class NoComputeResourcesException(string? message, Exception? innerException = null) : ComputeServiceException(message, innerException)
+	{
+		internal const string AllResourcesInUse = "Matching resources available but all are in use";
+		internal const string NoMatchingResources = "No matching resources available (in use or not)";
+	}
+	
 	/// <summary>
 	/// Outcome for a compute allocation request
 	/// </summary>
@@ -172,7 +181,7 @@ namespace HordeServer.Compute
 		readonly AgentService _agentService;
 		readonly AgentRelayService _agentRelayService;
 		readonly IRedisService _redisService;
-		readonly IOptionsMonitor<StaticComputeConfig> _staticComputeConfig;
+		readonly IOptionsMonitor<ComputeServerConfig> _staticComputeConfig;
 		readonly IOptionsMonitor<ComputeConfig> _computeConfig;
 		readonly IClock _clock;
 		readonly Tracer _tracer;
@@ -195,7 +204,7 @@ namespace HordeServer.Compute
 			AgentService agentService,
 			AgentRelayService agentRelayService,
 			IRedisService redisService,
-			IOptionsMonitor<StaticComputeConfig> staticComputeConfig,
+			IOptionsMonitor<ComputeServerConfig> staticComputeConfig,
 			IOptionsMonitor<ComputeConfig> computeConfig,
 			IClock clock,
 			Tracer tracer,
@@ -350,7 +359,7 @@ namespace HordeServer.Compute
 		/// <param name="arp">Allocation parameters</param>
 		/// <param name="cancellationToken">Cancellation token</param>
 		/// <returns>A compute resource if successful</returns>
-		public async Task<ComputeResource?> TryAllocateResourceAsync(AllocateResourceParams arp, CancellationToken cancellationToken)
+		public async Task<ComputeResource> TryAllocateResourceAsync(AllocateResourceParams arp, CancellationToken cancellationToken)
 		{
 			using TelemetrySpan span = _tracer.StartActiveSpan($"{nameof(ComputeService)}.{nameof(TryAllocateResourceAsync)}");
 			span.SetAttribute("clusterId", arp.ClusterId.ToString());
@@ -397,11 +406,16 @@ namespace HordeServer.Compute
 			try
 			{
 				PoolId? poolId = arp.Requirements.Pool != null ? new PoolId(arp.Requirements.Pool) : null;
+				int numMatchingAgents = 0;
 				await foreach (IAgent agent in _agentCollection.FindAsync(poolId, consistentRead: false, cancellationToken: cancellationToken))
 				{
 					Dictionary<string, int> assignedResources = new Dictionary<string, int>();
 
 					bool isMemberOfCluster = clusterConfig.Condition == null || agent.SatisfiesCondition(clusterConfig.Condition);
+					if (isMemberOfCluster)
+					{
+						numMatchingAgents++;
+					}
 					bool match = isMemberOfCluster && agent.MeetsRequirements(arp.Requirements, assignedResources, conditions);
 					if (match)
 					{
@@ -428,7 +442,7 @@ namespace HordeServer.Compute
 
 						using TelemetrySpan assignSpan = _tracer.StartActiveSpan("TryAssignAsync");
 
-						ComputeResource? resource = await TryAssignAsync(arp, agent, computeTask, leaseId);
+						ComputeResource? resource = await TryAssignAsync(arp, agent, computeTask, protocol, leaseId);
 						if (resource != null)
 						{
 							using TelemetrySpan addLeaseSpan = _tracer.StartActiveSpan("Adding lease");
@@ -456,7 +470,12 @@ namespace HordeServer.Compute
 				}
 
 				await LogRequestAsync(AllocationOutcome.Denied, arp.RequestId, arp.Requirements, arp.ParentLeaseId, span, cancellationToken);
-				return null;
+				
+				if (numMatchingAgents == 0)
+				{
+					throw new NoComputeResourcesException(NoComputeResourcesException.NoMatchingResources);
+				}
+				throw new NoComputeResourcesException(NoComputeResourcesException.AllResourcesInUse);
 			}
 			catch (AgentRelayException are)
 			{
@@ -693,7 +712,7 @@ namespace HordeServer.Compute
 			return await _agentScheduler.GetChildLeaseCountAsync(parentLeaseId.Value, cancellationToken);
 		}
 
-		private async Task<ComputeResource?> TryAssignAsync(AllocateResourceParams arp, IAgent agent, ComputeTask computeTask, LeaseId leaseId)
+		private async Task<ComputeResource?> TryAssignAsync(AllocateResourceParams arp, IAgent agent, ComputeTask computeTask, ComputeProtocol protocol, LeaseId leaseId)
 		{
 			using TelemetrySpan span = _tracer.StartActiveSpan($"{nameof(ComputeService)}.{nameof(TryAssignAsync)}");
 
@@ -721,7 +740,7 @@ namespace HordeServer.Compute
 					ports[portId] = new ComputeResourcePort(port, port);
 				}
 
-				return new ComputeResource(ConnectionMode.Direct, agentIp, null, ports, computeTask, agent.Properties, agent.Id, agent.Version, leaseId);
+				return new ComputeResource(ConnectionMode.Direct, agentIp, null, ports, computeTask, agent.Properties, agent.Id, agent.Version, protocol, leaseId);
 			}
 			else if (arp.ConnectionMode == ConnectionMode.Tunnel && tunnelAddress != null)
 			{
@@ -733,7 +752,7 @@ namespace HordeServer.Compute
 					ports[portId] = new ComputeResourcePort(-1, port);
 				}
 
-				return new ComputeResource(ConnectionMode.Tunnel, agentIp, tunnelAddress, ports, computeTask, agent.Properties, agent.Id, agent.Version, leaseId);
+				return new ComputeResource(ConnectionMode.Tunnel, agentIp, tunnelAddress, ports, computeTask, agent.Properties, agent.Id, agent.Version, protocol, leaseId);
 			}
 			else if (arp.ConnectionMode == ConnectionMode.Relay)
 			{
@@ -764,7 +783,7 @@ namespace HordeServer.Compute
 					}
 				}
 
-				return new ComputeResource(ConnectionMode.Relay, agentIp, relayIp.ToString(), ports, computeTask, agent.Properties, agent.Id, agent.Version, leaseId);
+				return new ComputeResource(ConnectionMode.Relay, agentIp, relayIp.ToString(), ports, computeTask, agent.Properties, agent.Id, agent.Version, protocol, leaseId);
 			}
 
 			throw new Exception("Unable to resolve a suitable connection mode for compute task");

@@ -40,16 +40,16 @@ namespace HordeServer
 	/// <summary>
 	/// Entry point for the storage plugin
 	/// </summary>
-	[Plugin("Build", GlobalConfigType = typeof(BuildConfig), ServerConfigType = typeof(StaticBuildConfig))]
+	[Plugin("Build", GlobalConfigType = typeof(BuildConfig), ServerConfigType = typeof(BuildServerConfig))]
 	public class BuildPlugin : IPluginStartup
 	{
 		readonly IServerInfo _serverInfo;
-		readonly StaticBuildConfig _staticConfig;
+		readonly BuildServerConfig _staticConfig;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public BuildPlugin(IServerInfo serverInfo, StaticBuildConfig staticConfig)
+		public BuildPlugin(IServerInfo serverInfo, BuildServerConfig staticConfig)
 		{
 			_serverInfo = serverInfo;
 			_staticConfig = staticConfig;

@@ -12,7 +12,6 @@ using System.Threading.Tasks;
 using EpicGames.Core;
 using HordeServer.Commands;
 using HordeServer.Plugins;
-using HordeServer.Storage;
 using HordeServer.Utilities;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Configuration.Memory;
@@ -91,9 +90,12 @@ namespace HordeServer
 
 		public static Type[] ConfigSchemas = FindSchemaTypes();
 
+		public static IPluginCollection Plugins => s_pluginCollection ?? throw new InvalidOperationException("Plugin collection has not been initialized");
+
 		private static DirectoryReference s_dataDir = DirectoryReference.Combine(GetAppDir(), "Data");
 		private static DirectoryReference s_configDir = DirectoryReference.Combine(GetAppDir(), "Defaults");
 		private static FileReference? s_serverConfigFile;
+		private static IPluginCollection? s_pluginCollection;
 
 		static Type[] FindSchemaTypes()
 		{
@@ -141,12 +143,12 @@ namespace HordeServer
 					if (dataDir != null)
 					{
 						s_dataDir = dataDir;
-					}					
+					}
 				}
 				else
 				{
 					s_dataDir = DirectoryReference.Combine(GetAppDir(), baseServerSettings.DataDir);
-				}								
+				}
 			}
 			else if (baseServerSettings.Installed && RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
 			{
@@ -196,10 +198,10 @@ namespace HordeServer
 			ServerInfo serverInfo = new ServerInfo(config, Options.Create(serverSettings));
 			services.AddSingleton<IServerInfo>(serverInfo);
 
-			IPluginCollection pluginCollection = ConfigurePlugins();
-			services.AddSingleton<IPluginCollection>(pluginCollection);
+			s_pluginCollection = CreatePluginCollection(config);
+			services.AddSingleton<IPluginCollection>(s_pluginCollection);
 
-			foreach (Assembly pluginAssembly in pluginCollection.LoadedPlugins.Select(x => x.Assembly).Distinct())
+			foreach (Assembly pluginAssembly in s_pluginCollection.LoadedPlugins.Select(x => x.Assembly).Distinct())
 			{
 				services.AddCommandsFromAssembly(pluginAssembly);
 			}
@@ -212,17 +214,54 @@ namespace HordeServer
 #pragma warning restore ASP0000 // Do not call 'IServiceCollection.BuildServiceProvider' in 'ConfigureServices'
 		}
 
-		public static IPluginCollection ConfigurePlugins()
+		internal static void InitializePluginsForTests()
 		{
+			s_pluginCollection ??= CreatePluginCollection(new ConfigurationBuilder().Build());
+		}
+
+		static IPluginCollection CreatePluginCollection(IConfiguration configuration)
+		{
+			Dictionary<string, PluginServerConfig> pluginConfigs = new Dictionary<string, PluginServerConfig>(StringComparer.OrdinalIgnoreCase);
+			configuration.GetSection("Horde").GetSection("Plugins").Bind(pluginConfigs);
+
+			FileFilter pluginFilter = new FileFilter(FileFilterType.Exclude);
+			pluginFilter.AddRule("/HordeServer.*.dll");
+
+			List<FileReference> files = pluginFilter.ApplyToDirectory(AppDir, true);
+
+			HashSet<string> missingPlugins = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+			foreach ((string name, PluginServerConfig pluginConfig) in pluginConfigs)
+			{
+				if (pluginConfig.Enabled)
+				{
+					missingPlugins.Add(name);
+				}
+			}
+
 			PluginCollection pluginCollection = new PluginCollection();
-			pluginCollection.Add<AnalyticsPlugin>();
-			pluginCollection.Add<BuildPlugin>();
-			pluginCollection.Add<ComputePlugin>();
-			pluginCollection.Add<DdcPlugin>();
-			pluginCollection.Add<SecretsPlugin>();
-			pluginCollection.Add<StoragePlugin>();
-			pluginCollection.Add<SymbolsPlugin>();
-			pluginCollection.Add<ToolsPlugin>();
+			foreach (FileReference file in files)
+			{
+				Assembly assembly = Assembly.LoadFrom(file.FullName);
+				foreach (Type type in assembly.GetExportedTypes())
+				{
+					PluginAttribute? pluginAttribute = type.GetCustomAttribute<PluginAttribute>();
+					if (pluginAttribute != null)
+					{
+						PluginServerConfig? pluginConfig;
+						if (!pluginConfigs.TryGetValue(pluginAttribute.Name, out pluginConfig) || pluginConfig.Enabled)
+						{
+							pluginCollection.Add(type);
+							missingPlugins.Remove(pluginAttribute.Name);
+						}
+					}
+				}
+			}
+
+			if (missingPlugins.Count > 0)
+			{
+				throw new InvalidOperationException($"Unable to find plugin(s) enabled in config file: {StringUtils.FormatList(missingPlugins)}");
+			}
+
 			return pluginCollection;
 		}
 
@@ -335,7 +374,7 @@ namespace HordeServer
 						{
 							regDataDir = Registry.GetValue("HKEY_LOCAL_MACHINE\\SOFTWARE\\Epic Games\\Horde\\Server", "DataDir", null) as string;
 						}
-					}					
+					}
 				}
 			}
 
