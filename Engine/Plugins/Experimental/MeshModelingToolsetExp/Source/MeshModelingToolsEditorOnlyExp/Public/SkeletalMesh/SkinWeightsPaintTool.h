@@ -678,7 +678,7 @@ public:
 struct MESHMODELINGTOOLSEDITORONLYEXP_API FCleanedEditMesh
 {
 	FCleanedEditMesh(const FDynamicMesh3& InDynamicMesh, const FMeshDescription& InMeshDescription);
-	void CopyWeightsToOriginalMesh(FName Profile);
+	void CopyWeightsToOriginalMesh(const FName InProfile);
 	FDynamicMesh3& GetEditableMesh();
 	FMeshDescription& GetEditableMeshDescription();
 	FDynamicMesh3& GetOriginalMesh();
