@@ -135,6 +135,7 @@ float3 GetMegaLightsVolumeLighting(
 Texture2D FurthestHZBTexture;
 float HZBMipLevel;
 float2 ViewportUVToHZBBufferUV;
+uint UseHZBOcclusionTest;
 
 float GetMaxVisibleDepth(uint2 GridCoordinate)
 {
@@ -145,13 +146,13 @@ float GetMaxVisibleDepth(uint2 GridCoordinate)
 
 bool IsFroxelVisible(uint3 GridCoordinate)
 {
-#define HZB_OCCLUSION_TEST 1
-#if HZB_OCCLUSION_TEST
-	float MaxVisibleDepth = GetMaxVisibleDepth(GridCoordinate.xy);
-	float TrilinearFootprintBias = -1.0f;
-	float FroxelMinSceneDepth = ComputeDepthFromZSlice(max((float)GridCoordinate.z + TrilinearFootprintBias, 0.0f));
-	return FroxelMinSceneDepth < MaxVisibleDepth;
-#else
+	if (UseHZBOcclusionTest != 0)
+	{
+		float MaxVisibleDepth = GetMaxVisibleDepth(GridCoordinate.xy);
+		float TrilinearFootprintBias = -1.0f;
+		float FroxelMinSceneDepth = ComputeDepthFromZSlice(max((float)GridCoordinate.z + TrilinearFootprintBias, 0.0f));
+		return FroxelMinSceneDepth < MaxVisibleDepth;
+	}
+
 	return true;
-#endif
 }
