@@ -13,6 +13,10 @@ struct FRayMarchingContext
 	// World-space
 	float3 WorldRayOrigin;
 	float3 WorldRayDirection;
+#if USE_ANALYTIC_DERIVATIVES
+	float3 WorldRayDirection_DDX;
+	float3 WorldRayDirection_DDY;
+#endif // USE_ANALYTIC_DERIVATIVES
 	float LocalToWorldScale;
 
 	// Ray-step attributes
@@ -35,11 +39,15 @@ FRayMarchingContext CreateRayMarchingContext(
 	// Local-space
 	float3 LocalRayOrigin,
 	float3 LocalRayDirection,
+	float3 LocalRayDirection_DDX,
+	float3 LocalRayDirection_DDY,
 	float LocalRayTMin,
 	float LocalRayTMax,
 	// World-space
 	float3 WorldRayOrigin,
 	float3 WorldRayDirection,
+	float3 WorldRayDirection_DDX,
+	float3 WorldRayDirection_DDY,
 	// Ray-step attributes
 	float Jitter,
 	float StepSize,
@@ -60,6 +68,10 @@ FRayMarchingContext CreateRayMarchingContext(
 	// World-space
 	Context.WorldRayOrigin = WorldRayOrigin;
 	Context.WorldRayDirection = WorldRayDirection;
+#if USE_ANALYTIC_DERIVATIVES
+	Context.WorldRayDirection_DDX = WorldRayDirection_DDX;
+	Context.WorldRayDirection_DDY = WorldRayDirection_DDY;
+#endif // USE_ANALYTIC_DERIVATIVES
 	// Ray-step attributes
 	Context.Jitter = Jitter;
 	Context.StepSize = StepSize;
@@ -78,6 +90,54 @@ FRayMarchingContext CreateRayMarchingContext(
 	Context.MipLevel = 0.0f;
 
 	return Context;
+}
+
+FRayMarchingContext CreateRayMarchingContext(
+	// Local-space
+	float3 LocalRayOrigin,
+	float3 LocalRayDirection,
+	float LocalRayTMin,
+	float LocalRayTMax,
+	// World-space
+	float3 WorldRayOrigin,
+	float3 WorldRayDirection,
+	// Ray-step attributes
+	float Jitter,
+	float StepSize,
+	uint MaxStepCount,
+	// Lighting
+	int bApplyEmissionAndTransmittance,
+	int bApplyDirectLighting,
+	int bApplyShadowTransmittance
+)
+{
+	float3 LocalRayDirection_DDX = 0.0;
+	float3 LocalRayDirection_DDY = 0.0;
+	float3 WorldRayDirection_DDX = 0.0;
+	float3 WorldRayDirection_DDY = 0.0;
+
+	return CreateRayMarchingContext(
+		// Local-space
+		LocalRayOrigin,
+		LocalRayDirection,
+		LocalRayDirection_DDX,
+		LocalRayDirection_DDY,
+		LocalRayTMin,
+		LocalRayTMax,
+		// World-space
+		WorldRayOrigin,
+		WorldRayDirection,
+		WorldRayDirection_DDX,
+		WorldRayDirection_DDY,
+		// Ray-step attributes
+		Jitter,
+		StepSize,
+		MaxStepCount,
+		// Lighting
+		bApplyEmissionAndTransmittance,
+		bApplyDirectLighting,
+		bApplyShadowTransmittance
+	);
 }
 
 float CalcStepSize(float3 LocalRayDirection, float LocalStepSize, float LocalStepFactor)
