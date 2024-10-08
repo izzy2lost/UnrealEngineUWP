@@ -501,7 +501,7 @@ void FDeferredShadingSceneRenderer::PrepareLumenHardwareRayTracingVisualize(cons
 
 void FDeferredShadingSceneRenderer::PrepareLumenHardwareRayTracingVisualizeLumenMaterial(const FViewInfo& View, TArray<FRHIRayTracingShader*>& OutRayGenShaders)
 {
-	if (Lumen::ShouldVisualizeHardwareRayTracing(*View.Family))
+	if (Lumen::ShouldVisualizeHardwareRayTracing(*View.Family) && !Lumen::UseHardwareInlineRayTracing(*View.Family))
 	{
 		for (int32 FarField = 0; FarField < 2; FarField++)
 		{
