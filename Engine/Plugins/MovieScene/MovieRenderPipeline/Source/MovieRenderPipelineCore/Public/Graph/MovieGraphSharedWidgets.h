@@ -2,7 +2,11 @@
 
 #pragma once
 
+// Don't even declare these widgets unless this is an editor build. This allows us to inherit from FSelfRegisteringEditorUndoClient.
+#if WITH_EDITOR
+
 #include "CoreMinimal.h"
+#include "EditorUndoClient.h"
 #include "Framework/Application/SlateApplication.h"
 #include "Framework/Commands/GenericCommands.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
@@ -24,12 +28,13 @@
  * list indicating how many items are in the list.
  */
 template<typename ListType>
-class SMovieGraphSimpleList final : public SCompoundWidget
+class SMovieGraphSimpleList final : public SCompoundWidget, public FSelfRegisteringEditorUndoClient
 {
 public:
 	DECLARE_DELEGATE_RetVal_OneParam(const FSlateBrush*, FGetRowIcon, ListType);
 	DECLARE_DELEGATE_RetVal_OneParam(FText, FGetRowText, ListType);
 	DECLARE_DELEGATE_OneParam(FOnDelete, TArray<ListType>);
+	DECLARE_DELEGATE(FOnRefreshDataSourceRequested);
 	DECLARE_DELEGATE_RetVal_OneParam(bool, FGetRowEnableState, ListType);
 	DECLARE_DELEGATE_TwoParams(FSetRowEnableState, ListType, bool);
 	
@@ -40,6 +45,12 @@ public:
 		
 		/** The source of data that the list will display. */
 		SLATE_ATTRIBUTE(TArray<ListType>*, DataSource)
+
+		/**
+		 * If the data source provided to the list is not the data model being modified by the transaction system, then this event
+		 * should be provided a delegate that refreshes the data source. This delegate will be called when the list needs to be refreshed.
+		 */
+		SLATE_EVENT(FOnRefreshDataSourceRequested, OnRefreshDataSourceRequested)
 
 		/** The name of the data type that will be shown in the summary row. */
 		SLATE_ATTRIBUTE(FText, DataType)
@@ -72,6 +83,7 @@ public:
 	void Construct(const FArguments& InArgs)
 	{
 		DataSource = InArgs._DataSource.Get();
+		OnRefreshDataSourceRequested = InArgs._OnRefreshDataSourceRequested;
 		DataType = InArgs._DataType.Get();
 		DataTypePlural = InArgs._DataTypePlural.Get();
 		SelectionMode = InArgs._SelectionMode.Get();
@@ -136,6 +148,7 @@ public:
 	{
 		if (ListView)
 		{
+			OnRefreshDataSourceRequested.ExecuteIfBound();
 			ListView->RequestListRefresh();
 		}
 	}
@@ -266,12 +279,25 @@ private:
 			];
 	}
 
+	//~ Begin FEditorUndoClient Interface
+	virtual void PostUndo(bool bSuccess) override
+	{
+		Refresh();
+	}
+	
+	virtual void PostRedo(bool bSuccess) override
+	{
+		Refresh();
+	}
+	//~ End FEditorUndoClient Interface
+
 private:
 	TSharedPtr<SListView<ListType>> ListView;
 	TSharedPtr<FUICommandList> CommandList;
 	FGetRowIcon OnGetRowIcon;
 	FGetRowText OnGetRowText;
 	FOnDelete OnDelete;
+	FOnRefreshDataSourceRequested OnRefreshDataSourceRequested;
 	bool bShowEnableDisable = false;
 	FGetRowEnableState OnGetRowEnableState;
 	FSetRowEnableState OnSetRowEnableState;
@@ -449,3 +475,5 @@ private:
 };
 
 #undef LOCTEXT_NAMESPACE
+
+#endif	// WITH_EDITOR

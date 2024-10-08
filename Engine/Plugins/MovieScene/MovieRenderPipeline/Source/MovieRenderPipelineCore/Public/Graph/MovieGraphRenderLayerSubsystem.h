@@ -171,6 +171,9 @@ private:
 
 	/** Removes the provided actors from the query, updating the UI as needed. */
 	void RemoveActors(const TArray<TSoftObjectPtr<AActor>>& InActors);
+
+	/** Refreshes the list's data source to reflect the data model. */
+	void RefreshListDataSource();
 #endif
 
 public:
@@ -454,6 +457,9 @@ private:
 	/** Adds the provided levels to the query, updating the UI as needed. Calls InOnAddFinished when done. */
 	void AddLevels(const TArray<UWorld*>& InLevels, const FMovieGraphConditionGroupQueryContentsChanged& InOnAddFinished);
 
+	/** Refreshes the list's data source to reflect the data model. */
+	void RefreshListDataSource();
+
 	/** Displays the names of sublevels which have been chosen. */
 	TSharedPtr<SMovieGraphSimpleList<TSharedPtr<TSoftObjectPtr<UWorld>>>> SublevelsList;
 
@@ -534,6 +540,9 @@ private:
 	
 	/** Adds the provided data layers to the query, updating the UI as needed. Calls InOnAddFinished when done. */
 	void AddDataLayers(const TArray<const UDataLayerAsset*>& InDataLayers, const FMovieGraphConditionGroupQueryContentsChanged& InOnAddFinished);
+
+	/** Refreshes the list's data source to reflect the data model. */
+	void RefreshListDataSource();
 
 	/** Displays the layers which have been chosen. */
 	TSharedPtr<SMovieGraphSimpleList<TSharedPtr<TSoftObjectPtr<UDataLayerAsset>>>> DataLayersList;
