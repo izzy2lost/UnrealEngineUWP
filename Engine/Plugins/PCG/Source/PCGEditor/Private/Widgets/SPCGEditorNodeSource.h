@@ -44,9 +44,17 @@ private:
 
 	bool IsShaderTextReadOnly() const;
 
-	void OnShaderFunctionsTextChanged(const FText& InText) const;
-	void OnShaderTextChanged(const FText& InText) const;
-	void OnShaderTextChangesApplied() const;
+	void OnShaderFunctionsTextChanged(const FText& InText);
+	void OnShaderSourceTextChanged(const FText& InText);
+
+	void OnShaderFunctionsTextCommitted(const FText& InText, ETextCommit::Type InCommitInfo);
+	void OnShaderSourceTextCommitted(const FText& InText, ETextCommit::Type InCommitInfo);
+
+	void OnShaderFunctionsTextChangesApplied() const;
+	void OnShaderSourceTextChangesApplied() const;
+
+	void SetShaderFunctionsText() const;
+	void SetShaderSourceText() const;
 
 	TSharedRef<SWidget> ConstructNonExpandableHeaderWidget(const SExpandableArea::FArguments& InArgs) const;
 
@@ -61,4 +69,7 @@ private:
 	TSharedPtr<SPCGNodeSourceTextBox> DeclarationsTextBox;
 	TSharedPtr<SPCGNodeSourceTextBox> ShaderFunctionsTextBox;
 	TSharedPtr<SPCGNodeSourceTextBox> ShaderTextTextBox;
+
+	FText ShaderFunctionsText;
+	FText ShaderSourceText;
 };

@@ -87,7 +87,6 @@ protected:
 	void SetShaderFunctionsText(const FString& NewFunctionsText) override;
 	void SetShaderText(const FString& NewText) override;
 	bool IsShaderTextReadOnly() const override;
-	void ApplySourceChanges() override;
 	//~End IPCGNodeSourceTextProvider interface
 #endif
 

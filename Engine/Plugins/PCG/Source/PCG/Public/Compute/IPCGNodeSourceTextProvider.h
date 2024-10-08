@@ -37,8 +37,5 @@ public:
 
 	/** Return true is the shader text can be edited */
 	virtual bool IsShaderTextReadOnly() const = 0;
-
-	/** Apply source changes (compile and execute). */
-	virtual void ApplySourceChanges() = 0;
 #endif
 };

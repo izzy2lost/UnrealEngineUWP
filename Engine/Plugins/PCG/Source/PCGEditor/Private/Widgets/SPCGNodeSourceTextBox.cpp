@@ -107,6 +107,7 @@ void SPCGNodeSourceTextBox::Construct(const FArguments& InArgs)
 			.TextStyle(&TextStyle)
 			.Text(InArgs._Text)
 			.OnTextChanged(InArgs._OnTextChanged)
+			.OnTextCommitted(InArgs._OnTextCommitted)
 			.OnKeyCharHandler(this, &SPCGNodeSourceTextBox::OnTextKeyChar)
 			.OnKeyDownHandler(this, &SPCGNodeSourceTextBox::OnTextKeyDown)
 			// By default, the Tab key gets routed to "next widget". We want to disable that behaviour.

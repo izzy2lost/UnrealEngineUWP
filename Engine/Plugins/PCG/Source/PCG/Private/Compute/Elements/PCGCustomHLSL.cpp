@@ -17,6 +17,10 @@
 
 #include "Internationalization/Regex.h"
 
+#if WITH_EDITOR
+#include "ScopedTransaction.h"
+#endif
+
 #include UE_INLINE_GENERATED_CPP_BY_NAME(PCGCustomHLSL)
 
 #define LOCTEXT_NAMESPACE "PCGCustomHLSLElement"
@@ -594,26 +598,44 @@ FString UPCGCustomHLSLSettings::GetShaderText() const
 
 void UPCGCustomHLSLSettings::SetShaderFunctionsText(const FString& NewFunctionsText)
 {
-	ShaderFunctions = NewFunctionsText;
+	const FName PropertyName = GET_MEMBER_NAME_CHECKED(UPCGCustomHLSLSettings, ShaderFunctions);
+	FProperty* Property = FindFProperty<FProperty>(StaticClass(), PropertyName);
+	FPropertyChangedEvent PropertyChangedEvent(Property, EPropertyChangeType::ValueSet);
 
-	UpdateAttributeKeys();
+	{
+		FScopedTransaction Transaction(LOCTEXT("OnSetShaderFunctionsText", "Set Shader Functions Text"));
+	
+		PreEditChange(Property);
+		Modify();
+		ShaderFunctions = NewFunctionsText;
+		PostEditChangeProperty(PropertyChangedEvent);
+	}
+	
+
+	OnSettingsChangedDelegate.Broadcast(this, GetChangeTypeForProperty(PropertyName));
 }
 
 void UPCGCustomHLSLSettings::SetShaderText(const FString& NewText)
 {
-	ShaderSource = NewText;
+	const FName PropertyName = GET_MEMBER_NAME_CHECKED(UPCGCustomHLSLSettings, ShaderSource);
+	FProperty* Property = FindFProperty<FProperty>(StaticClass(), PropertyName);
+	FPropertyChangedEvent PropertyChangedEvent(Property, EPropertyChangeType::ValueSet);
+	
+	{
+		FScopedTransaction Transaction(LOCTEXT("OnSetShaderSourceText", "Set Shader Source Text"));
 
-	UpdateAttributeKeys();
+		PreEditChange(Property);
+		Modify();
+		ShaderSource = NewText;
+		PostEditChangeProperty(PropertyChangedEvent);
+	}
+
+	OnSettingsChangedDelegate.Broadcast(this, GetChangeTypeForProperty(PropertyName));
 }
 
 bool UPCGCustomHLSLSettings::IsShaderTextReadOnly() const
 {
 	return false;
-}
-
-void UPCGCustomHLSLSettings::ApplySourceChanges()
-{
-	OnSettingsChangedDelegate.Broadcast(this, GetChangeTypeForProperty(GET_MEMBER_NAME_CHECKED(UPCGCustomHLSLSettings, ShaderSource)));
 }
 #endif //WITH_EDITOR
 
