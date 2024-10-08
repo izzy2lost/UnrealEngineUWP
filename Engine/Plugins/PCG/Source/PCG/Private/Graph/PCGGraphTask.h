@@ -147,6 +147,9 @@ struct FPCGGraphTask
 
 	// Whether PrepareForExecute as been called on this task
 	bool bHasDonePrepareForExecute = false;
+	
+	// Keep track if this task input has already been hooked to the pre task, like to a pre-task of a subgraph, to avoid hooking it twice, like to the graph pre-task.
+	bool bWasHookedToPreTask = false;
 
 #if WITH_EDITOR
 	// Can be true when we want to have debug display on a task but have taken the results from the cache
