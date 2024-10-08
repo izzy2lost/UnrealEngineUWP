@@ -1053,6 +1053,11 @@ public:
 	CORE_API static int32 GetNameEntryMemorySize();
 
 	/**
+	 * @return Estimated remaining size the name entry table is willing to allocate.
+	 */
+	CORE_API static int32 GetNameEntryMemoryEstimatedAvailable();
+
+	/**
 	* @return Size of Name Table object as a whole
 	*/
 	CORE_API static int32 GetNameTableMemorySize();

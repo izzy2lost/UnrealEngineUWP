@@ -2567,6 +2567,12 @@ int32 FName::GetNameEntryMemorySize()
 	return GetNamePool().NumBlocks() * FNameEntryAllocator::BlockSizeBytes;
 }
 
+int32 FName::GetNameEntryMemoryEstimatedAvailable()
+{
+	FNamePool& Pool = GetNamePool();
+	return (FNameMaxBlocks - Pool.NumBlocks()) * FNameEntryAllocator::BlockSizeBytes;
+}
+
 int32 FName::GetNameTableMemorySize()
 {
 	return GetNameEntryMemorySize() + sizeof(FNamePool) + GetNamePool().NumSlots() * sizeof(FNameSlot);

@@ -617,6 +617,11 @@ bool verse::CanAllocateUObjects()
 	// NOTE: This is an arbitrary limit. If we have less than ~10k `UObject`s available for allocation left
 	// we're probably in a bad spot anyway. This just makes sure that there is some slack available before the
 	// limit gets hit.
+	// (The `FName` space requirement of 5MB, out of a maximum of 1GB, is chosen to match the ratio of 10k to
+	// the default maximum of 2M `UObject`s. It is checked separately because we have observed islands running
+	// out of `FName` space before hitting this `UObject` limit.)
 	static constexpr int32 MinAvailableObjectCount = 10 * 1024;
-	return GUObjectArray.GetObjectArrayEstimatedAvailable() >= MinAvailableObjectCount;
+	static constexpr int32 MinAvailableNameEntrySize = 5 * 1024 * 1024;
+	return GUObjectArray.GetObjectArrayEstimatedAvailable() >= MinAvailableObjectCount &&
+		FName::GetNameEntryMemoryEstimatedAvailable() >= MinAvailableNameEntrySize;
 }
