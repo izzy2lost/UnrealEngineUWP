@@ -800,7 +800,7 @@ void FChaosVDGeometryBuilder::AdjustedTransformForImplicit(const Chaos::FImplici
 	using namespace Chaos;
 	switch (GetInnerType(InImplicit->GetType()))
 	{
-		// Currently, only capsules transforms needs to be re-adjusted
+		// Currently, only capsules and spheres transforms needs to be re-adjusted to take into account non-zero center locations
 		case ImplicitObjectType::Capsule:
 		{
 			if (const FCapsule* Capsule = InImplicit->template GetObject<FCapsule>())
@@ -814,6 +814,15 @@ void FChaosVDGeometryBuilder::AdjustedTransformForImplicit(const Chaos::FImplici
 			}
 			break;
 		}
+		case ImplicitObjectType::Sphere:
+			{
+				if (const Chaos::TSphere<FReal, 3>* Sphere = InImplicit->template GetObject<Chaos::TSphere<FReal, 3>>())
+				{
+					const FVector FinalLocation = OutAdjustedTransform.TransformPosition(Sphere->GetCenter());
+					OutAdjustedTransform.SetLocation(FinalLocation);
+				}
+				break;
+			}
 		default:
 			break;
 	}
