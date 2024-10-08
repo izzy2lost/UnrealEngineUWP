@@ -5531,9 +5531,6 @@ void FAudioDevice::ProcessingPendingActiveSoundStops(bool bForceDelete)
 				}
 				ActiveSound->ClearTransmitter();
 
-				// Remove from the list of pending sounds to stop
-				PendingSoundsToStop.Remove(ActiveSound);
-	
 				if (bWasVirtualized)
 				{
 					NotifySubsystemsVirtualizedSoundDeleting(*ActiveSound);
@@ -5542,6 +5539,11 @@ void FAudioDevice::ProcessingPendingActiveSoundStops(bool bForceDelete)
 				{
 					NotifySubsystemsActiveSoundDeleting(*ActiveSound);
 				}
+
+				// Remove from the list of pending sounds to stop.
+				// MUST be done last to avoid risk of double delete.
+				PendingSoundsToStop.Remove(ActiveSound);
+
 				delete ActiveSound;
 			}
 			else
