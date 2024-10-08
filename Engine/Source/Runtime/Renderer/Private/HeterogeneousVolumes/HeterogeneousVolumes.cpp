@@ -258,6 +258,13 @@ static TAutoConsoleVariable<int32> CVarHeterogeneousVolumesApplyFogInscatteringM
 	ECVF_RenderThreadSafe
 );
 
+static TAutoConsoleVariable<int32> CVarHeterogeneousVolumesUseAnalyticDerivatives(
+	TEXT("r.HeterogeneousVolumes.UseAnalyticDerivatives"),
+	1,
+	TEXT("Writes Heterogeneous Volumes velocity to the feature buffer (Default = 1)"),
+	ECVF_RenderThreadSafe
+);
+
 static TAutoConsoleVariable<int32> CVarHeterogeneousVolumesVelocity(
 	TEXT("r.HeterogeneousVolumes.Velocity"),
 	0,
@@ -561,6 +568,11 @@ namespace HeterogeneousVolumes
 	EFogMode GetApplyFogInscattering()
 	{
 		return static_cast<EFogMode>(FMath::Clamp(CVarHeterogeneousVolumesApplyFogInscatteringMode.GetValueOnRenderThread(), 0, 2));
+	}
+
+	bool UseAnalyticDerivatives()
+	{
+		return CVarHeterogeneousVolumesUseAnalyticDerivatives.GetValueOnRenderThread() != 0;
 	}
 
 	bool ShouldWriteVelocity()
