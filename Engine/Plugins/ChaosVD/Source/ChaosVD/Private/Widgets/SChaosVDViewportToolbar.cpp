@@ -93,6 +93,9 @@ void SChaosVDViewportToolbar::ExtendOptionsMenu(FMenuBuilder& OptionsMenuBuilder
 		CVDOptionsMenuBuilder.AddWidget(GenerateFarViewPlaneMenu(), LOCTEXT("FarViewPlane", "Far View Plane"));
 
 		CVDOptionsMenuBuilder.AddSeparator();
+
+		CVDOptionsMenuBuilder.AddMenuEntry(FChaosVDCommands::Get().AllowTranslucentSelection, NAME_None);
+		
 	}
 	CVDOptionsMenuBuilder.EndSection();
 

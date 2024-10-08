@@ -145,6 +145,18 @@ void FChaosVDPlaybackViewportClient::SetScene(TWeakPtr<FChaosVDScene> InScene)
 	}
 }
 
+void FChaosVDPlaybackViewportClient::SetCanSelectTranslucentGeometry(bool bCanSelect)
+{
+	bAllowTranslucentHitProxies = bCanSelect;
+
+	Invalidate();
+}
+
+void FChaosVDPlaybackViewportClient::ToggleCanSelectTranslucentGeometry()
+{
+	SetCanSelectTranslucentGeometry(!bAllowTranslucentHitProxies);
+}
+
 void FChaosVDPlaybackViewportClient::HandleFocusRequest(FBox BoxToFocusOn)
 {
 	FocusViewportOnBox(BoxToFocusOn);
@@ -172,6 +184,11 @@ void FChaosVDPlaybackViewportClient::TrackSelectedObject()
 		return;
 	}
 
+	FocusOnSelectedObject();
+}
+
+void FChaosVDPlaybackViewportClient::FocusOnSelectedObject()
+{
 	if (const TSharedPtr<FChaosVDScene> CVDSceneSharedPtr = CVDScene.Pin())
 	{
 		USelection* CurrentSelection = ModeTools->GetSelectedActors();
@@ -221,10 +238,10 @@ void FChaosVDPlaybackViewportClient::Draw(const FSceneView* View, FPrimitiveDraw
 {
 	if (View)
 	{
-		// Hack to allow selection of translucent objects (for CVD is all geometry set a Query Only)
+		// Hack to allow CVD control the selection of translucent objects (for CVD is all geometry set as Query Only)
 		// The current setting to allow this behaviour is project wide or on custom hitproxies implementations which we can't use
-		// A proper fix would be have a way to override this per viewport, which could be done by adding a new method to FViewElementDrawer
-		const_cast<FSceneView*>(View)->bAllowTranslucentPrimitivesInHitProxy = true;
+		// A proper fix would be to have a way to override this per viewport, which could be done by adding a new method to FViewElementDrawer
+		const_cast<FSceneView*>(View)->bAllowTranslucentPrimitivesInHitProxy = bAllowTranslucentHitProxies;
 	}
 
 	const TSharedPtr<SChaosVDMainTab> MainTabToolkitHost = ModeTools.IsValid() ? StaticCastSharedPtr<SChaosVDMainTab>(ModeTools->GetToolkitHost()) : nullptr;
