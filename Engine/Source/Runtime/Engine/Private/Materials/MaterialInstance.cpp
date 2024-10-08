@@ -3463,16 +3463,20 @@ void UMaterialInstance::PostLoad()
 		LightingGuidFixupMap.Add(GetLightingGuid(), this);
 	}
 
-	if (IsDeferredDecal())
+	if (IsPSOShaderPreloadingEnabled())
+	{
+		// When dynamic preload shaders is enabled, we need to prelaod some material domains since there is no
+		// code logic within the PSO precaching system.
+		if (IsUIMaterial() || IsDeferredDecal() || IsPostProcessMaterial())
+		{
+			FGraphEventArray Unused;
+			PreloadMaterialShaderMap(GetMaterialResource(GMaxRHIFeatureLevel), Unused);
+		}
+	}
+	else if (IsDeferredDecal())
 	{
 		FPSOPrecacheParams PSOPrecacheParams;
 		UMaterialInterface::PrecachePSOs(&FLocalVertexFactory::StaticType, PSOPrecacheParams);
-	}
-
-	if (IsUIMaterial()  || IsDeferredDecal() || IsPostProcessMaterial())
-	{
-		FGraphEventArray Unused;
-		PreloadMaterialShaderMap(GetMaterialResource(GMaxRHIFeatureLevel), Unused);
 	}
 	//DumpDebugInfo(*GLog);
 }

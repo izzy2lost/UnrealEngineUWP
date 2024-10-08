@@ -1415,6 +1415,17 @@ void FShaderMapResource_SharedCode::PreloadShader(int32 ShaderIndex, FGraphEvent
 	LibraryInstance->PreloadShader(LibraryShaderIndex, OutCompletionEvents);
 }
 
+void FShaderMapResource_SharedCode::PreloadShaderMap(FGraphEventArray& OutCompletionEvents)
+{
+	TArray<int32> ShaderIndices;
+	LibraryInstance->Library->GetAllShaderIndices(ShaderMapIndex, ShaderIndices);
+
+	for (int32 ShaderIndex : ShaderIndices)
+	{
+		LibraryInstance->PreloadShader(ShaderIndex, OutCompletionEvents);
+	}
+}
+
 void FShaderMapResource_SharedCode::ReleaseRHI()
 {
 	if (LibraryInstance && ensureMsgf(LibraryInstance->Library, TEXT("LibraryInstance->Library pointer is expected to be valid as long as library's FShaderMapResource are alive.")))
@@ -1487,11 +1498,6 @@ bool FShaderMapResource_SharedCode::TryRelease()
 FString FShaderMapResource_SharedCode::GetFriendlyName() const
 {
 	return LibraryInstance->Library->GetName();
-}
-
-void FShaderMapResource_SharedCode::PreloadShaderMap(FGraphEventArray& OutCompletionEvents)
-{
-	bEntireShaderMapPreloaded = LibraryInstance->Library->PreloadShaderMap(ShaderMapIndex, OutCompletionEvents);
 }
 
 int32 FShaderMapResource_SharedCode::GetGroupIndexForShader(int32 ShaderIndex) const
