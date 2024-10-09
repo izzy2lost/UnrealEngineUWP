@@ -383,25 +383,44 @@ namespace Metasound::Editor
 					DefaultProperties.Add(ValueProperty);
 
 					IDetailPropertyRow& ValueRow = InDetailLayout.AddPropertyToCategory(ValueProperty);
+					ValueRow.CustomWidget(true /*bShowChilden */);
+
+					// Name widget
 					if (bIsPagedDefault && bShowPageModifiers)
 					{
-						ValueRow.CustomWidget(true /*bShowChilden */);
-
 						(*ValueRow.CustomNameWidget())
 						[
 							BuildPageDefaultNameWidget(InLiteral, ElementProperty)
 						];
-
-						ValueRow.ShowPropertyButtons(false);
-						(*ValueRow.CustomValueWidget())
+					}
+					else
+					{
+						(*ValueRow.CustomNameWidget())
 						[
-							ValueProperty->CreatePropertyValueWidget()
+							ElementProperty->CreatePropertyNameWidget()
 						];
 					}
+					ValueRow.ShowPropertyButtons(false);
+
+					// Value widget
+					BuildDefaultValueWidget(ValueRow, ValueProperty);
 					ValueRow.IsEnabled(GetEnabled());
 				}
 			}
 		}
+	}
+
+	void FMetasoundDefaultLiteralCustomizationBase::BuildDefaultValueWidget(IDetailPropertyRow& ValueRow, TSharedPtr<IPropertyHandle> ValueProperty)
+	{
+		if (!ValueProperty.IsValid())
+		{
+			return;
+		}
+
+		(*ValueRow.CustomValueWidget())
+		[
+			ValueProperty->CreatePropertyValueWidget()
+		];
 	}
 
 	TArray<IDetailPropertyRow*> FMetasoundDefaultLiteralCustomizationBase::CustomizeLiteral(UMetasoundEditorGraphMemberDefaultLiteral& InLiteral, IDetailLayoutBuilder& InDetailLayout)

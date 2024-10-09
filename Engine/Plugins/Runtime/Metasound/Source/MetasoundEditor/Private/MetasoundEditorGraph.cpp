@@ -1640,6 +1640,7 @@ void UMetasoundEditorGraphVariable::SetDataType(FName InNewType, bool bPostTrans
 			DefaultLiteral.SetFromLiteral(IDataTypeRegistry::Get().CreateDefaultLiteral(GetDataType()));
 			check(Literal); // Should exist from prior InitializeLiteral() call
 			Literal->SetFromLiteral(DefaultLiteral);
+			Literal->MemberID = VariableID;
 		}
 
 		// Add the nodes with the same identifier data but new datatype.

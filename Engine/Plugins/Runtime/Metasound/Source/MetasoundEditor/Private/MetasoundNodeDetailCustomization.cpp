@@ -459,6 +459,65 @@ namespace Metasound
 			FMetasoundDefaultLiteralCustomizationBase::CustomizePageDefaultRows(InLiteral, InDetailLayout);
 		}
 
+		void FMetasoundObjectArrayLiteralCustomization::BuildDefaultValueWidget(IDetailPropertyRow& ValueRow, TSharedPtr<IPropertyHandle> ValueProperty)
+		{
+			if (!ValueProperty.IsValid())
+			{
+				return;
+			}
+
+			(*ValueRow.CustomValueWidget())
+			[
+				SNew(SAssetDropTarget)
+					.bSupportsMultiDrop(true)
+					.OnAreAssetsAcceptableForDropWithReason_Lambda([this, ValueProperty](TArrayView<FAssetData> InAssets, FText& OutReason)
+					{
+						Frontend::FDataTypeRegistryInfo DataTypeInfo;
+						const bool bMemberFound = MemberCustomizationPrivate::GetDataTypeFromElementPropertyHandle(ValueProperty, DataTypeInfo);
+						bool bCanDrop = bMemberFound;
+						if (UClass* ProxyGenClass = DataTypeInfo.ProxyGeneratorClass; bCanDrop && bMemberFound)
+						{
+							bCanDrop = true;
+							for (const FAssetData& AssetData : InAssets)
+							{
+								if (UClass* Class = AssetData.GetClass())
+								{
+									if (DataTypeInfo.bIsExplicit)
+									{
+										bCanDrop &= Class == DataTypeInfo.ProxyGeneratorClass;
+									}
+									else
+									{
+										bCanDrop &= Class->IsChildOf(DataTypeInfo.ProxyGeneratorClass);
+									}
+								}
+							}
+						}
+						return bCanDrop;
+					})
+					.OnAssetsDropped_Lambda([this, ValueProperty](const FDragDropEvent& DragDropEvent, TArrayView<FAssetData> InAssets)
+					{
+						TSharedPtr<IPropertyHandleArray> ArrayProperty = ValueProperty->AsArray();
+						if (ArrayProperty.IsValid())
+						{
+							FScopedTransaction Transaction(LOCTEXT("DragDropInputAssets", "Drop Asset(s) on MetaSound Input"));
+							for (const FAssetData& AssetData : InAssets)
+							{
+								uint32 AddIndex = INDEX_NONE;
+								ArrayProperty->GetNumElements(AddIndex);
+								ArrayProperty->AddItem();
+								TSharedPtr<IPropertyHandle> ElementHandle = ArrayProperty->GetElement(static_cast<int32>(AddIndex));
+								TSharedPtr<IPropertyHandle> ObjectHandle = ElementHandle->GetChildHandle(GET_MEMBER_NAME_CHECKED(FMetasoundEditorGraphMemberDefaultObjectRef, Object));
+								ObjectHandle->SetValue(AssetData.GetAsset());
+							}
+						}
+					})
+					[
+						ValueProperty->CreatePropertyValueWidget()
+					]
+			];
+		}
+
 		FText FMetasoundMemberDefaultBoolDetailCustomization::GetPropertyNameOverride() const
 		{
 			using namespace MemberCustomizationPrivate;
