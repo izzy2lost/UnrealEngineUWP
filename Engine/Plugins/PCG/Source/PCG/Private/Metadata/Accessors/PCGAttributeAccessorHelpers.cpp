@@ -562,7 +562,7 @@ TUniquePtr<const IPCGAttributeAccessor> PCGAttributeAccessorHelpers::CreateConst
 		OutResult->bHasMultipleAttributeSetsOnOverridePin = InputParamData.Num() > 1;
 	}
 
-	const UPCGParamData* ParamData = !InputParamData.IsEmpty() ? CastChecked<UPCGParamData>(InputParamData[0].Data) : nullptr;
+	const UPCGParamData* ParamData = !InputParamData.IsEmpty() ? Cast<UPCGParamData>(InputParamData[0].Data) : nullptr;
 
 	if (OutResult && ParamData && !bFromGlobalParamsPin)
 	{
