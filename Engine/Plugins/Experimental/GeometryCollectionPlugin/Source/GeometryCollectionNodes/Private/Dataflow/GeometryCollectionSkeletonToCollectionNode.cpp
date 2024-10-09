@@ -2,6 +2,7 @@
 
 #include "Dataflow/GeometryCollectionSkeletonToCollectionNode.h"
 
+#include "Animation/Skeleton.h"
 #include "Engine/SkeletalMesh.h"
 #include "GeometryCollection/GeometryCollectionObject.h"
 #include "GeometryCollection/ManagedArrayCollection.h"
