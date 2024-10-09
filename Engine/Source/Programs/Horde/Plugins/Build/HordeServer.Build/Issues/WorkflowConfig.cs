@@ -104,6 +104,11 @@ namespace HordeServer.Issues
 		public bool SkipWhenEmpty { get; set; }
 
 		/// <summary>
+		/// Whether to show warnings about merging changes into the origin stream.
+		/// </summary>
+		public bool ShowMergeWarnings { get; set; }
+
+		/// <summary>
 		/// Additional node annotations implicit in this workflow
 		/// </summary>
 		public NodeAnnotations Annotations { get; set; } = new NodeAnnotations();

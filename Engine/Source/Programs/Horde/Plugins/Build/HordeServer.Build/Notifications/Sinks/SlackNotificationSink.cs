@@ -1310,7 +1310,7 @@ namespace HordeServer.Notifications.Sinks
 						await PostSingleMessageToThreadAsync(triageChannel, fixFailedEventId, threadId, fixFailedMessage, cancellationToken);
 					}
 
-					if (fixFailedSpan == null)
+					if (fixFailedSpan == null && workflow.ShowMergeWarnings)
 					{
 						foreach (IIssueStream stream in issue.Streams)
 						{
