@@ -114,8 +114,10 @@ void USlateFXSubsystem::OnPreWorldInitialization(UWorld* World, const UWorld::In
 			{
 				if (TObjectPtr<USlateRHIPostBufferProcessor> BufferProcessor = NewObject<USlateRHIPostBufferProcessor>(this, PostSetting.PostProcessorClass))
 				{
+					TSharedPtr<FSlateRHIPostBufferProcessorProxy> PostProcessorProxy = BufferProcessor->GetRenderThreadProxy();
 					SlatePostBufferProcessors.Add(SlatePostBufferBit, BufferProcessor);
-					SlatePostBufferProcessorProxies.Add(SlatePostBufferBit, BufferProcessor->GetRenderThreadProxy());
+					SlatePostBufferProcessorProxies.Add(SlatePostBufferBit, PostProcessorProxy);
+					PostProcessorProxy->OnUpdateValuesRenderThread();
 				}
 			}
 		}
