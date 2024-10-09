@@ -188,6 +188,21 @@ const UPCGGraph* FPCGStack::GetGraphForCurrentFrame() const
 	return nullptr;
 }
 
+const UPCGGraph* FPCGStack::GetNearestDynamicSubgraphForCurrentFrame() const
+{
+	// Dynamic subgraphs and looped subgraphs always have 3 stacks: SubgraphNode/LoopIndex/Subgraph
+	// Look for a loop index frame and then return the corresponding graph.
+	for (int StackIndex = GetStackFrames().Num() - 1; StackIndex >= 2; --StackIndex)
+	{
+		if (StackFrames[StackIndex - 1].IsLoopIndexFrame())
+		{
+			return Cast<UPCGGraph>(StackFrames[StackIndex].Object.Get());
+		}
+	}
+
+	return nullptr;
+}
+
 const UPCGNode* FPCGStack::GetCurrentFrameNode() const
 {
 	return StackFrames.IsEmpty() ? nullptr : Cast<const UPCGNode>(StackFrames.Last().Object.Get());

@@ -44,6 +44,9 @@ struct PCG_API FPCGStackFrame
 	// A valid frame should either point to an object or have a loop index >= 0.
 	bool IsValid() const { return LoopIndex != INDEX_NONE || Object.IsValid(); }
 
+	/** Loop index frames are injected for any dynamic subgraph invocation and have Object set explicitly null. */
+	bool IsLoopIndexFrame() const { return Object.IsNull(); }
+
 	void SetObject(const UObject* InObject)
 	{
 		Object = InObject;
@@ -137,6 +140,9 @@ public:
 
 	/** Gets the graph from the graph frame closest to the top of the stack (most recent), or null if no such graph present. */
 	const UPCGGraph* GetGraphForCurrentFrame() const;
+
+	/** Walks up the stack to find nearest dynamic subgraph frame and if found returns the graph. */
+	const UPCGGraph* GetNearestDynamicSubgraphForCurrentFrame() const;
 
 	/** If current frame (top of stack) corresponds to a node returns that node, otherwise returns null. */
 	const UPCGNode* GetCurrentFrameNode() const;
