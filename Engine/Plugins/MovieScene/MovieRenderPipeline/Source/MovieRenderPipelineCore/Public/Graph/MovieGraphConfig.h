@@ -706,7 +706,7 @@ public:
 	TArray<UMovieGraphVariable*> GetVariables(const bool bIncludeGlobal = false) const;
 
 	/** Updates the values of all global variables. */
-	UFUNCTION(BlueprintCallable, Category="Experimental")
+	UFUNCTION(BlueprintCallable, Category="Movie Graph")
 	void UpdateGlobalVariableValues(const UMovieGraphPipeline* InPipeline);
 
 	/** Gets all inputs that have been defined on the graph. */
@@ -736,7 +736,7 @@ public:
 	 * Given a user-defined evaluation context, evaluate the graph and build a "flattened" list of settings for each branch discovered.
 	 * If there was an error while evaluating the graph, nullptr will be returned and OutError will be populated with a description of the problem.
 	 */
-	UFUNCTION(BlueprintCallable, Category="Experimental")
+	UFUNCTION(BlueprintCallable, Category="Movie Graph")
 	UMovieGraphEvaluatedConfig* CreateFlattenedGraph(const FMovieGraphTraversalContext& InContext, FString& OutError);
 
 	/** Given a class and FProperty that belongs to that class, search for a FBoolProperty that matches the name "bOverride_<name of InRealProperty>. */

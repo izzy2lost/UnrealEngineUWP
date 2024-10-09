@@ -638,7 +638,7 @@ public:
 				if (!bIsShot)
 				{
 					MenuBuilder.AddMenuEntry(
-						LOCTEXT("ReplaceWithGraph_Label", "Replace with Graph (Experimental)"),
+						LOCTEXT("ReplaceWithGraph_Label", "Replace with Graph (Beta)"),
 						LOCTEXT("ReplaceWithGraph_Tooltip", "Replaces the current configuration with a new graph representation."),
 						FSlateIcon(),
 						FUIAction(InNewRenderGraph),
