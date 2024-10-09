@@ -100,6 +100,9 @@ protected:
 	/** */
 	ADVANCEDWIDGETS_API void SetExponentDisplacementAttribute(TAttribute<float> InExponentDisplacement);
 
+	/** Get the actual size of the wheel, taking into account the available space */
+	ADVANCEDWIDGETS_API FVector2f GetActualSize(const FGeometry& MyGeometry) const;
+
 	/** @return an attribute reference of SelectedColor */
 	TSlateAttributeRef<FLinearColor> GetSelectedColorAttribute() const { return TSlateAttributeRef<FLinearColor>(SharedThis(this), SelectedColorAttribute); }
 
