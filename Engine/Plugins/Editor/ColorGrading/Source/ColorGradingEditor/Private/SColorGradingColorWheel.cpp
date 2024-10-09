@@ -465,6 +465,11 @@ void SColorGradingColorWheel::TransactColorValue()
 		ColorPropertyHandle.GetHandle()->GetOuterObjects(OuterObjects);
 		for (UObject* Object : OuterObjects)
 		{
+			if (!Object)
+			{
+				continue;
+			}
+
 			if (!Object->HasAnyFlags(RF_Transactional))
 			{
 				Object->SetFlags(RF_Transactional);
