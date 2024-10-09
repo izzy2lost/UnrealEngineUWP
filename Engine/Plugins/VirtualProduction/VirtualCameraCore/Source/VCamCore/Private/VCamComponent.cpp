@@ -75,8 +75,12 @@ namespace UE::VCamCore
 
 	static void ModifyAndMarkTransactional(UObject* Subobject)
 	{
-		Subobject->SetFlags(RF_Transactional);
-		Subobject->Modify();
+		// Do not mark Modify() objects unnecessarily because that can dirty the level.
+		if (!Subobject->HasAnyFlags(RF_Transactional))
+		{
+			Subobject->SetFlags(RF_Transactional);
+			Subobject->Modify();
+		}
 	}
 
 	static bool IsBlueprintCreated(UVCamComponent* Component)
