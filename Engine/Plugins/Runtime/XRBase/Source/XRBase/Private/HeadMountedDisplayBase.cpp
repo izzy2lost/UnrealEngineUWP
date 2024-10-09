@@ -174,7 +174,7 @@ void FHeadMountedDisplayBase::CVarSinkHandler()
 			float NewPixelDensity = SecondaryScreenPercentageHMDCVar->GetFloat() / 100.0f;
 			if (NewPixelDensity < PixelDensityMin || NewPixelDensity > PixelDensityMax)
 			{
-				UE_LOG(LogHMD, Warning, TEXT("Invalid pixel density. Valid values must be within the range: [%f, %f]."), PixelDensityMin, PixelDensityMax);
+				UE_LOG(LogHMD, Warning, TEXT("Invalid secondary screen percentage. Valid values must be within the range: [%f, %f]."), PixelDensityMin * 100, PixelDensityMax * 100);
 				NewPixelDensity = FMath::Clamp(NewPixelDensity, PixelDensityMin, PixelDensityMax);
 			}
 			HMDDevice->SetPixelDensity(NewPixelDensity);
