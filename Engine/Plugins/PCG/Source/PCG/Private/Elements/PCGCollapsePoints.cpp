@@ -231,7 +231,7 @@ bool FPCGCollapsePointsElement::PrepareDataInternal(FPCGContext* InContext) cons
 
 	Context->InitializePerIterationStates(Inputs.Num(), [&Inputs, Settings, Context](IterStateType& OutState, const ExecStateType&, const uint32 IterationIndex)
 	{
-		const UPCGPointData* PointData = CastChecked<UPCGPointData>(Inputs[IterationIndex].Data);
+		const UPCGPointData* PointData = Cast<UPCGPointData>(Inputs[IterationIndex].Data);
 
 		if (!PointData || PointData->IsEmpty())
 		{

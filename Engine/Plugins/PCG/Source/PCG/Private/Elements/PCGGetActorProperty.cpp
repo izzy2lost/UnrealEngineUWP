@@ -135,6 +135,18 @@ FPCGElementPtr UPCGGetActorPropertySettings::CreateElement() const
 	return MakeShared<FPCGGetActorPropertyElement>();
 }
 
+bool FPCGGetActorPropertyElement::IsCacheable(const UPCGSettings* InSettings) const
+{
+	if (const UPCGGetActorPropertySettings* Settings = Cast<UPCGGetActorPropertySettings>(InSettings))
+	{
+		return Settings->bAlwaysRequeryActors;
+	}
+	else
+	{
+		return false;
+	}
+}
+
 bool FPCGGetActorPropertyElement::PrepareDataInternal(FPCGContext* Context) const
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGGetActorPropertyElement::PrepareData);

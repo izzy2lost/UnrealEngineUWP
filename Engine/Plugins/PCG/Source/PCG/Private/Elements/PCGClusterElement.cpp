@@ -483,7 +483,7 @@ bool FPCGClusterElement::PrepareDataInternal(FPCGContext* InContext) const
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(FPCGClusterElement::PrepareData::InitializeIteration);
 
-		const UPCGPointData* InputPointData = CastChecked<UPCGPointData>(PointInputs[IterationIndex].Data);
+		const UPCGPointData* InputPointData = Cast<UPCGPointData>(PointInputs[IterationIndex].Data);
 		if (!InputPointData || InputPointData->IsEmpty())
 		{
 			return EPCGTimeSliceInitResult::NoOperation;

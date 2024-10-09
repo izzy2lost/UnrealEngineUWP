@@ -113,7 +113,7 @@ class FPCGGetActorPropertyElement : public IPCGElementWithCustomContext<FPCGLoad
 {
 public:
 	virtual bool CanExecuteOnlyOnMainThread(FPCGContext* Context) const override { return true; }
-	virtual bool IsCacheable(const UPCGSettings* InSettings) const override { return !CastChecked<UPCGGetActorPropertySettings>(InSettings)->bAlwaysRequeryActors; }
+	virtual bool IsCacheable(const UPCGSettings* InSettings) const override;
 protected:
 	virtual bool PrepareDataInternal(FPCGContext* Context) const override;
 	virtual bool ExecuteInternal(FPCGContext* Context) const override;

@@ -2192,23 +2192,25 @@ void FPCGGraphExecutor::CombineParams(FPCGGraphTask& Task)
 
 		for (const FPCGTaggedData& TaggedDatum : AllParamsData)
 		{
-			const UPCGParamData* ParamData = CastChecked<UPCGParamData>(TaggedDatum.Data);
-			if (!CombinedParamData)
+			if (const UPCGParamData* ParamData = Cast<UPCGParamData>(TaggedDatum.Data))
 			{
-				// We always need a Context to allow capture of Async objects if this runs outside of the game thread
-				FPCGContext TempContext;
-				TempContext.AsyncState.bIsRunningOnMainThread = IsInGameThread();
-				
-				CombinedParamData = ParamData->DuplicateData(&TempContext);
-
-				if (!TempContext.AsyncState.bIsRunningOnMainThread)
+				if (!CombinedParamData)
 				{
-					Task.CombineParamsAsyncObjects = std::move(TempContext.AsyncObjects);
+					// We always need a Context to allow capture of Async objects if this runs outside of the game thread
+					FPCGContext TempContext;
+					TempContext.AsyncState.bIsRunningOnMainThread = IsInGameThread();
+				
+					CombinedParamData = ParamData->DuplicateData(&TempContext);
+
+					if (!TempContext.AsyncState.bIsRunningOnMainThread)
+					{
+						Task.CombineParamsAsyncObjects = std::move(TempContext.AsyncObjects);
+					}
 				}
-			}
-			else
-			{
-				bSuccess &= PCGMetadataHelpers::CopyAllAttributes(ParamData, CombinedParamData, nullptr);
+				else
+				{
+					bSuccess &= PCGMetadataHelpers::CopyAllAttributes(ParamData, CombinedParamData, nullptr);
+				}
 			}
 		}
 
@@ -2217,8 +2219,8 @@ void FPCGGraphExecutor::CombineParams(FPCGGraphTask& Task)
 			return;
 		}
 
-		const int32 NewNumberOfInputs = Task.TaskInput.TaggedData.Num() - AllParamsData.Num() + 1;
-		check(NewNumberOfInputs >= 1);
+		const int32 NewNumberOfInputs = Task.TaskInput.TaggedData.Num() - AllParamsData.Num() + (CombinedParamData ? 1 : 0);
+		check(NewNumberOfInputs >= 0);
 
 		TArray<FPCGTaggedData> TempTaggedData{};
 		TempTaggedData.Reserve(NewNumberOfInputs);
@@ -2231,10 +2233,13 @@ void FPCGGraphExecutor::CombineParams(FPCGGraphTask& Task)
 		}
 
 		// Add to the root set since we created a new object, that needs to be kept alive for the duration of the task.
-		FPCGTaggedData CombineParams{};
-		CombineParams.Data = CombinedParamData;
-		CombineParams.Pin = PCGPinConstants::DefaultParamsLabel;
-		TempTaggedData.Add(CombineParams);
+		if (CombinedParamData)
+		{
+			FPCGTaggedData CombineParams{};
+			CombineParams.Data = CombinedParamData;
+			CombineParams.Pin = PCGPinConstants::DefaultParamsLabel;
+			TempTaggedData.Add(CombineParams);
+		}
 
 		Task.TaskInput.TaggedData = std::move(TempTaggedData);
 	}

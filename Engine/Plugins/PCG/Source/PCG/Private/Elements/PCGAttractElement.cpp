@@ -324,14 +324,19 @@ bool FPCGAttractElement::PrepareDataInternal(FPCGContext* InContext) const
 
 	Context->InitializePerIterationStates(SourceInputs.Num(), [&SourceInputs, &TargetInputs, Settings, Context](IterStateType& OutState, const ExecStateType&, const uint32 IterationIndex)
 	{
-		const UPCGPointData* SourcePointData = CastChecked<UPCGPointData>(SourceInputs[IterationIndex].Data);
+		const UPCGPointData* SourcePointData = Cast<UPCGPointData>(SourceInputs[IterationIndex].Data);
 
 		if (!SourcePointData || SourcePointData->IsEmpty())
 		{
 			return EPCGTimeSliceInitResult::NoOperation;
 		}
 
-		const UPCGPointData* TargetPointData = CastChecked<UPCGPointData>(TargetInputs[IterationIndex % TargetInputs.Num()].Data);
+		const UPCGPointData* TargetPointData = Cast<UPCGPointData>(TargetInputs[IterationIndex % TargetInputs.Num()].Data);
+
+		if (!TargetPointData)
+		{
+			return EPCGTimeSliceInitResult::NoOperation;
+		}
 
 		UPCGPointData* OutPointData = FPCGContext::NewObject_AnyThread<UPCGPointData>(Context);
 		OutPointData->InitializeFromData(SourcePointData);
