@@ -2718,6 +2718,12 @@ FSubobjectDataHandle USubobjectDataSubsystem::FactoryCreateInheritedBpSubobject(
 			FSubobjectDataHandle NewChildHandle = FactoryCreateInheritedBpSubobject(ChildNode, OutHandle, bIsInherited, OutArray);
 			ensure(NewChildHandle.IsValid());
 			OutArray.Add(NewChildHandle);
+
+			// Since the child array can be modified, we need to ensure that our index remains in bounds
+			if (i >= ChildNodes.Num())
+			{
+				i = ChildNodes.Num();
+			}
 		}	
 	}
 	
