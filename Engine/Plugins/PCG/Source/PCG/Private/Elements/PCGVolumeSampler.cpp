@@ -81,8 +81,8 @@ namespace PCGVolumeSampler
 				NumIterationsXY64 < MAX_int32 &&
 				NumIterations64 > 0 &&
 				NumIterations64 < MAX_int32 &&
-				(!PCGFeatureSwitches::CVarCheckSamplerMemory.GetValueOnAnyThread() ||
-					(PCGFeatureSwitches::CVarSamplerMemoryThreshold.GetValueOnAnyThread() * FPlatformMemory::GetStats().AvailablePhysical) >= sizeof(FPCGPoint) * NumIterations64))
+				(!PCGFeatureSwitches::CVarCheckSamplerMemory.GetValueOnAnyThread()
+					|| PCGFeatureSwitches::Helpers::GetAvailableMemoryForSamplers() >= sizeof(FPCGPoint) * NumIterations64))
 			{
 				NumIterations = static_cast<int32>(NumIterations64);
 			}
