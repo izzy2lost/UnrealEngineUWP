@@ -47,6 +47,7 @@ namespace Metasound::Editor
 
 	protected:
 		void CustomizePageDefaultRows(UMetasoundEditorGraphMemberDefaultLiteral& InLiteral, IDetailLayoutBuilder& InDetailLayout);
+		virtual void BuildDefaultValueWidget(IDetailPropertyRow& ValueRow, TSharedPtr<IPropertyHandle> ValueProperty);
 
 		TArray<TSharedPtr<IPropertyHandle>> DefaultProperties;
 
