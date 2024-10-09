@@ -167,11 +167,11 @@ bool FPCGCreateSplineElement::ExecuteInternal(FPCGContext* Context) const
 			SplineComponent->ComponentTags.Add(Context->SourceComponent.Get()->GetFName());
 			SplineComponent->ComponentTags.Add(PCGHelpers::DefaultPCGTag);
 
-			SplineData->ApplyTo(SplineComponent);
-
 			SplineComponent->RegisterComponent();
 			SplineActor->AddInstanceComponent(SplineComponent);
 			SplineComponent->AttachToComponent(SplineActor->GetRootComponent(), FAttachmentTransformRules(EAttachmentRule::KeepRelative, EAttachmentRule::KeepWorld, EAttachmentRule::KeepWorld, false));
+
+			SplineData->ApplyTo(SplineComponent);
 
 			UPCGManagedComponent* ManagedComponent = NewObject<UPCGManagedComponent>(Context->SourceComponent.Get());
 			ManagedComponent->GeneratedComponent = SplineComponent;
