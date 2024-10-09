@@ -12,6 +12,7 @@
 #include "Misc/QueuedThreadPoolWrapper.h"
 #include "HAL/FileManager.h"
 #include "HAL/PlatformAffinity.h"
+#include "HAL/DiskUtilizationTracker.h"
 #include "Misc/FileHelper.h"
 #include "Internationalization/TextLocalizationManagerGlobals.h"
 #include "Logging/LogSuppressionInterface.h"
@@ -4758,7 +4759,13 @@ void GameLoopIsStarved()
 
 int32 FEngineLoop::Init()
 {
-	ON_SCOPE_EXIT{ GEngineInitEndTime = FPlatformTime::Seconds(); };
+	ON_SCOPE_EXIT
+	{ 
+#if TRACK_DISK_UTILIZATION
+		CSV_METADATA(TEXT("BootMBLoaded"), *FString::FromInt(GDiskUtilizationTracker.GetLongTermStats().TotalBytesRead / (1024 * 1024)));
+#endif
+		GEngineInitEndTime = FPlatformTime::Seconds(); 
+	};
 	LLM_SCOPE(ELLMTag::EngineInitMemory);
 	SCOPED_BOOT_TIMING("FEngineLoop::Init");
 
