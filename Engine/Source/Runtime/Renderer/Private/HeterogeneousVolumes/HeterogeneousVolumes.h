@@ -123,7 +123,6 @@ namespace HeterogeneousVolumes
 	bool SupportsOverlappingVolumes();
 	bool EnableAmbientOcclusion();
 	bool UseExistenceMask();
-	bool UseAnalyticDerivatives();
 
 	enum class EFogMode
 	{

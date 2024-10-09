@@ -122,17 +122,8 @@ void RayMarchTransmittance(
 		float LocalHitT = RayMarchingContext.LocalRayTMin + RayMarchingContext.StepSize * (RayMarchingContext.Jitter + StepIndex);
 		float3 LocalPosition = RayMarchingContext.LocalRayOrigin + RayMarchingContext.LocalRayDirection * LocalHitT;
 		float3 WorldPosition = RayMarchingContext.WorldRayOrigin + RayMarchingContext.WorldRayDirection * LocalHitT * RayMarchingContext.LocalToWorldScale;
-#if USE_ANALYTIC_DERIVATIVES
-		float3 WorldPosition_DDX = RayMarchingContext.WorldRayOrigin + RayMarchingContext.WorldRayDirection_DDX * LocalHitT * RayMarchingContext.LocalToWorldScale;
-		float3 WorldPosition_DDY = RayMarchingContext.WorldRayOrigin + RayMarchingContext.WorldRayDirection_DDY * LocalHitT * RayMarchingContext.LocalToWorldScale;
-		WorldPosition_DDX -= WorldPosition;
-		WorldPosition_DDY -= WorldPosition;
-#else
-		float3 WorldPosition_DDX = 0.0;
-		float3 WorldPosition_DDY = 0.0;
-#endif // USE_ANALYTIC_DERIVATIVES
 
-		FVolumeSampleContext SampleContext = CreateVolumeSampleContext(LocalPosition, WorldPosition, WorldPosition_DDX, WorldPosition_DDY, RayMarchingContext.MipLevel);
+		FVolumeSampleContext SampleContext = CreateVolumeSampleContext(LocalPosition, WorldPosition, RayMarchingContext.MipLevel);
 		float3 Extinction = SampleExtinction(SampleContext);
 		Transmittance *= exp(-Extinction * RayMarchingContext.StepSize);
 
@@ -310,17 +301,8 @@ void RayMarchEmissionAbsorption(
 		float LocalHitT = RayMarchingContext.LocalRayTMin + RayMarchingContext.StepSize * (RayMarchingContext.Jitter + StepIndex);
 		float3 LocalPosition = RayMarchingContext.LocalRayOrigin + RayMarchingContext.LocalRayDirection * LocalHitT;
 		float3 WorldPosition = RayMarchingContext.WorldRayOrigin + RayMarchingContext.WorldRayDirection * LocalHitT * RayMarchingContext.LocalToWorldScale;
-#if USE_ANALYTIC_DERIVATIVES
-		float3 WorldPosition_DDX = RayMarchingContext.WorldRayOrigin + RayMarchingContext.WorldRayDirection_DDX * LocalHitT * RayMarchingContext.LocalToWorldScale;
-		float3 WorldPosition_DDY = RayMarchingContext.WorldRayOrigin + RayMarchingContext.WorldRayDirection_DDY * LocalHitT * RayMarchingContext.LocalToWorldScale;
-		WorldPosition_DDX -= WorldPosition;
-		WorldPosition_DDY -= WorldPosition;
-#else
-		float3 WorldPosition_DDX = 0.0;
-		float3 WorldPosition_DDY = 0.0;
-#endif // USE_ANALYTIC_DERIVATIVES
 
-		FVolumeSampleContext SampleContext = CreateVolumeSampleContext(LocalPosition, WorldPosition, WorldPosition_DDX, WorldPosition_DDY, RayMarchingContext.MipLevel);
+		FVolumeSampleContext SampleContext = CreateVolumeSampleContext(LocalPosition, WorldPosition, RayMarchingContext.MipLevel);
 		float3 Extinction = SampleExtinction(SampleContext);
 
 		float3 Emission = SampleEmission(SampleContext);
@@ -377,17 +359,7 @@ void RayMarchSingleScattering(
 		int StochasticFilteringMode = GetStochasticFilteringMode();
 		FVolumeSampleContext SampleContext = CreateVolumeSampleContext(LocalPosition, WorldPosition, FilterWidth, RayMarchingContext.MipLevel, Rand, StochasticFilteringMode);
 #else
-	#if USE_ANALYTIC_DERIVATIVES
-		float3 WorldPosition_DDX = RayMarchingContext.WorldRayOrigin + RayMarchingContext.WorldRayDirection_DDX * WorldHitT;
-		float3 WorldPosition_DDY = RayMarchingContext.WorldRayOrigin + RayMarchingContext.WorldRayDirection_DDY * WorldHitT;
-		WorldPosition_DDX -= WorldPosition;
-		WorldPosition_DDY -= WorldPosition;
-	#else
-		float3 WorldPosition_DDX = 0.0;
-		float3 WorldPosition_DDY = 0.0;
-	#endif // USE_ANALYTIC_DERIVATIVES
-
-		FVolumeSampleContext SampleContext = CreateVolumeSampleContext(LocalPosition, WorldPosition, WorldPosition_DDX, WorldPosition_DDY, RayMarchingContext.MipLevel);
+		FVolumeSampleContext SampleContext = CreateVolumeSampleContext(LocalPosition, WorldPosition, RayMarchingContext.MipLevel);
 #endif // IS_OFFLINE_RENDER
 
 		if (RayMarchingContext.bApplyEmissionAndTransmittance)
@@ -547,17 +519,7 @@ void RayMarchSingleScatteringReferenceFastPath(
 		float WorldHitT = LocalHitT * RayMarchingContext.LocalToWorldScale;
 		float3 LocalPosition = RayMarchingContext.LocalRayOrigin + RayMarchingContext.LocalRayDirection * LocalHitT;
 		float3 WorldPosition = RayMarchingContext.WorldRayOrigin + RayMarchingContext.WorldRayDirection * WorldHitT;
-#if USE_ANALYTIC_DERIVATIVES
-		float3 WorldPosition_DDX = RayMarchingContext.WorldRayOrigin + RayMarchingContext.WorldRayDirection_DDX * WorldHitT;
-		float3 WorldPosition_DDY = RayMarchingContext.WorldRayOrigin + RayMarchingContext.WorldRayDirection_DDY * WorldHitT;
-		WorldPosition_DDX -= WorldPosition;
-		WorldPosition_DDY -= WorldPosition;
-#else
-		float3 WorldPosition_DDX = 0.0;
-		float3 WorldPosition_DDY = 0.0;
-#endif // USE_ANALYTIC_DERIVATIVES
-
-		FVolumeSampleContext SampleContext = CreateVolumeSampleContext(LocalPosition, WorldPosition, WorldPosition_DDX, WorldPosition_DDY, RayMarchingContext.MipLevel);
+		FVolumeSampleContext SampleContext = CreateVolumeSampleContext(LocalPosition, WorldPosition, RayMarchingContext.MipLevel);
 
 		// Radiance from emission
 		if (RayMarchingContext.bApplyEmissionAndTransmittance)
