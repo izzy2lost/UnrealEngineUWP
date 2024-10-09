@@ -194,32 +194,39 @@ namespace HordeServer
 				.CreateLogger();
 
 			ILogger startupLogger = new SerilogLoggerFactory().CreateLogger(typeof(ServerApp).FullName ?? "ServerApp");
-
-			ServiceCollection services = new ServiceCollection();
-			services.AddCommandsFromAssembly(Assembly.GetExecutingAssembly());
-			services.AddLogging(builder => builder.AddSerilog());
-			services.AddSingleton<IConfiguration>(config);
-			services.AddSingleton<ServerSettings>(serverSettings);
-			services.Configure<ServerSettings>(x => Startup.BindServerSettings(config, x));
-			services.AddTransient<IServerStartup, Startup>();
-
-			ServerInfo serverInfo = new ServerInfo(config, Options.Create(serverSettings));
-			services.AddSingleton<IServerInfo>(serverInfo);
-
-			s_pluginCollection = CreatePluginCollection(config, startupLogger);
-			services.AddSingleton<IPluginCollection>(s_pluginCollection);
-
-			foreach (Assembly pluginAssembly in s_pluginCollection.LoadedPlugins.Select(x => x.Assembly).Distinct())
+			try
 			{
-				services.AddCommandsFromAssembly(pluginAssembly);
-			}
+				ServiceCollection services = new ServiceCollection();
+				services.AddCommandsFromAssembly(Assembly.GetExecutingAssembly());
+				services.AddLogging(builder => builder.AddSerilog());
+				services.AddSingleton<IConfiguration>(config);
+				services.AddSingleton<ServerSettings>(serverSettings);
+				services.Configure<ServerSettings>(x => Startup.BindServerSettings(config, x));
+				services.AddTransient<IServerStartup, Startup>();
+
+				ServerInfo serverInfo = new ServerInfo(config, Options.Create(serverSettings));
+				services.AddSingleton<IServerInfo>(serverInfo);
+
+				s_pluginCollection = CreatePluginCollection(config, startupLogger);
+				services.AddSingleton<IPluginCollection>(s_pluginCollection);
+
+				foreach (Assembly pluginAssembly in s_pluginCollection.LoadedPlugins.Select(x => x.Assembly).Distinct())
+				{
+					services.AddCommandsFromAssembly(pluginAssembly);
+				}
 
 #pragma warning disable ASP0000 // Do not call 'IServiceCollection.BuildServiceProvider' in 'ConfigureServices'
-			await using (ServiceProvider serviceProvider = services.BuildServiceProvider())
-			{
-				return await CommandHost.RunAsync(arguments, serviceProvider, typeof(ServerCommand));
-			}
+				await using (ServiceProvider serviceProvider = services.BuildServiceProvider())
+				{
+					return await CommandHost.RunAsync(arguments, serviceProvider, typeof(ServerCommand));
+				}
 #pragma warning restore ASP0000 // Do not call 'IServiceCollection.BuildServiceProvider' in 'ConfigureServices'
+			}
+			catch (Exception ex)
+			{
+				startupLogger.LogError(ex, "Uncaught exception: {Message}", ex.Message);
+				throw;
+			}
 		}
 
 		internal static void InitializePluginsForTests()
