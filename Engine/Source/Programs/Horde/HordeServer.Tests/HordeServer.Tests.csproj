@@ -8,6 +8,7 @@
     <Configurations>Debug;Release;Development;Analyze</Configurations>
     <NoWarn>1701;1702;1591</NoWarn>
     <GenerateProgramFile>false</GenerateProgramFile>
+    <RunAnalyzersDuringBuild>False</RunAnalyzersDuringBuild>
   </PropertyGroup>
 
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Analyze|AnyCPU' ">
