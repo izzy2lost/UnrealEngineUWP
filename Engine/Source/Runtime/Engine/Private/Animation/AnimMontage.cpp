@@ -3042,6 +3042,9 @@ UAnimMontage* UAnimMontage::CreateSlotAnimationAsDynamicMontage_WithBlendSetting
 	NewMontage->BlendProfileOut = BlendOutSettings.BlendProfile;
 
 	NewMontage->BlendOutTriggerTime = InBlendOutTriggerTime;
+
+	NewMontage->CommonTargetFrameRate = Asset->GetSamplingFrameRate();
+	
 	return NewMontage;
 }
 
