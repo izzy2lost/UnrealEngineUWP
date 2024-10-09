@@ -337,7 +337,7 @@ bool FPCGComputeGraphElement::SetupProceduralISMComponents(FPCGContext* InContex
 			continue;
 		}
 
-		const FPCGDataCollectionDesc InputDataDesc = SpawnerSettings->ComputeInputPinDataDesc(PCGPinConstants::DefaultInputLabel, InBinding);
+		const FPCGDataCollectionDesc InputDataDesc = PCGDataForGPUHelpers::ComputeInputPinDataDesc(SpawnerSettings, PCGPinConstants::DefaultInputLabel, InBinding);
 
 		const uint32 InputPointCount = InputDataDesc.ComputeDataElementCount(EPCGDataType::Point);
 		if (InputPointCount == 0)

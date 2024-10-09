@@ -7,6 +7,7 @@
 #include "PCGModule.h"
 #include "PCGNode.h"
 #include "PCGPin.h"
+#include "Compute/PCGDataForGPU.h"
 
 UPCGRerouteSettings::UPCGRerouteSettings()
 {
@@ -53,7 +54,7 @@ bool UPCGRerouteSettings::ComputeOutputPinDataDesc(const UPCGPin* OutputPin, con
 	{
 		if (const UPCGPin* Pin = Node->GetInputPin(PCGPinConstants::DefaultInputLabel))
 		{
-			OutDesc = ComputeInputPinDataDesc(Pin, Binding);
+			OutDesc = PCGDataForGPUHelpers::ComputeInputPinDataDesc(Pin, Binding);
 			return true;
 		}
 	}

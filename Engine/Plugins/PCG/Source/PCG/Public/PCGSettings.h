@@ -6,7 +6,6 @@
 #include "PCGDebug.h"
 #include "PCGElement.h"
 #include "PCGPin.h"
-#include "Compute/PCGDataForGPU.h"
 #include "Elements/PCGActorSelector.h"
 #include "Tests/Determinism/PCGDeterminismSettings.h"
 
@@ -16,16 +15,18 @@
 
 class UPCGComponent;
 class UPCGPin;
-struct FPCGGPUCompilationContext;
-struct FPCGPinProperties;
-struct FPropertyChangedEvent;
-
 class UPCGComputeGraph;
 class UPCGDataBinding;
 class UPCGGraph;
 class UComputeDataInterface;
 class UPCGNode;
 class UPCGSettings;
+struct FPCGDataCollectionDesc;
+struct FPCGGPUCompilationContext;
+struct FPCGKernelAttributeIDAndType;
+struct FPCGKernelAttributeKey;
+struct FPCGPinProperties;
+struct FPropertyChangedEvent;
 
 using FPCGSettingsAndCulling = TPair<TSoftObjectPtr<const UPCGSettings>, bool>;
 using FPCGSelectionKeyToSettingsMap = TMap<FPCGSelectionKey, TArray<FPCGSettingsAndCulling>>;
@@ -528,60 +529,85 @@ public:
 
 	// GPU section
 public:
-	/** Whether this node should be executed on the GPU. */
-	bool ShouldExecuteOnGPU() const { return bExecuteOnGPU; }
 
+	/** [EXPERIMENTAL] Whether this node should be executed on the GPU.
+	* Note: This API function is subject to change without deprecation.
+	*/
+	virtual bool ShouldExecuteOnGPU() const { return bExecuteOnGPU; }
+
+	/** [EXPERIMENTAL] Performs validation and returns true if this node is suitable for deployment to the GPU.
+	* Note: This API function is subject to change without deprecation.
+	*/
 	virtual bool IsKernelValid(FPCGContext* InContext = nullptr, bool bQuiet = true) const;
+
+	/** [EXPERIMENTAL] Produces the node specific portion of kernel shader source text, including the main entry point.
+	* Note: This API function is subject to change without deprecation.
+	*/
 	virtual FString GetCookedKernelSource(const TMap<FName, FPCGKernelAttributeIDAndType>& GlobalAttributeLookupTable) const { return TEXT(""); }
-	virtual FString GetKernelEntryPoint() const { return TEXT("Main"); }
-	virtual FIntVector GetThreadGroupSize() const { return FIntVector(64, 1, 1); }
 
-	/** Get a list of the attributes read or written by this node. */
-	virtual const TArray<FPCGKernelAttributeKey> GetKernelAttributeKeys() const { return {}; }
+	/** [EXPERIMENTAL] Get a list of the attributes read or written by this node.
+	* Note: This API function is subject to change without deprecation.
+	*/
+	virtual void GetKernelAttributeKeys(TArray<FPCGKernelAttributeKey>& OutKeys) const {}
 
-	/** Add any strings emitted by this node that are known statically at compile time. */
+	/** [EXPERIMENTAL] Add any strings emitted by this node that are known statically at compile time.
+	* Note: This API function is subject to change without deprecation.
+	*/
 	virtual void AddStaticCreatedStrings(TArray<FString>& InOutStringTable) const {};
 
-	/** Compute how many threads should be dispatched to execute this node on the GPU. */
+	/** [EXPERIMENTAL] Compute how many threads should be dispatched to execute this node on the GPU.
+	* Note: This API function is subject to change without deprecation.
+	*/
 	virtual int ComputeKernelThreadCount(const UPCGDataBinding* Binding) const { return 0; };
 
-	/** Compute a description of all data arriving on InputPin. */
-	FPCGDataCollectionDesc ComputeInputPinDataDesc(const FName& InputPinLabel, const UPCGDataBinding* Binding) const;
-	FPCGDataCollectionDesc ComputeInputPinDataDesc(const UPCGPin* InputPin, const UPCGDataBinding* Binding) const;
-
-	/** Compute a description of data that will be output from OutputPinLabel/OutputPin. */
+	/** [EXPERIMENTAL] Compute a description of data that will be output from OutputPinLabel/OutputPin.
+	* Note: This API function is subject to change without deprecation.
+	*/
 	bool ComputeOutputPinDataDesc(const FName& OutputPinLabel, const UPCGDataBinding* InBinding, FPCGDataCollectionDesc& OutDesc) const;
+
+	/** [EXPERIMENTAL] Compute a description of data that will be output from OutputPinLabel/OutputPin.
+	* Note: This API function is subject to change without deprecation.
+	*/
 	virtual bool ComputeOutputPinDataDesc(const UPCGPin* OutputPin, const UPCGDataBinding* InBinding, FPCGDataCollectionDesc& OutDesc) const;
 
 #if WITH_EDITOR
-	/** Create additional data interfaces to marshal any data required by this settings. */
+	/** [EXPERIMENTAL] Create additional input data interfaces to marshal any required input data.
+	* Note: This API function is subject to change without deprecation.
+	*/
 	virtual void CreateAdditionalInputDataInterfaces(FPCGGPUCompilationContext& InOutContext, UObject* InObjectOuter, TArray<TObjectPtr<UComputeDataInterface>>& OutDataInterfaces) const {}
-	virtual void CreateAdditionalOutputDataInterfaces(FPCGGPUCompilationContext& InOutContext, UObject* InObjectOuter, TArray<TObjectPtr<UComputeDataInterface>>& OutDataInterfaces) const {}
 
-	/** Whether to display GPU execution option in node settings UI. */
+	/** [EXPERIMENTAL] Create additional output data interfaces to marshal any required output data.
+	* Note: This API function is subject to change without deprecation.
+	*/
+	virtual void CreateAdditionalOutputDataInterfaces(FPCGGPUCompilationContext& InOutContext, UObject* InObjectOuter, TArray<TObjectPtr<UComputeDataInterface>>& OutDataInterfaces) const {}
+	virtual void CreateAdditionalOutputDataInterfaces(TArray<TObjectPtr<UComputeDataInterface>>& OutDataInterfaces) const {}
+
+	/** [EXPERIMENTAL] Whether to display GPU execution option in node settings UI. 
+	* Note: This API function is subject to change without deprecation.
+	*/
 	UFUNCTION()
 	virtual bool DisplayExecuteOnGPUSetting() const { return false; }
 #endif
 
-public:
-	/** Whether this node should be executed on the GPU. */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "GPU", meta = (EditCondition = "DisplayExecuteOnGPUSetting()", EditConditionHides, HideEditConditionToggle))
+protected:
+	/** [EXPERIMENTAL] Note: This variable is subject to change without deprecation. */
+	UPROPERTY(EditAnywhere, Category = "GPU", meta = (Tooltip = "Whether this node should be executed on the GPU.", EditCondition = "DisplayExecuteOnGPUSetting()", EditConditionHides, HideEditConditionToggle))
 	bool bExecuteOnGPU = false;
 
-	/** Dump the cooked HLSL into the log after it is generated. */
-	UPROPERTY(EditAnywhere, Category = "GPU", AdvancedDisplay, meta = (EditCondition = "bExecuteOnGPU", EditConditionHides))
+	/** [EXPERIMENTAL] Note: This variable is subject to change without deprecation. */
+	UPROPERTY(EditAnywhere, Category = "GPU", AdvancedDisplay, meta = (Tooltip = "Dump the cooked HLSL into the log after it is generated.", EditCondition = "bExecuteOnGPU", EditConditionHides))
 	bool bDumpCookedHLSL = false;
 
-	/** Dump the data descriptions of input/output pins to the log. */
-	UPROPERTY(EditAnywhere, Category = "GPU", AdvancedDisplay, meta = (EditCondition = "bExecuteOnGPU", EditConditionHides))
+	/** [EXPERIMENTAL] Note: This variable is subject to change without deprecation. */
+	UPROPERTY(EditAnywhere, Category = "GPU", AdvancedDisplay, meta = (Tooltip = "Dump the data descriptions of input/output pins to the log.", EditCondition = "bExecuteOnGPU", EditConditionHides))
 	bool bDumpDataDescriptions = false;
 
-	/** Enable use of 'WriteDebugValue(uint Index, float Value)' function in your kernel. Allows you to write float values to a buffer for logging on the CPU. */
-	UPROPERTY(EditAnywhere, Category = "GPU", AdvancedDisplay, meta = (EditCondition = "bExecuteOnGPU", EditConditionHides))
+	/** [EXPERIMENTAL] Note: This variable is subject to change without deprecation. */
+	UPROPERTY(EditAnywhere, Category = "GPU", AdvancedDisplay, meta = (Tooltip = "Enable use of 'WriteDebugValue(uint Index, float Value)' function in your kernel. Allows you to write float values to a buffer for logging on the CPU.", EditCondition = "bExecuteOnGPU", EditConditionHides))
 	bool bPrintShaderDebugValues = false;
 
-	/** Size (in number of floats) of the shader debug print buffer. */
-	UPROPERTY(EditAnywhere, Category = "GPU", AdvancedDisplay, meta = (EditCondition="bExecuteOnGPU && bPrintShaderDebugValues", EditConditionHides))
+	/** [EXPERIMENTAL] Note: This variable is subject to change without deprecation. */
+	UPROPERTY(EditAnywhere, Category = "GPU", AdvancedDisplay, meta = (Tooltip = "Size (in number of floats) of the shader debug print buffer.", EditCondition="bExecuteOnGPU && bPrintShaderDebugValues", EditConditionHides))
 	int DebugBufferSize = 16;
 
 private:
@@ -590,6 +616,9 @@ private:
 
 	/** The cached Crc for these settings. */
 	FPCGCrc CachedCrc;
+
+	friend class FPCGGraphCompilerGPU;
+	friend class UPCGDataBinding;
 };
 
 UCLASS(BlueprintType, ClassGroup = (Procedural))

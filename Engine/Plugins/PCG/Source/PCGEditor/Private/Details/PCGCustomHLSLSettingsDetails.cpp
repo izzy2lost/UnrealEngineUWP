@@ -2,8 +2,6 @@
 
 #include "Details/PCGCustomHLSLSettingsDetails.h"
 
-#include "Compute/Elements/PCGCustomHLSL.h"
-
 #include "PCGEditor.h"
 #include "PCGEditorGraph.h"
 

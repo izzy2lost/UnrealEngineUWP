@@ -4,6 +4,9 @@
 
 #include "CoreMinimal.h"
 
+/** [EXPERIMENTAL] Compiler diagnostic severity.
+* Note: This struct is subject to change without deprecation.
+*/
 enum class EPCGDiagnosticLevel : uint8
 {
 	None,
@@ -12,6 +15,9 @@ enum class EPCGDiagnosticLevel : uint8
 	Error
 };
 
+/** [EXPERIMENTAL] Diagnostic message emitted by shader compiler.
+* Note: This struct is subject to change without deprecation.
+*/
 struct FPCGCompilerDiagnostic
 {
 	FPCGCompilerDiagnostic() = default;
@@ -34,6 +40,9 @@ struct FPCGCompilerDiagnostic
 	int32 ColumnEnd = INDEX_NONE;
 };
 
+/** [EXPERIMENTAL] Convenience struct to wrap up array of diagnostics.
+ * Note: This struct is subject to change without deprecation.
+ */
 struct FPCGCompilerDiagnostics
 {
 	TArray<FPCGCompilerDiagnostic> Diagnostics;

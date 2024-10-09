@@ -252,7 +252,7 @@ void UPCGDataBinding::DebugLogDataDescriptions()
 
 			for (const UPCGPin* Pin : Node->GetInputPins())
 			{
-				const FPCGDataCollectionDesc DataDesc = Settings->ComputeInputPinDataDesc(Pin, this);
+				const FPCGDataCollectionDesc DataDesc = PCGDataForGPUHelpers::ComputeInputPinDataDesc(Pin, this);
 				UE_LOG(LogPCG, Display, TEXT("\tInput Pin: %s (%d data)"), *Pin->Properties.Label.ToString(), DataDesc.DataDescs.Num());
 				LogDataDescription(DataDesc);
 			}

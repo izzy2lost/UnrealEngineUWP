@@ -58,6 +58,8 @@ namespace PCGComputeConstants
 	constexpr uint32 KernelExecutedFlag = 1 << 31;
 
 	constexpr uint32 MAX_PRIMITIVE_COMPONENTS_PER_SPAWNER = 64;
+
+	constexpr uint32 THREAD_GROUP_SIZE = 64;
 }
 
 namespace PCGComputeHelpers

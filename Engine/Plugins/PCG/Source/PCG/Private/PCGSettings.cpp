@@ -240,44 +240,6 @@ bool UPCGSettings::IsKernelValid(FPCGContext* InContext, bool bQuiet) const
 	return true;
 }
 
-FPCGDataCollectionDesc UPCGSettings::ComputeInputPinDataDesc(const FName& InputPinLabel, const UPCGDataBinding* Binding) const
-{
-	const UPCGNode* Node = Cast<UPCGNode>(GetOuter());
-	const UPCGPin* InputPin = Node ? Node->GetInputPin(InputPinLabel) : nullptr;
-	check(InputPin);
-	return ComputeInputPinDataDesc(InputPin, Binding);
-}
-
-FPCGDataCollectionDesc UPCGSettings::ComputeInputPinDataDesc(const UPCGPin* InputPin, const UPCGDataBinding* Binding) const
-{
-	check(InputPin && Binding);
-
-	FPCGDataCollectionDesc PinDesc;
-
-	// Grab data from all incident edges.
-	for (const UPCGEdge* Edge : InputPin->Edges)
-	{
-		// InputPin is upstream output pin.
-		const UPCGPin* UpstreamOutputPin = Edge->InputPin;
-		if (!UpstreamOutputPin)
-		{
-			continue;
-		}
-
-		const UPCGSettings* UpstreamSettings = UpstreamOutputPin->Node ? UpstreamOutputPin->Node->GetSettings() : nullptr;
-		check(UpstreamSettings);
-
-		// Add data from connected upstream output pin.
-		FPCGDataCollectionDesc EdgeDesc;
-		if (ensure(UpstreamSettings->ComputeOutputPinDataDesc(UpstreamOutputPin, Binding, EdgeDesc)))
-		{
-			PinDesc.Combine(EdgeDesc);
-		}
-	}
-
-	return PinDesc;
-}
-
 bool UPCGSettings::ComputeOutputPinDataDesc(const FName& OutputPinLabel, const UPCGDataBinding* InBinding, FPCGDataCollectionDesc& OutDesc) const
 {
 	const UPCGNode* Node = CastChecked<UPCGNode>(GetOuter());
