@@ -29,7 +29,7 @@ struct FApplyMovementEffectParams
  * Common uses would be for Teleporting, Changing Movement Modes directly, one time force application, etc.
  * Multiple Instant Movement Effects can be active at the time
  */
-USTRUCT(BlueprintType)
+USTRUCT(BlueprintInternalUseOnly)
 struct MOVER_API FInstantMovementEffect
 {
 	GENERATED_USTRUCT_BODY()

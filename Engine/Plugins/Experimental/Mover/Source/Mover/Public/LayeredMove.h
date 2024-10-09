@@ -68,7 +68,7 @@ struct FLayeredMoveFinishVelocitySettings
 */
 
 // Base class for all layered moves
-USTRUCT(BlueprintType)
+USTRUCT(BlueprintInternalUseOnly)
 struct MOVER_API FLayeredMoveBase
 {
 	GENERATED_USTRUCT_BODY()

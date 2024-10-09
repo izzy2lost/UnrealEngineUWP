@@ -75,7 +75,7 @@ private:
  *		 This can be fixed by extending the Matches function to check more than just type,
  *		 but make sure anything used to compare is synced through the NetSerialize function.
  */
-USTRUCT(BlueprintType)
+USTRUCT(BlueprintInternalUseOnly)
 struct MOVER_API FMovementModifierBase
 {
 	GENERATED_BODY()

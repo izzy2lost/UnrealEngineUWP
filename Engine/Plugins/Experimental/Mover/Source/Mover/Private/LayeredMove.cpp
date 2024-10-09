@@ -61,7 +61,7 @@ void FLayeredMoveBase::EndMove(const UMoverComponent* MoverComp, UMoverBlackboar
 FLayeredMoveBase* FLayeredMoveBase::Clone() const
 {
 	// If child classes don't override this, saved moves will not work
-	checkf(false, TEXT("FLayeredMoveBase::Clone() being called erroneously. This should always be overridden in child classes!"));
+	checkf(false, TEXT("FLayeredMoveBase::Clone() being called erroneously from %s. A FLayeredMoveBase should never be queued directly and Clone should always be overridden in child structs!"), *GetNameSafe(GetScriptStruct()));
 	return nullptr;
 }
 
