@@ -301,7 +301,7 @@ void UMoviePipeline::TickProducingFrames()
 
 			// Slomo can end up trying to do less than one iteration, we don't want that.	
 			int32 DivisionMultiplier = FMath::Max(FMath::FloorToInt(Ratio), 1);
-			SetSkeletalMeshClothSubSteps(DivisionMultiplier);
+			UE::MoviePipeline::SetSkeletalMeshClothSubSteps(DivisionMultiplier, GetWorld(), ClothSimCache);
 		}
 
 		CachedOutputState.TimeData.FrameDeltaTime = FrameDeltaTime;
@@ -611,7 +611,7 @@ void UMoviePipeline::TickProducingFrames()
 				
 				// Slomo can end up trying to do less than one iteration, we don't want that.	
 				int32 DivisionMultiplier = FMath::Max(FMath::FloorToInt(Ratio), 1);
-				SetSkeletalMeshClothSubSteps(DivisionMultiplier);
+				UE::MoviePipeline::SetSkeletalMeshClothSubSteps(DivisionMultiplier, GetWorld(), ClothSimCache);
 			}
 		}
 

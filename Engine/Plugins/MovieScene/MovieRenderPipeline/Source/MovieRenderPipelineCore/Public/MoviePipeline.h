@@ -315,10 +315,6 @@ private:
 
 	/** Handles transitioning between states, preventing reentrancy. Normal state flow should be respected, does not handle arbitrary x to y transitions. */
 	void TransitionToState(const EMovieRenderPipelineState InNewState);
-
-	void SetSkeletalMeshClothSubSteps(const int32 InSubdivisionCount);
-	void RestoreSkeletalMeshClothSubSteps();
-
 private:
 	/** Custom TimeStep used to drive the engine while rendering. */
 	UPROPERTY(Transient, Instanced)
@@ -427,14 +423,9 @@ private:
 
 	TSharedPtr<MoviePipeline::FCameraCutSubSectionHierarchyNode> CachedSequenceHierarchyRoot;
 
-	struct FClothSimSettingsCache
-	{
-		int32 NumSubSteps;
-		float DynamicSubstepDeltaTime;
-	};
 
 	/** Simulation settings cache per cloth interactor object. Needs one per LOD, hence the array. */
-	TMap<TWeakObjectPtr<UObject>, TArray<FClothSimSettingsCache>> ClothSimCache;
+	TMap<TWeakObjectPtr<UObject>, TArray<MoviePipeline::FClothSimSettingsCache>> ClothSimCache;
 
 	struct FRenderTimeStatistics
 	{

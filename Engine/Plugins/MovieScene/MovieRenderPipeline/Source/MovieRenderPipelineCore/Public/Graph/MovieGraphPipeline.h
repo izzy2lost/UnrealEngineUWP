@@ -110,6 +110,9 @@ public:
 	
 	/** Gets the Output Merger for this Movie Pipeline which is responsible for gathering all of the data coming in for a given output frame, before making it available to the MovieGraphPipeline. */
 	TSharedPtr<UE::MovieGraph::IMovieGraphOutputMerger> GetOutputMerger() const { return OutputMerger; }
+
+	/** Gets cached data for cloth simulations, needed to save/restore cloth sub-stepping. */
+	TMap<TWeakObjectPtr<UObject>, TArray<MoviePipeline::FClothSimSettingsCache>> GetClothSimCache() const { return ClothSimCache; }
 	
 	/** Writing images to disk is an async process. When you start writing, declare a future with the filename you will eventually write to, and complete the future once it is on disk. */
 	void AddOutputFuture(TFuture<bool>&& InOutputFuture, const UE::MovieGraph::FMovieGraphOutputFutureData& InData);
@@ -339,6 +342,9 @@ protected:
 	/** The previous custom timestep the engine was using, if any. */
 	UPROPERTY(Transient)
 	TObjectPtr<UEngineCustomTimeStep> PrevCustomEngineTimeStep;
+
+	/** Simulation settings cache per cloth interactor object. Needs one per LOD, hence the array. */
+	TMap<TWeakObjectPtr<UObject>, TArray<MoviePipeline::FClothSimSettingsCache>> ClothSimCache;
 	
 public:
 	static FString DefaultPreviewWidgetAsset;

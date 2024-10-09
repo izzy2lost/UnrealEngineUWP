@@ -1006,6 +1006,9 @@ void UMovieGraphPipeline::TeardownShot(const TObjectPtr<UMoviePipelineExecutorSh
 	CVarManager->RevertAllCVars();
 	CVarManager->RunEndConsoleCommands();
 
+	UE::MoviePipeline::RestoreSkeletalMeshClothSubSteps(ClothSimCache);
+	ClothSimCache.Reset();
+
 	// Revert cvars set by the global game overrides. Needs to be done after the CVarManager reverts (since the global
 	// game overrides are applied first in SetupShot).
 	bIncludeCDOs = false;
@@ -1415,6 +1418,9 @@ void UMovieGraphPipeline::TransitionToState(const EMovieRenderPipelineState InNe
 			ProcessOutstandingFutures();
 
 			BeginExport();
+
+			// Clear out MRQ tick information for external consumers as we are done
+			FMovieRenderPipelineCoreModule::SetTickInfo(FMoviePipelineLightweightTickInfo());
 		}
 		break;
 	case EMovieRenderPipelineState::Export:

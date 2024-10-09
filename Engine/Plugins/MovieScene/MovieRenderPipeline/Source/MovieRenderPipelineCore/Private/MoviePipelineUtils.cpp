@@ -36,6 +36,12 @@
 #include "MovieRenderPipelineCoreModule.h"
 #include "RHI.h"
 #include "CineCameraComponent.h"
+#include "EngineUtils.h"
+#include "ClothingSimulationInteractor.h"
+#include "ClothingSimulationInterface.h"
+#include "ChaosClothAsset/ClothComponent.h"
+#include "ChaosClothAsset/ClothAssetInteractor.h"
+#include "Components/SkeletalMeshComponent.h"
 
 namespace UE
 {
@@ -712,6 +718,7 @@ namespace UE
 	namespace MoviePipeline
 	{
 		DECLARE_CYCLE_STAT(TEXT("STAT_MoviePipeline_HardwareMetadata"), STAT_HardwareMetadata, STATGROUP_MoviePipeline);
+		DECLARE_CYCLE_STAT(TEXT("STAT_MoviePipeline_ClothAdjust"), STAT_ClothSubstepAdjust, STATGROUP_MoviePipeline);
 
 		void ConformOutputFormatStringToken(FString& InOutFilenameFormatString, const FStringView InToken, const FName& InNodeName, const FName& InBranchName)
 		{
@@ -1107,6 +1114,104 @@ namespace UE
 
 			// After blending all post processing volumes, blend the camera's post process settings too
 			InOutView->OverridePostProcessSettings(InViewInfo.PostProcessSettings, InViewInfo.PostProcessBlendWeight);
+		}
+
+		void SetSkeletalMeshClothSubSteps(const int32 InSubdivisionCount, UWorld* InWorld, TMap<TWeakObjectPtr<UObject>, TArray<::MoviePipeline::FClothSimSettingsCache>> InClothSimCache)
+		{
+			SCOPE_CYCLE_COUNTER(STAT_ClothSubstepAdjust);
+			for (TActorIterator<AActor> ActorIt(InWorld); ActorIt; ++ActorIt)
+			{
+				AActor* FoundActor = *ActorIt;
+				if (FoundActor)
+				{
+					TArray<USkeletalMeshComponent*> SkeletalMeshComponents;
+					FoundActor->GetComponents(SkeletalMeshComponents);
+
+					for (USkeletalMeshComponent* Component : SkeletalMeshComponents)
+					{
+						UClothingSimulationInteractor* ClothInteractor = Component->GetClothingSimulationInteractor();
+						if (ClothInteractor)
+						{
+							const int32 LODIndex = 0;  // There is only a NumSubSteps for LOD 0 in the Skeletal Mesh clothing system
+							TWeakObjectPtr<UObject> WeakPtr = TWeakObjectPtr<UClothingSimulationInteractor>(ClothInteractor);
+
+							TArray<::MoviePipeline::FClothSimSettingsCache>* ExistingCacheEntry = InClothSimCache.Find(WeakPtr);
+							if (!ExistingCacheEntry)
+							{
+								InClothSimCache.Add(WeakPtr);
+								ExistingCacheEntry = InClothSimCache.Find(WeakPtr);
+								ExistingCacheEntry->SetNumZeroed(1);  // Only store LOD 0
+								const int32 NumSubsteps = Component->GetClothingSimulation() ? FMath::Max(Component->GetClothingSimulation()->GetNumSubsteps(), 1)
+									: 1; // If there's no clothing simulation component just fall back to assuming they only had 1.
+								(*ExistingCacheEntry)[LODIndex].NumSubSteps = NumSubsteps;
+							}
+
+							ClothInteractor->SetNumSubsteps((*ExistingCacheEntry)[LODIndex].NumSubSteps * InSubdivisionCount);
+						}
+					}
+
+					TArray<UChaosClothComponent*> ChaosClothComponents;
+					FoundActor->GetComponents(ChaosClothComponents);
+
+					for (UChaosClothComponent* Component : ChaosClothComponents)
+					{
+						UChaosClothAssetInteractor* ClothAssetInteractor = Component->GetClothOutfitInteractor();
+						if (ClothAssetInteractor)
+						{
+							const int32 NumLODs = Component->GetNumLODs();
+							TWeakObjectPtr<UObject> WeakPtr = TWeakObjectPtr<UChaosClothAssetInteractor>(ClothAssetInteractor);
+
+							TArray<::MoviePipeline::FClothSimSettingsCache>* ExistingCacheEntry = InClothSimCache.Find(WeakPtr);
+							if (!ExistingCacheEntry)
+							{
+								InClothSimCache.Add(WeakPtr);
+								ExistingCacheEntry = InClothSimCache.Find(WeakPtr);
+								ExistingCacheEntry->SetNumUninitialized(NumLODs);
+								for (int32 LODIndex = 0; LODIndex < NumLODs; ++LODIndex)
+								{
+									constexpr int32 MinNumSubsteps = 1;
+									const int32 NumSubsteps = FMath::Max(ClothAssetInteractor->GetIntValue(TEXT("NumSubsteps"), LODIndex, MinNumSubsteps), MinNumSubsteps);
+									const int32 DynamicSubstepDeltaTime = ClothAssetInteractor->GetFloatValue(TEXT("DynamicSubstepDeltaTime"), LODIndex, MinNumSubsteps);
+									(*ExistingCacheEntry)[LODIndex].NumSubSteps = NumSubsteps;
+									(*ExistingCacheEntry)[LODIndex].DynamicSubstepDeltaTime = DynamicSubstepDeltaTime;
+								}
+							}
+
+							for (int32 LODIndex = 0; LODIndex < NumLODs; ++LODIndex)
+							{
+								if (ExistingCacheEntry->IsValidIndex(LODIndex))
+								{
+									ClothAssetInteractor->SetIntValue(TEXT("NumSubsteps"), LODIndex, (*ExistingCacheEntry)[LODIndex].NumSubSteps * InSubdivisionCount);
+									ClothAssetInteractor->SetFloatValue(TEXT("DynamicSubstepDeltaTime"), LODIndex, 0.f);
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+
+		void RestoreSkeletalMeshClothSubSteps(TMap<TWeakObjectPtr<UObject>, TArray<::MoviePipeline::FClothSimSettingsCache>> InClothSimCache)
+		{
+			for (const TPair<TWeakObjectPtr<UObject>, TArray<::MoviePipeline::FClothSimSettingsCache>>& Pair : InClothSimCache)
+			{
+				if (UObject* Object = Pair.Key.Get())
+				{
+					if (UClothingSimulationInteractor* ClothInteractor = Cast<UClothingSimulationInteractor>(Object))
+					{
+						const int32 LODIndex = 0;  // There is only a NumSubSteps for LOD 0 in the Skeletal Mesh clothing system
+						ClothInteractor->SetNumSubsteps(Pair.Value[LODIndex].NumSubSteps);
+					}
+					else if (UChaosClothAssetInteractor* ClothAssetInteractor = Cast<UChaosClothAssetInteractor>(Object))
+					{
+						for (int32 LODIndex = 0; LODIndex < Pair.Value.Num(); ++LODIndex)
+						{
+							ClothAssetInteractor->SetIntValue(TEXT("NumSubsteps"), LODIndex, Pair.Value[LODIndex].NumSubSteps);
+							ClothAssetInteractor->SetIntValue(TEXT("DynamicSubstepDeltaTime"), LODIndex, Pair.Value[LODIndex].DynamicSubstepDeltaTime);
+						}
+					}
+				}
+			}
 		}
 
 	}
