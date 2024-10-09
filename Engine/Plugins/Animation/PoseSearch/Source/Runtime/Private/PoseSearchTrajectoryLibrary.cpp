@@ -509,7 +509,7 @@ void UPoseSearchTrajectoryLibrary::HandleTrajectoryWorldCollisionsWithGravity(co
 		GravityZ = -GravityZ;
 		const FVector VelocityOnGravityAxis = StartingVelocity.ProjectOnTo(GravityDirection);
 		
-		InitialVelocityZ = VelocityOnGravityAxis.Length() * FMath::Sign(GravityDirection.Dot(VelocityOnGravityAxis));
+		InitialVelocityZ = VelocityOnGravityAxis.Length() * -FMath::Sign(GravityDirection.Dot(VelocityOnGravityAxis));
 	}
 
 	CollisionResult.TimeToLand = OutTrajectory.Samples.Last().AccumulatedSeconds;
