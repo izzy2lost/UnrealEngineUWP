@@ -373,12 +373,19 @@ namespace UE::PixelStreamingVCam
 		
 		const FString OldStreamId = Session->StreamerId;
 		const FString NewStreamerName = Private::GenerateDefaultStreamerName(*Session);
-		if (OldStreamId != NewStreamerName)
+		if (OldStreamId == NewStreamerName)
+		{
+			return;
+		}
+
+		// Avoid marking the map dirty for innocent GetActorLabel(bCreateIfNone=true) calls, which can happen during map load.
+		// If this function is called in response to a user edit operation, then GUndo will be set and the change will be recorded as well.
+		if (GUndo)
 		{
 			Session->Modify();
-			Session->StreamerId = NewStreamerName;
-			OnEditStreamId(*ManagedOutputProvider);
 		}
+		Session->StreamerId = NewStreamerName;
+		OnEditStreamId(*ManagedOutputProvider);
 	}
 #endif
 
