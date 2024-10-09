@@ -3,8 +3,11 @@
 #include "Compute/PCGDataForGPU.h"
 
 #include "PCGData.h"
+#include "PCGEdge.h"
+#include "PCGNode.h"
 #include "PCGParamData.h"
 #include "PCGPoint.h"
+#include "PCGSettings.h"
 #include "Compute/PCGComputeCommon.h"
 #include "Compute/PCGComputeGraph.h"
 #include "Compute/PCGDataBinding.h"
@@ -460,6 +463,54 @@ namespace PCGDataForGPUHelpers
 		}
 
 		OutCustomFloatCount = OffsetFloats;
+	}
+
+	FPCGDataCollectionDesc ComputeInputPinDataDesc(const UPCGSettings* Settings, const FName& InputPinLabel, const UPCGDataBinding* Binding)
+	{
+		check(Settings);
+
+		const UPCGNode* Node = Cast<UPCGNode>(Settings->GetOuter());
+		const UPCGPin* InputPin = Node ? Node->GetInputPin(InputPinLabel) : nullptr;
+
+		if (ensure(InputPin))
+		{
+			return ComputeInputPinDataDesc(InputPin, Binding);
+		}
+		else
+		{
+			return {};
+		}
+	}
+
+	FPCGDataCollectionDesc ComputeInputPinDataDesc(const UPCGPin* InputPin, const UPCGDataBinding* Binding)
+	{
+		check(InputPin);
+		check(Binding);
+
+		FPCGDataCollectionDesc PinDesc;
+
+		// Grab data from all incident edges.
+		for (const UPCGEdge* Edge : InputPin->Edges)
+		{
+			// InputPin is upstream output pin.
+			const UPCGPin* UpstreamOutputPin = Edge->InputPin;
+			if (!UpstreamOutputPin)
+			{
+				continue;
+			}
+
+			const UPCGSettings* UpstreamSettings = UpstreamOutputPin->Node ? UpstreamOutputPin->Node->GetSettings() : nullptr;
+			check(UpstreamSettings);
+
+			// Add data from connected upstream output pin.
+			FPCGDataCollectionDesc EdgeDesc;
+			if (ensure(UpstreamSettings->ComputeOutputPinDataDesc(UpstreamOutputPin, Binding, EdgeDesc)))
+			{
+				PinDesc.Combine(EdgeDesc);
+			}
+		}
+
+		return PinDesc;
 	}
 }
 

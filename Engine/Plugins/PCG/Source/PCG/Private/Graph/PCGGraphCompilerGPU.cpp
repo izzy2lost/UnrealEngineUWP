@@ -649,7 +649,10 @@ void FPCGGraphCompilerGPU::BuildGPUGraphTask(
 					OutputPinDataInterfaces.Add({ TaskId, OutputPinProperties.Label }, OutputDI);
 
 					// TODO: This seems like a once-per-settings process rather than repeating for each output pin?
-					for (const FPCGKernelAttributeKey& Key : Settings->GetKernelAttributeKeys())
+					TArray<FPCGKernelAttributeKey> AttributeKeys;
+					Settings->GetKernelAttributeKeys(AttributeKeys);
+
+					for (const FPCGKernelAttributeKey& Key : AttributeKeys)
 					{
 						FPCGKernelAttributeIDAndType* FoundEntry = ComputeGraph->GlobalAttributeLookupTable.Find(Key.Name);
 						if (FoundEntry)
@@ -1001,8 +1004,11 @@ void FPCGGraphCompilerGPU::BuildGPUGraphTask(
 		{
 			UPCGComputeKernelSource* KernelSource = InOutContext.NewObject_AnyThread<UPCGComputeKernelSource>(KernelWithBindings.Kernel); // is outer to kernel fine?
 			KernelWithBindings.Kernel->KernelSource = KernelSource;
-			KernelSource->EntryPoint = Settings->GetKernelEntryPoint();
-			KernelSource->GroupSize = Settings->GetThreadGroupSize();
+
+			// These could be exposed through PCGSettings API later when the need arises (and/or when GPU feature matures).
+			KernelSource->EntryPoint = TEXT("Main");
+			KernelSource->GroupSize = FIntVector(PCGComputeConstants::THREAD_GROUP_SIZE, 1, 1);
+
 			KernelSource->SetSource(Settings->GetCookedKernelSource(ComputeGraph->GlobalAttributeLookupTable));
 
 			if (Settings->bDumpCookedHLSL)

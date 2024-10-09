@@ -53,8 +53,8 @@ bool UPCGCopyPointsSettings::ComputeOutputPinDataDesc(const UPCGPin* OutputPin, 
 
 	if (ensure(SourcePin && TargetPin))
 	{
-		const FPCGDataCollectionDesc SourcePinDesc = ComputeInputPinDataDesc(SourcePin, Binding);
-		const FPCGDataCollectionDesc TargetPinDesc = ComputeInputPinDataDesc(TargetPin, Binding);
+		const FPCGDataCollectionDesc SourcePinDesc = PCGDataForGPUHelpers::ComputeInputPinDataDesc(SourcePin, Binding);
+		const FPCGDataCollectionDesc TargetPinDesc = PCGDataForGPUHelpers::ComputeInputPinDataDesc(TargetPin, Binding);
 
 		const int32 NumSources = SourcePinDesc.DataDescs.Num();
 		const int32 NumTargets = TargetPinDesc.DataDescs.Num();

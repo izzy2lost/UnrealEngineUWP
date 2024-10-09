@@ -315,7 +315,7 @@ bool UPCGCustomHLSLSettings::ComputeOutputPinDataDesc(const UPCGPin* OutputPin, 
 		// First output pin passes through first input pin.
 		if (const UPCGPin* PointProcessingInputPin = GetPointProcessingInputPin())
 		{
-			PinDesc = ComputeInputPinDataDesc(PointProcessingInputPin, Binding);
+			PinDesc = PCGDataForGPUHelpers::ComputeInputPinDataDesc(PointProcessingInputPin, Binding);
 		}
 	}
 	else if (OutputPin == FirstOutputPin && KernelType == EPCGKernelType::PointGenerator)
@@ -375,7 +375,7 @@ bool UPCGCustomHLSLSettings::ComputeOutputPinDataDesc(const UPCGPin* OutputPin, 
 		// Collect descriptions of input data items that have string key attributes.
 		for (const UPCGPin* InputPin : Node->GetInputPins())
 		{
-			const FPCGDataCollectionDesc InputPinDesc = ComputeInputPinDataDesc(InputPin, Binding);
+			const FPCGDataCollectionDesc InputPinDesc = PCGDataForGPUHelpers::ComputeInputPinDataDesc(InputPin, Binding);
 
 			bool bFoundStringKeyAttribute = false;
 
@@ -1494,7 +1494,7 @@ bool UPCGCustomHLSLSettings::AreKernelAttributesValid(FPCGContext* InContext, FT
 		for (const UPCGPin* InputPin : InPins)
 		{
 			check(InputPin);
-			InputPinDescs.Add(InputPin->Properties.Label, ComputeInputPinDataDesc(InputPin, DataBinding));
+			InputPinDescs.Add(InputPin->Properties.Label, PCGDataForGPUHelpers::ComputeInputPinDataDesc(InputPin, DataBinding));
 		}
 
 		for (const UPCGPin* OutputPin : OutPins)
@@ -1636,7 +1636,7 @@ bool UPCGCustomHLSLSettings::AreKernelAttributesValid(FPCGContext* InContext, FT
 
 FString UPCGCustomHLSLSettings::GetCookedKernelSource(const TMap<FName, FPCGKernelAttributeIDAndType>& GlobalAttributeLookupTable) const
 {
-	const FIntVector GroupSize = GetThreadGroupSize();
+	const FIntVector GroupSize(PCGComputeConstants::THREAD_GROUP_SIZE, 1, 1);
 
 	// FIXME: Create source range mappings so that we can go from error location to our source.
 	FString Source = ShaderSource;
@@ -1677,7 +1677,7 @@ FString UPCGCustomHLSLSettings::GetCookedKernelSource(const TMap<FName, FPCGKern
 
 	const FString KernelFunc = FString::Printf(
 		TEXT("[numthreads(%d, %d, %d)]\nvoid %s(uint3 GroupId : SV_GroupID, uint GroupIndex : SV_GroupIndex)"),
-		GroupSize.X, GroupSize.Y, GroupSize.Z, *GetKernelEntryPoint());
+		GroupSize.X, GroupSize.Y, GroupSize.Z, TEXT("Main"));
 
 	const FString UnWrappedDispatchThreadId = FString::Printf(
 		TEXT("GetUnWrappedDispatchThreadId(GroupId, GroupIndex, %d)"),

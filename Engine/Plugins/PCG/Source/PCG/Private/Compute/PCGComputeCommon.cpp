@@ -108,7 +108,7 @@ namespace PCGComputeHelpers
 				if (const UPCGPin* InitPin = Node->GetInputPin(PinToInitFrom))
 				{
 					InitPins.Emplace(PinToInitFrom);
-					InputDescs.Emplace(Settings->ComputeInputPinDataDesc(InitPin, Binding));
+					InputDescs.Emplace(PCGDataForGPUHelpers::ComputeInputPinDataDesc(InitPin, Binding));
 				}
 			}
 

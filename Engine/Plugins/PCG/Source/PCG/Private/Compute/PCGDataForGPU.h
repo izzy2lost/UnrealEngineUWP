@@ -183,4 +183,8 @@ namespace PCGDataForGPUHelpers
 		const FPCGDataCollectionDesc& InDataCollectionDescription,
 		uint32& OutCustomFloatCount,
 		TArray<FUint32Vector4>& OutAttributeIdOffsetStrides);
+
+	/** Compute a description of all data arriving on InputPin. */
+	FPCGDataCollectionDesc ComputeInputPinDataDesc(const UPCGSettings* Settings, const FName& InputPinLabel, const UPCGDataBinding* Binding);
+	FPCGDataCollectionDesc ComputeInputPinDataDesc(const UPCGPin* InputPin, const UPCGDataBinding* Binding);
 }

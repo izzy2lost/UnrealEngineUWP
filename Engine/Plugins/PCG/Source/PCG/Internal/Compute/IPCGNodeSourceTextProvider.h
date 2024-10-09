@@ -12,7 +12,8 @@ class PCG_API UPCGNodeSourceTextProvider : public UInterface
 };
 
 /**
-* Interface for node source text editing widgets.
+* [EXPERIMENTAL] Interface for node source text editing widgets.
+* Note: This struct is subject to change without deprecation.
 */
 class PCG_API IPCGNodeSourceTextProvider
 {
