@@ -558,7 +558,7 @@ void FNDIHairStrandsData::Update(
 				FMatrix44d BoneTransformDouble = BoneTransform.ToMatrixWithScale();
 				const FMatrix44d WorldTransformDouble = WorldTransform.ToMatrixWithScale();
 
-				if(DeltaSeconds != 0.0f && (TickCount > GHairSimulationMaxDelay))
+				if(DeltaSeconds != 0.0f && !ForceReset)
 				{
 					const FMatrix44d PreviousBoneTransformDouble = PreviousBoneTransform.ToMatrixWithScale();
 					const FMatrix44d DeltaTransformDouble =  BoneTransformDouble * PreviousBoneTransformDouble.Inverse();
@@ -635,7 +635,6 @@ bool FNDIHairStrandsData::Init(UNiagaraDataInterfaceHairStrands* Interface, FNia
 
 			BeginInitResource(HairStrandsBuffer);
 
-			TickCount = 0;
 			ForceReset = true;
 		}
 	}
@@ -863,19 +862,26 @@ void UNiagaraDataInterfaceHairStrands::DestroyPerInstanceData(void* PerInstanceD
 bool UNiagaraDataInterfaceHairStrands::PerInstanceTick(void* PerInstanceData, FNiagaraSystemInstance* SystemInstance, float InDeltaSeconds)
 {
 	FNDIHairStrandsData* InstanceData = static_cast<FNDIHairStrandsData*>(PerInstanceData);
-	InstanceData->TickCount = FMath::Min(GHairSimulationMaxDelay + 1, InstanceData->TickCount + 1);
 
 	FNDIHairStrandsInfo InfoData;
 	ExtractDatasAndResources(SystemInstance, InfoData);
 
 	if (SourceComponent != nullptr)
 	{
-		if (SourceComponent->bResetSimulation || RequiresSimulationReset(SystemInstance, InstanceData->SkeletalMeshes))
-			
+		InstanceData->ForceReset = SourceComponent->bResetSimulation || RequiresSimulationReset(SystemInstance, InstanceData->SkeletalMeshes);
+		if (InstanceData->ForceReset)
 		{
-			InstanceData->TickCount = 0;
+			FNDIHairStrandsBuffer* LocalStrandsBuffer = InstanceData->HairStrandsBuffer;
+			ENQUEUE_RENDER_COMMAND(FNiagaraDIDestroyInstanceData) (
+				[LocalStrandsBuffer](FRHICommandListImmediate& CmdList)
+				{
+					if(LocalStrandsBuffer)
+					{
+						LocalStrandsBuffer->bShouldReset = true;
+					}
+				}
+			);
 		}
-		InstanceData->ForceReset = SourceComponent->bResetSimulation;
 	}
 	InstanceData->Update(this, InfoData, InDeltaSeconds);
 	return false;
@@ -3445,10 +3451,14 @@ void UNiagaraDataInterfaceHairStrands::SetShaderParameters(const FNiagaraDataInt
 
 		// Simulation setup (we update the rest configuration based on the deformed positions 
 		// if in restupdate mode or if we are resetting the sim and using RBF transfer since the rest positions are not matching the physics asset)
-		const int32 NeedResetValue = (ProxyData->TickCount <= GHairSimulationMaxDelay) || !HairStrandsBuffer->bValidGeometryType || (HairStrandsBuffer->CurrentMeshLOD != MeshLODIndex);
+		const bool bShouldReset = HairStrandsBuffer->bShouldReset || !HairStrandsBuffer->bValidGeometryType || (HairStrandsBuffer->CurrentMeshLOD != MeshLODIndex);
+		HairStrandsBuffer->ResetCount = bShouldReset ? 0 : FMath::Min(GHairSimulationMaxDelay + 1, HairStrandsBuffer->ResetCount+ 1);
+		
+		const int32 NeedResetValue = HairStrandsBuffer->ResetCount <= GHairSimulationMaxDelay;
 		const int32 RestUpdateValue = GHairSimulationRestUpdate || (NeedResetValue && ProxyData->bSkinningTransfer) ? 1 : 0;
 		const int32 LocalSimulationValue = ProxyData->LocalSimulation;
 		
+		HairStrandsBuffer->bShouldReset = false;
 		HairStrandsBuffer->bValidGeometryType = true;
 		HairStrandsBuffer->CurrentMeshLOD = MeshLODIndex;
 

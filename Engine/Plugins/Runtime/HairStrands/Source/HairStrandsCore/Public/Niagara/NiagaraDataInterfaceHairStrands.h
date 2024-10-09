@@ -65,6 +65,12 @@ struct FNDIHairStrandsBuffer : public FRenderResource
 	/** True if the internal resources (BoundingBoxBuffer/ParamsScaleBuffer) needs to be built */
 	bool bNeedResouces = false;
 
+	/** Boolean to trigger the reset */
+	bool bShouldReset = false;
+	
+	/** Counter to reset the simulation once triggered */
+	int32 ResetCount = 0;
+
 	// For debug only
 	//FRHIGPUBufferReadback* ReadbackBuffer = nullptr;
 };
@@ -108,7 +114,6 @@ struct FNDIHairStrandsData
 		HairGroupInstance = nullptr;
 		HairGroupIndex = -1;
 
-		TickCount = 0;
 		ForceReset = true;
 
 		NumStrands = 0;
@@ -184,9 +189,8 @@ struct FNDIHairStrandsData
 				HairGroupInstance = GetHairGroupInstance(HairGroupInstSource.Get(), HairGroupIndex);
 			}
 
-			TickCount = OtherDatas->TickCount;
 			ForceReset = OtherDatas->ForceReset;
-
+			
 			NumStrands = OtherDatas->NumStrands;
 			StrandsSize = OtherDatas->StrandsSize;
 
@@ -267,9 +271,6 @@ struct FNDIHairStrandsData
 
 	/** Strand size */
 	int32 StrandsSize;
-
-	/** Tick Count*/
-	int32 TickCount;
 
 	/** Force reset simulation */
 	bool ForceReset;
