@@ -10,6 +10,7 @@
 #include "Graph/Nodes/MovieGraphGlobalOutputSettingNode.h"
 #include "ImageWriteTask.h"
 #include "MoviePipelineImageQuantization.h"
+#include "MoviePipelineTelemetry.h"
 #include "MovieRenderPipelineCoreModule.h"
 #include "Styling/AppStyle.h"
 
@@ -194,4 +195,9 @@ bool UMovieGraphAppleProResNode::IsAudioSupported() const
 {
 	// The current ProRes SDK does not support audio so we don't write audio.
 	return false;
+}
+
+void UMovieGraphAppleProResNode::UpdateTelemetry(FMoviePipelineShotRenderTelemetry* InTelemetry) const
+{
+	InTelemetry->bUsesProRes = true;
 }
