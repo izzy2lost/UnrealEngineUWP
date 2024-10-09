@@ -48,7 +48,7 @@ bool FMovementModifierBase::IsFinished(float CurrentSimTimeMs) const
 FMovementModifierBase* FMovementModifierBase::Clone() const
 {
 	// If child classes don't override this, saved modifiers will not work
-	checkf(false, TEXT("FMovementModifierBase::Clone() being called erroneously. This should always be overridden in child classes!"));
+	checkf(false, TEXT("FMovementModifierBase::Clone() being called erroneously from %s. A FMovementModifierBase should never be queued directly and Clone should always be overridden in child structs!"), *GetNameSafe(GetScriptStruct()));
 	return nullptr;
 }
 
