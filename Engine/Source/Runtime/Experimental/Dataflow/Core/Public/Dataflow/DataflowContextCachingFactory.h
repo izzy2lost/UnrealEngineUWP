@@ -54,7 +54,7 @@ namespace UE::Dataflow
 			if (InElement && InElement->GetType() == FContextCacheElementBase::EType::CacheElementTyped)
 			{
 				// it is assumed the type requested matches the cache entry 
-				const FContextCacheElement<T>* TypedElement = static_cast<const FContextCacheElement<T>*>(InElement);
+				const TContextCacheElement<T>* TypedElement = static_cast<const TContextCacheElement<T>*>(InElement);
 				return TypedElement->GetDataDirect();
 			}
 			return Default;
@@ -63,7 +63,7 @@ namespace UE::Dataflow
 		template<class T>
 		static FContextCacheElementBase* NewTypedElement(T&& Data)
 		{
-			return new FContextCacheElement<T>(FGuid(), (FProperty*)nullptr, MoveTemp(Data), (uint32)0, FTimestamp::Invalid);
+			return new TContextCacheElement<T>(FGuid(), (FProperty*)nullptr, MoveTemp(Data), (uint32)0, FTimestamp::Invalid);
 		}
 
 

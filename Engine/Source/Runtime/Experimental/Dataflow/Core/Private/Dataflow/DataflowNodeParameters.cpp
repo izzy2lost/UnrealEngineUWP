@@ -148,6 +148,8 @@ namespace UE::Dataflow
 			for (TPair<FContextCacheKey, TUniquePtr<FContextCacheElementBase>>& Elem : Pairs)
 			{
 				// note : we only serialize typed cache element and ignore the reference ones ( since they don't hold data per say )
+				// Also UObject pointers aren't serialized, as there are no ways to differentiate the objects owned by the cache 
+				// from the ones own by any other owners for now.
 				if (Elem.Value && Elem.Value->Property && Elem.Value->Type == FContextCacheElementBase::EType::CacheElementTyped)
 				{
 					FProperty* Property = (FProperty*)Elem.Value->Property;
