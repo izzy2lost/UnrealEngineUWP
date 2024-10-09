@@ -4,6 +4,7 @@
 
 #include "ImageWriteTask.h"
 #include "MoviePipelineImageQuantization.h"
+#include "MoviePipelineTelemetry.h"
 #include "AvidDNxEncoder/AvidDNxEncoder.h"
 #include "Graph/MovieGraphBlueprintLibrary.h"
 #include "Graph/MovieGraphConfig.h"
@@ -212,3 +213,8 @@ bool UMovieGraphAvidDNxHRNode::IsAudioSupported() const
 }
 
 #endif // WITH_EDITOR
+
+void UMovieGraphAvidDNxHRNode::UpdateTelemetry(FMoviePipelineShotRenderTelemetry* InTelemetry) const
+{
+	InTelemetry->bUsesAvid = true;
+}

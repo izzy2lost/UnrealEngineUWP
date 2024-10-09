@@ -36,6 +36,10 @@ protected:
 	virtual bool IsAudioSupported() const override;
 	// ~UMovieGraphVideoOutputNode Interface
 
+	// UMovieGraphSettingNode Interface
+	virtual void UpdateTelemetry(FMoviePipelineShotRenderTelemetry* InTelemetry) const override;
+	// ~UMovieGraphSettingNode Interface
+
 protected:
 	struct FProResWriter : public MovieRenderGraph::IVideoCodecWriter
 	{

@@ -24,6 +24,8 @@ struct MOVIERENDERPIPELINECORE_API FMoviePipelineShotRenderTelemetry
 	bool bUsesSubgraphs = false;
 	bool bUsesPPMs = false;
 	bool bUsesAudio = false;
+	bool bUsesAvid = false;
+	bool bUsesProRes = false;
 	int32 ResolutionX = 0;
 	int32 ResolutionY = 0;
 	int32 HandleFrameCount = 0;
