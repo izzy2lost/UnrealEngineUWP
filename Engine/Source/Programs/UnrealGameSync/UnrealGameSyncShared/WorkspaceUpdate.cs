@@ -40,6 +40,7 @@ namespace UnrealGameSync
 		RemoveFilteredFiles = 0x4000,
 		Clobber = 0x8000,
 		Refilter = 0x10000,
+		UprojectSpecificSolution = 0x20000,
 	}
 
 	public enum WorkspaceUpdateResult
@@ -132,6 +133,10 @@ namespace UnrealGameSync
 			if (workspaceSettings.Filter.AllProjectsInSln ?? globalSettings.Filter.AllProjectsInSln ?? false)
 			{
 				options |= WorkspaceUpdateOptions.IncludeAllProjectsInSolution;
+			}
+			if (workspaceSettings.Filter.UprojectSpecificSln ?? globalSettings.Filter.UprojectSpecificSln ?? false)
+			{
+				options |= WorkspaceUpdateOptions.UprojectSpecificSolution;
 			}
 			return options;
 		}
@@ -1257,11 +1262,17 @@ namespace UnrealGameSync
 
 					StringBuilder commandLine = new StringBuilder();
 					commandLine.AppendFormat("\"{0}\"", FileReference.Combine(project.LocalRootPath, $"GenerateProjectFiles.{ShellScriptExt}"));
-					if ((Context.Options & WorkspaceUpdateOptions.IncludeAllProjectsInSolution) == 0)
+					if (!Context.Options.HasFlag(WorkspaceUpdateOptions.IncludeAllProjectsInSolution))
 					{
 						if (project.LocalFileName.HasExtension(".uproject"))
 						{
-							commandLine.AppendFormat(" -Project=\"{0}\" -Game", project.LocalFileName);
+							commandLine.AppendFormat(" -Project=\"{0}\"", project.LocalFileName);
+
+							// Uproject specific solutions are only valid if a Source folder exists
+							if (Context.Options.HasFlag(WorkspaceUpdateOptions.UprojectSpecificSolution) && DirectoryReference.Exists(DirectoryReference.Combine(project.LocalFileName.Directory, "Source")))
+							{
+								commandLine.Append(" -Game");
+							}
 						}
 					}
 					commandLine.Append(" -progress");

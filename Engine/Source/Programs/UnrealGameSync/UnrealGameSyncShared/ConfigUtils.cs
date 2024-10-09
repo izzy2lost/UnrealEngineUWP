@@ -2,6 +2,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Data;
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Linq;
@@ -546,6 +547,92 @@ namespace UnrealGameSync
 				}
 			}
 			return uniqueIdToCategory;
+		}
+
+		public static IDictionary<string, Preset> GetPresets(ConfigFile? projectConfigFile)
+		{
+			Dictionary<string, Preset> roles = new(StringComparer.OrdinalIgnoreCase);
+
+			if (projectConfigFile == null)
+			{
+				return roles;
+			}
+
+			string[] lines = projectConfigFile.GetValues("Presets.Preset", []);
+			foreach (string line in lines)
+			{
+				ConfigObject obj = new ConfigObject(line);
+
+				Preset? preset = new Preset();
+
+				preset.Name = obj.GetValue("Name", String.Empty);
+
+				// do not allow empty role name
+				if (String.IsNullOrWhiteSpace(preset.Name))
+				{
+					continue;
+				}
+					
+				IEnumerable<string> categories = obj.GetValue("Categories", String.Empty)
+					.Split(';')
+					.Select(x => x.Trim())
+					.Where(x => x.Length > 0)
+					.Distinct()
+					.OrderBy(x => x);
+
+				foreach (string categoryLine in categories)
+				{
+					string[] values = categoryLine
+						.Split(',')
+						.Select(x => x.Trim())
+						.ToArray();
+
+					// all categories shall be completely defined
+					if (values.Length != 2)
+					{
+						continue;
+					}
+
+					RoleCategory category = new();
+					if (Guid.TryParse(values[0], out Guid guid))
+					{
+						category.Id = guid;	
+					}
+
+					if (Boolean.TryParse(values[1], out bool enabled))
+					{
+						category.Enabled = enabled;
+					}
+
+					if (category.Id != Guid.Empty)
+					{
+						preset.Categories.TryAdd(category.Id, category);
+					}
+				}
+
+				IEnumerable<string> views = obj.GetValue("Views", String.Empty)
+						.Split(';')
+						.Select(x => x.Trim())
+						.Where(x => x.Length > 0)
+						.Distinct()
+					;
+
+				foreach (string view in views)
+				{
+					preset.Views.Add(view);
+				}
+
+				if (roles.ContainsKey(preset.Name))
+				{
+					roles[preset.Name].Import(preset);
+				}
+				else
+				{
+					roles.TryAdd(preset.Name, preset);	
+				}
+			}
+
+			return roles;
 		}
 
 		static IEnumerable<Guid> ParseGuids(IEnumerable<string> values)

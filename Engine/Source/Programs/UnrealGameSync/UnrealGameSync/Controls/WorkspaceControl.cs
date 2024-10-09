@@ -256,6 +256,12 @@ namespace UnrealGameSync
 		bool _updateBuildMetadataPosted;
 		bool _updateReviewsPosted;
 
+		private bool _showReviewerColumn = true;
+		private bool _showPreflightColumn = true;
+
+		private readonly ISet<string> _reviewTags = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+		private readonly ISet<string> _preflightTags = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
 		WorkspaceUpdateCallback? _updateCallback;
 
 		System.Threading.Timer? _startupTimer;
@@ -291,6 +297,9 @@ namespace UnrealGameSync
 			_projectSettings = settings.FindOrAddProjectSettings(openProjectInfo.ProjectInfo, openProjectInfo.WorkspaceSettings, _logger);
 			_hordeClient = serviceProvider.GetService<IHordeClient>();
 
+			_reviewTags.Clear();
+			_preflightTags.Clear();
+
 			ConfigFile projectConfigFile = openProjectInfo.LatestProjectConfigFile;
 			if (projectConfigFile != null)
 			{
@@ -299,6 +308,22 @@ namespace UnrealGameSync
 				{
 					_projectSettings.RequiredBadges.Clear();
 					_projectSettings.RequiredBadges.AddRange(requiredBadges.Split(new char[] { ',' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Distinct().ToList());
+				}
+
+				if (TryGetProjectSetting(projectConfigFile, "ReviewTag", out string? reviewTags))
+				{
+					foreach (string tag in reviewTags.Split(","))
+					{
+						_reviewTags.Add(tag.Trim());
+					}
+				}
+
+				if (TryGetProjectSetting(projectConfigFile, "PreflightTag", out string? preflightTags))
+				{
+					foreach (string tag in preflightTags.Split(","))
+					{
+						_preflightTags.Add(tag.Trim());
+					}
 				}
 			}
 
@@ -511,6 +536,25 @@ namespace UnrealGameSync
 					BuildList.Columns.Remove(customColumn);
 				}
 
+				// check the reviewer and preflight columns
+				_showPreflightColumn = _preflightTags.Any() && _hordeClient != null;
+
+				if (_showPreflightColumn)
+				{
+					BuildListContextMenu_OpenPreflight.Enabled = true;
+				}
+				else
+				{
+					BuildList.Columns.Remove(PreflightColumn);
+					BuildListContextMenu_OpenPreflight.Enabled = false;
+				}
+
+				_showReviewerColumn = _reviewTags.Any();
+				if (!_showReviewerColumn)
+				{
+					BuildList.Columns.Remove(ReviewerColumn);
+				}
+
 				Dictionary<string, ColumnHeader> nameToColumn = new Dictionary<string, ColumnHeader>();
 				foreach (ColumnHeader? column in BuildList.Columns)
 				{
@@ -555,6 +599,11 @@ namespace UnrealGameSync
 					}
 				}
 
+				if (_showPreflightColumn == false)
+				{
+					BuildList.Columns.Remove(PreflightColumn);
+				}
+
 				_columnWidths = new float[BuildList.Columns.Count];
 				for (int idx = 0; idx < BuildList.Columns.Count; idx++)
 				{
@@ -576,6 +625,17 @@ namespace UnrealGameSync
 				_desiredColumnWidths[TimeColumn.Index] = _minColumnWidths[TimeColumn.Index];
 				_desiredColumnWidths[ChangeColumn.Index] = _minColumnWidths[ChangeColumn.Index];
 				_desiredColumnWidths[AuthorColumn.Index] = (int)(120 * dpiScaleX);
+
+				if (_showReviewerColumn)
+				{
+					_desiredColumnWidths[ReviewerColumn.Index] = (int)(120 * dpiScaleX);
+				}
+
+				if (_showPreflightColumn)
+				{
+					_desiredColumnWidths[PreflightColumn.Index] = (int)(120 * dpiScaleX);
+				}
+					
 				_desiredColumnWidths[CISColumn.Index] = (int)(200 * dpiScaleX);
 				_desiredColumnWidths[StatusColumn.Index] = (int)(300 * dpiScaleX);
 
@@ -907,7 +967,7 @@ namespace UnrealGameSync
 				}
 			}
 
-			string[] combinedSyncFilter = UserSettings.GetCombinedSyncFilter(GetSyncCategories(), _settings.Global.Filter, _workspaceSettings.Filter, _perforceMonitor.LatestPerforceConfigSection());
+			string[] combinedSyncFilter = UserSettings.GetCombinedSyncFilter(GetSyncCategories(), _workspaceSettings.Preset, GetPresets(), _settings.Global.Filter, _workspaceSettings.Filter, _perforceMonitor.LatestPerforceConfigSection());
 
 			WorkspaceUpdateContext context = new WorkspaceUpdateContext(changeNumber, options, GetEditorBuildConfig(), combinedSyncFilter, _projectSettings.BuildSteps, null);
 			if (options.HasFlag(WorkspaceUpdateOptions.SyncArchives))
@@ -1403,6 +1463,65 @@ namespace UnrealGameSync
 			columns[AuthorColumn.Index] = userName;
 			columns[DescriptionColumn.Index] = change.Description!.Replace('\n', ' ');
 
+			if (_showReviewerColumn || _showPreflightColumn)
+			{
+				StringReader reader = new StringReader(change.Description);
+				while (reader.Peek() != -1)
+				{
+					string? line = reader.ReadLine();
+					if (String.IsNullOrWhiteSpace(line))
+					{
+						continue;
+					}
+
+					if (_showReviewerColumn)
+					{
+						foreach (string reviewTag in _reviewTags)
+						{
+							if (String.IsNullOrWhiteSpace(reviewTag) || !line.StartsWith(reviewTag, StringComparison.OrdinalIgnoreCase))
+							{
+								continue;
+							}
+
+							if (String.IsNullOrWhiteSpace(columns[ReviewerColumn.Index]))
+							{
+								columns[ReviewerColumn.Index] = line.Replace($"{reviewTag} ", String.Empty, StringComparison.InvariantCulture);
+							}
+							else
+							{
+								columns[ReviewerColumn.Index] += ", " + line.Replace($"{reviewTag} ", String.Empty, StringComparison.InvariantCulture);
+							}
+						}
+					}
+
+					if (_showPreflightColumn)
+					{
+						foreach (string preflightTag in _preflightTags)
+						{
+							if (String.IsNullOrWhiteSpace(preflightTag)
+								|| String.IsNullOrWhiteSpace(line)
+								|| !line.StartsWith(preflightTag, StringComparison.OrdinalIgnoreCase))
+							{
+								continue;
+							}
+
+							string id = line
+								.Replace($"{_hordeClient?.ServerUrl.ToString().Trim().TrimEnd('/')}/job/", String.Empty, StringComparison.OrdinalIgnoreCase)
+								.Replace($"{preflightTag} ", String.Empty, StringComparison.OrdinalIgnoreCase);
+
+							if (String.IsNullOrWhiteSpace(columns[PreflightColumn.Index]))
+							{
+								columns[PreflightColumn.Index] = id;
+							}
+							else
+							{
+								columns[PreflightColumn.Index] += ", " + id;
+							}
+						}
+					}
+				}
+			}
+
 			for (int columnIdx = 1; columnIdx < BuildList.Columns.Count; columnIdx++)
 			{
 				item.SubItems.Add(new ListViewItem.ListViewSubItem(item, columns[columnIdx] ?? ""));
@@ -1710,6 +1829,11 @@ namespace UnrealGameSync
 		Dictionary<Guid, WorkspaceSyncCategory> GetSyncCategories()
 		{
 			return ConfigUtils.GetSyncCategories(_perforceMonitor.LatestProjectConfigFile);
+		}
+
+		IDictionary<string, Preset> GetPresets()
+		{
+			return ConfigUtils.GetPresets(_perforceMonitor.LatestProjectConfigFile);
 		}
 
 		static List<string> GetProjectRoots(string inUProjectDirsPath)
@@ -2091,8 +2215,8 @@ namespace UnrealGameSync
 				}
 
 				idx++;
-				if (idx >= _sortedChangeNumbers.Count 
-					|| !_perforceMonitor.TryGetChangeDetails(_sortedChangeNumbers[idx], out details) 
+				if (idx >= _sortedChangeNumbers.Count
+					|| !_perforceMonitor.TryGetChangeDetails(_sortedChangeNumbers[idx], out details)
 					|| details.ContainsCode)
 				{
 					return null;
@@ -2444,6 +2568,14 @@ namespace UnrealGameSync
 				TextRenderer.DrawText(e.Graphics, e.SubItem.Text, currentFont, e.Bounds, textColor, TextFormatFlags.EndEllipsis | TextFormatFlags.SingleLine | TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPrefix);
 			}
 			else if (e.ColumnIndex == AuthorColumn.Index)
+			{
+				TextRenderer.DrawText(e.Graphics, e.SubItem.Text, currentFont, e.Bounds, textColor, TextFormatFlags.EndEllipsis | TextFormatFlags.SingleLine | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPrefix);
+			}
+			else if (_showReviewerColumn && e.ColumnIndex == ReviewerColumn.Index)
+			{
+				TextRenderer.DrawText(e.Graphics, e.SubItem.Text, currentFont, e.Bounds, textColor, TextFormatFlags.EndEllipsis | TextFormatFlags.SingleLine | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPrefix);
+			}
+			else if (_showPreflightColumn && e.ColumnIndex == PreflightColumn.Index)
 			{
 				TextRenderer.DrawText(e.Graphics, e.SubItem.Text, currentFont, e.Bounds, textColor, TextFormatFlags.EndEllipsis | TextFormatFlags.SingleLine | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPrefix);
 			}
@@ -4933,13 +5065,18 @@ namespace UnrealGameSync
 		private void BuildList_FontChanged(object? sender, EventArgs e)
 		{
 			_buildFont?.Dispose();
-			_buildFont = BuildList.Font;
+			_buildFont = new Font(BuildList.Font!, FontStyle.Regular);
 
 			_selectedBuildFont?.Dispose();
 			_selectedBuildFont = new Font(_buildFont!, FontStyle.Bold);
 
 			_badgeFont?.Dispose();
 			_badgeFont = new Font(_buildFont!.FontFamily, _buildFont.SizeInPoints - 2, FontStyle.Bold);
+		}
+
+		private void WorkspaceControl_DpiChangedAfterParent(object sender, System.EventArgs e)
+		{
+			UpdateBuildMetadataCallback();
 		}
 
 		public void ExecCommand(string description, string statusText, string fileName, string arguments, string workingDir, bool useLogWindow)
@@ -5105,6 +5242,57 @@ namespace UnrealGameSync
 				catch
 				{
 					MessageBox.Show("Unable to copy data to clipboard; another process may have the clipboard locked.");
+				}
+			}
+		}
+
+		private void BuildListContextMenu_OpenPreflight_Click(object sender, EventArgs e)
+		{
+			if (_contextMenuChange != null && _showPreflightColumn)
+			{
+				try
+				{
+					StringReader reader = new StringReader(_contextMenuChange.Description);
+					while (reader.Peek() != -1)
+					{
+						string? line = reader.ReadLine();
+						if (String.IsNullOrWhiteSpace(line))
+						{
+							continue;
+						}
+
+						List<string> preflightGuids = new List<string>();
+
+						foreach (string preflightTag in _preflightTags)
+						{
+							if (String.IsNullOrWhiteSpace(preflightTag)
+								|| String.IsNullOrWhiteSpace(line)
+								|| !line.StartsWith(preflightTag, StringComparison.OrdinalIgnoreCase))
+							{
+								continue;
+							}
+
+							string id = line
+								.Replace($"{_hordeClient?.ServerUrl.ToString().Trim().TrimEnd('/')}/job/", String.Empty, StringComparison.OrdinalIgnoreCase)
+								.Replace($"{preflightTag} ", String.Empty, StringComparison.OrdinalIgnoreCase);
+
+							if (id.Equals("none", StringComparison.OrdinalIgnoreCase) || id.Equals("skip", StringComparison.OrdinalIgnoreCase))
+							{
+								continue;
+							}
+
+							preflightGuids.Add(id);
+						}
+
+						foreach (string preflightGuid in preflightGuids)
+						{
+							Utility.OpenUrl($"{_hordeClient?.ServerUrl.ToString().Trim().TrimEnd('/')}/job/{preflightGuid}");
+						}
+					}
+				}
+				catch
+				{
+					MessageBox.Show("Unable to open Horde server.");
 				}
 			}
 		}
@@ -5345,7 +5533,7 @@ namespace UnrealGameSync
 			List<string> defaultEditorArgumentDefinitions = new List<string>();
 			ConfigUtils.GetProjectSettings(_perforceMonitor.LatestProjectConfigFile, SelectedProjectIdentifier, "DefaultEditorArgument", defaultEditorArgumentDefinitions);
 
-			List<LockableEditorArgument> defaultEditorArguments = new List<LockableEditorArgument>(); 
+			List<LockableEditorArgument> defaultEditorArguments = new List<LockableEditorArgument>();
 			foreach (string editorArgumentDefinition in defaultEditorArgumentDefinitions.Distinct())
 			{
 				LockableEditorArgument? editorArgument;
@@ -5366,9 +5554,9 @@ namespace UnrealGameSync
 
 			foreach (LockableEditorArgument editorArgument in _settings.EditorArguments)
 			{
-				currentEditorArguments.Add( new LockableEditorArgument(editorArgument.Name, editorArgument.Enabled) );
+				currentEditorArguments.Add(new LockableEditorArgument(editorArgument.Name, editorArgument.Enabled));
 			}
-			
+
 			foreach (LockableEditorArgument defaultEditorArgument in defaultEditorArguments)
 			{
 				// Check to see if the user already has this default argument in their list
@@ -5436,26 +5624,17 @@ namespace UnrealGameSync
 			WorkspaceUpdateOptions options = WorkspaceUpdateContext.GetOptionsFromConfig(_settings.Global, _workspaceSettings);
 			FileReference? solutionFileName = null;
 
-			// Default to opening the sln in the project if not including all projects in solution
-			if (!options.HasFlag(WorkspaceUpdateOptions.IncludeAllProjectsInSolution) && SelectedFileName.HasExtension(".uproject"))
-			{
-				solutionFileName = SelectedFileName.ChangeExtension(".sln");
-			}
-
 			// Check PrimaryProjectPath.txt
-			if (solutionFileName == null || !FileReference.Exists(solutionFileName))
+			FileReference primaryProjectPathFileName = FileReference.Combine(BranchDirectoryName, "Engine", "Intermediate", "ProjectFiles", "PrimaryProjectPath.txt");
+			if (FileReference.Exists(primaryProjectPathFileName))
 			{
-				FileReference primaryProjectPathFileName = FileReference.Combine(BranchDirectoryName, "Engine", "Intermediate", "ProjectFiles", "PrimaryProjectPath.txt");
-				if (FileReference.Exists(primaryProjectPathFileName))
+				try
 				{
-					try
-					{
-						solutionFileName = new FileReference(FileReference.ReadAllText(primaryProjectPathFileName).Trim() + ".sln");
-					}
-					catch (Exception ex)
-					{
-						_logger.LogError(ex, "Unable to read '{File}'", primaryProjectPathFileName);
-					}
+					solutionFileName = new FileReference(FileReference.ReadAllText(primaryProjectPathFileName).Trim() + ".sln");
+				}
+				catch (Exception ex)
+				{
+					_logger.LogError(ex, "Unable to read '{File}'", primaryProjectPathFileName);
 				}
 			}
 
@@ -5479,6 +5658,15 @@ namespace UnrealGameSync
 					{
 						_logger.LogError(ex, "Unable to read '{File}'", primaryProjectNameFileName);
 					}
+				}
+			}
+
+			// Fallback to opening the sln in the project if not including all projects in solution
+			if (solutionFileName == null || !FileReference.Exists(solutionFileName))
+			{
+				if (!options.HasFlag(WorkspaceUpdateOptions.IncludeAllProjectsInSolution) && SelectedFileName.HasExtension(".uproject"))
+				{
+					solutionFileName = SelectedFileName.ChangeExtension(".sln");
 				}
 			}
 
@@ -5751,7 +5939,7 @@ namespace UnrealGameSync
 				extraSafeToDeleteExtensions = "";
 			}
 
-			string[] combinedSyncFilter = UserSettings.GetCombinedSyncFilter(GetSyncCategories(), _settings.Global.Filter, _workspaceSettings.Filter, _perforceMonitor.LatestPerforceConfigSection());
+			string[] combinedSyncFilter = UserSettings.GetCombinedSyncFilter(GetSyncCategories(), _workspaceSettings.Preset, GetPresets(), _settings.Global.Filter, _workspaceSettings.Filter, _perforceMonitor.LatestPerforceConfigSection());
 			List<string> syncPaths = WorkspaceUpdate.GetSyncPaths(_workspace.Project, _workspaceSettings.Filter.AllProjects ?? _settings.Global.Filter.AllProjects ?? false, combinedSyncFilter);
 
 			bool performedClean = CleanWorkspaceWindow.DoClean(ParentForm!, _perforceSettings, BranchDirectoryName, _workspace.Project.ClientRootPath, syncPaths, extraSafeToDeleteFolders.Split('\n'), extraSafeToDeleteExtensions.Split('\n'), _serviceProvider.GetRequiredService<ILogger<CleanWorkspaceWindow>>());
@@ -6062,13 +6250,72 @@ namespace UnrealGameSync
 
 		private void OptionsContextMenu_SyncFilter_Click(object sender, EventArgs e)
 		{
-			using SyncFilter filter = new SyncFilter(GetSyncCategories(), _settings.Global.Filter, _workspaceSettings.Filter, _perforceMonitor.LatestPerforceConfigSection());
+			using SyncFilter filter = new SyncFilter(GetSyncCategories(), _workspaceSettings.Preset, GetPresets(), _settings.Global.Filter, _workspaceSettings.Filter, _perforceMonitor.LatestPerforceConfigSection());
 			if (filter.ShowDialog() == DialogResult.OK)
 			{
 				_settings.Global.Filter = filter.GlobalFilter;
 				_settings.Save(_logger);
 
 				_workspaceSettings.Filter = filter.WorkspaceFilter;
+				_workspaceSettings.Save(_logger);
+			}
+		}
+
+		private void OptionsContextMenu_Presets_Click(object sender, EventArgs e)
+		{
+			void UpdateFilter(FilterSettings filter, Preset role)
+			{
+				foreach (KeyValuePair<Guid, RoleCategory> category in role.Categories)
+				{
+					bool include = category.Value.Enabled;
+					Guid guid = category.Value.Id;
+
+					if (include)
+					{
+						if (!filter.IncludeCategories.Contains(guid))
+						{
+							filter.IncludeCategories.Add(guid);
+						}
+
+						if (filter.ExcludeCategories.Contains(guid))
+						{
+							filter.ExcludeCategories.Remove(guid);
+						}
+					}
+					else
+					{
+						if (!filter.ExcludeCategories.Contains(guid))
+						{
+							filter.ExcludeCategories.Add(guid);
+						}
+
+						if (filter.IncludeCategories.Contains(guid))
+						{
+							filter.IncludeCategories.Remove(guid);
+						}
+					}
+				}
+			}
+
+			using PresetsWindow presetWindow = new PresetsWindow(
+				GetSyncCategories(),
+				_workspaceSettings.Preset,
+				GetPresets(),
+				(Preset role) =>
+				{
+					UpdateFilter(_settings.Global.Filter, role);
+					_settings.Save(_logger);
+				},
+				(Preset role) =>
+				{
+					UpdateFilter(_workspaceSettings.Filter, role);
+					_workspaceSettings.Save(_logger);
+				});
+
+			presetWindow.FormBorderStyle = FormBorderStyle.FixedDialog;
+			if (presetWindow.ShowDialog() == DialogResult.OK)
+			{
+				_workspaceSettings.Preset = presetWindow.PresetName;
 				_workspaceSettings.Save(_logger);
 			}
 		}
