@@ -40,6 +40,18 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings")
 	TMap<FName, FPCGAttributePropertyInputSelector> NiagaraVariablesPCGAttributeMapping;
 
+	/** Data written to this data channel is visible to Blueprint and C++ logic reading from it */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings|Visibility", meta = (PCG_Overridable))
+	bool bVisibleToGame = true;
+
+	/** Data written to this data channel is visible to Niagara CPU emitters */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings|Visibility", meta = (PCG_Overridable))
+	bool bVisibleToCPU = true;
+
+	/** Data written to this data channel is visible to Niagara GPU emitters */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings|Visibility", meta = (PCG_Overridable))
+	bool bVisibleToGPU = false;
+	
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings|Debug")
 	bool bSynchronousLoad = false;
 };

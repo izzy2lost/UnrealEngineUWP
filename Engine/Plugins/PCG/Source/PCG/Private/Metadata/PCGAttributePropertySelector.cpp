@@ -29,7 +29,7 @@ bool FPCGAttributePropertySelector::ExportTextItem(FString& ValueStr, FPCGAttrib
 	StringBuilder.Append(ToString());
 	StringBuilder.Append(PCGAttributePropertySelectorConstants::ExportTextRightSentinel);
 
-	ValueStr = StringBuilder.ToString();
+	ValueStr += StringBuilder.ToString();
 	return true;
 }
 
@@ -40,16 +40,23 @@ bool FPCGAttributePropertySelector::ImportTextItem(const TCHAR*& Buffer, int32 P
 	using PCGAttributePropertySelectorConstants::ExportTextLeftSentinel;
 	using PCGAttributePropertySelectorConstants::ExportTextRightSentinel;
 
-	if (!BufferView.StartsWith(ExportTextLeftSentinel) || !BufferView.EndsWith(ExportTextRightSentinel))
+	// Look for the first occurence of the left and right sentinel
+	int32 Start = BufferView.Find(ExportTextLeftSentinel);
+	const int32 End = BufferView.Find(ExportTextRightSentinel);
+
+	if (Start == INDEX_NONE || End == INDEX_NONE)
 	{
 		// Didn't find our sentinels, abort
 		return false;
 	}
 
-	const int32 Start = ExportTextLeftSentinel.Len();
-	const int32 End = BufferView.Len() - ExportTextRightSentinel.Len();
+	// Offset our start accounting the size of the left sentinel
+	Start += ExportTextLeftSentinel.Len();
 
 	Update(FString(BufferView.SubStr(Start, End - Start)));
+
+	// Offset buffer to the end of the right sentinel.
+	Buffer += (End + ExportTextRightSentinel.Len());
 	return true;
 }
 

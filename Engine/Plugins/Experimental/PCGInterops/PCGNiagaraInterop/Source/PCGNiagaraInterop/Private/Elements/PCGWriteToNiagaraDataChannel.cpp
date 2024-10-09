@@ -174,7 +174,7 @@ bool FPCGWriteToNiagaraDataChannelElement::ExecuteInternal(FPCGContext* InContex
 
 		const FString DebugSource = FString::Format(TEXT("PCGWriteToNiagaraChannel - {0} - Input {1}"), { InContext->Node ? InContext->Node->GetName() : TEXT("Unknown node"), FString::FromInt(InputNum - 1) });
 
-		UNiagaraDataChannelWriter* NiagaraWriter = UNiagaraDataChannelLibrary::CreateDataChannelWriter(World, DataChannel, std::move(SearchParameters), Count, /*bVisibleToGame=*/ true, /*bVisibleToCPU=*/ true, /*bVisibleToGPU=*/ false, DebugSource);
+		UNiagaraDataChannelWriter* NiagaraWriter = UNiagaraDataChannelLibrary::CreateDataChannelWriter(World, DataChannel, std::move(SearchParameters), Count, Settings->bVisibleToGame, Settings->bVisibleToCPU, Settings->bVisibleToGPU, DebugSource);
 
 		if (!NiagaraWriter)
 		{
