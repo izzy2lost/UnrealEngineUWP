@@ -27,6 +27,7 @@
 #ifndef USE_EXISTENCE_MASK
 #define USE_EXISTENCE_MASK 0
 #endif //
+
 #define USE_CAMERA_AVSM (DIM_USE_ADAPTIVE_VOLUMETRIC_SHADOW_MAP && (SUPPORT_OVERLAPPING_VOLUMES != 0))
 
 #if SUPPORT_OVERLAPPING_VOLUMES
@@ -40,6 +41,7 @@
 #include "HeterogeneousVolumesTracingUtils.ush"
 #include "HeterogeneousVolumesLightingUtils.ush"
 #include "../BlueNoise.ush"
+
 
 #if VIRTUAL_SHADOW_MAP
 #include "../VirtualShadowMaps/VirtualShadowMapProjectionCommon.ush"
@@ -219,13 +221,7 @@ struct FVolumeSampleContext
 	FPixelMaterialInputs PixelMaterialInputs;
 };
 
-FVolumeSampleContext CreateVolumeSampleContext(
-	float3 LocalPosition,
-	float3 WorldPosition,
-	float3 WorldPosition_DDX,
-	float3 WorldPosition_DDY,
-	float MipLevel
-)
+FVolumeSampleContext CreateVolumeSampleContext(float3 LocalPosition, float3 WorldPosition, float MipLevel)
 {
 	FVolumeSampleContext VolumeSampleContext;
 	VolumeSampleContext.MaterialParameters = MakeInitializedMaterialPixelParameters();
@@ -236,29 +232,10 @@ FVolumeSampleContext CreateVolumeSampleContext(
 	VolumeSampleContext.MaterialParameters.LWCData.LocalToWorld = WSPromote(GetLocalToWorld());
 	VolumeSampleContext.MaterialParameters.LWCData.WorldToLocal = WSPromoteInverse(GetWorldToLocal());
 
-#if USE_ANALYTIC_DERIVATIVES
-	VolumeSampleContext.MaterialParameters.WorldPosition_DDX = WorldPosition_DDX;
-	VolumeSampleContext.MaterialParameters.WorldPosition_DDY = WorldPosition_DDY;
-	CalcPixelMaterialInputsAnalyticDerivatives(VolumeSampleContext.MaterialParameters, VolumeSampleContext.PixelMaterialInputs);
-#else
+	// Evaluate Material graph
 	CalcPixelMaterialInputs(VolumeSampleContext.MaterialParameters, VolumeSampleContext.PixelMaterialInputs);
-#endif
 
 	return VolumeSampleContext;
-}
-
-FVolumeSampleContext CreateVolumeSampleContext(float3 LocalPosition, float3 WorldPosition, float MipLevel)
-{
-	float3 WorldPosition_DDX = 0.0;
-	float3 WorldPosition_DDY = 0.0;
-
-	return CreateVolumeSampleContext(
-		LocalPosition,
-		WorldPosition,
-		WorldPosition_DDX,
-		WorldPosition_DDY,
-		MipLevel
-	);
 }
 
 FVolumeSampleContext CreateVolumeSampleContext(float3 LocalPosition, float3 WorldPosition, float3 FilterWidth, float MipLevel, float Rand, int StochasticFilteringMode)
@@ -557,22 +534,11 @@ void RenderSingleScatteringWithLiveShading(
 	float WorldRayLength = length(WorldRayDirection);
 	WorldRayDirection /= WorldRayLength;
 
-	// TODO: Analytical derivate evaluation is not currently supported under orthographic projection
-	float3 WorldRayEnd_DDX = DFHackToFloat(SvPositionToWorld(float4(ViewPixelCoord + ScreenJitter + float2(1.0, 0.0), DeviceZ, 1)));
-	float3 WorldRayDirection_DDX = normalize(WorldRayEnd_DDX - WorldRayOrigin);
-	float3 WorldRayEnd_DDY = DFHackToFloat(SvPositionToWorld(float4(ViewPixelCoord + ScreenJitter + float2(0.0, 1.0), DeviceZ, 1)));
-	float3 WorldRayDirection_DDY = normalize(WorldRayEnd_DDY - WorldRayOrigin);
-
 	float3 LocalRayOrigin = mul(float4(WorldRayOrigin, 1.0), WorldToLocal).xyz;
 	float3 LocalRayEnd = mul(float4(WorldRayEnd, 1.0), WorldToLocal).xyz;
 	float3 LocalRayDirection = LocalRayEnd - LocalRayOrigin;
 	float LocalRayLength = length(LocalRayDirection);
 	LocalRayDirection /= LocalRayLength;
-
-	float3 LocalRayEnd_DDX = mul(float4(WorldRayEnd_DDX, 1.0), WorldToLocal).xyz;
-	float3 LocalRayDirection_DDX = normalize(LocalRayEnd_DDX - LocalRayOrigin);
-	float3 LocalRayEnd_DDY = mul(float4(WorldRayEnd_DDY, 1.0), WorldToLocal).xyz;
-	float3 LocalRayDirection_DDY = normalize(LocalRayEnd_DDY - LocalRayOrigin);
 
 	float3 LocalBoundsMin = LocalBoundsOrigin - LocalBoundsExtent;
 	float3 LocalBoundsMax = LocalBoundsOrigin + LocalBoundsExtent;
@@ -587,15 +553,11 @@ void RenderSingleScatteringWithLiveShading(
 			// Local-space
 			LocalRayOrigin,
 			LocalRayDirection,
-			LocalRayDirection_DDX,
-			LocalRayDirection_DDY,
 			HitT.x,
 			HitT.y,
 			// World-space
 			WorldRayOrigin,
 			WorldRayDirection,
-			WorldRayDirection_DDX,
-			WorldRayDirection_DDY,
 			// Ray-step attributes
 			Jitter,
 			CalcStepSize(LocalRayDirection),

@@ -175,32 +175,12 @@ FVolumeSampleContext CreateVolumeSampleContext(float3 LocalPosition, float3 Worl
 	return VolumeSampleContext;
 }
 
-FVolumeSampleContext CreateVolumeSampleContext(
-	float3 LocalPosition,
-	float3 WorldPosition,
-	float3 WorldPosition_DDX,
-	float3 WorldPosition_DDY,
-	float MipLevel
-)
+FVolumeSampleContext CreateVolumeSampleContext(float3 LocalPosition, float3 WorldPosition, float MipLevel)
 {
 	FVolumeSampleContext VolumeSampleContext;
 	VolumeSampleContext.WorldPosition = WorldPosition;
 
 	return VolumeSampleContext;
-}
-
-FVolumeSampleContext CreateVolumeSampleContext(float3 LocalPosition, float3 WorldPosition, float MipLevel)
-{
-	float3 WorldPosition_DDX = 0;
-	float3 WorldPosition_DDY = 0;
-
-	return CreateVolumeSampleContext(
-		LocalPosition,
-		WorldPosition,
-		WorldPosition_DDX,
-		WorldPosition_DDY,
-		MipLevel
-	);
 }
 
 float3 SampleExtinction(inout FVolumeSampleContext Context)
