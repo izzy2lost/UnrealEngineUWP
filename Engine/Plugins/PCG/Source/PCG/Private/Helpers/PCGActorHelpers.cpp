@@ -308,6 +308,9 @@ UPCGManagedSplineMeshComponent* UPCGActorHelpers::GetOrCreateManagedSplineMeshCo
 	SplineMeshComponent->RegisterComponent();
 	InTargetActor->AddInstanceComponent(SplineMeshComponent);
 
+	// Implementation note: since the data passed to the params here is in world space,
+	// We need the transform on the spline mesh component to be the identity - in world space, because unlike the ISMs
+	// where we can set the instances and specify the data is in world space, we can't do that here.
 	SplineMeshComponent->AttachToComponent(InTargetActor->GetRootComponent(), FAttachmentTransformRules(EAttachmentRule::KeepWorld, EAttachmentRule::KeepWorld, EAttachmentRule::KeepWorld, false));
 	SplineMeshComponent->ComponentTags.Add(InSourceComponent->GetFName());
 	SplineMeshComponent->ComponentTags.Add(PCGHelpers::DefaultPCGTag);

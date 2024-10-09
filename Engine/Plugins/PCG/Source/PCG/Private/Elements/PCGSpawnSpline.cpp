@@ -109,12 +109,12 @@ bool FPCGSpawnSplineElement::ExecuteInternal(FPCGContext* InContext) const
 		// Also propagate the tags on the tagged data to the component.
 		Algo::Transform(InputData.Tags, SplineComponent->ComponentTags, [](const FString& Tag) { return FName(Tag); });
 
-		InSplineData->ApplyTo(SplineComponent);
-
 		SplineComponent->RegisterComponent();
 		TargetActor->AddInstanceComponent(SplineComponent);
 		// Spline Data apply to Spline Component is done in world coordinate, so keep world location.
-		SplineComponent->AttachToComponent(TargetActor->GetRootComponent(), FAttachmentTransformRules(EAttachmentRule::KeepWorld, EAttachmentRule::KeepWorld, EAttachmentRule::KeepWorld, false));
+		SplineComponent->AttachToComponent(TargetActor->GetRootComponent(), FAttachmentTransformRules(EAttachmentRule::KeepRelative, EAttachmentRule::KeepWorld, EAttachmentRule::KeepWorld, false));
+
+		InSplineData->ApplyTo(SplineComponent);
 
 		UPCGManagedComponent* ManagedComponent = NewObject<UPCGManagedComponent>(InContext->SourceComponent.Get());
 		ManagedComponent->GeneratedComponent = SplineComponent;
