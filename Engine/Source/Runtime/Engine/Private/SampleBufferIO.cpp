@@ -504,6 +504,9 @@ namespace Audio
 			FMemory::Free(CurrentSoundWave->RawPCMData);
 			CurrentSoundWave->RawPCMData = nullptr;
 		}
+
+		CurrentSoundWave->RawPCMData = (uint8*)FMemory::Malloc(CurrentSoundWave->RawPCMDataSize);
+		FMemory::Memcpy(CurrentSoundWave->RawPCMData, CurrentBuffer.GetData(), CurrentSoundWave->RawPCMDataSize);
 	}
 
 	void FSoundWavePCMWriter::SerializeSoundWaveToAsset()
@@ -641,6 +644,8 @@ namespace Audio
 
 	void FAsyncSoundWavePCMWriteWorker::DoWork()
 	{
+	    check (Writer);
+		
 		switch (TaskType)
 		{
 			case Audio::ESoundWavePCMWriteTaskType::GenerateSoundWave:
@@ -706,18 +711,20 @@ namespace Audio
 				break;
 			}
 
-		// force update the compression type
-		if (IsInAudioThread())
+		if (Writer->CurrentSoundWave)
 		{
-			Writer->CurrentSoundWave->SetSoundAssetCompressionType(ESoundAssetCompressionType::PCM);
-		}
-		
-		// clear out RawPCMData
-		check(Writer->CurrentSoundWave);
-		if (Writer->CurrentSoundWave->RawPCMData)
-		{
-			FMemory::Free(Writer->CurrentSoundWave->RawPCMData);
-			Writer->CurrentSoundWave->RawPCMData = nullptr;
+			// force update the compression type
+			if (IsInAudioThread())
+			{
+				Writer->CurrentSoundWave->SetSoundAssetCompressionType(ESoundAssetCompressionType::PCM);
+			}
+			
+			// clear out RawPCMData
+			if (Writer->CurrentSoundWave->RawPCMData)
+			{
+				FMemory::Free(Writer->CurrentSoundWave->RawPCMData);
+				Writer->CurrentSoundWave->RawPCMData = nullptr;
+			}
 		}
 
 		// Capture our callback and perform it on the game thread:
