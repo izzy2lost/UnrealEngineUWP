@@ -362,7 +362,11 @@ void UChooserTable::UpdateDebugging(FChooserEvaluationContext& Context) const
 
 				if (UWorld* World = ContextObject->GetWorld())
 				{
-					if (World->GetNetMode() == ENetMode::NM_DedicatedServer)
+					if (World->IsPreviewWorld())
+					{
+						DebugName += " (Preview)";
+					}
+					else if (World->GetNetMode() == ENetMode::NM_DedicatedServer)
 					{
 						DebugName += " (Server)";
 					}
