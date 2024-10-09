@@ -21,6 +21,7 @@
 #include "HAL/PlatformFileManager.h"
 #include "HAL/PlatformTime.h"
 #include "HAL/PlatformProcess.h"
+#include "HAL/LowLevelMemTracker.h"
 #include "IO/IoChunkEncoding.h"
 #include "IO/IoContainerHeader.h"
 #include "IO/PackageStore.h"
@@ -33,6 +34,7 @@
 #include "Misc/Guid.h"
 #include "Misc/Paths.h"
 #include "Misc/PathViews.h"
+#include "ProfilingDebugging/AssetMetadataTrace.h"
 #include "Serialization/MemoryReader.h"
 #if !(UE_BUILD_SHIPPING|UE_BUILD_TEST)
 #include "String/LexFromString.h"
@@ -490,6 +492,7 @@ FOnDemandIoStore::~FOnDemandIoStore()
 
 FIoStatus FOnDemandIoStore::Initialize()
 {
+	LLM_SCOPE(ELLMTag::FileSystem);
 	const FIoStatus CacheStatus = InitializeOnDemandInstallCache();
 	if (CacheStatus.GetErrorCode() == EIoErrorCode::PendingFork)
 	{
@@ -606,6 +609,7 @@ void FOnDemandIoStore::Install(
 	FOnDemandInstallProgressed&& OnProgress /*= nullptr*/,
 	const FOnDemandCancellationToken* CancellationToken)
 {
+	LLM_SCOPE(ELLMTag::FileSystem);
 	FSharedInstallRequest InstallRequest = MakeShared<FInstallRequest>();
 	InstallRequest->Args				= MoveTemp(Args);
 	InstallRequest->OnCompleted			= MoveTemp(OnCompleted);
@@ -622,6 +626,7 @@ void FOnDemandIoStore::Install(
 
 void FOnDemandIoStore::Purge(FOnDemandPurgeArgs&& Args, FOnDemandPurgeCompleted&& OnCompleted)
 {
+	LLM_SCOPE(ELLMTag::FileSystem);
 	FSharedPurgeRequest PurgeRequest = MakeShared<FPurgeRequest>();
 	PurgeRequest->Args			= MoveTemp(Args);
 	PurgeRequest->OnCompleted	= MoveTemp(OnCompleted);
@@ -636,6 +641,7 @@ void FOnDemandIoStore::Purge(FOnDemandPurgeArgs&& Args, FOnDemandPurgeCompleted&
 
 FIoStatus FOnDemandIoStore::Unmount(FStringView MountId)
 {
+	LLM_SCOPE(ELLMTag::FileSystem);
 	UE_LOG(LogIoStoreOnDemand, Log, TEXT("Unmounting '%s'"), *WriteToString<256>(MountId));
 
 	bool bPendingMount = false;
@@ -928,6 +934,7 @@ void FOnDemandIoStore::TryEnterTickLoop()
 
 void FOnDemandIoStore::TickLoop()
 {
+	LLM_SCOPE(ELLMTag::FileSystem);
 	ON_SCOPE_EXIT { UE_LOG(LogIoStoreOnDemand, Verbose, TEXT("Exiting I/O store tick loop")); };
 
 	UE_LOG(LogIoStoreOnDemand, Verbose, TEXT("Entering I/O store tick loop"));
@@ -1675,6 +1682,11 @@ void FOnDemandIoStore::CreateContainersFromToc(
 	FOnDemandToc& Toc,
 	TArray<FSharedOnDemandContainer>& Out)
 {
+	static FName AssetClassName(TEXT("OnDemandIoStore"));
+	LLM_SCOPE(ELLMTag::FileSystem);
+	LLM_TAGSET_SCOPE(FName(MountId), ELLMTagSet::Assets);
+	LLM_TAGSET_SCOPE(AssetClassName, ELLMTagSet::AssetClasses);
+	UE_TRACE_METADATA_SCOPE_ASSET_FNAME(FName(MountId), AssetClassName, FName(TocPath));
 	const FOnDemandTocHeader& Header = Toc.Header;
 	const FName CompressionFormat(Header.CompressionFormat);
 
@@ -1767,6 +1779,10 @@ void FOnDemandIoStore::CreateContainersFromToc(
 			}
 		}
 
+		// Do not count output container memory as being allocated for utocs
+		LLM_TAGSET_SCOPE_CLEAR(ELLMTagSet::Assets);
+		LLM_TAGSET_SCOPE_CLEAR(ELLMTagSet::AssetClasses);
+		UE_TRACE_METADATA_CLEAR_SCOPE();
 		Out.Add(MoveTemp(Container));
 	}
 }
@@ -1890,6 +1906,7 @@ FIoStatus FOnDemandIoStore::GetContainersAndPackagesForInstall(
 
 void FOnDemandIoStore::ReleaseContent(FOnDemandInternalContentHandle& ContentHandle)
 {
+	LLM_SCOPE(ELLMTag::FileSystem);
 	UE_LOG(LogIoStoreOnDemand, Log, TEXT("Releasing content handle '%s'"), *LexToString(ContentHandle));
 
 	UE::TUniqueLock Lock(ContainerMutex);

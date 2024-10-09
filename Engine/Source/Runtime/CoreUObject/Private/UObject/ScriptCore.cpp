@@ -20,6 +20,7 @@
 #include "UObject/Object.h"
 #include "UObject/CoreNative.h"
 #include "UObject/Class.h"
+#include "UObject/Package.h"
 #include "Templates/Casts.h"
 #include "Serialization/NullArchive.h"
 #include "UObject/SoftObjectPtr.h"
@@ -32,6 +33,9 @@
 #include "UObject/ScriptMacros.h"
 #include "UObject/UObjectThreadContext.h"
 #include "HAL/IConsoleManager.h"
+#include "HAL/LowLevelMemTracker.h"
+#include "HAL/LowLevelMemStats.h"
+#include "ProfilingDebugging/AssetMetadataTrace.h"
 #include "AutoRTFM/AutoRTFM.h"
 
 DEFINE_LOG_CATEGORY(LogScriptFrame);
@@ -1085,6 +1089,10 @@ void UObject::CallFunction( FFrame& Stack, RESULT_DECL, UFunction* Function )
 #endif // PER_FUNCTION_SCRIPT_STATS
 
 	SCOPE_CYCLE_UOBJECT(ContextScope, GVerboseScriptStats ? this : nullptr);
+	LLM_SCOPE(ELLMTag::UObject);
+	LLM_SCOPE_DYNAMIC_STAT_OBJECTPATH(GetPackage(), ELLMTagSet::Assets);
+	LLM_SCOPE_DYNAMIC_STAT_OBJECTPATH(GetClass(), ELLMTagSet::AssetClasses);
+	UE_TRACE_METADATA_SCOPE_ASSET(this, GetClass());
 
 	checkSlow(Function);
 
@@ -1262,18 +1270,36 @@ void ProcessLocalScriptFunction(UObject* Context, FFrame& Stack, RESULT_DECL)
 void ProcessLocalFunction(UObject* Context, UFunction* Fn, FFrame& Stack, RESULT_DECL)
 {
 	checkSlow(Fn);
-	if(Fn->HasAnyFunctionFlags(FUNC_Native))
+
+	auto ContinueProcessLocalFuntionInner = [&]() {
+		if(Fn->HasAnyFunctionFlags(FUNC_Native))
+		{
+			FScopeCycleCounterUObject NativeContextScope(GVerboseScriptStats ? Context : nullptr);
+			Fn->Invoke(Context, Stack, RESULT_PARAM);
+		}
+		else
+		{
+	#if PER_FUNCTION_SCRIPT_STATS
+			const bool bShouldTrackFunction = (Stack.DepthCounter <= GMaxFunctionStatDepth);
+			SCOPE_CYCLE_UOBJECT(FunctionScope, bShouldTrackFunction ? Fn : nullptr);
+	#endif // PER_FUNCTION_SCRIPT_STATS
+			ProcessScriptFunction(Context, Fn, Stack, RESULT_PARAM, ProcessLocalScriptFunction);
+		}
+	};
+
+#if ENABLE_LOW_LEVEL_MEM_TRACKER
+	if (Context && FLowLevelMemTracker::IsEnabled())
 	{
-		FScopeCycleCounterUObject NativeContextScope(GVerboseScriptStats ? Context : nullptr);
-		Fn->Invoke(Context, Stack, RESULT_PARAM);
+		LLM_SCOPE(ELLMTag::UObject);
+		LLM_SCOPE_DYNAMIC_STAT_OBJECTPATH(Context->GetPackage(), ELLMTagSet::Assets);
+		LLM_SCOPE_DYNAMIC_STAT_OBJECTPATH(Context->GetClass(), ELLMTagSet::AssetClasses);
+		UE_TRACE_METADATA_SCOPE_ASSET(Context, Context->GetClass());
+		return ContinueProcessLocalFuntionInner();
 	}
 	else
+#endif
 	{
-#if PER_FUNCTION_SCRIPT_STATS
-		const bool bShouldTrackFunction = (Stack.DepthCounter <= GMaxFunctionStatDepth);
-		SCOPE_CYCLE_UOBJECT(FunctionScope, bShouldTrackFunction ? Fn : nullptr);
-#endif // PER_FUNCTION_SCRIPT_STATS
-		ProcessScriptFunction(Context, Fn, Stack, RESULT_PARAM, ProcessLocalScriptFunction);
+		return ContinueProcessLocalFuntionInner();
 	}
 }
 
@@ -2023,6 +2049,11 @@ void UObject::ProcessEvent( UFunction* Function, void* Parms )
 #endif // PER_FUNCTION_SCRIPT_STATS
 
 	SCOPE_CYCLE_UOBJECT(ContextScope, GVerboseScriptStats ? this : nullptr);
+
+	LLM_SCOPE(ELLMTag::UObject);
+	LLM_SCOPE_DYNAMIC_STAT_OBJECTPATH(GetPackage(), ELLMTagSet::Assets);
+	LLM_SCOPE_DYNAMIC_STAT_OBJECTPATH(GetClass(), ELLMTagSet::AssetClasses);
+	UE_TRACE_METADATA_SCOPE_ASSET(this, GetClass());
 
 #if LIGHTWEIGHT_PROCESS_EVENT_COUNTER
 	TGuardValue<int32> PECounter(ProcessEventCounter, ProcessEventCounter + 1);
