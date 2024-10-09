@@ -131,7 +131,8 @@ namespace PCGSurfaceSampler
 			return false;
 		}
 
-		if (PCGFeatureSwitches::CVarCheckSamplerMemory.GetValueOnAnyThread() && (PCGFeatureSwitches::CVarSamplerMemoryThreshold.GetValueOnAnyThread() * FPlatformMemory::GetStats().AvailablePhysical) < sizeof(FPCGPoint) * FMath::Min(TargetPointCount, CellCount))
+		if (PCGFeatureSwitches::CVarCheckSamplerMemory.GetValueOnAnyThread()
+			&& PCGFeatureSwitches::Helpers::GetAvailableMemoryForSamplers() < (sizeof(FPCGPoint) * FMath::Min(TargetPointCount, CellCount)))
 		{
 			PCGLog::LogErrorOnGraph(FText::Format((LOCTEXT("TooManyPoints", "Skipped - tried to generate too many points ({0}).\nAdjust 'pcg.SamplerMemoryThreshold' if needed.")), FMath::Min(TargetPointCount, CellCount)), Context);
 			return false;

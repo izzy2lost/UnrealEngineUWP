@@ -188,6 +188,12 @@ namespace PCGFeatureSwitches
 {
 	extern PCG_API TAutoConsoleVariable<bool> CVarCheckSamplerMemory;
 	extern PCG_API TAutoConsoleVariable<float> CVarSamplerMemoryThreshold;
+
+	namespace Helpers
+	{
+		/** Checks the cvar for allowed physical and virtual memory ratio to be used with samplers. */
+		PCG_API uint64 GetAvailableMemoryForSamplers();
+	}
 }
 
 namespace PCGSystemSwitches

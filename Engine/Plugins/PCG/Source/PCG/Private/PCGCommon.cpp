@@ -24,6 +24,17 @@ namespace PCGFeatureSwitches
 			}
 		})
 	};
+
+	namespace Helpers
+	{
+		uint64 GetAvailableMemoryForSamplers()
+		{
+			const FPlatformMemoryStats MemoryStats = FPlatformMemory::GetStats();
+			// Also uses AvailableVirtual because the system might have plenty of physical memory but still be limited by virtual memory available in some cases.
+			// (i.e. per-process quota, paging file size lower than actual memory available, etc.).
+			return CVarSamplerMemoryThreshold.GetValueOnAnyThread() * FMath::Min(MemoryStats.AvailablePhysical, MemoryStats.AvailableVirtual);
+		}
+	}
 }
 
 namespace PCGSystemSwitches
