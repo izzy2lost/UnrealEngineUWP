@@ -217,6 +217,9 @@ public:
 	virtual void SetupRenderingPipelineForShot(UMoviePipelineExecutorShot* InShot) {}
 	virtual void TeardownRenderingPipelineForShot(UMoviePipelineExecutorShot* InShot) {}
 	virtual UE::MovieGraph::FRenderTimeStatistics* GetRenderTimeStatistics(const int32 InFrameNumber) { return nullptr; }
+
+	UE_DEPRECATED(5.5, "Use the version that doesn't take a config instead. The information from the config is now derived from the index value.")
+	virtual UE::MovieGraph::FMinimalCameraInfo GetMinimalCameraInfo(UMovieGraphEvaluatedConfig* InConfig, const int32 InCameraIndex) const { return GetMinimalCameraInfo(InCameraIndex); }
 	
 	/** InCameraIndex can be -1 (for primary camera when not using multi-layer rendering) or 0...n for sidecar cameras. */
 	virtual UE::MovieGraph::FMinimalCameraInfo GetMinimalCameraInfo(const int32 InCameraIndex) const { return UE::MovieGraph::FMinimalCameraInfo(); }

@@ -445,6 +445,12 @@ namespace MoviePipeline
 			return !(*this == InRHS);
 		}
 	};
+
+	struct FClothSimSettingsCache
+	{
+		int32 NumSubSteps;
+		float DynamicSubstepDeltaTime;
+	};
 }
 
 USTRUCT(BlueprintType)

@@ -16,6 +16,7 @@
 #include "Interfaces/Interface_PostProcessVolume.h"
 #include "GameFramework/WorldSettings.h"
 #include "ProfilingDebugging/MiscTrace.h"
+#include "MoviePipelineUtils.h"
 
 UMovieGraphCoreTimeStep::UMovieGraphCoreTimeStep()
 {
@@ -402,7 +403,16 @@ void UMovieGraphCoreTimeStep::TickProducingFrames()
 	{
 		FrameDeltaTime = CurrentFrameData.TemporalRanges[0].Size<FFrameTime>();
 	}
-	// ToDo: Propagate delta time multipliers to cloth
+
+	// Cloth needs to increase the number of iterations when solving during the "long"
+	// frame of MRQ (shutter closed time).
+	{
+		double Ratio = FrameDeltaTime.FloorToFrame().Value / (double)CurrentFrameMetrics.FrameTimePerTemporalSample.FloorToFrame().Value;
+
+		// Slomo can end up trying to do less than one iteration, we don't want that.	
+		int32 DivisionMultiplier = FMath::Max(FMath::FloorToInt(Ratio), 1);
+		UE::MoviePipeline::SetSkeletalMeshClothSubSteps(DivisionMultiplier, GetWorld(), GetOwningGraph()->GetClothSimCache());
+	}
 
 	// Because we know what time range we're supposed to represent, we can just assign the CurrentTimeInRoot absolutely,
 	// instead of accumulating delta times.
@@ -471,6 +481,18 @@ void UMovieGraphCoreTimeStep::TickProducingFrames()
 		// Calculate metrics for the shot as well
 		CurrentTimeStepData.ShotFrameNumber = ShotFrameNumber;
 		CurrentTimeStepData.ShotTimeCode = FTimecode::FromFrameNumber(CurrentTimeStepData.ShotFrameNumber, EffectiveFrameRate, bDropFrame);
+
+		// Update the lightweight tick info in the module for other modules (Niagara) to have information
+		// about the temporal data for better simulation. We do this here since we calculated the effective
+		// frame rate above.
+		{
+			FMoviePipelineLightweightTickInfo TickInfo;
+			TickInfo.bIsActive = true;
+			TickInfo.TemporalSampleCount = CurrentTimeStepData.TemporalSampleCount;
+			TickInfo.TemporalSampleIndex = CurrentTimeStepData.TemporalSampleIndex;
+			TickInfo.SequenceFPS = EffectiveFrameRate.AsDecimal();
+			FMovieRenderPipelineCoreModule::SetTickInfo(TickInfo);
+		}
 	}
 
 	// Set our time step for the next frame. We use the undilated delta time for the Custom Timestep as the engine will
