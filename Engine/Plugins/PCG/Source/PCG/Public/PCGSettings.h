@@ -16,6 +16,7 @@
 
 class UPCGComponent;
 class UPCGPin;
+struct FPCGGPUCompilationContext;
 struct FPCGPinProperties;
 struct FPropertyChangedEvent;
 
@@ -552,11 +553,11 @@ public:
 	bool ComputeOutputPinDataDesc(const FName& OutputPinLabel, const UPCGDataBinding* InBinding, FPCGDataCollectionDesc& OutDesc) const;
 	virtual bool ComputeOutputPinDataDesc(const UPCGPin* OutputPin, const UPCGDataBinding* InBinding, FPCGDataCollectionDesc& OutDesc) const;
 
-	/** Create additional data interfaces to marshal any data required by this settings. */
-	virtual void CreateAdditionalInputDataInterfaces(TArray<TObjectPtr<UComputeDataInterface>>& OutDataInterfaces) const {}
-	virtual void CreateAdditionalOutputDataInterfaces(TArray<TObjectPtr<UComputeDataInterface>>& OutDataInterfaces) const {}
-
 #if WITH_EDITOR
+	/** Create additional data interfaces to marshal any data required by this settings. */
+	virtual void CreateAdditionalInputDataInterfaces(FPCGGPUCompilationContext& InOutContext, UObject* InObjectOuter, TArray<TObjectPtr<UComputeDataInterface>>& OutDataInterfaces) const {}
+	virtual void CreateAdditionalOutputDataInterfaces(FPCGGPUCompilationContext& InOutContext, UObject* InObjectOuter, TArray<TObjectPtr<UComputeDataInterface>>& OutDataInterfaces) const {}
+
 	/** Whether to display GPU execution option in node settings UI. */
 	UFUNCTION()
 	virtual bool DisplayExecuteOnGPUSetting() const { return false; }

@@ -8,11 +8,16 @@ class FPCGGraphCompiler;
 class UPCGGraph;
 class UPCGPin;
 struct FPCGGraphTask;
+struct FPCGGPUCompilationContext;
 
 #if WITH_EDITOR
 class FPCGGraphCompilerGPU
 {
 public:
+	/** Finds connected subgraphs of GPU - enabled nodes that can be dispatched together and replaces each one with a compute graph. */
+	static void CreateGPUNodes(FPCGGraphCompiler& InOutCompiler, UPCGGraph* InGraph, uint32 InGridSize, TArray<FPCGGraphTask>& InOutCompiledTasks);
+
+private:
 	/** Used to track new unique virtual pins created on generated compute graph elements. */
 	using FNodePin = TTuple<FPCGTaskId, /*Pin label*/FName, /*Pin is input*/bool>;
 	using FOriginalToVirtualPin = TMap<FNodePin, /*Virtual pin label*/FName>;
@@ -57,7 +62,7 @@ public:
 	
 	/** Compiles a compute graph. */
 	static void BuildGPUGraphTask(
-		FPCGGraphCompiler& InOutCompiler,
+		FPCGGPUCompilationContext& InOutContext,
 		UPCGGraph* InGraph,
 		uint32 InGridSize,
 		FPCGTaskId InGPUGraphTaskId,
@@ -68,7 +73,5 @@ public:
 		const FOriginalToVirtualPin& InOriginalToVirtualPin,
 		const TMap<TSoftObjectPtr<const UPCGPin>, FName>& InOutputCPUPinToVirtualPin);
 	
-	/** Finds connected subgraphs of GPU - enabled nodes that can be dispatched together and replaces each one with a compute graph. */
-	static void CreateGPUNodes(FPCGGraphCompiler& InOutCompiler, UPCGGraph* InGraph, uint32 InGridSize, TArray<FPCGGraphTask>& InOutCompiledTasks);
 };
 #endif // WITH_EDITOR

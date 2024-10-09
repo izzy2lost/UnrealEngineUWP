@@ -15,6 +15,7 @@
 #include "Compute/DataInterfaces/PCGTextureDataInterface.h"
 #include "Compute/Elements/PCGComputeGraphElement.h"
 #include "Elements/PCGStaticMeshSpawner.h"
+#include "Graph/PCGGPUGraphCompilationContext.h"
 #include "Graph/PCGGraphCompiler.h"
 #include "Graph/PCGGraphExecutor.h"
 
@@ -510,7 +511,7 @@ void FPCGGraphCompilerGPU::WireGPUGraphNode(
 }
 
 void FPCGGraphCompilerGPU::BuildGPUGraphTask(
-	FPCGGraphCompiler& InOutCompiler,
+	FPCGGPUCompilationContext& InOutContext,
 	UPCGGraph* InGraph,
 	uint32 InGridSize,
 	FPCGTaskId InGPUGraphTaskId,
@@ -526,8 +527,9 @@ void FPCGGraphCompilerGPU::BuildGPUGraphTask(
 	check(InGraph);
 	const FName GraphName = MakeUniqueObjectName(InGraph, UPCGComputeGraph::StaticClass(), InGraph->GetFName());
 
-	UObject* ComputeGraphOuter = InOutCompiler.IsCooking() ? InGraph : Cast<UObject>(GetTransientPackage());
-	UPCGComputeGraph* ComputeGraph = NewObject<UPCGComputeGraph>(ComputeGraphOuter, GraphName);
+	UObject* ComputeGraphOuter = InOutContext.GetGraphCompiler().IsCooking() ? InGraph : Cast<UObject>(GetTransientPackage());
+
+	UPCGComputeGraph* ComputeGraph = InOutContext.NewObject_AnyThread<UPCGComputeGraph>(ComputeGraphOuter, GraphName);
 	ComputeGraph->OutputCPUPinToInputGPUPinAlias = InOutputCPUPinToVirtualPin;
 
 	// Not incredibly useful for us - DG adds GetComponentSource()->GetComponentClass() object which allows it to bind at execution time by class.
@@ -536,7 +538,7 @@ void FPCGGraphCompilerGPU::BuildGPUGraphTask(
 
 	// Create data interfaces which allow kernels to read or write data. Each data interface is associated with a node output pin.
 	// For CPU->GPU edges, an upload data interface is created. For GPU->CPU edges, a readback data interface is created.
-	auto CreateDataInterface = [&InCollapsedTasks, &InOutCompiledTasks, ComputeGraph](FPCGTaskId InTaskId, bool bRequiresReadback, const FPCGPinProperties& InOutputPinProperties) -> UPCGComputeDataInterface*
+	auto CreateDataInterface = [&InOutContext, &InCollapsedTasks, &InOutCompiledTasks, ComputeGraph](FPCGTaskId InTaskId, bool bRequiresReadback, const FPCGPinProperties& InOutputPinProperties) -> UPCGComputeDataInterface*
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(CreateDataInterface);
 
@@ -564,12 +566,12 @@ void FPCGGraphCompilerGPU::BuildGPUGraphTask(
 			if (bUpstreamIsGPUTask)
 			{
 				// Provides data for GPU -> GPU and GPU -> CPU edges.
-				DataInterfacePCGData = NewObject<UPCGDataCollectionDataInterface>(ComputeGraph);
+				DataInterfacePCGData = InOutContext.NewObject_AnyThread<UPCGDataCollectionDataInterface>(ComputeGraph);
 			}
 			else
 			{
 				// Provides data for CPU -> GPU edge.
-				DataInterfacePCGData = NewObject<UPCGDataCollectionUploadDataInterface>(ComputeGraph);
+				DataInterfacePCGData = InOutContext.NewObject_AnyThread<UPCGDataCollectionUploadDataInterface>(ComputeGraph);
 			}
 
 			check(DataInterfacePCGData);
@@ -581,12 +583,12 @@ void FPCGGraphCompilerGPU::BuildGPUGraphTask(
 		}
 		case EPCGDataType::Texture:
 		{
-			DataInterface = NewObject<UPCGTextureDataInterface>(ComputeGraph);
+			DataInterface = InOutContext.NewObject_AnyThread<UPCGTextureDataInterface>(ComputeGraph);
 			break;
 		}
 		case EPCGDataType::Landscape:
 		{
-			DataInterface = NewObject<UPCGLandscapeDataInterface>(ComputeGraph);
+			DataInterface = InOutContext.NewObject_AnyThread<UPCGLandscapeDataInterface>(ComputeGraph);
 			break;
 		}
 		default:
@@ -871,7 +873,7 @@ void FPCGGraphCompilerGPU::BuildGPUGraphTask(
 			}
 		}
 
-		UPCGCustomKernelDataInterface* KernelDI = NewObject<UPCGCustomKernelDataInterface>(ComputeGraph);
+		UPCGCustomKernelDataInterface* KernelDI = InOutContext.NewObject_AnyThread<UPCGCustomKernelDataInterface>(ComputeGraph);
 		KernelDI->Settings = Settings;
 
 		const int32 KernelDIIndex = ComputeGraph->DataInterfaces.Num();
@@ -879,16 +881,13 @@ void FPCGGraphCompilerGPU::BuildGPUGraphTask(
 		InputDataInterfaceIndexAndPin.Emplace(KernelDIIndex, NAME_None);
 
 		TArray<TObjectPtr<UComputeDataInterface>> AdditionalInputDIs, AdditionalOutputDIs;
-		Settings->CreateAdditionalInputDataInterfaces(AdditionalInputDIs);
-		Settings->CreateAdditionalOutputDataInterfaces(AdditionalOutputDIs);
+		Settings->CreateAdditionalInputDataInterfaces(InOutContext, ComputeGraph, AdditionalInputDIs);
+		Settings->CreateAdditionalOutputDataInterfaces(InOutContext, ComputeGraph, AdditionalOutputDIs);
 
 		auto AddAdditionalDataInterface = [ComputeGraph](TObjectPtr<UComputeDataInterface> DataInterface) -> int32
 		{
 			if (ensure(DataInterface))
 			{
-				// Re-outer to the ComputeGraph
-				DataInterface->Rename(/*Name=*/nullptr, ComputeGraph);
-
 				const int32 DataInterfaceIndex = ComputeGraph->DataInterfaces.Num();
 				ComputeGraph->DataInterfaces.Add(DataInterface);
 
@@ -921,7 +920,7 @@ void FPCGGraphCompilerGPU::BuildGPUGraphTask(
 		// TODO once we support cooking for different platforms/configs, don't create the interface if logging is not present.
 		if (Settings->bPrintShaderDebugValues)
 		{
-			UPCGDebugDataInterface* DebugDI = NewObject<UPCGDebugDataInterface>(ComputeGraph);
+			UPCGDebugDataInterface* DebugDI = InOutContext.NewObject_AnyThread<UPCGDebugDataInterface>(ComputeGraph);
 			DebugDI->SetDebugBufferSize(Settings->DebugBufferSize);
 
 			const int32 DebugDIIndex = ComputeGraph->DataInterfaces.Num();
@@ -951,7 +950,7 @@ void FPCGGraphCompilerGPU::BuildGPUGraphTask(
 
 		FKernelWithDataBindings KernelWithBindings;
 
-		KernelWithBindings.Kernel = NewObject<UComputeKernel>(ComputeGraph);
+		KernelWithBindings.Kernel = InOutContext.NewObject_AnyThread<UComputeKernel>(ComputeGraph);
 		const int KernelIndex = ComputeGraph->KernelInvocations.Num();
 		ComputeGraph->KernelInvocations.Add(KernelWithBindings.Kernel);
 		ComputeGraph->KernelToNode.Add(Node);
@@ -1000,7 +999,7 @@ void FPCGGraphCompilerGPU::BuildGPUGraphTask(
 		}
 
 		{
-			UPCGComputeKernelSource* KernelSource = NewObject<UPCGComputeKernelSource>(KernelWithBindings.Kernel); // is outer to kernel fine?
+			UPCGComputeKernelSource* KernelSource = InOutContext.NewObject_AnyThread<UPCGComputeKernelSource>(KernelWithBindings.Kernel); // is outer to kernel fine?
 			KernelWithBindings.Kernel->KernelSource = KernelSource;
 			KernelSource->EntryPoint = Settings->GetKernelEntryPoint();
 			KernelSource->GroupSize = Settings->GetThreadGroupSize();
@@ -1124,12 +1123,12 @@ void FPCGGraphCompilerGPU::BuildGPUGraphTask(
 		}
 	}
 
-	TMap<uint32, TArray<TObjectPtr<UPCGComputeGraph>>>& GridToComputeGraphs = InOutCompiler.GetCache().TopGraphToComputeGraphMap.FindOrAdd(InGraph);
+	TMap<uint32, TArray<TObjectPtr<UPCGComputeGraph>>>& GridToComputeGraphs = InOutContext.GetGraphCompiler().GetCache().TopGraphToComputeGraphMap.FindOrAdd(InGraph);
 	TArray<TObjectPtr<UPCGComputeGraph>>& ComputeGraphs = GridToComputeGraphs.FindOrAdd(InGridSize);
 	const uint32 ComputeGraphIndex = ComputeGraphs.Num();
 	ComputeGraphs.Add(ComputeGraph);
 
-	if (InOutCompiler.IsCooking())
+	if (InOutContext.GetGraphCompiler().IsCooking())
 	{
 		TObjectPtr<UPCGComputeGraphSettings> Settings = NewObject<UPCGComputeGraphSettings>(InGraph);
 		Settings->ComputeGraphIndex = ComputeGraphIndex;
@@ -1153,6 +1152,8 @@ void FPCGGraphCompilerGPU::BuildGPUGraphTask(
 void FPCGGraphCompilerGPU::CreateGPUNodes(FPCGGraphCompiler& InOutCompiler, UPCGGraph* InGraph, uint32 InGridSize, TArray<FPCGGraphTask>& InOutCompiledTasks)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGGraphCompilerGPU::CreateGPUNodes);
+
+	FPCGGPUCompilationContext Context(InOutCompiler);
 
 	// Clear out any previous compute graphs for this grid level before adding new ones.
 	if (ensure(InGraph))
@@ -1253,7 +1254,7 @@ void FPCGGraphCompilerGPU::CreateGPUNodes(FPCGGraphCompiler& InOutCompiler, UPCG
 
 		// Generate a compute graph from all of the individual GPU tasks.
 		BuildGPUGraphTask(
-			InOutCompiler,
+			Context,
 			InGraph,
 			InGridSize,
 			ComputeGraphTaskId,

@@ -8,6 +8,7 @@
 #include "Compute/PCGDataBinding.h"
 #include "Data/PCGPointData.h"
 #include "Data/PCGSpatialData.h"
+#include "Graph/PCGGPUGraphCompilationContext.h"
 #include "Helpers/PCGAsync.h"
 #include "Helpers/PCGHelpers.h"
 
@@ -124,14 +125,16 @@ int UPCGCopyPointsSettings::ComputeKernelThreadCount(const UPCGDataBinding* Bind
 	return ThreadCount;
 }
 
-void UPCGCopyPointsSettings::CreateAdditionalInputDataInterfaces(TArray<TObjectPtr<UComputeDataInterface>>& OutDataInterfaces) const
+#if WITH_EDITOR
+void UPCGCopyPointsSettings::CreateAdditionalInputDataInterfaces(FPCGGPUCompilationContext& InOutContext, UObject* InObjectOuter, TArray<TObjectPtr<UComputeDataInterface>>& OutDataInterfaces) const
 {
-	Super::CreateAdditionalInputDataInterfaces(OutDataInterfaces);
+	Super::CreateAdditionalInputDataInterfaces(InOutContext, InObjectOuter, OutDataInterfaces);
 
-	TObjectPtr<UPCGCopyPointsDataInterface> NodeDI = NewObject<UPCGCopyPointsDataInterface>();
+	TObjectPtr<UPCGCopyPointsDataInterface> NodeDI = InOutContext.NewObject_AnyThread<UPCGCopyPointsDataInterface>(InObjectOuter);
 	NodeDI->Settings = this;
 	OutDataInterfaces.Add(NodeDI);
 }
+#endif
 
 TArray<FPCGPinProperties> UPCGCopyPointsSettings::InputPinProperties() const
 {

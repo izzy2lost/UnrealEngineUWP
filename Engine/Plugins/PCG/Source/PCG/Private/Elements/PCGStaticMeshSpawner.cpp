@@ -11,6 +11,7 @@
 #include "Compute/DataInterfaces/Elements/PCGStaticMeshSpawnerDataInterface.h"
 #include "Data/PCGPointData.h"
 #include "Data/PCGSpatialData.h"
+#include "Graph/PCGGPUGraphCompilationContext.h"
 #include "Elements/PCGStaticMeshSpawnerContext.h"
 #include "Helpers/PCGActorHelpers.h"
 #include "Helpers/PCGHelpers.h"
@@ -228,26 +229,26 @@ int UPCGStaticMeshSpawnerSettings::ComputeKernelThreadCount(const UPCGDataBindin
 	return ComputeInputPinDataDesc(Pin, Binding).ComputeDataElementCount(EPCGDataType::Point);
 }
 
-void UPCGStaticMeshSpawnerSettings::CreateAdditionalInputDataInterfaces(TArray<TObjectPtr<UComputeDataInterface>>& OutDataInterfaces) const
+#if WITH_EDITOR
+void UPCGStaticMeshSpawnerSettings::CreateAdditionalInputDataInterfaces(FPCGGPUCompilationContext& InOutContext, UObject* InObjectOuter, TArray<TObjectPtr<UComputeDataInterface>>& OutDataInterfaces) const
 {
-	Super::CreateAdditionalInputDataInterfaces(OutDataInterfaces);
+	Super::CreateAdditionalInputDataInterfaces(InOutContext, InObjectOuter, OutDataInterfaces);
 
-	TObjectPtr<UPCGStaticMeshSpawnerDataInterface> NodeDI = NewObject<UPCGStaticMeshSpawnerDataInterface>();
+	TObjectPtr<UPCGStaticMeshSpawnerDataInterface> NodeDI = InOutContext.NewObject_AnyThread<UPCGStaticMeshSpawnerDataInterface>(InObjectOuter);
 	NodeDI->Settings = this;
 	OutDataInterfaces.Add(NodeDI);
 }
 
-void UPCGStaticMeshSpawnerSettings::CreateAdditionalOutputDataInterfaces(TArray<TObjectPtr<UComputeDataInterface>>& OutDataInterfaces) const
+void UPCGStaticMeshSpawnerSettings::CreateAdditionalOutputDataInterfaces(FPCGGPUCompilationContext& InOutContext, UObject* InObjectOuter, TArray<TObjectPtr<UComputeDataInterface>>& OutDataInterfaces) const
 {
-	Super::CreateAdditionalOutputDataInterfaces(OutDataInterfaces);
+	Super::CreateAdditionalOutputDataInterfaces(InOutContext, InObjectOuter, OutDataInterfaces);
 
-	UPCGInstanceDataInterface* InstanceDI = NewObject<UPCGInstanceDataInterface>();
+	UPCGInstanceDataInterface* InstanceDI = InOutContext.NewObject_AnyThread<UPCGInstanceDataInterface>(InObjectOuter);
 	InstanceDI->SetProducerSettings(this);
 	InstanceDI->InputPinProvidingData = PCGPinConstants::DefaultInputLabel;
 	OutDataInterfaces.Add(InstanceDI);
 }
 
-#if WITH_EDITOR
 FText UPCGStaticMeshSpawnerSettings::GetDefaultNodeTitle() const
 {
 	return LOCTEXT("NodeTitle", "Static Mesh Spawner");
