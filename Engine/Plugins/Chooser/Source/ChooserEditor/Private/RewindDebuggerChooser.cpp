@@ -45,8 +45,12 @@ void FRewindDebuggerChooser::Update(float DeltaTime, IRewindDebugger* RewindDebu
 					if (const FWorldInfo* WorldInfo = GameplayProvider->FindWorldInfoFromObject(OwnerId))
 					{
 						const FObjectInfo& WorldObjectInfo = GameplayProvider->GetObjectInfo(WorldInfo->Id);
-
-						if (WorldInfo->NetMode == FWorldInfo::ENetMode::DedicatedServer)
+						
+						if (WorldInfo->Type == FWorldInfo::EType::EditorPreview)
+						{
+							DebugName += " (Preview)";
+						}
+						else if (WorldInfo->NetMode == FWorldInfo::ENetMode::DedicatedServer)
 						{
 							DebugName += " (Server)";
 						}
