@@ -113,13 +113,9 @@ namespace mu
 				}
 			}
 		}
-		else if (Version >= 4)
-		{
-			Arch >> DataStorage;
-		}
 		else
 		{
-			check(false);
+			Arch >> DataStorage;
 		}
 
 		Arch >> m_flags;

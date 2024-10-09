@@ -82,8 +82,7 @@ public:
 	void* const & GetPointer() const;
 	template<typename T> TSharedPtr<T, ESPMode::ThreadSafe> GetSharedPointer() const
 	{
-		check(DataType == EDataType::TypeSharedPointer);
-		if (DataType == EDataType::TypeSharedPointer)
+		if (ensure(DataType == EDataType::TypeSharedPointer))
 		{
 			const TSharedPtrHolder<T>* Pointer = reinterpret_cast<const TSharedPtrHolder<T>*>(&DataBuffer);
 			return Pointer->Pointer;

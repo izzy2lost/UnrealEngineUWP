@@ -129,7 +129,7 @@ static void TerminateOnDeviceRemoved(HRESULT D3DResult, ID3D11Device* Direct3DDe
 		// Workaround for the fact that in non-monolithic builds the exe gets into a weird state and exception handling fails. 
 		// @todo investigate why non-monolithic builds fail to capture the exception when graphics driver crashes.
 #if !IS_MONOLITHIC
-		FPlatformMisc::RequestExit(true, TEXT("TerminateOnDeviceRemoved"));
+		FPlatformMisc::RequestExit(true, TEXT("TerminateOnDeviceRemoved")); //-V779
 #endif
 	}
 }

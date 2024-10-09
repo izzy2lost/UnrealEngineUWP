@@ -1534,7 +1534,7 @@ static FString CreateGBufferDecodeFunctionVariation(const FGBufferInfo& BufferIn
 					CoordName.GetCharArray().GetData(),
 					FullSwizzle[NumChan-1].GetCharArray().GetData());
 			}
-			else if (DecodeType == SceneTexturesLoad)
+			else if (DecodeType == SceneTexturesLoad) //-V547
 			{
 				CurrLine = FString::Printf(TEXT("\t%s InMRT%d = %sTexture.Load(int3(%s, 0)).%s;\n"),
 					TypeName.GetCharArray().GetData(),

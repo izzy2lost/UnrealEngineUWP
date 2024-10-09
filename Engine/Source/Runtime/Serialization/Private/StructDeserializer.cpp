@@ -676,6 +676,7 @@ bool FStructDeserializer::DeserializeElement(void* OutAddress, UStruct& OwnerInf
 					}
 					else
 					{
+						checkSlow(CurrentState.Property);
 						//Too many entries in TArray
 						UE_LOG(LogSerialization, Verbose, TEXT("TArray %s has dimension of %d and trying to read element %d"), *CurrentState.Property->GetFName().ToString(), CurrentState.Property->ArrayDim, CurrentState.ArrayIndex);
 						continue;
@@ -683,6 +684,7 @@ bool FStructDeserializer::DeserializeElement(void* OutAddress, UStruct& OwnerInf
 				}
 				else
 				{
+					checkSlow(CurrentState.Property);
 					// static array element
 					if (CurrentState.ArrayIndex >= 0 && CurrentState.ArrayIndex < CurrentState.Property->ArrayDim)
 					{
@@ -1022,7 +1024,7 @@ bool FStructDeserializer::DeserializeElement(void* OutAddress, UStruct& OwnerInf
 						else
 						{
 							//Index out of bound
-							UE_LOG(LogSerialization, Verbose, TEXT("TMap %s has dimension of %d and trying to read element %d"), *CurrentState.Property->GetFName().ToString(), MapHelper.Num(), CurrentState.ArrayIndex);
+							UE_LOG(LogSerialization, Verbose, TEXT("TMap %s has dimension of %d and trying to read element %d"), *GetNameSafe(CurrentState.Property), MapHelper.Num(), CurrentState.ArrayIndex);
 							Backend.SkipStructure();
 							continue;
 						}
@@ -1048,7 +1050,7 @@ bool FStructDeserializer::DeserializeElement(void* OutAddress, UStruct& OwnerInf
 						else
 						{
 							//Index out of bound
-							UE_LOG(LogSerialization, Verbose, TEXT("TArray %s has dimension of %d and trying to read element %d"), *CurrentState.Property->GetFName().ToString(), SetHelper.Num(), CurrentState.ArrayIndex);
+							UE_LOG(LogSerialization, Verbose, TEXT("TArray %s has dimension of %d and trying to read element %d"), *GetNameSafe(CurrentState.Property), SetHelper.Num(), CurrentState.ArrayIndex);
 							Backend.SkipStructure();
 							continue;
 						}
@@ -1074,7 +1076,7 @@ bool FStructDeserializer::DeserializeElement(void* OutAddress, UStruct& OwnerInf
 						else
 						{
 							//Index out of bound
-							UE_LOG(LogSerialization, Verbose, TEXT("TArray %s has dimension of %d and trying to read element %d"), *CurrentState.Property->GetFName().ToString(), ArrayHelper.Num(), CurrentState.ArrayIndex);
+							UE_LOG(LogSerialization, Verbose, TEXT("TArray %s has dimension of %d and trying to read element %d"), *GetNameSafe(CurrentState.Property), ArrayHelper.Num(), CurrentState.ArrayIndex);
 							Backend.SkipStructure();
 							continue;
 						}

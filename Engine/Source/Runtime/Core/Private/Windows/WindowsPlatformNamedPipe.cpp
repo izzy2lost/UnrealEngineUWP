@@ -245,7 +245,7 @@ bool FWindowsPlatformNamedPipe::BlockForAsyncIO()
 				break;
 		}
 	}
-	while (bTryAgain);
+	while (bTryAgain); //-V654
 
 	return true;
 }

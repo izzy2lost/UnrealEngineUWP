@@ -17,8 +17,8 @@
 #include "GameFramework/CharacterMovementComponent.h"
 
 #define MASSAGENT_CHECK( condition, Format, ... ) \
-	checkf( condition, Format, ##__VA_ARGS__ ); \
-	UE_CVLOG(!(condition), GetOwner(), LogMass, Error, Format, ##__VA_ARGS__);
+	UE_CVLOG(!(condition), GetOwner(), LogMass, Error, Format, ##__VA_ARGS__); \
+	checkf( condition, Format, ##__VA_ARGS__ );
 
 //----------------------------------------------------------------------//
 // UMassAgentComponent

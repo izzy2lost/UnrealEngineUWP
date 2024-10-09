@@ -1230,9 +1230,7 @@ void UCustomizableObjectPrivate::LoadEmbeddedData(FArchive& Ar)
 
 	// If this fails, something went wrong with the packaging: we have data that belongs
 	// to a different version than the code.
-	check(CurrentSupportedVersion == InternalVersion);
-
-	if(CurrentSupportedVersion == InternalVersion)
+	if (ensure(CurrentSupportedVersion == InternalVersion))
 	{		
 		// Load model
 		UnrealMutableInputStream Stream(Ar);

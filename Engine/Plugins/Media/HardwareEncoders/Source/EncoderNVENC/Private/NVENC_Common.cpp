@@ -83,8 +83,7 @@ namespace AVEncoder
 				{
 					version = NV_ENCODE_API_FUNCTION_LIST_VER;
 					NVENCSTATUS Result = NvEncodeAPICreateInstanceFunc(this);
-					checkf(Result == NV_ENC_SUCCESS, TEXT("Unable to create NvEnc API function list: error %d"), Result);
-					if(Result == NV_ENC_SUCCESS)
+					if (ensureMsgf(Result == NV_ENC_SUCCESS, TEXT("Unable to create NvEnc API function list: error %d"), Result))
 					{
 						bIsAvailable = true;
 					}
