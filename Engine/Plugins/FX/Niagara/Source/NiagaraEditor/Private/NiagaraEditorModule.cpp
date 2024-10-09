@@ -2364,14 +2364,16 @@ void FNiagaraEditorModule::OnAssetRegistryLoadComplete()
 
 	check(AssetRegistry.IsLoadingAssets() == false);
 
+	IAssetTools& AssetTools = IAssetTools::Get();
+
 	//Ensure All Data Channel Assets are loaded and available for use in editor.
 	TArray<FAssetData> AllDataChannels;
 	AssetRegistry.GetAssetsByClass(UNiagaraDataChannelAsset::StaticClass()->GetClassPathName(), AllDataChannels);
-	for (FAssetData& DataChannelAsset : AllDataChannels)
+	for (const FAssetData& DataChannelAsset : AllDataChannels)
 	{
-		if (FPackageName::GetPackageMountPoint(DataChannelAsset.PackageName.ToString()) != NAME_None)
+		if (AssetTools.IsAssetVisible(DataChannelAsset, true))
 		{
-			UNiagaraDataChannelAsset* NewAsset = Cast<UNiagaraDataChannelAsset>(DataChannelAsset.GetAsset());
+			DataChannelAsset.GetAsset();
 		}
 	}
 }
