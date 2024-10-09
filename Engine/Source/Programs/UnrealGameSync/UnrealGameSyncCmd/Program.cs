@@ -124,6 +124,10 @@ namespace UnrealGameSyncCmd
 				null,
 				null
 			),
+			new CommandInfo("uninstall", typeof(UninstallCommand), null,
+				null,
+				null
+			),
 			new CommandInfo("upgrade", typeof(UpgradeCommand), typeof(UpgradeCommandOptions),
 				"ugs upgrade",
 				"Upgrades the current installation with the latest build of UGS."
@@ -1566,42 +1570,88 @@ namespace UnrealGameSyncCmd
 		{
 			public override async Task ExecuteAsync(CommandContext context)
 			{
-				ILogger logger = context.Logger;
+				await UpdateInstallAsync(true, context.Logger);
+			}
+		}
 
-				if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+		class UninstallCommand : Command
+		{
+			public override async Task ExecuteAsync(CommandContext context)
+			{
+				await UpdateInstallAsync(false, context.Logger);
+			}
+		}
+
+		static async Task UpdateInstallAsync(bool install, ILogger logger)
+		{
+			if (OperatingSystem.IsWindows())
+			{
+				const string EnvVarName = "PATH";
+
+				FileReference assemblyFile = new FileReference(Assembly.GetExecutingAssembly().GetOriginalLocation());
+				DirectoryReference assemblyDir = assemblyFile.Directory;
+
+				string? pathVar = Environment.GetEnvironmentVariable(EnvVarName, EnvironmentVariableTarget.User);
+				pathVar ??= String.Empty;
+
+				List<string> paths = new List<string>(pathVar.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries));
+
+				int changes = paths.RemoveAll(x => x.Equals(assemblyDir.FullName, StringComparison.OrdinalIgnoreCase));
+				if (install)
 				{
-					DirectoryReference? userDir = DirectoryReference.GetSpecialFolder(Environment.SpecialFolder.UserProfile);
-					if (userDir != null)
-					{
-						FileReference configFile = FileReference.Combine(userDir, ".zshrc");
-						await AddAliasAsync(configFile, logger);
-					}
+					paths.Add(assemblyDir.FullName);
+					changes++;
 				}
-				else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+				if (changes > 0)
 				{
-					DirectoryReference? userDir = DirectoryReference.GetSpecialFolder(Environment.SpecialFolder.UserProfile);
-					if (userDir != null)
-					{
-						FileReference configFile = FileReference.Combine(userDir, ".bashrc");
-						await AddAliasAsync(configFile, logger);
-					}
+					pathVar = String.Join(Path.PathSeparator, paths);
+					Environment.SetEnvironmentVariable(EnvVarName, pathVar, EnvironmentVariableTarget.User);
 				}
 			}
-
-			static async Task AddAliasAsync(FileReference configFile, ILogger logger)
+			else if (OperatingSystem.IsMacOS())
 			{
-				DirectoryReference currentDir = new FileReference(Assembly.GetExecutingAssembly().Location).Directory;
-
-				List<string> lines = new List<string>();
-				if (FileReference.Exists(configFile))
+				DirectoryReference? userDir = DirectoryReference.GetSpecialFolder(Environment.SpecialFolder.UserProfile);
+				if (userDir != null)
 				{
-					lines.AddRange(await FileReference.ReadAllLinesAsync(configFile));
-					lines.RemoveAll(x => Regex.IsMatch(x, @"^\s*alias\s+ugs\s*="));
+					FileReference configFile = FileReference.Combine(userDir, ".zshrc");
+					await UpdateAliasAsync(configFile, install, logger);
 				}
-				lines.Add($"alias ugs={FileReference.Combine(currentDir, "ugs")}");
+			}
+			else if (OperatingSystem.IsLinux())
+			{
+				DirectoryReference? userDir = DirectoryReference.GetSpecialFolder(Environment.SpecialFolder.UserProfile);
+				if (userDir != null)
+				{
+					FileReference configFile = FileReference.Combine(userDir, ".bashrc");
+					await UpdateAliasAsync(configFile, install, logger);
+				}
+			}
+		}
 
-				await FileReference.WriteAllLinesAsync(configFile, lines);
+		static async Task UpdateAliasAsync(FileReference configFile, bool install, ILogger logger)
+		{
+			DirectoryReference currentDir = new FileReference(Assembly.GetExecutingAssembly().Location).Directory;
+
+			List<string> lines = new List<string>();
+			if (FileReference.Exists(configFile))
+			{
+				lines.AddRange(await FileReference.ReadAllLinesAsync(configFile));
+				lines.RemoveAll(x => Regex.IsMatch(x, @"^\s*alias\s+ugs\s*="));
+			}
+			if (install)
+			{
+				lines.Add($"alias ugs={FileReference.Combine(currentDir, "ugs")}");
+			}
+
+			await FileReference.WriteAllLinesAsync(configFile, lines);
+
+			if (install)
+			{
 				logger.LogInformation("Added 'ugs' alias to {ConfigFile}", configFile);
+			}
+			else
+			{
+				logger.LogInformation("Removed 'ugs' alias from {ConfigFile}", configFile);
 			}
 		}
 
