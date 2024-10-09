@@ -1269,7 +1269,7 @@ inline bool TDirectoryTree<ValueType>::FTreeNode::TryGetChildren(FStringBuilderB
 		checkf(false, TEXT("Infinite loop trying to split path %.*s into components."), InRelPath.Len(), InRelPath.GetData());
 	}
 
-	check(false); // Only way to get here is from the checkf in the else block.
+	check(false); //-V779 Only way to get here is from the checkf in the else block.
 	return false;
 }
 

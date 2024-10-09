@@ -4599,8 +4599,7 @@ void AInstancedFoliageActor::PostLoad()
 
 			if (GetLinkerCustomVersion(FFoliageCustomVersion::GUID) < FFoliageCustomVersion::HierarchicalISMCNonTransactional)
 			{
-				check(Info.Type == EFoliageImplType::StaticMesh);
-				if (Info.Type == EFoliageImplType::StaticMesh)
+				if (ensure(Info.Type == EFoliageImplType::StaticMesh))
 				{
 					FFoliageStaticMesh* FoliageStaticMesh = StaticCast<FFoliageStaticMesh*>(Info.Implementation.Get());
 					if (FoliageStaticMesh->Component)
@@ -4622,8 +4621,7 @@ void AInstancedFoliageActor::PostLoad()
 			// Upgrade foliage component
 			if (GetLinkerCustomVersion(FFoliageCustomVersion::GUID) < FFoliageCustomVersion::FoliageUsingFoliageISMC)
 			{
-				check(Info.Type == EFoliageImplType::StaticMesh);
-				if (Info.Type == EFoliageImplType::StaticMesh)
+				if (ensure(Info.Type == EFoliageImplType::StaticMesh))
 				{
 					FFoliageStaticMesh* FoliageStaticMesh = StaticCast<FFoliageStaticMesh*>(Info.Implementation.Get());
 					UFoliageType_InstancedStaticMesh* FoliageType_InstancedStaticMesh = Cast<UFoliageType_InstancedStaticMesh>(FoliageType);

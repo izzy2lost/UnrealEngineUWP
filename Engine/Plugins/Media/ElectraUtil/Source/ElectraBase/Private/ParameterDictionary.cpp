@@ -251,8 +251,7 @@ FVariantValue& FVariantValue::Set(const TArray<uint8>& ArrayValue)
 
 const FString& FVariantValue::GetFString() const
 {
-	check(DataType == EDataType::TypeFString);
-	if (DataType == EDataType::TypeFString)
+	if (ensure(DataType == EDataType::TypeFString))
 	{
 		const FString* Str = reinterpret_cast<const FString*>(&DataBuffer);
 		return *Str;
@@ -266,8 +265,7 @@ const FString& FVariantValue::GetFString() const
 
 const double& FVariantValue::GetDouble() const
 {
-	check(DataType == EDataType::TypeDouble);
-	if (DataType == EDataType::TypeDouble)
+	if (ensure(DataType == EDataType::TypeDouble))
 	{
 		const double* Dbl = reinterpret_cast<const double*>(&DataBuffer);
 		return *Dbl;
@@ -281,8 +279,7 @@ const double& FVariantValue::GetDouble() const
 
 const int64& FVariantValue::GetInt64() const
 {
-	check(DataType == EDataType::TypeInt64);
-	if (DataType == EDataType::TypeInt64)
+	if (ensure(DataType == EDataType::TypeInt64))
 	{
 		const int64* Int = reinterpret_cast<const int64*>(&DataBuffer);
 		return *Int;
@@ -296,8 +293,7 @@ const int64& FVariantValue::GetInt64() const
 
 const bool& FVariantValue::GetBool() const
 {
-	check(DataType == EDataType::TypeBoolean);
-	if (DataType == EDataType::TypeBoolean)
+	if (ensure(DataType == EDataType::TypeBoolean))
 	{
 		const bool* Bool = reinterpret_cast<const bool*>(&DataBuffer);
 		return *Bool;
@@ -311,8 +307,7 @@ const bool& FVariantValue::GetBool() const
 
 const FTimeValue& FVariantValue::GetTimeValue() const
 {
-	check(DataType == EDataType::TypeTimeValue);
-	if (DataType == EDataType::TypeTimeValue)
+	if (ensure(DataType == EDataType::TypeTimeValue))
 	{
 		const FTimeValue* Time = reinterpret_cast<const FTimeValue*>(&DataBuffer);
 		return *Time;
@@ -326,8 +321,7 @@ const FTimeValue& FVariantValue::GetTimeValue() const
 
 void* const & FVariantValue::GetPointer() const
 {
-	check(DataType == EDataType::TypeVoidPointer);
-	if (DataType == EDataType::TypeVoidPointer)
+	if (ensure(DataType == EDataType::TypeVoidPointer))
 	{
 		void** Pointer = (void**)&DataBuffer;
 		return *Pointer;
@@ -341,8 +335,7 @@ void* const & FVariantValue::GetPointer() const
 
 const TArray<uint8>& FVariantValue::GetArray() const
 {
-	check(DataType == EDataType::TypeU8Array);
-	if (DataType == EDataType::TypeU8Array)
+	if (ensure(DataType == EDataType::TypeU8Array))
 	{
 		const TArray<uint8>* Array = reinterpret_cast<const TArray<uint8>*>(&DataBuffer);
 		return *Array;

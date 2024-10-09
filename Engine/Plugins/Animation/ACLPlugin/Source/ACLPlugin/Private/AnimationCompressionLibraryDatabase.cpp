@@ -869,8 +869,7 @@ bool UAnimationCompressionLibraryDatabase::UpdateVisualFidelityTicker(float Delt
 			// We have highest fidelity
 			// The medium/lowest importance tiers are already streamed in
 
-			checkf(Request.Fidelity == ACLVisualFidelity::Medium, TEXT("Unexpected visual fidelity value"));
-			if (Request.Fidelity != ACLVisualFidelity::Medium)
+			if (!ensureMsgf(Request.Fidelity == ACLVisualFidelity::Medium, TEXT("Unexpected visual fidelity value")))
 			{
 				// Something wrong happened, ignore all change requests
 				FailAllRequests(FidelityChangeRequests);
@@ -962,8 +961,7 @@ bool UAnimationCompressionLibraryDatabase::UpdateVisualFidelityTicker(float Delt
 			// We have lowest fidelity
 			// Nothing is currently streamed in
 
-			checkf(Request.Fidelity == ACLVisualFidelity::Medium, TEXT("Unexpected visual fidelity value"));
-			if (Request.Fidelity != ACLVisualFidelity::Medium)
+			if (!ensureMsgf(Request.Fidelity == ACLVisualFidelity::Medium, TEXT("Unexpected visual fidelity value")))
 			{
 				// Something wrong happened, ignore all change requests
 				FailAllRequests(FidelityChangeRequests);

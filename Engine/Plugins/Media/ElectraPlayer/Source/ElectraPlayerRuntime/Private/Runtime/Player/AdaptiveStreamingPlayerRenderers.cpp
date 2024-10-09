@@ -422,8 +422,7 @@ UEMediaError FAdaptiveStreamingWrappedRenderer::ReturnAudioBuffer(IBuffer* Buffe
 				UEMediaError Error = ReturnBufferCommon(Buffer, bRender, InSampleProperties);
 				check(Error == UEMEDIA_ERROR_OK);
 				Error = WrappedRenderer->AcquireBuffer(Buffer, 0, NoParams);
-				check(Error == UEMEDIA_ERROR_OK);
-				if (Error != UEMEDIA_ERROR_OK)
+				if (!ensure(Error == UEMEDIA_ERROR_OK))
 				{
 					return Error;
 				}

@@ -554,7 +554,7 @@ static FOutcome DoRecv(FActivity* Activity, FPeerType& Peer, int32& MaxRecvSize)
 
 	if (State == EState::RecvMessage)	return DoRecvMessage(Activity, Peer);
 	if (State == EState::RecvContent)	return DoRecvContent(Activity, Peer, MaxRecvSize);
-	if (State == EState::RecvStream)	return DoRecvStream(Activity, Peer, MaxRecvSize);
+	if (State == EState::RecvStream)	return DoRecvStream(Activity, Peer, MaxRecvSize); //-V547
 	
 	check(false); // it is not expected that we'll get here
 	return FOutcome::Error("unreachable");

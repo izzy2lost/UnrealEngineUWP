@@ -497,18 +497,20 @@ void FNiagaraWorldManager::OnShutdown()
 	}
 
 	//Should have cleared up all world managers by now.
-	check(WorldManagers.Num() == 0);
-	for (TPair<UWorld*, FNiagaraWorldManager*> Pair : WorldManagers)
+	if (!ensure(WorldManagers.Num() == 0))
 	{
-		FNiagaraWorldManager* WorldMan = Pair.Value;
-		if(ensure(WorldMan))
+		for (TPair<UWorld*, FNiagaraWorldManager*> Pair : WorldManagers)
 		{
-			delete WorldMan;
-		}
+			FNiagaraWorldManager* WorldMan = Pair.Value;
+			if (ensure(WorldMan))
+			{
+				delete WorldMan;
+			}
 		
-		Pair.Value = nullptr;
+			Pair.Value = nullptr;
+		}
+		WorldManagers.Empty();
 	}
-	WorldManagers.Empty();
 }
 
 void FNiagaraWorldManager::AddReferencedObjects(FReferenceCollector& Collector)

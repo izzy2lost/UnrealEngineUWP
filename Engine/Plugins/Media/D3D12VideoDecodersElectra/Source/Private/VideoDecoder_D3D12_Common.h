@@ -131,8 +131,7 @@ public:
 			if (CompletedValue < Value)
 			{
 				HRESULT Result = Fence->SetEventOnCompletion(Value, EventHandle);
-				check(Result == S_OK);
-				if (Result != S_OK)
+				if (!ensure(Result == S_OK))
 				{
 					return false;
 				}

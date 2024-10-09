@@ -220,8 +220,7 @@ FRHITexture* FElectraTextureSample::GetTexture() const
 					}
 				}
 
-				check(Res == S_OK);
-				if (Res == S_OK)
+				if (ensure(Res == S_OK))
 				{
 					// Setup a suitable RHI texture (it will also become an additional owner of the data)
 					ETextureCreateFlags Flags = ETextureCreateFlags::ShaderResource;

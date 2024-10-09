@@ -1677,7 +1677,7 @@ FVulkanTexture::FVulkanTexture(FRHICommandListBase* RHICmdList, FVulkanDevice& I
 
 	const VkDescriptorType DescriptorType = SupportsSampling() ? VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE : VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
 	const VkImageUsageFlags SRVUsage = bIsSRGB ? (ImageCreateInfo.ImageCreateInfo.usage & ~VK_IMAGE_USAGE_STORAGE_BIT) : ImageCreateInfo.ImageCreateInfo.usage;
-	if (ViewType != VK_IMAGE_VIEW_TYPE_MAX_ENUM)
+	if (ViewType != VK_IMAGE_VIEW_TYPE_MAX_ENUM) //-V547
 	{
 		DefaultView = (new FVulkanView(InDevice, DescriptorType))->InitAsTextureView(
 			Image
@@ -2209,7 +2209,7 @@ void FVulkanTexture::UpdateLinkedViews()
 	const VkImageViewType ViewType = GetViewType();
 	const uint32 ArraySize = GetNumberOfArrayLevels();
 
-	if (ViewType != VK_IMAGE_VIEW_TYPE_MAX_ENUM)
+	if (ViewType != VK_IMAGE_VIEW_TYPE_MAX_ENUM) //-V547
 	{
 		DefaultView->InitAsTextureView(Image, ViewType, GetFullAspectMask(), GetDesc().Format, ViewFormat, 0, FMath::Max(NumMips, 1u), 0, ArraySize, !SupportsSampling());
 	}

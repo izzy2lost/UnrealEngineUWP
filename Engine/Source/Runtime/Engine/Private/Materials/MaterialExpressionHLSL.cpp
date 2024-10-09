@@ -1112,10 +1112,7 @@ bool UMaterialExpressionParticleSubUVProperties::GenerateHLSLExpression(FMateria
 
 	}
 	
-	if (Input != EExternalInput::None)
-	{
-		OutExpression = Generator.GetTree().NewExpression<FExpressionExternalInput>(Input);
-	}
+	OutExpression = Generator.GetTree().NewExpression<FExpressionExternalInput>(Input);
 	return OutExpression != nullptr;
 }
 

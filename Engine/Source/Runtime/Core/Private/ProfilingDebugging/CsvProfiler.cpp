@@ -692,8 +692,7 @@ public:
 		FScopeLock Lock(&CS);
 		{
 			Index = GetCategoryIndex(CategoryName);
-			checkf(Index == -1, TEXT("CSV stat category already declared: %s. Note: Categories are not case sensitive"), *CategoryName);
-			if (Index == -1)
+			if (ensureMsgf(Index == -1, TEXT("CSV stat category already declared: %s. Note: Categories are not case sensitive"), *CategoryName))
 			{
 				if (bIsGlobal)
 				{
