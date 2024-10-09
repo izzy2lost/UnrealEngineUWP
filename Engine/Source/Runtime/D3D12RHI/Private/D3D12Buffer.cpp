@@ -134,6 +134,8 @@ void FD3D12Buffer::UploadResourceData(FRHICommandListBase& RHICmdList, FResource
 
 FD3D12SyncPointRef FD3D12Buffer::UploadResourceDataViaCopyQueue(FResourceArrayUploadInterface* InResourceArray)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(UploadResourceDataViaCopyQueue);
+
 	// assume not dynamic and not on async thread (probably fine but untested)
 	check(IsInRHIThread() || IsInRenderingThread());
 	check(!(GetUsage() & BUF_AnyDynamic));
@@ -144,7 +146,10 @@ FD3D12SyncPointRef FD3D12Buffer::UploadResourceDataViaCopyQueue(FResourceArrayUp
 	FD3D12ResourceLocation SrcResourceLoc(GetParentDevice());
 	void* pData = GetParentDevice()->GetDefaultFastAllocator().Allocate(BufferSize, 4UL, &SrcResourceLoc);
 	check(pData);
-	FMemory::Memcpy(pData, InResourceArray->GetResourceData(), BufferSize);
+	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(CopyToUploadMemory);
+		FMemory::Memcpy(pData, InResourceArray->GetResourceData(), BufferSize);
+	}
 
 	// Allocate copy queue command list and perform the copy op
 	FD3D12Device* Device = SrcResourceLoc.GetParentDevice();
@@ -198,7 +203,7 @@ void FD3D12Adapter::AllocateBuffer(FD3D12Device* Device,
 		check(InResourceStateMode != ED3D12ResourceStateMode::MultiState);
 		check(InCreateState == D3D12_RESOURCE_STATE_GENERIC_READ);
 		GetUploadHeapAllocator(Device->GetGPUIndex()).AllocUploadResource(Size, Alignment, ResourceLocation);
-		check(ResourceLocation.GetSize() == Size);
+		check(ResourceLocation.GetSize() >= Size);
 	}
 	else
 	{
@@ -211,7 +216,7 @@ void FD3D12Adapter::AllocateBuffer(FD3D12Device* Device,
 			Device->GetDefaultBufferAllocator().AllocDefaultResource(D3D12_HEAP_TYPE_DEFAULT, InDesc, InUsage, InResourceStateMode, InCreateState, ResourceLocation, Alignment, InDebugName);
 		}
 		ResourceLocation.SetOwner(Buffer);
-		check(ResourceLocation.GetSize() == Size);
+		check(ResourceLocation.GetSize() >= Size);
 	}
 }
 
@@ -233,7 +238,7 @@ FD3D12Buffer* FD3D12Adapter::CreateRHIBuffer(
 
 	UE_TRACE_METADATA_SCOPE_ASSET_FNAME(FName(InDebugName), GetRHIBufferClassName(ClassName), OwnerName);
 
-	check(InDesc.Width == BufferDesc.Size);
+	check(InDesc.Width >= BufferDesc.Size);
 
 	FD3D12Buffer* BufferOut = nullptr;
 
@@ -366,6 +371,9 @@ void FD3D12Buffer::GetResourceDescAndAlignment(uint64 InSize, uint32 InStride, E
 {
 	ResourceDesc = CD3DX12_RESOURCE_DESC::Buffer(InSize);
 
+	// Align size to 16 so RAW buffer view can be created without loosing any data at the end when dividing num elements by 4
+	ResourceDesc.Width = Align(ResourceDesc.Width, 16);
+
 	if (EnumHasAnyFlags(InUsage, BUF_UnorderedAccess))
 	{
 		ResourceDesc.Flags |= D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
@@ -397,7 +405,7 @@ void FD3D12Buffer::GetResourceDescAndAlignment(uint64 InSize, uint32 InStride, E
 	else
 	{
 		// Structured buffers, non-ByteAddress buffers, need to be aligned to their stride to ensure that they can be addressed correctly with element based offsets.
-		Alignment = (InStride > 0) && (EnumHasAnyFlags(InUsage, BUF_StructuredBuffer) || !EnumHasAnyFlags(InUsage, BUF_ByteAddressBuffer | BUF_DrawIndirect)) ? InStride : 16;
+		Alignment = (InStride > 0) && (EnumHasAnyFlags(InUsage, BUF_StructuredBuffer) || !EnumHasAnyFlags(InUsage, BUF_ByteAddressBuffer | BUF_DrawIndirect)) ? FMath::LeastCommonMultiplier(InStride, 16) : 16;
 	}
 }
 

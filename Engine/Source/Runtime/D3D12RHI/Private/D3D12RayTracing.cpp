@@ -3043,7 +3043,7 @@ void FD3D12RayTracingGeometry::AllocateBufferSRVs(uint32 InGPUIndex)
 		SRVDesc.Format = DXGI_FORMAT_R32_TYPELESS;
 		SRVDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
 		SRVDesc.Buffer.FirstElement = (Initializer.IndexBufferOffset + IndexBuffer->ResourceLocation.GetOffsetFromBaseOfResource()) >> 2u;
-		SRVDesc.Buffer.NumElements = FMath::Max((uint32)1, (Initializer.TotalPrimitiveCount * 3 * IndexBuffer->GetStride()) >> 2u);
+		SRVDesc.Buffer.NumElements = FMath::Max((uint32)1, ((Initializer.TotalPrimitiveCount * 3 * IndexBuffer->GetStride()) + 3) >> 2u);
 		SRVDesc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_RAW;
 		SRVDesc.Buffer.StructureByteStride = 0;
 
@@ -3064,11 +3064,11 @@ void FD3D12RayTracingGeometry::AllocateBufferSRVs(uint32 InGPUIndex)
 		SRVDesc.Buffer.FirstElement = (Segment.VertexBufferOffset + VertexBuffer->ResourceLocation.GetOffsetFromBaseOfResource()) >> 2u;
 		if (Initializer.GeometryType == RTGT_Procedural)
 		{
-			SRVDesc.Buffer.NumElements = Segment.NumPrimitives * Segment.VertexBufferStride / 4; //< NumElements in R32 size
+			SRVDesc.Buffer.NumElements = ((Segment.NumPrimitives * Segment.VertexBufferStride) + 3) / 4; //< NumElements in R32 size
 		}
 		else
 		{
-			SRVDesc.Buffer.NumElements = FMath::Max((uint32)1, Segment.MaxVertices * Segment.VertexBufferStride / 4); //< NumElements in R32 size
+			SRVDesc.Buffer.NumElements = FMath::Max((uint32)1, ((Segment.MaxVertices * Segment.VertexBufferStride) + 3) / 4); //< NumElements in R32 size
 		}
 		SRVDesc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_RAW;
 		SRVDesc.Buffer.StructureByteStride = 0;
