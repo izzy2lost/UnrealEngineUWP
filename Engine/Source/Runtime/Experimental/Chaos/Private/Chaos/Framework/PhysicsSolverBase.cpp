@@ -14,6 +14,7 @@
 
 #include "ChaosVisualDebugger/ChaosVisualDebuggerTrace.h"
 #include "ChaosVisualDebugger/ChaosVDContextProvider.h"
+#include "HAL/LowLevelMemTracker.h"
 
 DEFINE_STAT(STAT_AsyncPullResults);
 DEFINE_STAT(STAT_AsyncInterpolateResults);
@@ -420,6 +421,7 @@ namespace Chaos
 
 	FGraphEventRef FPhysicsSolverBase::AdvanceAndDispatch_External(FReal InDt)
 	{
+		LLM_SCOPE(ELLMTag::ChaosScene);
 		const bool bSubstepping = MMaxSubSteps > 1;
 		SetSolverSubstep_External(bSubstepping);
 		const FReal DtWithPause = bPaused_External ? 0.0f : InDt;
