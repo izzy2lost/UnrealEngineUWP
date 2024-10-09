@@ -2,13 +2,10 @@
 
 using System;
 using System.Collections.Generic;
-using System.Data.SqlClient;
 using System.IO;
-using System.Linq;
 using System.Net;
 using System.Text;
 using System.Threading;
-using System.Threading.Tasks;
 using System.Web.Script.Serialization;
 
 namespace WriteBadgeStatus
@@ -43,7 +40,7 @@ namespace WriteBadgeStatus
 				Project = Project,
 				ArchivePath = ""
 			};
-			if (!int.TryParse(Change, out Build.ChangeNumber))
+			if (!Int32.TryParse(Change, out Build.ChangeNumber))
 			{
 				Console.WriteLine("Change must be an integer!");
 				return 1;
@@ -53,7 +50,7 @@ namespace WriteBadgeStatus
 				Console.WriteLine("Change must be Starting, Failure, Warning, Success, or Skipped!");
 				return 1;
 			}
-			if (!string.IsNullOrWhiteSpace(Metadata))
+			if (!String.IsNullOrWhiteSpace(Metadata))
 			{
 				Build.Metadata = new JavaScriptSerializer().Deserialize<object>(Metadata);
 			}
@@ -68,7 +65,7 @@ namespace WriteBadgeStatus
 				{
 					if (++NumRetries <= 3)
 					{
-						Console.WriteLine(string.Format("An exception was thrown attempting to send the request: {0}, retrying...", ex.Message));
+						Console.WriteLine(String.Format("An exception was thrown attempting to send the request: {0}, retrying...", ex.Message));
 						// Wait 5 seconds and retry;
 						Thread.Sleep(5000);
 					}
@@ -115,21 +112,15 @@ namespace WriteBadgeStatus
 			public string ArchivePath;
 			public object Metadata;
 
-			public bool IsSuccess
-			{
-				get { return Result == BuildDataResult.Success || Result == BuildDataResult.Warning; }
-			}
+			public bool IsSuccess => Result == BuildDataResult.Success || Result == BuildDataResult.Warning;
 
-			public bool IsFailure
-			{
-				get { return Result == BuildDataResult.Failure; }
-			}
+			public bool IsFailure => Result == BuildDataResult.Failure;
 		}
 
 		static int SendRequest(string URI, string Resource, string Method, string RequestBody = null, params string[] QueryParams)
 		{
 			// set up the query string
-			StringBuilder TargetURI = new StringBuilder(string.Format("{0}/api/{1}", URI, Resource));
+			StringBuilder TargetURI = new StringBuilder(String.Format("{0}/api/{1}", URI, Resource));
 			if (QueryParams.Length != 0)
 			{
 				TargetURI.Append("?");
@@ -146,9 +137,8 @@ namespace WriteBadgeStatus
 			Request.ContentType = "application/json";
 			Request.Method = Method;
 
-
 			// Add json to request body
-			if (!string.IsNullOrEmpty(RequestBody))
+			if (!String.IsNullOrEmpty(RequestBody))
 			{
 				if (Method == "POST")
 				{
@@ -171,22 +161,21 @@ namespace WriteBadgeStatus
 						return ((int)Response.StatusCode >= 200 && (int)Response.StatusCode <= 299) ? 0 : 1;
 					}
 				}
-				
 			}
 			catch (WebException ex)
 			{
 				if (ex.Response != null)
 				{
-					throw new Exception(string.Format("Request returned status: {0}, message: {1}", ((HttpWebResponse)ex.Response).StatusCode, ex.Message));
+					throw new Exception(String.Format("Request returned status: {0}, message: {1}", ((HttpWebResponse)ex.Response).StatusCode, ex.Message));
 				}
 				else
 				{
-					throw new Exception(string.Format("Request returned message: {0}", ex.InnerException.Message));
+					throw new Exception(String.Format("Request returned message: {0}", ex.InnerException.Message));
 				}
 			}
 			catch (Exception ex)
 			{
-				throw new Exception(string.Format("Couldn't complete the request, error: {0}", ex.Message));
+				throw new Exception(String.Format("Couldn't complete the request, error: {0}", ex.Message));
 			}
 		}
 	}

@@ -385,6 +385,9 @@ namespace UnrealGameSync
 		// The currently selected project, relative to the root directory
 		public string ProjectPath { get; set; } = String.Empty;
 
+		// The currently selected preset
+		public string Preset { get; set; } = String.Empty;
+		
 		// Workspace specific SyncFilters
 		public FilterSettings Filter { get; set; } = new FilterSettings();
 
@@ -658,6 +661,7 @@ namespace UnrealGameSync
 				coreSettingsData.Filter.SetCategories(GetCategorySettings(configFile.FindSection("General"), "SyncIncludedCategories", "SyncExcludedCategories"));
 				coreSettingsData.Filter.AllProjects = configFile.GetValue("General.SyncAllProjects", false);
 				coreSettingsData.Filter.AllProjectsInSln = configFile.GetValue("General.IncludeAllProjectsInSolution", false);
+				coreSettingsData.Filter.UprojectSpecificSln = configFile.GetValue("General.UprojectSpecificSolution", false);
 			}
 
 			return new UserSettings(fileName, configFile, coreFileName, coreSettingsData);
@@ -1028,6 +1032,9 @@ namespace UnrealGameSync
 
 				int includeAllProjectsInSolution = workspaceSection.GetValue("IncludeAllProjectsInSolution", -1);
 				currentWorkspace.Filter.AllProjectsInSln = (includeAllProjectsInSolution == 0) ? (bool?)false : (includeAllProjectsInSolution == 1) ? (bool?)true : (bool?)null;
+
+				int uprojectSpecificSolution = workspaceSection.GetValue("UprojectSpecificSolution", -1);
+				currentWorkspace.Filter.UprojectSpecificSln = (uprojectSpecificSolution == 0) ? (bool?)false : (uprojectSpecificSolution == 1) ? (bool?)true : (bool?)null;
 			}
 		}
 

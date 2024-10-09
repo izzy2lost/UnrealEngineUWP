@@ -911,6 +911,12 @@ namespace UnrealBuildTool
 					}
 				}
 				IntermediateProjectFilesPath = DirectoryReference.Combine(PrimaryProjectPath, "Intermediate", "ProjectFiles");
+
+				// Modify the primary project name from the root folder name
+				if (bPrimaryProjectNameFromFolder)
+				{
+					PrimaryProjectName = $"{PrimaryProjectName}_{Unreal.RootDirectory.GetDirectoryName()}";
+				}
 			}
 			else
 			{

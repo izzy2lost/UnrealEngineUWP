@@ -41,6 +41,7 @@ namespace UnrealGameSync.Controls
 			tableLayoutPanel3 = new System.Windows.Forms.TableLayoutPanel();
 			SyncAllProjects = new System.Windows.Forms.CheckBox();
 			IncludeAllProjectsInSolution = new System.Windows.Forms.CheckBox();
+			GenerateUprojectSpecificSolution = new System.Windows.Forms.CheckBox();
 			ViewGroupBox.SuspendLayout();
 			tableLayoutPanel2.SuspendLayout();
 			CategoriesGroupBox.SuspendLayout();
@@ -85,7 +86,7 @@ namespace UnrealGameSync.Controls
 			ViewTextBox.AcceptsReturn = true;
 			ViewTextBox.BorderStyle = System.Windows.Forms.BorderStyle.None;
 			ViewTextBox.Dock = System.Windows.Forms.DockStyle.Fill;
-			ViewTextBox.Font = new System.Drawing.Font("Courier New", 8F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point);
+			ViewTextBox.Font = new System.Drawing.Font("Courier New", 8F);
 			ViewTextBox.Location = new System.Drawing.Point(7, 7);
 			ViewTextBox.Margin = new System.Windows.Forms.Padding(7);
 			ViewTextBox.Multiline = true;
@@ -202,10 +203,12 @@ namespace UnrealGameSync.Controls
 			// 
 			tableLayoutPanel3.AutoSize = true;
 			tableLayoutPanel3.AutoSizeMode = System.Windows.Forms.AutoSizeMode.GrowAndShrink;
-			tableLayoutPanel3.ColumnCount = 1;
-			tableLayoutPanel3.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 100F));
+			tableLayoutPanel3.ColumnCount = 2;
+			tableLayoutPanel3.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 50F));
+			tableLayoutPanel3.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 50F));
 			tableLayoutPanel3.Controls.Add(SyncAllProjects, 0, 0);
 			tableLayoutPanel3.Controls.Add(IncludeAllProjectsInSolution, 0, 1);
+			tableLayoutPanel3.Controls.Add(GenerateUprojectSpecificSolution, 1, 1);
 			tableLayoutPanel3.Dock = System.Windows.Forms.DockStyle.Fill;
 			tableLayoutPanel3.Location = new System.Drawing.Point(16, 23);
 			tableLayoutPanel3.Name = "tableLayoutPanel3";
@@ -237,13 +240,24 @@ namespace UnrealGameSync.Controls
 			IncludeAllProjectsInSolution.Text = "Include all synced projects in solution";
 			IncludeAllProjectsInSolution.UseVisualStyleBackColor = true;
 			// 
+			// GenerateUprojectSpecificSolution
+			// 
+			GenerateUprojectSpecificSolution.Anchor = System.Windows.Forms.AnchorStyles.Left;
+			GenerateUprojectSpecificSolution.AutoSize = true;
+			GenerateUprojectSpecificSolution.Location = new System.Drawing.Point(491, 26);
+			GenerateUprojectSpecificSolution.Name = "GenerateUprojectSpecificSolution";
+			GenerateUprojectSpecificSolution.Size = new System.Drawing.Size(214, 17);
+			GenerateUprojectSpecificSolution.TabIndex = 8;
+			GenerateUprojectSpecificSolution.Text = "Generate minimal .uproject specific solution";
+			GenerateUprojectSpecificSolution.UseVisualStyleBackColor = true;
+			// 
 			// SyncFilterControl
 			// 
 			AutoScaleDimensions = new System.Drawing.SizeF(96F, 96F);
 			AutoScaleMode = System.Windows.Forms.AutoScaleMode.Dpi;
 			BackColor = System.Drawing.SystemColors.Window;
 			Controls.Add(SplitContainer);
-			Font = new System.Drawing.Font("Segoe UI", 8.25F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point);
+			Font = new System.Drawing.Font("Segoe UI", 8.25F);
 			Name = "SyncFilterControl";
 			Padding = new System.Windows.Forms.Padding(7);
 			Size = new System.Drawing.Size(1022, 681);
@@ -279,6 +293,7 @@ namespace UnrealGameSync.Controls
 		private System.Windows.Forms.GroupBox groupBox1;
 		public System.Windows.Forms.CheckBox SyncAllProjects;
 		public System.Windows.Forms.CheckBox IncludeAllProjectsInSolution;
+		public System.Windows.Forms.CheckBox GenerateUprojectSpecificSolution;
 		private System.Windows.Forms.TableLayoutPanel tableLayoutPanel3;
 		private System.Windows.Forms.TableLayoutPanel tableLayoutPanel2;
 		private System.Windows.Forms.TableLayoutPanel tableLayoutPanel4;

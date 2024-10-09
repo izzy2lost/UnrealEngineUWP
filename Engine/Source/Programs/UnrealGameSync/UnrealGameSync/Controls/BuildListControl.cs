@@ -149,5 +149,13 @@ namespace UnrealGameSync
 			get => base.Font;
 			set => base.Font = value;
 		}
+
+		protected override void Dispose(bool disposing)
+		{
+			Font?.Dispose();
+			Font = null;
+
+			base.Dispose(disposing);
+		}
 	}
 }

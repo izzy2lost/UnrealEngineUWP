@@ -533,9 +533,23 @@ namespace UnrealGameSyncCmd
 		static string[] ReadSyncFilter(UserWorkspaceSettings workspaceSettings, GlobalSettingsFile userSettings, ConfigFile projectConfig)
 		{
 			Dictionary<Guid, WorkspaceSyncCategory> syncCategories = ConfigUtils.GetSyncCategories(projectConfig);
+
+			// check if any category is from the role
+			IDictionary<string, Preset> roles = ConfigUtils.GetPresets(projectConfig);
+			if (roles.TryGetValue(workspaceSettings.Preset, out Preset? role))
+			{
+				foreach (RoleCategory roleCategory in role.Categories.Values)
+				{
+					if (syncCategories.TryGetValue(roleCategory.Id, out WorkspaceSyncCategory? category))
+					{
+						category.Enable = roleCategory.Enabled;
+					}
+				}
+			}
+			
 			ConfigSection? perforceSection = projectConfig.FindSection("Perforce");
 
-			string[] combinedSyncFilter = GlobalSettingsFile.GetCombinedSyncFilter(syncCategories, userSettings.Global.Filter, workspaceSettings.Filter, perforceSection);
+			string[] combinedSyncFilter = GlobalSettingsFile.GetCombinedSyncFilter(syncCategories, workspaceSettings.Preset, roles, userSettings.Global.Filter, workspaceSettings.Filter, perforceSection);
 
 			return combinedSyncFilter;
 		}
@@ -1169,6 +1183,10 @@ namespace UnrealGameSyncCmd
 			[CommandLine("-GpfOnlyCurrent", Value = "false")]
 			public bool? AllProjectsInSln { get; set; } = null;
 
+			[CommandLine("-GpfMinimalSln", Value = "true")]
+			[CommandLine("-GpfFullSln", Value = "false")]
+			public bool? UprojectSpecificSln { get; set; } = null;
+
 			[CommandLine("-Global")]
 			public bool Global { get; set; }
 		}
@@ -1190,6 +1208,10 @@ namespace UnrealGameSyncCmd
 				FilterSettings globalFilter = context.UserSettings.Global.Filter;
 				FilterSettings workspaceFilter = workspaceSettings.Filter;
 
+				IDictionary<string, Preset> roles = ConfigUtils.GetPresets(projectConfig);
+
+				roles.TryGetValue(workspaceSettings.Preset, out Preset? role);
+				
 				FilterCommandOptions options = context.Arguments.ApplyTo<FilterCommandOptions>(logger);
 				context.Arguments.CheckAllArgumentsUsed(context.Logger);
 
@@ -1226,6 +1248,12 @@ namespace UnrealGameSyncCmd
 						enabled = syncCategory.Enable;
 					}
 
+					if (role != null && role.Categories.TryGetValue(syncCategory.UniqueId, out RoleCategory? roleCategory))
+					{
+						scope = $"(Preset: {role.Name})";
+						enabled = roleCategory.Enabled;
+					}
+					
 					logger.LogInformation("  {Id,30} {Enabled,3} {Scope,-9} {Name}", syncCategory.UniqueId, enabled ? "Yes" : "No", scope, syncCategory.Name);
 				}
 
@@ -1243,6 +1271,15 @@ namespace UnrealGameSyncCmd
 					logger.LogInformation("");
 					logger.LogInformation("Workspace View:");
 					foreach (string line in workspaceFilter.View)
+					{
+						logger.LogInformation("  {Line}", line);
+					}
+				}
+				if (role != null && role.Views.Count > 0)
+				{
+					logger.LogInformation("");
+					logger.LogInformation("Preset View:");
+					foreach (string line in role.Views)
 					{
 						logger.LogInformation("  {Line}", line);
 					}
@@ -1299,6 +1336,7 @@ namespace UnrealGameSyncCmd
 
 				settings.AllProjects = commandOptions.AllProjects ?? settings.AllProjects;
 				settings.AllProjectsInSln = commandOptions.AllProjectsInSln ?? settings.AllProjectsInSln;
+				settings.UprojectSpecificSln = commandOptions.UprojectSpecificSln ?? settings.UprojectSpecificSln;
 			}
 
 			static Guid GetCategoryId(string text, IEnumerable<WorkspaceSyncCategory> syncCategories)
