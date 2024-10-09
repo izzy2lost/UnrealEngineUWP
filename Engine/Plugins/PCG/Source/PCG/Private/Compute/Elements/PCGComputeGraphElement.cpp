@@ -50,23 +50,28 @@ bool FPCGComputeGraphElement::ExecuteInternal(FPCGContext* InContext) const
 	if (!Context->ComputeGraph)
 	{
 		const UPCGComponent* Component = InContext->SourceComponent.Get();
-
-		if (const UPCGGraph* PCGGraph = Component ? Component->GetGraph() : nullptr)
+		const UPCGGraph* TopGraph = Component ? Component->GetGraph() : nullptr;
+		if (!ensure(TopGraph))
 		{
-			uint32 GenerationGridSize = PCGHiGenGrid::UninitializedGridSize();
+			return true;
+		}
 
-			if (PCGGraph->IsHierarchicalGenerationEnabled())
-			{
-				if (Component->IsLocalComponent() || Component->IsPartitioned())
-				{
-					GenerationGridSize = Component->GetGenerationGridSize();
-				}
-			}
+		uint32 GenerationGridSize = PCGHiGenGrid::UninitializedGridSize();
 
-			if (UPCGSubsystem* Subsystem = Context->SourceComponent->GetSubsystem())
+		// Higen is always disabled within dynamic subgraphs - will retrieve Uninitialized tasks (which are always cooked).
+		const UPCGGraph* DynamicSubgraph = InContext->Stack ? InContext->Stack->GetNearestDynamicSubgraphForCurrentFrame() : nullptr;
+			
+		if (TopGraph->IsHierarchicalGenerationEnabled() && !DynamicSubgraph)
+		{
+			if (Component->IsLocalComponent() || Component->IsPartitioned())
 			{
-				Context->ComputeGraph.Reset(Subsystem->GetComputeGraph(PCGGraph, GenerationGridSize, ComputeGraphIndex));
+				GenerationGridSize = Component->GetGenerationGridSize();
 			}
+		}
+
+		if (UPCGSubsystem* Subsystem = Context->SourceComponent->GetSubsystem())
+		{
+			Context->ComputeGraph.Reset(Subsystem->GetComputeGraph(DynamicSubgraph ? DynamicSubgraph : TopGraph, GenerationGridSize, ComputeGraphIndex));
 		}
 
 		if (!ensure(Context->ComputeGraph))
