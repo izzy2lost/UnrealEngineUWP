@@ -154,7 +154,7 @@ public:
 	* of the current frame (ie: 2 means consider 2 before, and 2 after the currently denoised frame), but other denoiser 
 	* implementations may interpret this value differently.
 	*/
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (UIMin = 0, ClampMin = 0, UIMax = 3), Category = "Denoiser", meta = (EditCondition = "DenoiserType==EMovieGraphPathTracerDenoiserType::Temporal"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (UIMin = 0, ClampMin = 0, UIMax = 3), Category = "Denoiser")
 	int32 FrameCount;
 
 	/**
