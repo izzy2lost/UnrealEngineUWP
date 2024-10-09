@@ -10,6 +10,6 @@ namespace HordeServer.Plugins
 		/// <summary>
 		/// Whether the plugin should be enabled or not
 		/// </summary>
-		public bool Enabled { get; set; }
+		public bool Enabled { get; set; } = true;
 	}
 }
