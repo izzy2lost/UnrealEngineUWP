@@ -8,6 +8,7 @@
     <DebugType>pdbonly</DebugType>
     <Configurations>Debug;Release;Development;Analyze</Configurations>
     <NoWarn>1701;1702;1591</NoWarn>
+    <RunAnalyzersDuringBuild>False</RunAnalyzersDuringBuild>
   </PropertyGroup>
 
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Analyze|AnyCPU' ">
