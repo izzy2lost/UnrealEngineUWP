@@ -5095,6 +5095,9 @@ void CompileGlobalShaderMap(EShaderPlatform Platform, const ITargetPlatform* Tar
 #if WITH_EDITOR
 		if (!bLoadedFromCacheFile && bAllowShaderCompiling)
 		{
+			// Ensure we've generated AutogenShaderHeaders.ush
+			FShaderCompileUtilities::GenerateBrdfHeaders(Platform);
+
 			// If we didn't find cooked shaders, we can try loading from the DDC or compiling them if supported by the current configuration
 			FGlobalShaderMapId ShaderMapId(Platform, TargetPlatform);
 
