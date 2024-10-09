@@ -3758,7 +3758,7 @@ FScopedPreventAttachedComponentMove::~FScopedPreventAttachedComponentMove()
 	}
 }
 
-bool GLocalBoundsUseAttachParentBound = true;
+bool GLocalBoundsUseAttachParentBound = false;
 static FAutoConsoleVariableRef CVarLocalBoundsUseAttachParentBound (
 	TEXT("p.LocalBoundsUseAttachParentBound"),
 	GLocalBoundsUseAttachParentBound,
