@@ -31,6 +31,8 @@ namespace UnrealToolbox
 				_catalog = catalog;
 				_catalog.OnItemsChanged += RefreshItems;
 
+				AutoUpdate = catalog.AutoUpdate;
+
 				Items.CollectionChanged += (_, _) => OnPropertyChanged(nameof(ShowTools));
 
 				RefreshItems();
