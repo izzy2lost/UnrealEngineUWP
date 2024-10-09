@@ -222,6 +222,7 @@ void FSequencerFilterBar::BindCommands()
 			{
 				const TSharedPtr<FUICommandList> CurveEditorSharedBindings = Sequencer.GetCommandBindings(ESequencerCommandBindings::CurveEditor);
 
+				// Add the general track filter commands
 				for (const TSharedPtr<FUICommandInfo>& Command : TrackFilterCommands.GetAllCommands())
 				{
 					if (Command.IsValid() && CommandList->IsActionMapped(Command))
@@ -230,7 +231,23 @@ void FSequencerFilterBar::BindCommands()
 					}
 				}
 
+				// Add the specific track filter toggle commands
+				for (const TSharedRef<FSequencerTrackFilter>& Filter : AllFilters)
+				{
+					if (Filter->SupportsSequence(FocusedSequence))
+					{
+						const TSharedPtr<FUICommandList>& FilterCommandList = Filter->GetFilterInterface().GetCommandList();
+						const TSharedPtr<FUICommandInfo>& FilterCommand = Filter->GetToggleCommand();
+
+						if (FilterCommand.IsValid() && FilterCommandList->IsActionMapped(FilterCommand))
+						{
+							CurveEditorSharedBindings->MapAction(FilterCommand, *FilterCommandList->GetActionForCommand(FilterCommand));
+						}
+					}
+				}
+
 				CurveEditorCommands->Append(CurveEditorSharedBindings.ToSharedRef());
+
 			}
 		}
 	}
