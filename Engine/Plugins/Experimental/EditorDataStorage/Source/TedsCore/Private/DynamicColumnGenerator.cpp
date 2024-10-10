@@ -67,7 +67,6 @@ namespace UE::Editor::DataStorage
 			// for copy/move.
 			NewScriptStruct->SetSuperStruct(&const_cast<UScriptStruct&>(Template));
 			
-			NewScriptStruct->DeferCppStructOps(AssetPath, Template.GetCppStructOps());
 			NewScriptStruct->Bind();
 			NewScriptStruct->PrepareCppStructOps();
 			NewScriptStruct->StaticLink(true);			
