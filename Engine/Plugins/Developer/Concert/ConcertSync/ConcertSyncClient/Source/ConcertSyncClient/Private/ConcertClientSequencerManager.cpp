@@ -97,7 +97,7 @@ public:
 			return;
 		}
 
-		bool bShouldForceSend = bIsFirstEvent || CVarSequencerStatePacingEnabled.GetValueOnAnyThread() == 0;
+		bool bShouldForceSend = bIsFirstEvent || !IsPacingEnabled();
 		if (!bShouldForceSend && InEvent.State.bLoopMode && CurrentStateEvent)
 		{
 			// If we have loop enabled and we have started back over again then we should force a send.
@@ -130,7 +130,7 @@ public:
 			const double DeltaTime = CurrentTime - LastSendTime;
 			if (bForceSend || DeltaTime > CVarSequencerStatePacingDuration.GetValueOnGameThread())
 			{
-				bool bShouldSendReliably = bForceSend && CVarSequencerStatePacingEnabled.GetValueOnAnyThread();
+				bool bShouldSendReliably = bForceSend && IsPacingEnabled();
 				EConcertMessageFlags Flags = bShouldSendReliably || CVarSendStateEventsAsUnreliable.GetValueOnAnyThread() == 0 ? EConcertMessageFlags::ReliableOrdered : EConcertMessageFlags::None;
 				if (bForceSend || !bIsAContinuationOfPlay)
 				{
@@ -144,12 +144,25 @@ public:
 		}
 	}
 
+	bool IsPacingEnabled() const
+	{
+		return !bIsPacingSuspended && CVarSequencerStatePacingEnabled.GetValueOnAnyThread();
+	}
+
+	static void SetPacingSuspended(bool bInPacingSuspended)
+	{
+		bIsPacingSuspended = bInPacingSuspended;
+	}
+
 private:
 	TOptional<FConcertSequencerStateEvent> CurrentStateEvent;
 	double LastSendTime = 0;
 	bool bIsFirstEvent = true;
 	bool bIsAContinuationOfPlay = false;
+	static bool bIsPacingSuspended;
 };
+
+bool FConcertClientSequencerStateEventPacer::bIsPacingSuspended = false;
 
 class FConcertClientSequencePreloader : public TSharedFromThis<FConcertClientSequencePreloader>
 {
@@ -418,6 +431,12 @@ void SetConsoleVariableRespectingPriority(IConsoleVariable* AsVariable, bool bVa
 	AsVariable->Set( bValue ? 1 : 0, Flags );
 }
 
+void SetConsoleVariableRespectingPriority(IConsoleVariable* AsVariable, float InValue)
+{
+	EConsoleVariableFlags Flags = (EConsoleVariableFlags)( AsVariable->GetFlags() & ECVF_SetByMask );
+	AsVariable->Set( InValue, Flags );
+}
+
 bool FConcertClientSequencerManager::IsSequencerPlaybackSyncEnabled() const
 {
 	return CVarEnablePlaybackSync.GetValueOnAnyThread() > 0;
@@ -448,6 +467,16 @@ bool FConcertClientSequencerManager::IsSequencerRemoteCloseEnabled() const
 	return CVarEnableRemoteSequencerClose.GetValueOnAnyThread() > 0;
 }
 
+bool FConcertClientSequencerManager::IsSequencerPacingEnabled() const
+{
+	return CVarSequencerStatePacingEnabled.GetValueOnAnyThread();
+}
+
+float FConcertClientSequencerManager::SequencerPacingDuration() const
+{
+	return CVarSequencerStatePacingDuration.GetValueOnAnyThread();
+}
+
 void FConcertClientSequencerManager::SetSequencerRemoteOpen(bool bEnable)
 {
 	SetConsoleVariableRespectingPriority(CVarEnableRemoteSequencerOpen->AsVariable(), bEnable);
@@ -456,6 +485,26 @@ void FConcertClientSequencerManager::SetSequencerRemoteOpen(bool bEnable)
 void FConcertClientSequencerManager::SetSequencerRemoteClose(bool bEnable)
 {
 	SetConsoleVariableRespectingPriority(CVarEnableRemoteSequencerClose->AsVariable(), bEnable);
+}
+
+void FConcertClientSequencerManager::SetSequencerPacingEnabled(bool bEnable)
+{
+	SetConsoleVariableRespectingPriority(CVarSequencerStatePacingEnabled->AsVariable(), bEnable);
+}
+
+void FConcertClientSequencerManager::SetSequencerPacingDuration(float Duration)
+{
+	SetConsoleVariableRespectingPriority(CVarSequencerStatePacingDuration->AsVariable(), Duration);
+}
+
+void FConcertClientSequencerManager::SuspendSequencerPacing()
+{
+	FConcertClientSequencerStateEventPacer::SetPacingSuspended(true);
+}
+
+void FConcertClientSequencerManager::ResumeSequencerPacing()
+{
+	FConcertClientSequencerStateEventPacer::SetPacingSuspended(false);
 }
 
 bool FConcertClientSequencerManager::ShouldAlwaysCloseGameSequencerPlayer() const
@@ -1428,6 +1477,15 @@ void FConcertClientSequencerManager::OnWorkspaceEndFrameCompleted()
 		return;
 	}
 
+	// Checking for the time adjustment event must happen first because any sequencer state changes may adjust the MovieScene range based on the state message.
+	// If this happens then we have no way of knowing if we need to adjust the take sections based on a new start position.   By making this check
+	// happen first we avoid this scenario and can properly check time adjustment events and move sections to the new start position.
+	for (const FConcertSequencerTimeAdjustmentEvent& Event : PendingTimeAdjustmentEvents)
+	{
+		ApplyTimeAdjustmentEvent(Event);
+	}
+	PendingTimeAdjustmentEvents.Reset();
+
 	for (const FString& Player: PendingCreate)
 	{
 		CreateNewSequencePlayerIfNotExists(Player);
@@ -1445,12 +1503,6 @@ void FConcertClientSequencerManager::OnWorkspaceEndFrameCompleted()
 		ApplyTransportEvent(State);
 	}
 	PendingSequencerEvents.Reset();
-
-	for (const FConcertSequencerTimeAdjustmentEvent& Event : PendingTimeAdjustmentEvents)
-	{
-		ApplyTimeAdjustmentEvent(Event);
-	}
-	PendingTimeAdjustmentEvents.Reset();
 
 	if (GEditor)
 	{

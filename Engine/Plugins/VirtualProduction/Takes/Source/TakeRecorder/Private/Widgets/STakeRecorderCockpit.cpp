@@ -1017,7 +1017,7 @@ FReply STakeRecorderCockpit::OnAddMarkedFrame()
 
 bool STakeRecorderCockpit::Reviewing() const 
 {
-	return bool(!Recording() && (TakeMetaData->Recorded() && TakeRecorderModeAttribute.Get() != ETakeRecorderMode::RecordIntoSequence));
+	return bool(!Recording() && (TakeMetaData && TakeMetaData->Recorded() && TakeRecorderModeAttribute.Get() != ETakeRecorderMode::RecordIntoSequence));
 }
 
 bool STakeRecorderCockpit::Recording() const

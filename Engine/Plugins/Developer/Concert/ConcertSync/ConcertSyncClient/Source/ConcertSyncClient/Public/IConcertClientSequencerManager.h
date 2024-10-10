@@ -46,6 +46,16 @@ public:
 	virtual bool IsSequencerRemoteCloseEnabled() const = 0;
 
 	/**
+	 * @return true if the sequencer pacer is enabled.
+	 */
+	virtual bool IsSequencerPacingEnabled() const = 0;
+
+	/**
+	 * @return the current duration for the sequencer pacer.
+	 */
+	virtual float SequencerPacingDuration() const = 0;
+
+	/**
 	 * Set the remote open option in Multi-User
 	 * which opens Sequencer for other users when this option is enabled on both user machines.
 	 * 
@@ -60,4 +70,28 @@ public:
 	 * @param bEnable The value to set for the remote close option
 	 */
 	virtual void SetSequencerRemoteClose(bool bEnable) = 0;
+
+	/**
+	 * Temporarily suspend sequencer pacing on this client.
+	 */
+	virtual void SuspendSequencerPacing() = 0;
+
+	/**
+	 * Resume sequencer pacing on this client if the console variable is enabled.
+	 */
+	virtual void ResumeSequencerPacing() = 0;
+
+	/**
+	 * Specifies the sequencer pacing behavior while in a session.
+	 *
+	 * @param bValue The value to be set for the sequencer pacing option
+	 */
+	virtual void SetSequencerPacingEnabled(bool bEnable) = 0;
+
+	/**
+	 * Sets the sequencer pacing duration value.
+	 *
+	 * @param Duration The spacing between state event messages.
+	 */
+	virtual void SetSequencerPacingDuration(float Duration) = 0;
 };
