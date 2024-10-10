@@ -1519,6 +1519,11 @@ static void SuspendApp_EventThread()
 		EMDoneTrigger->Trigger();
 	}));
 
+#if USE_ANDROID_ALTERNATIVE_SUSPEND
+		// Suspend the GT.
+		FAppEventManager::GetInstance()->EnqueueAppEvent(APP_EVENT_STATE_APP_SUSPENDED);
+#endif
+
 	uint32 StartCycles = FPlatformTime::Cycles();
 
 	FEmbeddedCommunication::WakeGameThread();
@@ -1529,12 +1534,8 @@ static void SuspendApp_EventThread()
 
 	// wait for a period of time before blocking rendering
 	UE_LOG(LogAndroid, Log, TEXT("SuspendApp_EventThread -> , waiting for event manager to process. tid: %d"), FPlatformTLS::GetCurrentThreadId());
-#if USE_ANDROID_STANDALONE
-	//EMDoneTrigger->Reset();
-	bool bSuccess = EMDoneTrigger->Wait(240);
-#else
+
 	bool bSuccess = EMDoneTrigger->Wait(4000);
-#endif
 
 	float ElapsedTimeInMs_EMDoneTrigger_Wait = FPlatformTime::ToMilliseconds(FPlatformTime::Cycles() - StartCycles);
 	UE_CLOG(!bSuccess, LogAndroid, Log, TEXT("SuspendApp_EventThread -> ERROR: backgrounding callback, not responded in timely manner. EMDoneTrigger->Wait, waited '%f' ms"), (float)ElapsedTimeInMs_EMDoneTrigger_Wait);
@@ -1543,7 +1544,10 @@ static void SuspendApp_EventThread()
 	BlockRendering();
 
 	// Suspend the GT.
+#if !USE_ANDROID_ALTERNATIVE_SUSPEND
 	FAppEventManager::GetInstance()->EnqueueAppEvent(APP_EVENT_STATE_APP_SUSPENDED);
+#endif
+
 	UE_LOG(LogAndroid, Log, TEXT("SuspendApp_EventThread(EOF)"));
 }
 
