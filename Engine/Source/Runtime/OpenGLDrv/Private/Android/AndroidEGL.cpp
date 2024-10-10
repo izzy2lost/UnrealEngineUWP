@@ -1342,6 +1342,7 @@ void BlockRendering()
 		FPlatformProcess::ReturnSynchEventToPool(EventToDelete);
 	});
 
+#if !USE_ANDROID_ALTERNATIVE_SUSPEND
 	// Flush GT first in case it has any dependency on RT work to complete
 	FGraphEventRef GTBlockTask = FFunctionGraphTask::CreateAndDispatchWhenReady([BlockedTrigger]()
 		{
@@ -1350,6 +1351,7 @@ void BlockRendering()
 
 	UE_LOG(LogAndroid, Log, TEXT("Waiting for game thread to release EGL context/surface."));
 	BlockedTrigger->Wait();
+#endif
 
 	// Wait for GC to complete and prevent further GCs
 	FGCScopeGuard GCGuard;

@@ -519,6 +519,9 @@ namespace UnrealBuildTool
 			{
 				Logger.LogInformation("Compiling with USE_ANDROID_STANDALONE");
 				CompileEnvironment.Definitions.Add("USE_ANDROID_STANDALONE=1");
+
+				Logger.LogInformation("Compiling with USE_ANDROID_ALTERNATIVE_SUSPEND");
+				CompileEnvironment.Definitions.Add("USE_ANDROID_ALTERNATIVE_SUSPEND=1");
 			}
 
 			if (Target.bPGOOptimize || Target.bPGOProfile)
