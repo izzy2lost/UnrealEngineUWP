@@ -162,12 +162,12 @@ struct FPerTriangleDensePointSampling
 			{
 				double a1 = RandomStream.GetFraction();
 				double a2 = RandomStream.GetFraction();
-				FVector2d PointUV = TriUV.V[0] + a1 * V1 + a2 * V2;
 				if (bIsDegenerateTri && a1 + a2 > 1)
 				{
 					a1 = 1-a1;
 					a2 = 1-a2;
 				}
+				FVector2d PointUV = TriUV.V[0] + a1 * V1 + a2 * V2;
 				if (bIsDegenerateTri || TriUV.IsInside(PointUV))
 				{
 					FVector3d Position = ProjectFrame.FromPlaneUV(PointUV, 2);
