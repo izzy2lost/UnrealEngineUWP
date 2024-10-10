@@ -635,6 +635,8 @@ void FAnimationViewportClient::Draw(const FSceneView* View, FPrimitiveDrawInterf
 		return;
 	}
 
+	UpdateBonesToDraw();
+
 	FEditorViewportClient::Draw(View, PDI);
 
 	// draw bones for all debug skeletal meshes
