@@ -154,12 +154,21 @@ struct FPerTriangleDensePointSampling
 
 			int NumGenerated = 0;
 			FRandomStream RandomStream(tid + RandomSeed);
+
+			// We specially handle zero-area triangles, because the rejection-based sampling method hangs forever on degenerate triangles (no samples are in tri)
+			// (In future versions we give the option to not use rejection-based sampling at all, but this feature did not make it into 5.5)
+			bool bIsDegenerateTri = TriInfo.TriAreas[tid] == 0;
 			while (NumGenerated < NumSamples)
 			{
 				double a1 = RandomStream.GetFraction();
 				double a2 = RandomStream.GetFraction();
 				FVector2d PointUV = TriUV.V[0] + a1 * V1 + a2 * V2;
-				if (TriUV.IsInside(PointUV))
+				if (bIsDegenerateTri && a1 + a2 > 1)
+				{
+					a1 = 1-a1;
+					a2 = 1-a2;
+				}
+				if (bIsDegenerateTri || TriUV.IsInside(PointUV))
 				{
 					FVector3d Position = ProjectFrame.FromPlaneUV(PointUV, 2);
 					PointSetOut.DensePoints[StartIndex+NumGenerated] = Position;
