@@ -20,6 +20,8 @@ class UPCGGetActorPropertySettings : public UPCGSettings
 	GENERATED_BODY()
 
 public:
+	UPCGGetActorPropertySettings(const FObjectInitializer& ObjectInitializer);
+	
 	//~Begin UObject interface
 	virtual void PostLoad() override;
 #if WITH_EDITOR
@@ -54,12 +56,20 @@ public:
 	FPCGActorSelectorSettings ActorSelector;
 
 	/** Allow to look for an actor component instead of an actor. It will need to be attached to the found actor. */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings)
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable))
 	bool bSelectComponent = false;
 
 	/** If we are looking for an actor component, the class can be specified here. */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (EditCondition = "bSelectComponent", EditConditionHides))
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable, EditCondition = "bSelectComponent", EditConditionHides))
 	TSubclassOf<UActorComponent> ComponentClass;
+
+	/** Process all Actor components. If not set, only the first component found will be processed. */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable, EditCondition = "bSelectComponent", EditConditionHides))
+	bool bProcessAllComponents = false;
+	
+	/** Controls whether a component reference attribute will be added to the result */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable, EditCondition = "bSelectComponent", EditConditionHides))
+	bool bOutputComponentReference = false;
 
 	/** Property name to extract. Can only extract properties that are compatible with metadata types. If None, extract the actor/component directly. Can be a comma-separated list, assuming they have the same cardinality. */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable))
