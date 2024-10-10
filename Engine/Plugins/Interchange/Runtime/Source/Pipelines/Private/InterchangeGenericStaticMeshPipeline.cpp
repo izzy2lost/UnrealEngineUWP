@@ -244,101 +244,77 @@ void UInterchangeGenericMeshPipeline::ExecutePreImportPipelineStaticMesh()
 		{
 			// Do not combine static meshes
 
-			bool bFoundMeshes = false;
-			if(CommonMeshesProperties->bBakeMeshes || CommonMeshesProperties->bBakePivotMeshes)
-			{
-				TArray<FString> MeshUids;
-				PipelineMeshesUtilities->GetAllStaticMeshInstance(MeshUids);
-
-				// Work out which meshes are collision meshes which correspond to another mesh
-				TMap<FString, TArray<FString>> MeshToCollisionMeshMap;
-				if (bImportCollisionAccordingToMeshName)
+			auto CreateMeshFactoryNodeUnCombined = [this](const TArray<FString>& MeshUids, const bool bInstancedMesh)->bool
 				{
-					BuildMeshToCollisionMeshMap(PipelineMeshesUtilities, *BaseNodeContainer, MeshUids, MeshToCollisionMeshMap);
-				}
-
-				// Now iterate through each mesh UID, creating a new factory for each one
-				for (const FString& MeshUid : MeshUids)
-				{
-					if (bImportCollisionAccordingToMeshName && IsCollisionMeshUid(PipelineMeshesUtilities, *BaseNodeContainer, MeshUid, MeshUids))
+					constexpr int32 LodIndexZero = 0;
+					bool bFoundMeshes = false;
+					// Work out which meshes are collision meshes which correspond to another mesh
+					TMap<FString, TArray<FString>> MeshToCollisionMeshMap;
+					if (bImportCollisionAccordingToMeshName)
 					{
-						// If this is a collision mesh, don't add a factory; it will be added as part of another factory
-						continue;
+						BuildMeshToCollisionMeshMap(PipelineMeshesUtilities, *BaseNodeContainer, MeshUids, MeshToCollisionMeshMap);
 					}
-
-					TMap<int32, TArray<FString>> MeshUidsPerLodIndex;
-
-					const FInterchangeMeshInstance& MeshInstance = PipelineMeshesUtilities->GetMeshInstanceByUid(MeshUid);
-					for (const auto& LodIndexAndSceneNodeContainer : MeshInstance.SceneNodePerLodIndex)
+					// Now iterate through each mesh UID, creating a new factory for each one
+					for (const FString& MeshUid : MeshUids)
 					{
-						const int32 LodIndex = LodIndexAndSceneNodeContainer.Key;
-						const FInterchangeLodSceneNodeContainer& SceneNodeContainer = LodIndexAndSceneNodeContainer.Value;
-
-						TArray<FString>& TranslatedNodes = MeshUidsPerLodIndex.FindOrAdd(LodIndex);
-						for (const UInterchangeSceneNode* SceneNode : SceneNodeContainer.SceneNodes)
+						if (bImportCollisionAccordingToMeshName && IsCollisionMeshUid(PipelineMeshesUtilities, *BaseNodeContainer, MeshUid, MeshUids))
 						{
-							TranslatedNodes.Add(SceneNode->GetUniqueID());
+							// If this is a collision mesh, don't add a factory; it will be added as part of another factory
+							continue;
 						}
-					}
-
-					if (MeshUidsPerLodIndex.Num() > 0)
-					{
-						if (bCollision && bImportCollisionAccordingToMeshName)
+						
+						TArray<FString> ReferencingMeshInstanceUids; //This data is use only when bInstancedMesh is false
+						TMap<int32, TArray<FString>> MeshUidsPerLodIndex;
+						if (bInstancedMesh)
 						{
-							if (const TArray<FString>* CorrespondingCollisionMeshes = MeshToCollisionMeshMap.Find(MeshUid))
+							//Instanced geometry can have lods
+							const FInterchangeMeshInstance& MeshInstance = PipelineMeshesUtilities->GetMeshInstanceByUid(MeshUid);
+							for (const auto& LodIndexAndSceneNodeContainer : MeshInstance.SceneNodePerLodIndex)
 							{
-								MeshUidsPerLodIndex.FindOrAdd(0).Append(*CorrespondingCollisionMeshes);
+								const int32 LodIndex = LodIndexAndSceneNodeContainer.Key;
+								const FInterchangeLodSceneNodeContainer& SceneNodeContainer = LodIndexAndSceneNodeContainer.Value;
+
+								TArray<FString>& TranslatedNodes = MeshUidsPerLodIndex.FindOrAdd(LodIndex);
+								for (const UInterchangeSceneNode* SceneNode : SceneNodeContainer.SceneNodes)
+								{
+									TranslatedNodes.Add(SceneNode->GetUniqueID());
+								}
 							}
 						}
+						else
+						{
+							//Non instanced geometry cannot have lods
+							const FInterchangeMeshGeometry& MeshGeometry = PipelineMeshesUtilities->GetMeshGeometryByUid(MeshUid);
+							TArray<FString>& TranslatedNodes = MeshUidsPerLodIndex.FindOrAdd(LodIndexZero);
+							TranslatedNodes.Add(MeshGeometry.MeshUid);
+							ReferencingMeshInstanceUids = MeshGeometry.ReferencingMeshInstanceUids;
+						}
 
-						UInterchangeStaticMeshFactoryNode* StaticMeshFactoryNode = CreateStaticMeshFactoryNode(MeshUidsPerLodIndex);
-						StaticMeshFactoryNodes.Add(StaticMeshFactoryNode);
-						bFoundMeshes = true;
+						if (MeshUidsPerLodIndex.Num() > 0)
+						{
+							if (bCollision && bImportCollisionAccordingToMeshName)
+							{
+								if (const TArray<FString>* CorrespondingCollisionMeshes = MeshToCollisionMeshMap.Find(MeshUid))
+								{
+									MeshUidsPerLodIndex.FindOrAdd(LodIndexZero).Append(*CorrespondingCollisionMeshes);
+								}
+							}
+
+							UInterchangeStaticMeshFactoryNode* StaticMeshFactoryNode = CreateStaticMeshFactoryNode(MeshUidsPerLodIndex, ReferencingMeshInstanceUids);
+							StaticMeshFactoryNodes.Add(StaticMeshFactoryNode);
+							bFoundMeshes = true;
+						}
 					}
-				}
-			}
+					return bFoundMeshes;
+				};
 
-			if (!bFoundMeshes)
+			TArray<FString> MeshUids;
+			PipelineMeshesUtilities->GetAllStaticMeshInstance(MeshUids);
+			if (!CreateMeshFactoryNodeUnCombined(MeshUids, true/*bInstancedMesh*/))
 			{
-				TArray<FString> MeshUids;
+				MeshUids.Reset();
 				PipelineMeshesUtilities->GetAllStaticMeshGeometry(MeshUids);
-
-				// Work out which meshes are collision meshes which correspond to another mesh
-				TMap<FString, TArray<FString>> MeshToCollisionMeshMap;
-				if (bImportCollisionAccordingToMeshName)
-				{
-					BuildMeshToCollisionMeshMap(PipelineMeshesUtilities, *BaseNodeContainer, MeshUids, MeshToCollisionMeshMap);
-				}
-
-				for (const FString& MeshUid : MeshUids)
-				{
-					if (bImportCollisionAccordingToMeshName && IsCollisionMeshUid(PipelineMeshesUtilities, *BaseNodeContainer, MeshUid, MeshUids))
-					{
-						// If this is a collision mesh, don't add a factory; it will be added as part of another factory
-						continue;
-					}
-
-					TMap<int32, TArray<FString>> MeshUidsPerLodIndex;
-
-					const FInterchangeMeshGeometry& MeshGeometry = PipelineMeshesUtilities->GetMeshGeometryByUid(MeshUid);
-					const int32 LodIndex = 0;
-					TArray<FString>& TranslatedNodes = MeshUidsPerLodIndex.FindOrAdd(LodIndex);
-					TranslatedNodes.Add(MeshGeometry.MeshUid);
-
-					if (MeshUidsPerLodIndex.Num() > 0)
-					{
-						if (bCollision && bImportCollisionAccordingToMeshName)
-						{
-							if (const TArray<FString>* CorrespondingCollisionMeshes = MeshToCollisionMeshMap.Find(MeshUid))
-							{
-								MeshUidsPerLodIndex.FindOrAdd(0).Append(*CorrespondingCollisionMeshes);
-							}
-						}
-
-						UInterchangeStaticMeshFactoryNode* StaticMeshFactoryNode = CreateStaticMeshFactoryNode(MeshUidsPerLodIndex, MeshGeometry.ReferencingMeshInstanceUids);
-						StaticMeshFactoryNodes.Add(StaticMeshFactoryNode);
-					}
-				}
+				CreateMeshFactoryNodeUnCombined(MeshUids, false/*bInstancedMesh*/);
 			}
 		}
 	}
