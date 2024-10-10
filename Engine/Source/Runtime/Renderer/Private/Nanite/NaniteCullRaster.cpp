@@ -319,6 +319,16 @@ static TAutoConsoleVariable<float> CVarNaniteOccludedInstancesBufferSizeMultipli
 	TEXT("DEBUG"),
 	ECVF_RenderThreadSafe | ECVF_Default);
 
+static TAutoConsoleVariable<int32> CVarNaniteInstanceHierarchyArgsMaxWorkGroups(
+	TEXT("r.Nanite.InstanceHierarchyArgsMaxWorkGroups"),
+	4*1024*1024,
+	TEXT("Sanitize instance hierarchy arguments to prevent dispatching more workgroups than there are items to consume.\n")
+	TEXT("  Sets the dispatch work group size to the minimum of the group work buffer size and the value provided in this cvar.\n")
+	TEXT("  Setting it to zero disables the clamping kernel.\n")
+	TEXT("	NOTE: This cvar is only for testing/hot fixing purposes."),
+	ECVF_RenderThreadSafe
+);
+
 extern TAutoConsoleVariable<int32> CVarNaniteBundleEmulation;
 
 extern bool CanUseShaderBundleWorkGraph(EShaderPlatform Platform);
@@ -704,6 +714,31 @@ class FInstanceHierarchyAppendUncullable_CS : public FNaniteGlobalShader
 	END_SHADER_PARAMETER_STRUCT()
 };
 IMPLEMENT_GLOBAL_SHADER(FInstanceHierarchyAppendUncullable_CS, "/Engine/Private/Nanite/NaniteInstanceHierarchyCulling.usf", "AppendUncullableInstanceWork", SF_Compute );
+
+class FInstanceHierarchySanitizeInstanceArgs_CS : public FNaniteGlobalShader
+{
+	DECLARE_GLOBAL_SHADER( FInstanceHierarchySanitizeInstanceArgs_CS );
+	SHADER_USE_PARAMETER_STRUCT( FInstanceHierarchySanitizeInstanceArgs_CS, FNaniteGlobalShader);
+
+	class FDebugFlagsDim : SHADER_PERMUTATION_BOOL( "DEBUG_FLAGS" );
+	using FPermutationDomain = TShaderPermutationDomain<FDebugFlagsDim>;
+
+	static void ModifyCompilationEnvironment( const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment )
+	{
+		FNaniteGlobalShader::ModifyCompilationEnvironment( Parameters, OutEnvironment );
+		FVirtualShadowMapArray::SetShaderDefines( OutEnvironment );
+		// These defines might be needed to make sure it compiles.
+		OutEnvironment.SetDefine( TEXT( "DEPTH_ONLY" ), 1 );
+	}
+
+	BEGIN_SHADER_PARAMETER_STRUCT( FParameters, )
+		SHADER_PARAMETER_RDG_BUFFER_UAV( RWBuffer< uint >, InOutInstanceWorkArgs )
+		SHADER_PARAMETER_RDG_BUFFER_UAV( RWStructuredBuffer<FNaniteStats>, OutStatsBuffer )
+		SHADER_PARAMETER(uint32, MaxInstanceWorkGroups)
+		SHADER_PARAMETER(uint32, GroupWorkArgsMaxCount)
+	END_SHADER_PARAMETER_STRUCT()
+};
+IMPLEMENT_GLOBAL_SHADER(FInstanceHierarchySanitizeInstanceArgs_CS, "/Engine/Private/Nanite/NaniteInstanceHierarchyCulling.usf", "InstanceHierarchySanitizeInstanceArgsCS", SF_Compute );
 
 class FInitInstanceHierarchyArgs_CS : public FNaniteGlobalShader
 {
@@ -2822,6 +2857,7 @@ public:
 	inline bool IsEnabled() const { return bIsEnabled; }
 
 	bool bIsEnabled = false;
+	uint32 GroupWorkArgsMaxCount = 0u;
 	// pass around hierarhcy arguments to drive culling etc etc.
 	FInstanceHierarchyParameters ShaderParameters;
 
@@ -6540,6 +6576,7 @@ void FConfiguration::SetViewFlags(const FViewInfo& View)
 void FInstanceHierarchyDriver::Init(FRDGBuilder& GraphBuilder, bool bInIsEnabled, bool bTwoPassOcclusion, const FGlobalShaderMap* ShaderMap, FSceneInstanceCullingQuery* SceneInstanceCullingQuery) 
 {
 	bIsEnabled = bInIsEnabled && SceneInstanceCullingQuery != nullptr;
+	GroupWorkArgsMaxCount = uint32(CVarNaniteInstanceHierarchyArgsMaxWorkGroups.GetValueOnRenderThread());
 
 	if (bIsEnabled)
 	{
@@ -6720,6 +6757,40 @@ FInstanceWorkGroupParameters FInstanceHierarchyDriver::DispatchCullingPass(FRDGB
 				PassParameters->UncullableNumItemChunks = DeferredSetupContext->SceneInstanceCullResult->UncullableNumItemChunks;
 			
 				return FComputeShaderUtils::GetGroupCountWrapped(DeferredSetupContext->SceneInstanceCullResult->ViewDrawGroups.Num(), 64);
+			}
+		);
+	}
+
+	if (GroupWorkArgsMaxCount > 0u)
+	{
+		FInstanceHierarchySanitizeInstanceArgs_CS::FParameters* PassParameters = GraphBuilder.AllocParameters< FInstanceHierarchySanitizeInstanceArgs_CS::FParameters >();
+
+		// Note: important to create new UAV _with_ barrier
+		PassParameters->InOutInstanceWorkArgs = GraphBuilder.CreateUAV(PassInstanceWorkArgs, PF_R32_UINT);
+		// Clear the arg to something that will be conservative, it is set before dispatch in the argument count callback below.
+		PassParameters->GroupWorkArgsMaxCount = 0u;
+		
+		if (Renderer.StatsBuffer)
+		{
+			PassParameters->OutStatsBuffer = GraphBuilder.CreateUAV(Renderer.StatsBuffer);
+		}
+
+		FInstanceHierarchySanitizeInstanceArgs_CS::FPermutationDomain PermutationVector;
+		PermutationVector.Set<FInstanceHierarchySanitizeInstanceArgs_CS::FDebugFlagsDim>(Renderer.IsDebuggingEnabled());
+
+		auto ComputeShader = Renderer.SharedContext.ShaderMap->GetShader<FInstanceHierarchySanitizeInstanceArgs_CS>(PermutationVector);
+
+		FComputeShaderUtils::AddPass(
+			GraphBuilder,
+			RDG_EVENT_NAME( "InstanceHierarchySanitizeInstanceArgs" ),
+			ComputeShader,
+			PassParameters,
+			[DeferredSetupContext = DeferredSetupContext, GroupWorkArgsMaxCount = GroupWorkArgsMaxCount, PassParameters]() 
+			{
+				DeferredSetupContext->Sync();
+				check(DeferredSetupContext->MaxInstanceWorkGroups < ~0u);
+				PassParameters->GroupWorkArgsMaxCount = FMath::Min(GroupWorkArgsMaxCount, DeferredSetupContext->MaxInstanceWorkGroups);
+				return FIntVector(1,1,1);
 			}
 		);
 	}
