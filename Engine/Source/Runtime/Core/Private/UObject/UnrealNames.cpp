@@ -790,14 +790,6 @@ private:
 		}
 #endif
 
-#if USE_FNAME_MMAP
-		// mark last block as readonly
-		if (IsBlockMmapped(Blocks[CurrentBlock]))
-		{
-			mprotect(Blocks[CurrentBlock], PageAlignedBlockSizeBytes, PROT_READ);
-		}
-#endif
-
 		++CurrentBlock;
 		CurrentByteCursor = 0;
 
