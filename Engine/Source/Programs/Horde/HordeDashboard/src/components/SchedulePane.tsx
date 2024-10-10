@@ -77,7 +77,7 @@ export const SchedulePane: React.FC<{ streamId: string, templates: GetTemplateRe
       { key: 'schedule_column7', name: 'time_4', minWidth: 100, maxWidth: 100, isResizable: false },
       { key: 'schedule_column8', name: 'time_5', minWidth: 100, maxWidth: 100, isResizable: false },
       { key: 'schedule_column9', name: 'time_6', minWidth: 100, maxWidth: 100, isResizable: false },
-      { key: 'schedule_column10', name: 'audit', minWidth: 64, maxWidth: 64, isResizable: false },
+      { key: 'schedule_column10', name: 'audit', minWidth: 56, maxWidth: 56, isResizable: false },
       { key: 'schedule_column11', name: 'space', minWidth: 2, isResizable: false }
 
    ];
