@@ -48,7 +48,7 @@ private:
 	FString Pool;
 	FAnsiString UbaHost;
 	uint32 UbaPort = 7001;
-	uint32 MaxCores = 0;
+	uint32 MaxCores = 500; // Assume 500 by default in case this configuration is missing but a UBA pool was found
 
 	TUniquePtr<FUbaHordeMetaClient> HordeMetaClient;
 
