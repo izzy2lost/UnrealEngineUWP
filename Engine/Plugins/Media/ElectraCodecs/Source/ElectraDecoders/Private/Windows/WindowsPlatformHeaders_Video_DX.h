@@ -18,7 +18,7 @@ THIRD_PARTY_INCLUDES_START
 #include "mferror.h"
 #include "mfidl.h"
 
-#if defined(NTDDI_WIN10_NI)
+#if 0 // defined(NTDDI_WIN10_NI) // Currently disabled as this causes trouble on AMD GPU
 #include "mfd3d12.h"
 #define ALLOW_MFSAMPLE_WITH_DX12	1	// Windows SDK 22621 and up do feature APIs to support DX12 texture resources with WMF transforms
 #else
