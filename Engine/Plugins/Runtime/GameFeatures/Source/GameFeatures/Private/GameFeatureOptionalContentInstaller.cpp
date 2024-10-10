@@ -257,8 +257,7 @@ void UGameFeatureOptionalContentInstaller::OnEnabled()
 
 	UGameFeaturesSubsystem::Get().ForEachGameFeature([this](FGameFeatureInfo&& Info) -> void
 	{
-		if (UGameFeaturesSubsystem::GetPluginURLProtocol(Info.URL) == EGameFeaturePluginProtocol::InstallBundle &&
-			Info.CurrentState >= EGameFeaturePluginState::Downloading)
+		if (Info.CurrentState >= EGameFeaturePluginState::Downloading)
 		{
 			if (UpdateContent(Info.Name, false))
 			{
@@ -310,6 +309,20 @@ void UGameFeatureOptionalContentInstaller::OnGameFeatureDownloading(const FStrin
 	{
 		RelevantGFPs.Add(PluginName);
 	}
+}
+
+void UGameFeatureOptionalContentInstaller::OnGameFeatureRegistering(const UGameFeatureData* GameFeatureData, const FString& PluginName, const FString& PluginURL)
+{
+    // Used for already downloaded cached plugins that do not download at startup but register.
+    if (!IsEnabled() || RelevantGFPs.Contains(PluginName))
+    {
+        return;
+    }
+
+    if (UpdateContent(PluginName, false))
+    {
+        RelevantGFPs.Add(PluginName);
+    }
 }
 
 void UGameFeatureOptionalContentInstaller::OnGameFeatureReleasing(const FString& PluginName, const FGameFeaturePluginIdentifier& PluginIdentifier)
