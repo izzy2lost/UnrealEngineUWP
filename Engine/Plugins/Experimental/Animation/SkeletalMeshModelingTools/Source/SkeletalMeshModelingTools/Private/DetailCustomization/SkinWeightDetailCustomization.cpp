@@ -938,17 +938,6 @@ void FSkinWeightDetailCustomization::AddSelectionUI(IDetailLayoutBuilder& Detail
 			]
 		]
 	];
-
-	// VERTEX EDITOR category
-	EditWeightsCategory.AddCustomRow(LOCTEXT("VertexEditorRow", "Component Editor"), false)
-	.WholeRowContent()
-	[
-		SNew(SBox)
-		.IsEnabled_Lambda([this]{ return Tool->HasActiveSelectionOnMainMesh(); })
-		[
-			SNew(SVertexWeightEditor, ToolSettings->WeightTool)
-		]
-	];
 	
 	// MIRROR WEIGHTS category
 	EditWeightsCategory.AddCustomRow(LOCTEXT("MirrorWeightsRow", "Mirror"), false)
@@ -1175,6 +1164,17 @@ void FSkinWeightDetailCustomization::AddSelectionUI(IDetailLayoutBuilder& Detail
 				ToolSettings->WeightTool->PasteWeights();
 				return FReply::Handled();
 			})
+		]
+	];
+	
+	// VERTEX EDITOR category
+	EditWeightsCategory.AddCustomRow(LOCTEXT("VertexEditorRow", "Component Editor"), false)
+	.WholeRowContent()
+	[
+		SNew(SBox)
+		.IsEnabled_Lambda([this]{ return Tool->HasActiveSelectionOnMainMesh(); })
+		[
+			SNew(SVertexWeightEditor, ToolSettings->WeightTool)
 		]
 	];
 }
