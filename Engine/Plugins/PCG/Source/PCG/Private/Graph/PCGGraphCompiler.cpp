@@ -78,13 +78,17 @@ namespace PCGGraphCompiler
 UPCGComputeGraph* FPCGGraphCompilerCache::GetCompiledComputeGraph(const UPCGGraph* InGraph, uint32 GridSize, uint32 ComputeGraphIndex)
 {
 #if WITH_EDITOR
-	if (TMap<uint32, TArray<TObjectPtr<UPCGComputeGraph>>>* GridSizeToComputeGraphs = TopGraphToComputeGraphMap.Find(InGraph))
 	{
-		if (TArray<TObjectPtr<UPCGComputeGraph>>* ComputeGraphs = GridSizeToComputeGraphs->Find(GridSize))
+		FReadScopeLock Lock(GraphToTaskMapLock);
+
+		if (TMap<uint32, TArray<TObjectPtr<UPCGComputeGraph>>>* GridSizeToComputeGraphs = TopGraphToComputeGraphMap.Find(InGraph))
 		{
-			if (ComputeGraphs->IsValidIndex(ComputeGraphIndex))
+			if (TArray<TObjectPtr<UPCGComputeGraph>>* ComputeGraphs = GridSizeToComputeGraphs->Find(GridSize))
 			{
-				return (*ComputeGraphs)[ComputeGraphIndex];
+				if (ComputeGraphs->IsValidIndex(ComputeGraphIndex))
+				{
+					return (*ComputeGraphs)[ComputeGraphIndex];
+				}
 			}
 		}
 	}
@@ -960,7 +964,7 @@ void FPCGGraphCompiler::AddReferencedObjects(FReferenceCollector& Collector)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FCPGGraphCompiler::AddReferencedObjects);
 
-	TMap<UPCGGraph*, TMap<uint32, TArray<TObjectPtr<UPCGComputeGraph>>>> TopGraphToComputeGraphMap;
+	FReadScopeLock Lock(Cache.GraphToTaskMapLock);
 
 	for (const TPair<UPCGGraph*, TMap<uint32, TArray<TObjectPtr<UPCGComputeGraph>>>>& GraphToGridSizes : Cache.TopGraphToComputeGraphMap)
 	{

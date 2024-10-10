@@ -7,11 +7,12 @@
 #include "PCGCommon.h"
 
 class FPCGGraphCompiler;
+class UPCGComputeGraph;
 
 /** Current context/state used during compilation of GPU graphs. */
 struct FPCGGPUCompilationContext
 {
-	FPCGGPUCompilationContext(FPCGGraphCompiler& InGraphCompiler)
+	explicit FPCGGPUCompilationContext(FPCGGraphCompiler& InGraphCompiler)
 		: GraphCompiler(InGraphCompiler)
 	{
 	}
@@ -61,6 +62,10 @@ struct FPCGGPUCompilationContext
 	}
 
 	FPCGGraphCompiler& GetGraphCompiler() { return GraphCompiler; }
+	TArray<TObjectPtr<UPCGComputeGraph>>& GetCompiledComputeGraphs() { return CompiledComputeGraphs; }
+
+	/** Returns the index of the newly added compute graph. */
+	int32 AddCompiledComputeGraph(TObjectPtr<UPCGComputeGraph> NewComputeGraph) { return CompiledComputeGraphs.Add(NewComputeGraph); }
 
 private:
 	// List of objects created during compilation, we need to track them so we can remove their Async flags when compilation is done
@@ -68,6 +73,7 @@ private:
 	TSet<TObjectPtr<UObject>> AsyncObjects;
 
 	FPCGGraphCompiler& GraphCompiler;
+	TArray<TObjectPtr<UPCGComputeGraph>> CompiledComputeGraphs;
 };
 
 #endif // WITH_EDITOR

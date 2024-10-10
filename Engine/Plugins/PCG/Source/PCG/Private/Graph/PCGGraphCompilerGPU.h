@@ -5,6 +5,7 @@
 #include "PCGCommon.h"
 
 class FPCGGraphCompiler;
+class UPCGComputeGraph;
 class UPCGGraph;
 class UPCGPin;
 struct FPCGGraphTask;
@@ -65,6 +66,7 @@ private:
 		FPCGGPUCompilationContext& InOutContext,
 		UPCGGraph* InGraph,
 		uint32 InGridSize,
+		uint32 InComputeGraphIndex,
 		FPCGTaskId InGPUGraphTaskId,
 		const TSet<FPCGTaskId>& InCollapsedTasks,
 		const TSet<FPCGTaskId>& InAllGPUCompatibleTasks,
@@ -72,6 +74,15 @@ private:
 		TArray<FPCGGraphTask>& InOutCompiledTasks,
 		const FOriginalToVirtualPin& InOriginalToVirtualPin,
 		const TMap<TSoftObjectPtr<const UPCGPin>, FName>& InOutputCPUPinToVirtualPin);
-	
+
+	static UPCGComputeGraph* CompileComputeGraph(
+		FPCGGPUCompilationContext& InOutContext,
+		UPCGGraph* InGraph,
+		const TSet<FPCGTaskId>& InCollapsedTasks,
+		const TSet<FPCGTaskId>& InAllGPUCompatibleTasks,
+		const FTaskToSuccessors& InTaskSuccessors,
+		TArray<FPCGGraphTask>& InOutCompiledTasks,
+		const FOriginalToVirtualPin& InOriginalToVirtualPin,
+		const TMap<TSoftObjectPtr<const UPCGPin>, FName>& InOutputCPUPinToVirtualPin);
 };
 #endif // WITH_EDITOR

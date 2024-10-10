@@ -587,7 +587,9 @@ void UPCGGraph::PreSave(FObjectPreSaveContext ObjectSaveContext)
 			}
 		}
 
-		if (ensure(CompiledComputeGraphs))
+		// Note: We don't have an ensure on the CompiledComputeGraphs like the other compiled data since graphs that do not
+		// produce compute graphs will never create an entry in this mapping.
+		if (CompiledComputeGraphs)
 		{
 			CookedCompilationData->ComputeGraphs.Reserve(CompiledComputeGraphs->Num());
 
