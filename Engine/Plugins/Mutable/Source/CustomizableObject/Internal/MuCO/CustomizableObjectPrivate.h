@@ -1567,12 +1567,14 @@ public:
 
 		RemoveModifiersHack,
 
+		SurfaceMetadataSerialized,
+
 		// -----<new versions can be added above this line>--------
 		LastCustomizableObjectVersion
 	};
 	
 	static constexpr int32 CurrentSupportedVersion = ECustomizableObjectVersions::LastCustomizableObjectVersion;
 	
-	static constexpr int32 DerivedDataVersion = 0;
+	static constexpr int32 DerivedDataVersion = 1;
 };
 
