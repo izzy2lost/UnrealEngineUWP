@@ -9,6 +9,7 @@
 #include "Engine/Engine.h"
 #include "IConcertClientTransactionBridge.h"
 #include "IConcertClientPackageBridge.h"
+#include "IConcertClientSequencerManager.h"
 #include "IConcertClient.h"
 #include "IConcertSyncClient.h"
 #include "IConcertSyncClientModule.h"
@@ -454,6 +455,13 @@ void FConcertTakeRecorderManager::OnTakeRecorderInitialized(UTakeRecorder* TakeR
 				{
 					TakeRecorder->SetDisableSaveTick(true);
 				}
+				else
+				{
+					if (TSharedPtr<IConcertSyncClient> ConcertSyncClient = IConcertSyncClientModule::Get().GetClient(TEXT("MultiUser")))
+					{
+						ConcertSyncClient->GetSequencerManager()->SuspendSequencerPacing();
+					}
+				}
 				FConcertTakeInitializedEvent TakeInitializedEvent;
 				TakeInitializedEvent.TakeName = TakeRecorder->GetName();
 				TakeInitializedEvent.TakePresetPath = TakeMetaData->GetPresetOrigin()->GetPathName();
@@ -485,6 +493,11 @@ void FConcertTakeRecorderManager::OnRecordingFinished(UTakeRecorder* TakeRecorde
 
 			if (CanRecord())
 			{
+				if (TSharedPtr<IConcertSyncClient> ConcertSyncClient = IConcertSyncClientModule::Get().GetClient(TEXT("MultiUser")))
+				{
+					ConcertSyncClient->GetSequencerManager()->ResumeSequencerPacing();
+				}
+
 				LastLevelSequence = TakeRecorder->GetSequence();
 				check(LastLevelSequence);
 				FConcertRecordingNamedLevelSequenceEvent NamedSequence{LastLevelSequence->GetPathName()};
