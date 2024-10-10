@@ -39,7 +39,7 @@
 #include "StaticMeshOperations.h"
 #include "VertexConnectedComponents.h"
 #include "Util/ColorConstants.h"
-
+#include "GeometryCollection/Facades/CollectionVertexBoneWeightsFacade.h"
 
 DEFINE_LOG_CATEGORY_STATIC(UGeometryCollectionConversionLogging, Log, All);
 
@@ -1213,6 +1213,10 @@ bool FGeometryCollectionEngineConversion::AppendSkeletalMesh(const USkeletalMesh
 				RootIndex = TransformBaseIndex + BoneIndex;
 			}
 		}
+		GeometryCollection::Facades::FTransformSource TransformSourceFacade(*InManagedArrayCollection);
+		TSet<int32> Roots;
+		Roots.Add(RootIndex);
+		TransformSourceFacade.AddTransformSource(Skeleton->GetName(), Skeleton->GetGuid().ToString(), Roots);
 	}
 
 
@@ -1225,34 +1229,6 @@ bool FGeometryCollectionEngineConversion::AppendSkeletalMesh(const USkeletalMesh
 	TArray<TArray<FIntVector2>> SourceToTargetTriangleMap;	// Mesh triangle index of each triangle in the component. 
 	GeometryCollectionEngineUtility::GenerateConnectedComponents(InSkeletalMesh, ComponentsSourceIndices,
 		SourceToTargetTriangleMap, SourceVertexToComponentMap, TriangleCount, VertexCount);
-
-
-	//
-	// Add the Triangles to the Geometry Collection
-	//.. ensure all component vertices are contigious in the array 
-	//
-	int NumVertices = GeometryCollection.NumElements(FGeometryCollection::VerticesGroup);
-	int IndicesBaseIndex = GeometryCollection.AddElements(TriangleCount, FGeometryCollection::FacesGroup);
-
-	int CurrentIndex = IndicesBaseIndex;
-	for (int ComponentIndex = 0; ComponentIndex < ComponentsSourceIndices.Num(); ComponentIndex++)
-	{
-		for(int32 TriangleIndex = 0; TriangleIndex< ComponentsSourceIndices[ComponentIndex].Num(); TriangleIndex++)
-		{
-			SourceToTargetTriangleMap[ComponentIndex][TriangleIndex][1] = CurrentIndex;
-
-			FIntVector& Triangle = ComponentsSourceIndices[ComponentIndex][TriangleIndex];
-			for (int k = 0; k < 3; k++)
-			{
-				Indices[CurrentIndex][k] = SourceVertexToComponentMap[Triangle[k]] + IndicesBaseIndex;
-			}
-
-			Visible[CurrentIndex] = true;
-			MaterialID[CurrentIndex] = 0;
-			MaterialIndex[CurrentIndex] = CurrentIndex;
-			CurrentIndex++;
-		}
-	}
 
 	//
 	// Vertex Attributes
@@ -1370,6 +1346,31 @@ bool FGeometryCollectionEngineConversion::AppendSkeletalMesh(const USkeletalMesh
 		}
 	}
 
+	//
+	// Add the Triangles to the Geometry Collection
+	//.. ensure all component vertices are contigious in the array 
+	//
+	int IndicesBaseIndex = GeometryCollection.AddElements(TriangleCount, FGeometryCollection::FacesGroup);
+
+	int CurrentIndex = IndicesBaseIndex;
+	for (int ComponentIndex = 0; ComponentIndex < ComponentsSourceIndices.Num(); ComponentIndex++)
+	{
+		for (int32 TriangleIndex = 0; TriangleIndex < ComponentsSourceIndices[ComponentIndex].Num(); TriangleIndex++)
+		{
+			SourceToTargetTriangleMap[ComponentIndex][TriangleIndex][1] = CurrentIndex;
+
+			FIntVector& Triangle = ComponentsSourceIndices[ComponentIndex][TriangleIndex];
+			for (int k = 0; k < 3; k++)
+			{
+				Indices[CurrentIndex][k] = SourceVertexToComponentMap[Triangle[k]] + VertexBaseIndex;
+			}
+
+			Visible[CurrentIndex] = true;
+			MaterialID[CurrentIndex] = 0;
+			MaterialIndex[CurrentIndex] = CurrentIndex;
+			CurrentIndex++;
+		}
+	}
 
 	// Geometry Group
 	TArray<int32> GeometryIndices;
@@ -1379,6 +1380,39 @@ bool FGeometryCollectionEngineConversion::AppendSkeletalMesh(const USkeletalMesh
 	GeometryCollection.RemoveElements(FGeometryCollection::GeometryGroup, GeometryIndices);
 	::GeometryCollection::AddGeometryProperties(&GeometryCollection);
 
+	//Extract skin weights
+	int32 NumVertices = GeometryCollection.NumElements(FGeometryCollection::VerticesGroup);
+	FSkeletalMeshRenderData* RenderData = InSkeletalMesh->GetResourceForRendering();
+	if (RenderData->LODRenderData.Num())
+	{
+		FSkeletalMeshLODRenderData* LODRenderData = &RenderData->LODRenderData[LODIndex];
+		const FSkinWeightVertexBuffer* SkinWeightVertexBuffer = LODRenderData->GetSkinWeightVertexBuffer();
+
+		TArray<int32> BlendedSkeletalMeshVertices;
+		TArray<TArray<float>> Weights;
+		Weights.SetNum(SkinWeightVertexBuffer->GetNumVertices());
+		FSkeletalMeshAttributes MeshAttribs(MeshDescription);
+		FSkinWeightsVertexAttributesRef VertexSkinWeights = MeshAttribs.GetVertexSkinWeights();
+		if (ensure(NumVertices == MeshDescription.Vertices().Num()))
+		{
+			GeometryCollection::Facades::FVertexBoneWeightsFacade VertexBoneWeightsFacade(GeometryCollection);
+			for (int32 VertexIndex = 0; VertexIndex < NumVertices; ++VertexIndex)
+			{
+				FVertexBoneWeights BoneWeights = VertexSkinWeights.Get(FVertexID(VertexIndex));
+				const int32 InfluenceCount = BoneWeights.Num();
+				TArray<int32> VertexBoneIndex;
+				TArray<float> VertexBoneWeight;
+				VertexBoneIndex.SetNum(InfluenceCount);
+				VertexBoneWeight.SetNum(InfluenceCount);
+				for (int32 InfluenceIndex = 0; InfluenceIndex < InfluenceCount; ++InfluenceIndex)
+				{
+					VertexBoneIndex[InfluenceIndex] = BoneWeights[InfluenceIndex].GetBoneIndex();
+					VertexBoneWeight[InfluenceIndex] = BoneWeights[InfluenceIndex].GetWeight();
+				}
+				VertexBoneWeightsFacade.ModifyBoneWeight(SourceVertexToComponentMap[VertexIndex], VertexBoneIndex, VertexBoneWeight);
+			}
+		}
+	}
 	GeometryCollection.CopyTo(InManagedArrayCollection);
 	return true;
 #else

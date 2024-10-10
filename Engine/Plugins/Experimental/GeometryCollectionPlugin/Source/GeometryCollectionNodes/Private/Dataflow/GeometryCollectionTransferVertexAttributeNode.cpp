@@ -9,6 +9,7 @@
 #include "Dataflow/DataflowInputOutput.h"
 #include "GeometryCollection/GeometryCollectionAlgo.h"
 #include "GeometryCollection/ManagedArrayAccessor.h"
+#include "GeometryCollection/Facades/CollectionVertexBoneWeightsFacade.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(GeometryCollectionTransferVertexAttributeNode)
 #define LOCTEXT_NAMESPACE "FGeometryCollectionTransferVertexAttributeNode"
@@ -83,6 +84,15 @@ namespace UE::Private {
 		TManagedArrayAccessor<int32> FaceCount;
 	};
 
+	struct FTransferData
+	{
+		TArray<int32> SourceIndices;
+		TArray<float> SourceWeights;
+		float FalloffScale;
+		FTransferData(): FalloffScale(0.f) {}
+		FTransferData(TArray<int32> SourceIndicesIn, TArray<float> SourceWeightsIn, float FalloffScaleIn) :
+			SourceIndices(SourceIndicesIn), SourceWeights(SourceWeightsIn), FalloffScale(FalloffScaleIn) {}
+	};
 }
 
 void FGeometryCollectionTransferVertexAttributeNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
@@ -99,34 +109,95 @@ void FGeometryCollectionTransferVertexAttributeNode::Evaluate(UE::Dataflow::FCon
 
 		if (Target.IsValid() && Sample.IsValid())
 		{
-			if (const TManagedArray<float>* SourceAttributeFloatArray = Sample.GetAttributeArray<float>(Key.Attribute, Key.Group))
+			TArray<FIntVector2> AlignedGeometry = FindSourceToTargetGeometryMap(SampleCollection, TargetCollection);
+			TArray<UE::Private::FTransferData> TransferDataArray; //store barycentric weight info
+			if (AlignedGeometry.Num() == SampleCollection.NumElements(FGeometryCollection::GeometryGroup))
+			{
+				TransferDataArray = PairedGeometryTransfer(Key, AlignedGeometry, Sample, Target);
+			}
+			else
+			{
+				TransferDataArray = NearestVertexTransfer(Key, Sample, Target);
+			}
+			if (bTransferSkinWeights)
+			{
+				GeometryCollection::Facades::FVertexBoneWeightsFacade SampleVertexBoneWeightsFacade(SampleCollection);
+				GeometryCollection::Facades::FVertexBoneWeightsFacade TargetVertexBoneWeightsFacade(TargetCollection);
+				const TManagedArray<TArray<int32>>* SampleBoneIndices = SampleVertexBoneWeightsFacade.FindBoneIndices();
+				const TManagedArray<TArray<float>>* SampleBoneWeights = SampleVertexBoneWeightsFacade.FindBoneWeights();
+				if (SampleBoneIndices && SampleBoneWeights)
+				{
+					//
+					// Compute the bone index mappings. This allows the transfer operator to retarget weights to the correct skeleton.
+					//
+					TMap<int32, int32> SampleBoneToTargetBone = FindSourceToTargetTransformMap(SampleCollection, TargetCollection);
+					for (int32 VertexIndex = 0; VertexIndex < Target.Vertex.Num(); VertexIndex++)
+					{
+						UE::Private::FTransferData TransferData = TransferDataArray[VertexIndex];
+						if (TransferData.SourceIndices.Num())
+						{
+							TMap<int32, float> BoneWeightBucket;
+							for (int32 SourceLocalIdx = 0; SourceLocalIdx < TransferData.SourceIndices.Num(); ++SourceLocalIdx)
+							{
+								for (int32 BoneLocalIdx = 0; BoneLocalIdx < (*SampleBoneIndices)[TransferData.SourceIndices[SourceLocalIdx]].Num(); ++BoneLocalIdx)
+								{
+									int32 BoneIndex = (*SampleBoneIndices)[TransferData.SourceIndices[SourceLocalIdx]][BoneLocalIdx];
+									float BoneWeight = (*SampleBoneWeights)[TransferData.SourceIndices[SourceLocalIdx]][BoneLocalIdx];
+									if (BoneWeightBucket.Contains(BoneIndex))
+									{
+										BoneWeightBucket[BoneIndex] += TransferData.SourceWeights[SourceLocalIdx] * BoneWeight;
+									}
+									else
+									{
+										BoneWeightBucket.Add(BoneIndex, TransferData.SourceWeights[SourceLocalIdx] * BoneWeight);
+									}
+								}
+							}
+
+							TArray<int32> VertexBoneIndex;
+							TArray<float> VertexBoneWeight;
+							for (const TPair<int32, float>& Pair : BoneWeightBucket)
+							{
+								VertexBoneIndex.Add(Pair.Key);
+								VertexBoneWeight.Add(Pair.Value);
+							}
+							TargetVertexBoneWeightsFacade.ModifyBoneWeight(VertexIndex, VertexBoneIndex, VertexBoneWeight);
+						}	
+					}
+				}
+			} //end if (bTransferSkinWeights)
+			else if (const TManagedArray<float>* SourceAttributeFloatArray = Sample.GetAttributeArray<float>(Key.Attribute, Key.Group))
 			{
 				TManagedArray<float>* TargetAttributeArray = Target.GetAttributeArray<float>(Key.Attribute, Key.Group);
 				TargetAttributeArray->Fill(0.f);
-
-				TArray<FIntVector2> AlignedGeometry = FindSourceToTargetGeometryMap(SampleCollection, TargetCollection);
-				if (AlignedGeometry.Num() == TargetCollection.NumElements(FGeometryCollection::GeometryGroup))
+				for (int32 VertexIndex = 0; VertexIndex < TargetAttributeArray->Num(); VertexIndex++)
 				{
-					PairedGeometryTransfer<float>(Key, AlignedGeometry, Sample, Target, SourceAttributeFloatArray, TargetAttributeArray);
-				}
-				else
-				{
-					NearestVertexTransfer<float>(Key, Sample, Target, SourceAttributeFloatArray, TargetAttributeArray);
+					UE::Private::FTransferData TransferData = TransferDataArray[VertexIndex];
+					if (TransferData.SourceIndices.Num())
+					{
+						for (int32 SourceLocalIdx = 0; SourceLocalIdx < TransferData.SourceIndices.Num(); ++SourceLocalIdx)
+						{
+							(*TargetAttributeArray)[VertexIndex] += (*SourceAttributeFloatArray)[TransferData.SourceIndices[SourceLocalIdx]]
+								* TransferData.SourceWeights[SourceLocalIdx] * TransferData.FalloffScale;
+						}
+					}
 				}
 			}
 			else if (const TManagedArray<FLinearColor>* SourceAttributeColorArray = Sample.GetAttributeArray<FLinearColor>(Key.Attribute, Key.Group))
 			{
 				TManagedArray<FLinearColor>* TargetAttributeArray = Target.GetAttributeArray<FLinearColor>(Key.Attribute, Key.Group);
 				TargetAttributeArray->Fill(FLinearColor(0, 0, 0, 0));
-
-				TArray<FIntVector2> AlignedGeometry = FindSourceToTargetGeometryMap(SampleCollection, TargetCollection);
-				if (AlignedGeometry.Num() == TargetCollection.NumElements(FGeometryCollection::GeometryGroup))
+				for (int32 VertexIndex = 0; VertexIndex < TargetAttributeArray->Num(); VertexIndex++)
 				{
-					PairedGeometryTransfer<FLinearColor>(Key, AlignedGeometry, Sample, Target, SourceAttributeColorArray, TargetAttributeArray);
-				}
-				else
-				{
-					NearestVertexTransfer<FLinearColor>(Key, Sample, Target, SourceAttributeColorArray, TargetAttributeArray);
+					UE::Private::FTransferData TransferData = TransferDataArray[VertexIndex];
+					if (TransferData.SourceIndices.Num())
+					{
+						for (int32 SourceLocalIdx = 0; SourceLocalIdx < TransferData.SourceIndices.Num(); ++SourceLocalIdx)
+						{
+							(*TargetAttributeArray)[VertexIndex] += (*SourceAttributeColorArray)[TransferData.SourceIndices[SourceLocalIdx]]
+								* TransferData.SourceWeights[SourceLocalIdx] * TransferData.FalloffScale;
+						}
+					}
 				}
 			}
 		}
@@ -139,14 +210,13 @@ void FGeometryCollectionTransferVertexAttributeNode::Evaluate(UE::Dataflow::FCon
 	}
 }
 
-
-TArray<FIntVector2> FGeometryCollectionTransferVertexAttributeNode::FindSourceToTargetGeometryMap(const FManagedArrayCollection& AttributeCollectionVal, const FManagedArrayCollection& CollectionVal) const
+TArray<FIntVector2> FGeometryCollectionTransferVertexAttributeNode::FindSourceToTargetGeometryMap(const FManagedArrayCollection& SourceCollection, const FManagedArrayCollection& TargetCollection) const
 {
 	TArray<FIntVector2> Mapping;
-	const TManagedArray<FString>* SourceName = AttributeCollectionVal.FindAttribute<FString>(FName("BoneName"), FTransformCollection::TransformGroup);
-	const TManagedArray<int32>* SourceGeometryGroup = AttributeCollectionVal.FindAttribute<int32>(FName("TransformToGeometryIndex"), FTransformCollection::TransformGroup);
-	const TManagedArray<FString>* TargetName = CollectionVal.FindAttribute<FString>(FName("BoneName"), FTransformCollection::TransformGroup);
-	const TManagedArray<int32>* TargetGeometryGroup = CollectionVal.FindAttribute<int32>(FName("TransformToGeometryIndex"), FTransformCollection::TransformGroup);
+	const TManagedArray<FString>* SourceName = SourceCollection.FindAttribute<FString>(FName("BoneName"), FTransformCollection::TransformGroup);
+	const TManagedArray<int32>* SourceGeometryGroup = SourceCollection.FindAttribute<int32>(FName("TransformToGeometryIndex"), FTransformCollection::TransformGroup);
+	const TManagedArray<FString>* TargetName = TargetCollection.FindAttribute<FString>(FName("BoneName"), FTransformCollection::TransformGroup);
+	const TManagedArray<int32>* TargetGeometryGroup = TargetCollection.FindAttribute<int32>(FName("TransformToGeometryIndex"), FTransformCollection::TransformGroup);
 	if (SourceName && SourceGeometryGroup && TargetName && TargetGeometryGroup)
 	{
 		for (int i = 0; i < SourceName->Num(); i++)
@@ -166,230 +236,253 @@ TArray<FIntVector2> FGeometryCollectionTransferVertexAttributeNode::FindSourceTo
 	return Mapping;
 }
 
-template<typename T>
-void FGeometryCollectionTransferVertexAttributeNode::PairedGeometryTransfer(FCollectionAttributeKey Key, const TArray<FIntVector2>& PairedGeometry,
-	const UE::Private::FTransferFacade& Sample, UE::Private::FTransferFacade& Target, const TManagedArray<T>* SourceAttributeArray, TManagedArray<T>* TargetAttributeArray) const
+TMap<int32, int32> FGeometryCollectionTransferVertexAttributeNode::FindSourceToTargetTransformMap(const FManagedArrayCollection& SourceCollection, const FManagedArrayCollection& TargetCollection) const
 {
-	//TargetAttributeArray has to be filled with empty values before (attribute types: float, FLinearColor)
-	if (SourceAttributeArray && TargetAttributeArray)
+	TMap<int32, int32> SourceIndexToTargetIndex;
+	TMap<FString, int32> TargetNameToIndex;
+	const TManagedArray<FString>* SourceName = SourceCollection.FindAttribute<FString>(FName("BoneName"), FTransformCollection::TransformGroup);
+	const TManagedArray<FString>* TargetName = TargetCollection.FindAttribute<FString>(FName("BoneName"), FTransformCollection::TransformGroup);
+	if (SourceName && TargetName)
 	{
-		Chaos::FReal SphereFullRadius;
-
-		if (SampleScale == EDataflowTransferVertexAttributeNodeSampleScale::Asset_Edge || SampleScale == EDataflowTransferVertexAttributeNodeSampleScale::Asset_Bound)
+		for (int32 j = 0; j < TargetName->Num(); j++)
 		{
-			// Build component space vertices for TargetCollection
-			TArray<FVector3f> ComponentSpaceFullTargetVertices; // size of num vertices of the geometry entry. 
-			BuildComponentSpaceVertices(Target.Transform.Get(), Target.Parent.Get(), Target.BoneMap.Get(), Target.Vertex.Get(),
-				0, Target.Vertex.Num(), ComponentSpaceFullTargetVertices);
-
-			// Build component space vertices for TargetCollection
-			TArray<FVector3f> ComponentSpaceFullVertices; // size of num vertices of the geometry entry
-			BuildComponentSpaceVertices(Sample.Transform.Get(), Sample.Parent.Get(), Sample.BoneMap.Get(), Sample.Vertex.Get(),
-				0, Sample.Vertex.Num(), ComponentSpaceFullVertices);
-			if (SampleScale == EDataflowTransferVertexAttributeNodeSampleScale::Asset_Edge)
+			TargetNameToIndex.Add((*TargetName)[j], j);
+		}
+		for (int32 i = 0; i < SourceName->Num(); i++)
+		{
+			if (int32* TargetIndex = TargetNameToIndex.Find((*SourceName)[i]))
 			{
-				SphereFullRadius = Chaos::FReal(EdgeMultiplier * FMath::Max(
-					MaxEdgeLength(ComponentSpaceFullTargetVertices, Target.Indices.Get(), 0, 0, Target.Indices.Num()),
-					MaxEdgeLength(ComponentSpaceFullVertices, Sample.Indices.Get(), 0, 0, Sample.Indices.Num())));
-			}
-			else if (SampleScale == EDataflowTransferVertexAttributeNodeSampleScale::Asset_Bound)
-			{
-				Chaos::TVec3<float> CoordMaxs(-FLT_MAX);
-				Chaos::TVec3<float> CoordMins(FLT_MAX);
-				for (int32 i = 0; i < ComponentSpaceFullVertices.Num(); i++)
-				{
-					for (int32 j = 0; j < 3; j++)
-					{
-						if (ComponentSpaceFullVertices[i][j] > CoordMaxs[j])
-						{
-							CoordMaxs[j] = ComponentSpaceFullVertices[i][j];
-						}
-						if (ComponentSpaceFullVertices[i][j] < CoordMins[j])
-						{
-							CoordMins[j] = ComponentSpaceFullVertices[i][j];
-						}
-					}
-				}
-				Chaos::TVec3<float> CoordDiff = (CoordMaxs - CoordMins) * BoundMultiplier;
-				SphereFullRadius = Chaos::FReal(FGenericPlatformMath::Min(CoordDiff[0], FGenericPlatformMath::Min(CoordDiff[1], CoordDiff[2])));
+				SourceIndexToTargetIndex.Add(i, *TargetIndex);
 			}
 		}
-		ParallelFor(PairedGeometry.Num(), [&](int32 Pdx)
-			{
-				int32 AttributeGeometryIndex = PairedGeometry[Pdx][0];
-				int32 TargetGeometryIndex = PairedGeometry[Pdx][1];
-				if (ensure(0 <= AttributeGeometryIndex && AttributeGeometryIndex < Sample.VertexStart.Num()))
-				{
-					if (ensure(0 <= TargetGeometryIndex && TargetGeometryIndex < Target.VertexStart.Num()))
-					{
-						// Build component space vertices for TargetCollection
-						TArray<FVector3f> ComponentSpaceTargetVertices; // size of num vertices of the geometry entry. 
-						BuildComponentSpaceVertices(Target.Transform.Get(), Target.Parent.Get(), Target.BoneMap.Get(), Target.Vertex.Get(),
-							Target.VertexStart[TargetGeometryIndex], Target.VertexCount[TargetGeometryIndex], ComponentSpaceTargetVertices);
-
-						// Build component space vertices for SampleCollection
-						TArray<FVector3f> ComponentSpaceVertices; // size of num vertices of the geometry entry
-						BuildComponentSpaceVertices(Sample.Transform.Get(), Sample.Parent.Get(), Sample.BoneMap.Get(), Sample.Vertex.Get(),
-							Sample.VertexStart[AttributeGeometryIndex], Sample.VertexCount[AttributeGeometryIndex], ComponentSpaceVertices);
-
-						// build Sphere based BVH
-						Chaos::FReal SphereRadius = SphereFullRadius;
-						if (SampleScale == EDataflowTransferVertexAttributeNodeSampleScale::Component_Edge)
-						{
-							SphereRadius = Chaos::FReal(EdgeMultiplier * FMath::Max(
-								MaxEdgeLength(ComponentSpaceTargetVertices, Target.Indices.Get(), Target.VertexStart[TargetGeometryIndex], Target.FaceStart[TargetGeometryIndex], Target.FaceCount[TargetGeometryIndex]),
-								MaxEdgeLength(ComponentSpaceVertices, Sample.Indices.Get(), Sample.VertexStart[AttributeGeometryIndex], Sample.FaceStart[AttributeGeometryIndex], Sample.FaceCount[AttributeGeometryIndex])));
-						}
-
-						int32 TargetVertexStartVal = Target.VertexStart[TargetGeometryIndex];
-						int32 TargetVertexCountVal = Target.VertexCount[TargetGeometryIndex];
-						int32 VertexStartVal = Sample.VertexStart[AttributeGeometryIndex];
-						int32 FaceStartVal = Sample.FaceStart[AttributeGeometryIndex];
-						int32 FaceCountVal = Sample.FaceCount[AttributeGeometryIndex];
-
-						if (BoundingVolumeType == EDataflowTransferVertexAttributeNodeBoundingVolume::Triangle)
-						{
-							TArray<Chaos::TVec3<Chaos::FReal>> ComponentSpaceVerticesTVec3;
-							ComponentSpaceVerticesTVec3.SetNum(ComponentSpaceVertices.Num());
-							for (int32 SourceIndex = 0; SourceIndex < ComponentSpaceVerticesTVec3.Num(); SourceIndex++)
-							{
-								ComponentSpaceVerticesTVec3[SourceIndex] = Chaos::TVec3<Chaos::FReal>(ComponentSpaceVertices[SourceIndex]);
-							}
-							TConstArrayView<Chaos::TVec3<Chaos::FReal>> ConstComponentSpaceVertices(ComponentSpaceVerticesTVec3);
-							Chaos::FTriangleMesh TriangleMesh;
-							TArray<Chaos::TVec3<int32>> SourceElements;
-							SourceElements.SetNum(FaceCountVal);
-							for (int32 ElementIndex = 0; ElementIndex < FaceCountVal; ++ElementIndex)
-							{
-								FIntVector3 Element = Sample.Indices[FaceStartVal + ElementIndex];
-								SourceElements[ElementIndex] = Chaos::TVec3<int32>(Element[0] - VertexStartVal, Element[1] - VertexStartVal, Element[2] - VertexStartVal);
-							}
-							TriangleMesh.Init(SourceElements);
-							Chaos::FTriangleMesh::TSpatialHashType<Chaos::FReal> SpatialHash;
-							TriangleMesh.BuildSpatialHash(ConstComponentSpaceVertices, SpatialHash, SphereRadius);
-							for (int32 TargetIndex = 0; TargetIndex < TargetVertexCountVal; TargetIndex++)
-							{
-								TArray<Chaos::TTriangleCollisionPoint<Chaos::FReal>> Result;
-								if (TriangleMesh.PointClosestTriangleQuery(SpatialHash, ConstComponentSpaceVertices,
-									TargetIndex, Chaos::TVec3<Chaos::FReal>(ComponentSpaceTargetVertices[TargetIndex]), SphereRadius / 2.f, SphereRadius / 2.f,
-									[](const int32 PointIndex, const int32 TriangleIndex)->bool {return true; }, Result))
-								{
-									for (const Chaos::TTriangleCollisionPoint<Chaos::FReal>& CollisionPoint : Result)
-									{
-										float CurrentDistance = abs(CollisionPoint.Phi);
-										float TriRadius = FalloffThreshold * MaxEdgeLength(ComponentSpaceVertices, Sample.Indices.Get(), VertexStartVal, FaceStartVal + CollisionPoint.Indices[1], 1);
-										float FalloffScale = CalculateFalloffScale(Falloff, TriRadius, CurrentDistance);
-										if (!FMath::IsNearlyZero(FalloffScale))
-										{
-											int32 TargetCandidateIndex = CollisionPoint.Indices[0] + TargetVertexStartVal;
-											if (ensure(0 <= TargetCandidateIndex && TargetCandidateIndex < TargetAttributeArray->Num()))
-											{
-												for (int32 k = 0; k < 3; k++)
-												{
-													(*TargetAttributeArray)[TargetCandidateIndex] += FalloffScale * (CollisionPoint.Bary[k+1] * (*SourceAttributeArray)[Sample.Indices[FaceStartVal + CollisionPoint.Indices[1]][k]]);
-												}
-												break;
-											}
-										}
-									}
-								}
-							}
-						}
-						else if (BoundingVolumeType == EDataflowTransferVertexAttributeNodeBoundingVolume::Vertex)
-						{
-							TUniquePtr<BVH> VertexBVH(BuildParticleSphereBVH(ComponentSpaceTargetVertices, SphereRadius));
-							for (int32 i = 0; i < FaceCountVal; i++)
-							{
-								FIntVector3 ComponentTriangle = Sample.Indices[FaceStartVal + i] - FIntVector3(VertexStartVal);
-								TArray<int32> TargetVertexIntersection({});
-								TriangleToVertexIntersections(*VertexBVH, ComponentSpaceVertices, ComponentTriangle, TargetVertexIntersection);
-
-								for (int32 j = 0; j < TargetVertexIntersection.Num(); j++)
-								{
-									Chaos::TVector<float, 3> Bary,
-										TriPos0(ComponentSpaceVertices[ComponentTriangle[0]]),
-										TriPos1(ComponentSpaceVertices[ComponentTriangle[1]]),
-										TriPos2(ComponentSpaceVertices[ComponentTriangle[2]]),
-										ParticlePos(ComponentSpaceTargetVertices[TargetVertexIntersection[j]]);
-
-									Chaos::TVector<float, 3> ClosestPoint = Chaos::FindClosestPointAndBaryOnTriangle(TriPos0, TriPos1, TriPos2, ParticlePos, Bary);
-									float CurrentDistance = (ParticlePos - ClosestPoint).Size();
-									float TriRadius = FalloffThreshold * MaxEdgeLength(ComponentSpaceVertices, Sample.Indices.Get(), VertexStartVal, FaceStartVal + i, 1);
-									float FalloffScale = CalculateFalloffScale(Falloff, TriRadius, CurrentDistance);
-									if (!FMath::IsNearlyZero(FalloffScale))
-									{
-										int32 TargetIndex = TargetVertexIntersection[j] + TargetVertexStartVal;
-										if (ensure(0 <= TargetIndex && TargetIndex < TargetAttributeArray->Num()))
-										{
-											for (int32 k = 0; k < 3; k++)
-											{
-												(*TargetAttributeArray)[TargetIndex] += FalloffScale * (Bary[k] * (*SourceAttributeArray)[ComponentTriangle[k] + VertexStartVal]);
-											}
-											break;
-										}
-									}
-								}
-							}
-						}
-					}
-				}
-			});
 	}
+
+	return SourceIndexToTargetIndex;
 }
 
-template<typename T>
-void FGeometryCollectionTransferVertexAttributeNode::NearestVertexTransfer(FCollectionAttributeKey Key, const UE::Private::FTransferFacade& Sample, UE::Private::FTransferFacade& Target, const TManagedArray<T>* SourceAttributeArray, TManagedArray<T>* TargetAttributeArray) const
+TArray<UE::Private::FTransferData> FGeometryCollectionTransferVertexAttributeNode::PairedGeometryTransfer(FCollectionAttributeKey Key, const TArray<FIntVector2>& PairedGeometry,
+	const UE::Private::FTransferFacade& Sample, const UE::Private::FTransferFacade& Target) const
 {
-	//TargetAttributeArray has to be filled with empty values before (attribute types: float, FLinearColor)
-	if (SourceAttributeArray && TargetAttributeArray)
+	TArray<UE::Private::FTransferData> TransferDataArray;
+	TransferDataArray.SetNum(Target.Vertex.Num());
+	Chaos::FReal SphereFullRadius;
+
+	if (SampleScale == EDataflowTransferVertexAttributeNodeSampleScale::Asset_Edge || SampleScale == EDataflowTransferVertexAttributeNodeSampleScale::Asset_Bound)
 	{
 		// Build component space vertices for TargetCollection
-		TArray<FVector3f> ComponentSpaceTargetVertices;
-		BuildComponentSpaceVertices(Target.Transform.Get(), Target.Parent.Get(), Target.BoneMap.Get(), Target.Vertex.Get(), 0, Target.Vertex.Num(), ComponentSpaceTargetVertices);
+		TArray<FVector3f> ComponentSpaceFullTargetVertices; // size of num vertices of the geometry entry. 
+		BuildComponentSpaceVertices(Target.Transform.Get(), Target.Parent.Get(), Target.BoneMap.Get(), Target.Vertex.Get(),
+			0, Target.Vertex.Num(), ComponentSpaceFullTargetVertices);
 
-		// Build component space vertices for SourceCollection
-		TArray<FVector3f> ComponentSpaceVertices;
-		BuildComponentSpaceVertices(Sample.Transform.Get(), Sample.Parent.Get(), Sample.BoneMap.Get(), Sample.Vertex.Get(), 0, Sample.Vertex.Num(), ComponentSpaceVertices);
-
-		// build Sphere based BVH
-		Chaos::FReal SphereRadius = Chaos::FReal(EdgeMultiplier * FMath::Max(
-			MaxEdgeLength(ComponentSpaceTargetVertices, Target.Indices.Get(), 0, 0, Target.Indices.Num()),
-			MaxEdgeLength(ComponentSpaceVertices, Sample.Indices.Get(), 0, 0, Sample.Indices.Num())));
-		TUniquePtr<BVH> VertexBVH(BuildParticleSphereBVH(ComponentSpaceTargetVertices, SphereRadius));
-
-		for (int32 i = 0; i < Sample.Indices.Num(); i++)
+		// Build component space vertices for TargetCollection
+		TArray<FVector3f> ComponentSpaceFullVertices; // size of num vertices of the geometry entry
+		BuildComponentSpaceVertices(Sample.Transform.Get(), Sample.Parent.Get(), Sample.BoneMap.Get(), Sample.Vertex.Get(),
+			0, Sample.Vertex.Num(), ComponentSpaceFullVertices);
+		if (SampleScale == EDataflowTransferVertexAttributeNodeSampleScale::Asset_Edge)
 		{
-			FIntVector3 Triangle = Sample.Indices[i];
-			TArray<int32> TargetVertexIntersection({});
-			TriangleToVertexIntersections(*VertexBVH, ComponentSpaceVertices, Triangle, TargetVertexIntersection);
-
-			for (int32 j = 0; j < TargetVertexIntersection.Num(); j++)
+			SphereFullRadius = Chaos::FReal(EdgeMultiplier * FMath::Max(
+				MaxEdgeLength(ComponentSpaceFullTargetVertices, Target.Indices.Get(), 0, 0, Target.Indices.Num()),
+				MaxEdgeLength(ComponentSpaceFullVertices, Sample.Indices.Get(), 0, 0, Sample.Indices.Num())));
+		}
+		else if (SampleScale == EDataflowTransferVertexAttributeNodeSampleScale::Asset_Bound)
+		{
+			Chaos::TVec3<float> CoordMaxs(-FLT_MAX);
+			Chaos::TVec3<float> CoordMins(FLT_MAX);
+			for (int32 i = 0; i < ComponentSpaceFullVertices.Num(); i++)
 			{
-				Chaos::TVector<float, 3> Bary,
-					TriPos0(ComponentSpaceVertices[Sample.Indices[i][0]]),
-					TriPos1(ComponentSpaceVertices[Sample.Indices[i][1]]),
-					TriPos2(ComponentSpaceVertices[Sample.Indices[i][2]]),
-					ParticlePos(ComponentSpaceTargetVertices[TargetVertexIntersection[j]]);
-
-				Chaos::TVector<float, 3> ClosestPoint = Chaos::FindClosestPointAndBaryOnTriangle(TriPos0, TriPos1, TriPos2, ParticlePos, Bary);
-				float CurrentDistance = (ParticlePos - ClosestPoint).Size();
-				float TriRadius = FalloffThreshold * MaxEdgeLength(ComponentSpaceVertices, Sample.Indices.Get(), 0, i, 1);
-				float FalloffScale = CalculateFalloffScale(Falloff, TriRadius, CurrentDistance);
-				if (!FMath::IsNearlyZero(FalloffScale))
+				for (int32 j = 0; j < 3; j++)
 				{
-					int32 TargetIndex = TargetVertexIntersection[j];
-					if (ensure(0 <= TargetIndex && TargetIndex < TargetAttributeArray->Num()))
+					if (ComponentSpaceFullVertices[i][j] > CoordMaxs[j])
 					{
-						for (int32 k = 0; k < 3; k++)
+						CoordMaxs[j] = ComponentSpaceFullVertices[i][j];
+					}
+					if (ComponentSpaceFullVertices[i][j] < CoordMins[j])
+					{
+						CoordMins[j] = ComponentSpaceFullVertices[i][j];
+					}
+				}
+			}
+			Chaos::TVec3<float> CoordDiff = (CoordMaxs - CoordMins) * BoundMultiplier;
+			SphereFullRadius = Chaos::FReal(FGenericPlatformMath::Min(CoordDiff[0], FGenericPlatformMath::Min(CoordDiff[1], CoordDiff[2])));
+		}
+	}
+	ParallelFor(PairedGeometry.Num(), [&](int32 Pdx)
+	{
+		int32 AttributeGeometryIndex = PairedGeometry[Pdx][0];
+		int32 TargetGeometryIndex = PairedGeometry[Pdx][1];
+		if (ensure(0 <= AttributeGeometryIndex && AttributeGeometryIndex < Sample.VertexStart.Num()))
+		{
+			if (ensure(0 <= TargetGeometryIndex && TargetGeometryIndex < Target.VertexStart.Num()))
+			{
+				// Build component space vertices for TargetCollection
+				TArray<FVector3f> ComponentSpaceTargetVertices; // size of num vertices of the geometry entry. 
+				BuildComponentSpaceVertices(Target.Transform.Get(), Target.Parent.Get(), Target.BoneMap.Get(), Target.Vertex.Get(),
+					Target.VertexStart[TargetGeometryIndex], Target.VertexCount[TargetGeometryIndex], ComponentSpaceTargetVertices);
+
+				// Build component space vertices for SampleCollection
+				TArray<FVector3f> ComponentSpaceVertices; // size of num vertices of the geometry entry
+				BuildComponentSpaceVertices(Sample.Transform.Get(), Sample.Parent.Get(), Sample.BoneMap.Get(), Sample.Vertex.Get(),
+					Sample.VertexStart[AttributeGeometryIndex], Sample.VertexCount[AttributeGeometryIndex], ComponentSpaceVertices);
+
+				// build Sphere based BVH
+				Chaos::FReal SphereRadius = SphereFullRadius;
+				if (SampleScale == EDataflowTransferVertexAttributeNodeSampleScale::Component_Edge)
+				{
+					SphereRadius = Chaos::FReal(EdgeMultiplier * FMath::Max(
+						MaxEdgeLength(ComponentSpaceTargetVertices, Target.Indices.Get(), Target.VertexStart[TargetGeometryIndex], Target.FaceStart[TargetGeometryIndex], Target.FaceCount[TargetGeometryIndex]),
+						MaxEdgeLength(ComponentSpaceVertices, Sample.Indices.Get(), Sample.VertexStart[AttributeGeometryIndex], Sample.FaceStart[AttributeGeometryIndex], Sample.FaceCount[AttributeGeometryIndex])));
+				}
+
+				int32 TargetVertexStartVal = Target.VertexStart[TargetGeometryIndex];
+				int32 TargetVertexCountVal = Target.VertexCount[TargetGeometryIndex];
+				int32 VertexStartVal = Sample.VertexStart[AttributeGeometryIndex];
+				int32 FaceStartVal = Sample.FaceStart[AttributeGeometryIndex];
+				int32 FaceCountVal = Sample.FaceCount[AttributeGeometryIndex];
+
+				if (BoundingVolumeType == EDataflowTransferVertexAttributeNodeBoundingVolume::Triangle)
+				{
+					TArray<Chaos::TVec3<Chaos::FReal>> ComponentSpaceVerticesTVec3;
+					ComponentSpaceVerticesTVec3.SetNum(ComponentSpaceVertices.Num());
+					for (int32 SourceIndex = 0; SourceIndex < ComponentSpaceVerticesTVec3.Num(); SourceIndex++)
+					{
+						ComponentSpaceVerticesTVec3[SourceIndex] = Chaos::TVec3<Chaos::FReal>(ComponentSpaceVertices[SourceIndex]);
+					}
+					TConstArrayView<Chaos::TVec3<Chaos::FReal>> ConstComponentSpaceVertices(ComponentSpaceVerticesTVec3);
+					Chaos::FTriangleMesh TriangleMesh;
+					TArray<Chaos::TVec3<int32>> SourceElements;
+					SourceElements.SetNum(FaceCountVal);
+					for (int32 ElementIndex = 0; ElementIndex < FaceCountVal; ++ElementIndex)
+					{
+						FIntVector3 Element = Sample.Indices[FaceStartVal + ElementIndex];
+						SourceElements[ElementIndex] = Chaos::TVec3<int32>(Element[0] - VertexStartVal, Element[1] - VertexStartVal, Element[2] - VertexStartVal);
+					}
+					TriangleMesh.Init(SourceElements);
+					Chaos::FTriangleMesh::TSpatialHashType<Chaos::FReal> SpatialHash;
+					TriangleMesh.BuildSpatialHash(ConstComponentSpaceVertices, SpatialHash, SphereRadius);
+					for (int32 TargetIndex = 0; TargetIndex < TargetVertexCountVal; TargetIndex++)
+					{
+						TArray<Chaos::TTriangleCollisionPoint<Chaos::FReal>> Result;
+						if (TriangleMesh.PointClosestTriangleQuery(SpatialHash, ConstComponentSpaceVertices,
+							TargetIndex, Chaos::TVec3<Chaos::FReal>(ComponentSpaceTargetVertices[TargetIndex]), SphereRadius / 2.f, SphereRadius / 2.f,
+							[](const int32 PointIndex, const int32 TriangleIndex)->bool {return true; }, Result))
 						{
-							(*TargetAttributeArray)[TargetIndex] += FalloffScale * (Bary[k] * (*SourceAttributeArray)[Sample.Indices[i][k]]);
+							for (const Chaos::TTriangleCollisionPoint<Chaos::FReal>& CollisionPoint : Result)
+							{
+								float CurrentDistance = abs(CollisionPoint.Phi);
+								float TriRadius = FalloffThreshold * MaxEdgeLength(ComponentSpaceVertices, Sample.Indices.Get(), VertexStartVal, FaceStartVal + CollisionPoint.Indices[1], 1);
+								float FalloffScale = CalculateFalloffScale(Falloff, TriRadius, CurrentDistance);
+								if (!FMath::IsNearlyZero(FalloffScale))
+								{
+									int32 TargetCandidateIndex = CollisionPoint.Indices[0] + TargetVertexStartVal;
+									TArray<int32> TransferIndices;
+									TArray<float> TransferWeights;
+									for (int32 k = 0; k < 3; k++)
+									{
+										TransferIndices.Add(Sample.Indices[FaceStartVal + CollisionPoint.Indices[1]][k]);
+										TransferWeights.Add(CollisionPoint.Bary[k + 1]);
+									}
+									TransferDataArray[TargetCandidateIndex] = UE::Private::FTransferData(TransferIndices, TransferWeights, FalloffScale);
+									break;
+								}
+							}
 						}
-						break;
+					}
+				}
+				else if (BoundingVolumeType == EDataflowTransferVertexAttributeNodeBoundingVolume::Vertex)
+				{
+					TUniquePtr<BVH> VertexBVH(BuildParticleSphereBVH(ComponentSpaceTargetVertices, SphereRadius));
+					for (int32 i = 0; i < FaceCountVal; i++)
+					{
+						FIntVector3 ComponentTriangle = Sample.Indices[FaceStartVal + i] - FIntVector3(VertexStartVal);
+						TArray<int32> TargetVertexIntersection({});
+						TriangleToVertexIntersections(*VertexBVH, ComponentSpaceVertices, ComponentTriangle, TargetVertexIntersection);
+
+						for (int32 j = 0; j < TargetVertexIntersection.Num(); j++)
+						{
+							Chaos::TVector<float, 3> Bary,
+								TriPos0(ComponentSpaceVertices[ComponentTriangle[0]]),
+								TriPos1(ComponentSpaceVertices[ComponentTriangle[1]]),
+								TriPos2(ComponentSpaceVertices[ComponentTriangle[2]]),
+								ParticlePos(ComponentSpaceTargetVertices[TargetVertexIntersection[j]]);
+
+							Chaos::TVector<float, 3> ClosestPoint = Chaos::FindClosestPointAndBaryOnTriangle(TriPos0, TriPos1, TriPos2, ParticlePos, Bary);
+							float CurrentDistance = (ParticlePos - ClosestPoint).Size();
+							float TriRadius = FalloffThreshold * MaxEdgeLength(ComponentSpaceVertices, Sample.Indices.Get(), VertexStartVal, FaceStartVal + i, 1);
+							float FalloffScale = CalculateFalloffScale(Falloff, TriRadius, CurrentDistance);
+							if (!FMath::IsNearlyZero(FalloffScale))
+							{
+								int32 TargetIndex = TargetVertexIntersection[j] + TargetVertexStartVal;
+								TArray<int32> TransferIndices;
+								TArray<float> TransferWeights;
+								for (int32 k = 0; k < 3; k++)
+								{
+									TransferIndices.Add(ComponentTriangle[k] + VertexStartVal);
+									TransferWeights.Add(Bary[k]);
+								}
+								TransferDataArray[TargetIndex] = UE::Private::FTransferData(TransferIndices, TransferWeights, FalloffScale);
+								break;
+							}
+						}
 					}
 				}
 			}
 		}
+	});
+	return TransferDataArray;
+}
+
+TArray<UE::Private::FTransferData> FGeometryCollectionTransferVertexAttributeNode::NearestVertexTransfer(FCollectionAttributeKey Key, const UE::Private::FTransferFacade& Sample, const UE::Private::FTransferFacade& Target) const
+{
+	TArray<UE::Private::FTransferData> TransferDataArray;
+	TransferDataArray.SetNum(Target.Vertex.Num());
+	// Build component space vertices for TargetCollection
+	TArray<FVector3f> ComponentSpaceTargetVertices;
+	BuildComponentSpaceVertices(Target.Transform.Get(), Target.Parent.Get(), Target.BoneMap.Get(), Target.Vertex.Get(), 0, Target.Vertex.Num(), ComponentSpaceTargetVertices);
+
+	// Build component space vertices for SourceCollection
+	TArray<FVector3f> ComponentSpaceVertices;
+	BuildComponentSpaceVertices(Sample.Transform.Get(), Sample.Parent.Get(), Sample.BoneMap.Get(), Sample.Vertex.Get(), 0, Sample.Vertex.Num(), ComponentSpaceVertices);
+
+	// build Sphere based BVH
+	Chaos::FReal SphereRadius = Chaos::FReal(EdgeMultiplier * FMath::Max(
+		MaxEdgeLength(ComponentSpaceTargetVertices, Target.Indices.Get(), 0, 0, Target.Indices.Num()),
+		MaxEdgeLength(ComponentSpaceVertices, Sample.Indices.Get(), 0, 0, Sample.Indices.Num())));
+	TUniquePtr<BVH> VertexBVH(BuildParticleSphereBVH(ComponentSpaceTargetVertices, SphereRadius));
+
+	for (int32 i = 0; i < Sample.Indices.Num(); i++)
+	{
+		FIntVector3 Triangle = Sample.Indices[i];
+		TArray<int32> TargetVertexIntersection({});
+		TriangleToVertexIntersections(*VertexBVH, ComponentSpaceVertices, Triangle, TargetVertexIntersection);
+
+		for (int32 j = 0; j < TargetVertexIntersection.Num(); j++)
+		{
+			Chaos::TVector<float, 3> Bary,
+				TriPos0(ComponentSpaceVertices[Sample.Indices[i][0]]),
+				TriPos1(ComponentSpaceVertices[Sample.Indices[i][1]]),
+				TriPos2(ComponentSpaceVertices[Sample.Indices[i][2]]),
+				ParticlePos(ComponentSpaceTargetVertices[TargetVertexIntersection[j]]);
+
+			Chaos::TVector<float, 3> ClosestPoint = Chaos::FindClosestPointAndBaryOnTriangle(TriPos0, TriPos1, TriPos2, ParticlePos, Bary);
+			float CurrentDistance = (ParticlePos - ClosestPoint).Size();
+			float TriRadius = FalloffThreshold * MaxEdgeLength(ComponentSpaceVertices, Sample.Indices.Get(), 0, i, 1);
+			float FalloffScale = CalculateFalloffScale(Falloff, TriRadius, CurrentDistance);
+			if (!FMath::IsNearlyZero(FalloffScale))
+			{
+				int32 TargetIndex = TargetVertexIntersection[j];
+				TArray<int32> TransferIndices;
+				TArray<float> TransferWeights;
+				for (int32 k = 0; k < 3; k++)
+				{
+					TransferIndices.Add(Sample.Indices[i][k]);
+					TransferWeights.Add(Bary[k]);
+				}
+				TransferDataArray[TargetIndex] = UE::Private::FTransferData(TransferIndices, TransferWeights, FalloffScale);
+				break;
+			}
+		}
 	}
+	return TransferDataArray;
 }
 
 
@@ -498,5 +591,19 @@ float FGeometryCollectionTransferVertexAttributeNode::CalculateFalloffScale(EDat
 	return 1.0;
 }
 
+void FGeometryCollectionSetKinematicVertexSelectionNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
+{
+	if (Out->IsA(&Collection))
+	{
+		FManagedArrayCollection InCollection = GetValue(Context, &Collection);
+		if (IsConnected(&VertexSelection))
+		{
+			FDataflowVertexSelection VertexSelectionIn = GetValue<FDataflowVertexSelection>(Context, &VertexSelection);
+			GeometryCollection::Facades::FVertexBoneWeightsFacade VertexBoneWeightsFacade(InCollection);
+			VertexBoneWeightsFacade.SetVertexArrayKinematic(VertexSelectionIn.AsArray());
+		}
+		SetValue(Context, MoveTemp(InCollection), &Collection);
+	}
+}
 
 #undef LOCTEXT_NAMESPACE

@@ -88,6 +88,7 @@ namespace Chaos::Softs
 	FAutoConsoleVariableRef CVarDeformableDebugParamsDrawKinematicParticles(TEXT("p.Chaos.DebugDraw.Deformable.KinematicParticle"), GDeformableDebugParams.bDoDrawKinematicParticles, TEXT("Debug draw the deformables kinematic particles. [def: false]"));
 	FAutoConsoleVariableRef CVarDeformableDebugParamsDrawTransientKinematicParticles(TEXT("p.Chaos.DebugDraw.Deformable.TransientKinematicParticle"), GDeformableDebugParams.bDoDrawTransientKinematicParticles, TEXT("Debug draw the deformables transient kinematic particles. [def: false]"));
 	FAutoConsoleVariableRef CVarDeformableDebugParamsDrawRigidCollisionGeometry(TEXT("p.Chaos.DebugDraw.Deformable.RigidCollisionGeometry"), GDeformableDebugParams.bDoDrawRigidCollisionGeometry, TEXT("Debug draw the deformable solvers rigid collision geometry. [def: false]"));
+	FAutoConsoleVariableRef CVarDeformableDebugParamsDrawParticleRadius(TEXT("p.Chaos.DebugDraw.Deformable.ParticleRadius"), GDeformableDebugParams.ParticleRadius, TEXT("Drawn kinematic particle radius. [def: 5]"));
 
 	FDeformableXPBDCorotatedParams GDeformableXPBDCorotatedParams;
 	FAutoConsoleVariableRef CVarDeformableXPBDCorotatedBatchSize(TEXT("p.Chaos.Deformable.XPBDBatchSize"), GDeformableXPBDCorotatedParams.XPBDCorotatedBatchSize, TEXT("Batch size for physics parallel for. [def: 5]"));
@@ -285,7 +286,7 @@ namespace Chaos::Softs
 								{
 									int32 LocalIndex = CnstrTargets.GetIndex(i);
 									int32 ParticleIndex = Range[0] + LocalIndex;
-									Chaos::FDebugDrawQueue::GetInstance().DrawDebugPoint(ToDouble(Evolution->Particles().GetX(ParticleIndex)), FColor::Orange, false, -1.0f, 0, 5);
+									Chaos::FDebugDrawQueue::GetInstance().DrawDebugPoint(ToDouble(Evolution->Particles().GetX(ParticleIndex)), FColor::Orange, false, -1.0f, 0, GDeformableDebugParams.ParticleRadius);
 								}
 							}
 #endif
@@ -559,22 +560,14 @@ namespace Chaos::Softs
 
 		if (Property.bEnableKinematics)
 		{
+			GeometryCollection::Facades::FVertexBoneWeightsFacade VertexBoneWeightsFacade(Rest);
 			typedef GeometryCollection::Facades::FKinematicBindingFacade FKinematics;
 			FKinematics Kinematics(Rest);
-
-			// Add Kinematics Node
-			for (int i = Kinematics.NumKinematicBindings() - 1; i >= 0; i--)
+			for (int32 VertexIdx = 0; VertexIdx < VertexBoneWeightsFacade.NumVertices(); ++VertexIdx)
 			{
-				FKinematics::FBindingKey Key = Kinematics.GetKinematicBindingKey(i);
-
-				int32 BoneIndex = INDEX_NONE;
-				TArray<int32> BoundVerts;
-				TArray<float> BoundWeights;
-				Kinematics.GetBoneBindings(Key, BoneIndex, BoundVerts, BoundWeights);
-
-				for (int32 vdx : BoundVerts)
+				if (VertexBoneWeightsFacade.IsKinematicVertex(VertexIdx))
 				{
-					int32 ParticleIndex = Range[0] + vdx;
+					int32 ParticleIndex = Range[0] + VertexIdx;
 					Evolution->Particles().InvM(ParticleIndex) = 0.f;
 					Evolution->Particles().PAndInvM(ParticleIndex).InvM = 0.f;
 				}
@@ -833,7 +826,7 @@ namespace Chaos::Softs
 			{
 				auto T = ChaosTet(Tetrahedron[edx], Range[0]);
 				Chaos::FDebugDrawQueue::GetInstance().DrawDebugPoint(
-					DoubleVert(P.GetX(T[0])), FColor::Blue, false, -1.0f, 0, 5);
+					DoubleVert(P.GetX(T[0])), FColor::Blue, false, -1.0f, 0, GDeformableDebugParams.ParticleRadius);
 			}
 		}
 #endif
@@ -1340,7 +1333,7 @@ namespace Chaos::Softs
 						if (GDeformableDebugParams.IsDebugDrawingEnabled() && GDeformableDebugParams.bDoDrawKinematicParticles )
 						{
 							auto DoubleVert = [](FVector3f V) { return FVector3d(V.X, V.Y, V.Z); };
-							Chaos::FDebugDrawQueue::GetInstance().DrawDebugPoint(DoubleVert(MParticles.GetX(Index)), FColor::Red, false, -1.0f, 0, 5);
+							Chaos::FDebugDrawQueue::GetInstance().DrawDebugPoint(DoubleVert(MParticles.GetX(Index)), FColor::Red, false, -1.0f, 0, GDeformableDebugParams.ParticleRadius);
 						}
 #endif
 

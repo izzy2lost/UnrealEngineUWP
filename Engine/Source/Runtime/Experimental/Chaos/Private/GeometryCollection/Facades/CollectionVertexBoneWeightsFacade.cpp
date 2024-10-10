@@ -14,12 +14,14 @@ namespace GeometryCollection::Facades
 	// Attributes
 	const FName FVertexBoneWeightsFacade::BoneWeightAttributeName = "BoneWeights";
 	const FName FVertexBoneWeightsFacade::BoneIndexAttributeName = "BoneWeightsIndex";
-
+	const FName FVertexBoneWeightsFacade::KinematicAttributeName = "Kinematic";
+	
 	FVertexBoneWeightsFacade::FVertexBoneWeightsFacade(FManagedArrayCollection& InCollection)
 		: ConstCollection(InCollection)
 		, Collection(&InCollection)
 		, BoneIndexAttribute(InCollection, BoneIndexAttributeName, FGeometryCollection::VerticesGroup, FTransformCollection::TransformGroup)
 		, BoneWeightAttribute(InCollection, BoneWeightAttributeName, FGeometryCollection::VerticesGroup, FTransformCollection::TransformGroup)
+		, KinematicAttribute(InCollection, KinematicAttributeName, FGeometryCollection::VerticesGroup)
 		, ParentAttribute(InCollection, FTransformCollection::ParentAttribute, FTransformCollection::TransformGroup)
 		, VerticesAttribute(InCollection, "Vertex", FGeometryCollection::VerticesGroup)
 	{
@@ -31,6 +33,7 @@ namespace GeometryCollection::Facades
 		, Collection(nullptr)
 		, BoneIndexAttribute(InCollection, BoneIndexAttributeName, FGeometryCollection::VerticesGroup, FTransformCollection::TransformGroup)
 		, BoneWeightAttribute(InCollection, BoneWeightAttributeName, FGeometryCollection::VerticesGroup, FTransformCollection::TransformGroup)
+		, KinematicAttribute(InCollection, KinematicAttributeName, FGeometryCollection::VerticesGroup)
 		, ParentAttribute(InCollection, FTransformCollection::ParentAttribute, FTransformCollection::TransformGroup)
 		, VerticesAttribute(InCollection, "Vertex", FGeometryCollection::VerticesGroup)
 	{
@@ -46,6 +49,7 @@ namespace GeometryCollection::Facades
 		check(!IsConst());
 		BoneIndexAttribute.Add();
 		BoneWeightAttribute.Add();
+		KinematicAttribute.AddAndFill(false);
 		ParentAttribute.Add();
 	}
 
@@ -98,6 +102,30 @@ namespace GeometryCollection::Facades
 			}
 		}
 	}
+
+	void FVertexBoneWeightsFacade::SetVertexKinematic(int32 VertexIndex)
+	{
+		if (KinematicAttribute.IsValid() && KinematicAttribute.IsValidIndex(VertexIndex))
+		{
+			KinematicAttribute.ModifyAt(VertexIndex, true);
+		}
+	}
+
+	void FVertexBoneWeightsFacade::SetVertexArrayKinematic(const TArray<int32>& VertexIndices)
+	{
+		if (KinematicAttribute.IsValid())
+		{
+			TManagedArray<bool>& KinematicArray = KinematicAttribute.Modify();
+			for (const int32& VertexIndex : VertexIndices)
+			{
+				if (KinematicArray.IsValidIndex(VertexIndex))
+				{
+					KinematicArray[VertexIndex] = true;
+				}
+			}
+		}
+	}
+
 	//
 	//  Add Weights from Selection 
 	//
@@ -142,6 +170,7 @@ namespace GeometryCollection::Facades
 						int32 Vert = OutBoneVerts[Vdx]; float Weight = OutBoneWeights[Vdx];
 						if (0 <= Vert && Vert < NumVertices && !IndicesArray[Vert].Contains(Bone))
 						{
+							SetVertexKinematic(Vert);
 							int32 BoneIndex = IndicesArray[Vert].Find(Bone);
 							if (TotalWeights[Vert] + Weight <= 1.f + UE_KINDA_SMALL_NUMBER)
 							{
