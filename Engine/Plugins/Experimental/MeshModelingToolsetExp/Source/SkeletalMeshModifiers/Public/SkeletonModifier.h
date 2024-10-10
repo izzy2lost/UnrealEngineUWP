@@ -268,6 +268,9 @@ private:
 	ESkeletonModificationType PreCommitSkeleton(const ESkeletalMeshModificationType InSkeletalMeshModifications) const;
 	void PostCommitSkeleton(const ESkeletonModificationType InSkeletonModifications) const;
 
+	// update mesh description on commit
+	void CommitChangesToMeshDescription(const ESkeletalMeshModificationType InSkeletalMeshModifications);
+	
 	// notification
 	void NotifyFromSkeletonChanges() const;
 	
