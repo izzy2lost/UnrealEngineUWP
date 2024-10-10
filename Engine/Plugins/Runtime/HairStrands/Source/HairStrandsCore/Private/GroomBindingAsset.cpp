@@ -1363,36 +1363,51 @@ void UGroomBindingAsset::BeginCacheForCookedPlatformData(const ITargetPlatform* 
 	// 3. If the target cooked data does not already exist, we build it
 	if (TargetPlatformData == nullptr && GetGroom() != nullptr)
 	{
-		// 3.1 Build cooked derived data
-		const uint32 GroupCount = GroupDerivedDataKeys.Num();
-		TargetPlatformData = new FCachedCookedPlatformData();
-		TargetPlatformData->GroupDerivedDataKeys = GroupDerivedDataKeys;
-		TargetPlatformData->GroupPlatformDatas.SetNum(GroupCount);
-		for (uint32 GroupIndex = 0; GroupIndex < GroupCount; ++GroupIndex)
+		auto BuildTargetPlatformData = [TargetPlatform](const TArray<FString>& InGroupDerivedDataKeys, UGroomBindingAsset* BindingAsset)
 		{
-			bool bGroupValid = true;
-			::CacheDerivedDatas(this, GroupIndex, TargetPlatformData->GroupDerivedDataKeys[GroupIndex], bGroupValid, TargetPlatform, TargetPlatformData->GroupPlatformDatas[GroupIndex]);
-			if (!bGroupValid)
+			// 3.a Build cooked derived data
+			const uint32 GroupCount = InGroupDerivedDataKeys.Num();
+			UGroomBindingAsset::FCachedCookedPlatformData* NewTargetPlatformData = new FCachedCookedPlatformData();
+			NewTargetPlatformData->GroupDerivedDataKeys = InGroupDerivedDataKeys;
+			NewTargetPlatformData->GroupPlatformDatas.SetNum(GroupCount);
+			for (uint32 GroupIndex = 0; GroupIndex < GroupCount; ++GroupIndex)
 			{
-				UE_LOG(LogHairStrands, Error, TEXT("[Groom] The binding asset (%s) couldn't be built. This binding asset won't be used."), *GetName());
+				bool bGroupValid = true;
+				::CacheDerivedDatas(BindingAsset, GroupIndex, NewTargetPlatformData->GroupDerivedDataKeys[GroupIndex], bGroupValid, TargetPlatform, NewTargetPlatformData->GroupPlatformDatas[GroupIndex]);
+				if (!bGroupValid)
+				{
+					UE_LOG(LogHairStrands, Error, TEXT("[Groom] The binding asset (%s) couldn't be built. This binding asset won't be used."), *BindingAsset->GetName());
+				}
 			}
-		}
 
-		// 3.2 Place cooked derived data into their bulk data. 
-		// This is done only for strands, which support DDC streaming
-		// When cooking data, force loading of *all* bulk data prior to saving them
-		// Note: bFillBulkdata is true for filling in the bulkdata container prior to serialization. This also forces the resources loading 
-		// from the 'start' (i.e., without offset)
-		for (uint32 GroupIndex = 0; GroupIndex < GroupCount; ++GroupIndex)
+			// 3.b Place cooked derived data into their bulk data. 
+			// This is done only for strands, which support DDC streaming
+			// When cooking data, force loading of *all* bulk data prior to saving them
+			// Note: bFillBulkdata is true for filling in the bulkdata container prior to serialization. This also forces the resources loading 
+			// from the 'start' (i.e., without offset)
+			for (uint32 GroupIndex = 0; GroupIndex < GroupCount; ++GroupIndex)
+			{
+				TArray<FHairStrandsRootBulkData>& RenRootBulkDatas = NewTargetPlatformData->GroupPlatformDatas[GroupIndex].RenRootBulkDatas;
+				for (int32 MeshLODIndex = 0, MeshLODCount = RenRootBulkDatas.Num(); MeshLODIndex < MeshLODCount; ++MeshLODIndex)
+				{
+					FHairStreamingRequest R; R.Request(HAIR_MAX_NUM_CURVE_PER_GROUP, HAIR_MAX_NUM_POINT_PER_GROUP, RenRootBulkDatas[MeshLODIndex], true /*bWait*/, true /*bFillBulkdata*/, true /*bWarmCache*/, BindingAsset->GetFName());
+				}
+			}
+
+			BindingAsset->CachedCookedPlatformDatas.Add(NewTargetPlatformData);
+		};
+
+		// 3.1 Build binding data for the target platform
+		BuildTargetPlatformData(GroupDerivedDataKeys, this);
+
+		// 3.2 Check if the derived data keys are unchanged. If they have change, recompute the target platform binding data again.
+		// This can happen when a skel. mesh asset hasn't be resaved correct. While being cached, the skel. mesh data will update/transform 
+		// its DDC key, causing the binding data to be cached as the incorrect DDC key.
+		const TArray<FString> UpdatedGroupDerivedDataKeys = GetGroupDerivedDataKeys(this, TargetPlatform, false /*bForceSkelMeshDataCachingForCookingOnly */);
+		if (UpdatedGroupDerivedDataKeys != GroupDerivedDataKeys)
 		{
-			TArray<FHairStrandsRootBulkData>& RenRootBulkDatas = TargetPlatformData->GroupPlatformDatas[GroupIndex].RenRootBulkDatas;
-			for (int32 MeshLODIndex = 0, MeshLODCount = RenRootBulkDatas.Num(); MeshLODIndex < MeshLODCount; ++MeshLODIndex)
-			{
-				FHairStreamingRequest R; R.Request(HAIR_MAX_NUM_CURVE_PER_GROUP, HAIR_MAX_NUM_POINT_PER_GROUP, RenRootBulkDatas[MeshLODIndex], true /*bWait*/, true /*bFillBulkdata*/, true /*bWarmCache*/, GetFName());
-			}
+			BuildTargetPlatformData(UpdatedGroupDerivedDataKeys, this);
 		}
-
-		CachedCookedPlatformDatas.Add(TargetPlatformData);
 	}
 }
 
