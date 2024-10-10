@@ -2082,13 +2082,22 @@ void FNiagaraDataInterfaceProxy_DataChannelRead::PreStage(const FNDIGpuComputePr
 	}
 }
 
+void FNiagaraDataInterfaceProxy_DataChannelRead::PostStage(const FNDIGpuComputePostStageContext& Context)
+{
+	FNiagaraDataInterfaceProxy_DataChannelRead::FInstanceData* InstanceData = SystemInstancesToProxyData_RT.Find(Context.GetSystemInstanceID());
+	if (InstanceData && InstanceData->ChannelDataRTProxy)
+	{
+		InstanceData->GPUBuffer = nullptr;
+		InstanceData->ChannelDataRTProxy->EndReadAccess(Context.GetGraphBuilder(), InstanceData->bReadPrevFrame == false);
+	}
+}
+
 void FNiagaraDataInterfaceProxy_DataChannelRead::PostSimulate(const FNDIGpuComputePostSimulateContext& Context)
 {
 	FNiagaraDataInterfaceProxy_DataChannelRead::FInstanceData* InstanceData = SystemInstancesToProxyData_RT.Find(Context.GetSystemInstanceID());
 	if(InstanceData && InstanceData->ChannelDataRTProxy)
 	{
-		InstanceData->GPUBuffer = nullptr;
-		InstanceData->ChannelDataRTProxy->EndReadAccess(Context.GetGraphBuilder(), InstanceData->bReadPrevFrame == false);
+		check(InstanceData->GPUBuffer == nullptr);
 
 		if (Context.IsFinalPostSimulate())
 		{
