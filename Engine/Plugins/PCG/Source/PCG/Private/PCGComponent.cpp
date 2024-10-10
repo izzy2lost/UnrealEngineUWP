@@ -1535,24 +1535,10 @@ void UPCGComponent::BeginPlay()
 		GetSubsystem()->RegisterOrUpdatePCGComponent(this);
 	}
 
-	if(bActivated && !bGenerated && GenerationTrigger == EPCGComponentGenerationTrigger::GenerateOnLoad)
+	if (bActivated && !bGenerated && GenerationTrigger == EPCGComponentGenerationTrigger::GenerateOnLoad)
 	{
-		if (IsPartitioned())
-		{
-			// If we are partitioned, the responsibility of the generation is to the partition actors.
-			// but we still need to know that we are currently generated (even if the state is held by the partition actors)
-			// TODO: Will be cleaner when we have dynamic association.
-			const FBox NewBounds = GetGridBounds();
-			if (NewBounds.IsValid)
-			{
-				PostProcessGraph(NewBounds, true, nullptr);
-			}
-		}
-		else
-		{
-			GenerateInternal(/*bForce=*/false, EPCGHiGenGrid::Uninitialized, EPCGComponentGenerationTrigger::GenerateOnLoad, {});
-			bRuntimeGenerated = true;
-		}
+		GenerateInternal(/*bForce=*/false, EPCGHiGenGrid::Uninitialized, EPCGComponentGenerationTrigger::GenerateOnLoad, {});
+		bRuntimeGenerated = true;
 	}
 }
 
@@ -2745,7 +2731,7 @@ void UPCGComponent::OnRefresh(bool bForceRefresh)
 	// Only redo the mapping if we are generated
 	UPCGSubsystem* Subsystem = GetSubsystem();
 	const bool bWasGenerated = bGenerated;
-	const bool bWasGeneratedOrGenerating = bWasGenerated || bForceRefresh;
+	const bool bWasGeneratedOrGenerating = bWasGenerated || bForceRefresh || IsGenerating();
 
 	// If we are partitioned but we have resources, we need to force a cleanup
 	if (IsPartitioned() && !GeneratedResources.IsEmpty())

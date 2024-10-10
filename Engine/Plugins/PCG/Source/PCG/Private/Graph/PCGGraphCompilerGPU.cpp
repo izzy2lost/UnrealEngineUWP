@@ -514,6 +514,7 @@ void FPCGGraphCompilerGPU::BuildGPUGraphTask(
 	FPCGGPUCompilationContext& InOutContext,
 	UPCGGraph* InGraph,
 	uint32 InGridSize,
+	uint32 InComputeGraphIndex,
 	FPCGTaskId InGPUGraphTaskId,
 	const TSet<FPCGTaskId>& InCollapsedTasks,
 	const TSet<FPCGTaskId>& InAllGPUCompatibleTasks,
@@ -525,11 +526,68 @@ void FPCGGraphCompilerGPU::BuildGPUGraphTask(
 	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGGraphCompilerGPU::BuildGPUGraphTask);
 
 	check(InGraph);
-	const FName GraphName = MakeUniqueObjectName(InGraph, UPCGComputeGraph::StaticClass(), InGraph->GetFName());
 
+	FPCGGraphCompiler& GraphCompiler = InOutContext.GetGraphCompiler();
+	UPCGComputeGraph* ComputeGraph = GraphCompiler.GetComputeGraph(InGraph, InGridSize, InComputeGraphIndex);
+
+	// If the graph does not exist already, create it.
+	if (!ComputeGraph)
+	{
+		// TODO: There is a race condition here where two threads can try to find this graph at the same time and both fail, so both create the graph.
+		// This is fine, as they'll both create the same graph and place it at the same compute graph index. However it would be ideal perf-wise to
+		// avoid this, as creating the compute graph can be expensive.
+		ComputeGraph = CompileComputeGraph(
+			InOutContext,
+			InGraph,
+			InCollapsedTasks,
+			InAllGPUCompatibleTasks,
+			InTaskSuccessors,
+			InOutCompiledTasks,
+			InOriginalToVirtualPin,
+			InOutputCPUPinToVirtualPin);
+	}
+
+	const int32 ComputeGraphIndex = InOutContext.AddCompiledComputeGraph(ComputeGraph);
+	ensure(ComputeGraphIndex == InComputeGraphIndex);
+
+	if (GraphCompiler.IsCooking())
+	{
+		TObjectPtr<UPCGComputeGraphSettings> Settings = NewObject<UPCGComputeGraphSettings>(InGraph);
+		Settings->ComputeGraphIndex = ComputeGraphIndex;
+		InOutCompiledTasks[InGPUGraphTaskId].ElementSource = EPCGElementSource::FromCookedSettings;
+		InOutCompiledTasks[InGPUGraphTaskId].CookedSettings = Settings;
+	}
+	else
+	{
+		InOutCompiledTasks[InGPUGraphTaskId].Element = MakeShared<FPCGComputeGraphElement>(ComputeGraphIndex);
+	}
+
+	if (FApp::CanEverRender() && IsInGameThread() && ensure(ComputeGraph))
+	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(UpdateResources);
+
+		// Compile shader resources and create render proxies.
+		ComputeGraph->UpdateResources();
+	}
+}
+
+UPCGComputeGraph* FPCGGraphCompilerGPU::CompileComputeGraph(
+	FPCGGPUCompilationContext& InOutContext,
+	UPCGGraph* InGraph,
+	const TSet<FPCGTaskId>& InCollapsedTasks,
+	const TSet<FPCGTaskId>& InAllGPUCompatibleTasks,
+	const FTaskToSuccessors& InTaskSuccessors,
+	TArray<FPCGGraphTask>& InOutCompiledTasks,
+	const FOriginalToVirtualPin& InOriginalToVirtualPin,
+	const TMap<TSoftObjectPtr<const UPCGPin>, FName>& InOutputCPUPinToVirtualPin)
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGGraphCompilerGPU::CompileComputeGraph);
+
+	// Create a new compute graph.
 	UObject* ComputeGraphOuter = InOutContext.GetGraphCompiler().IsCooking() ? InGraph : Cast<UObject>(GetTransientPackage());
-
+	const FName GraphName = MakeUniqueObjectName(InGraph, UPCGComputeGraph::StaticClass(), InGraph->GetFName());
 	UPCGComputeGraph* ComputeGraph = InOutContext.NewObject_AnyThread<UPCGComputeGraph>(ComputeGraphOuter, GraphName);
+
 	ComputeGraph->OutputCPUPinToInputGPUPinAlias = InOutputCPUPinToVirtualPin;
 
 	// Not incredibly useful for us - DG adds GetComponentSource()->GetComponentClass() object which allows it to bind at execution time by class.
@@ -1129,44 +1187,20 @@ void FPCGGraphCompilerGPU::BuildGPUGraphTask(
 		}
 	}
 
-	TMap<uint32, TArray<TObjectPtr<UPCGComputeGraph>>>& GridToComputeGraphs = InOutContext.GetGraphCompiler().GetCache().TopGraphToComputeGraphMap.FindOrAdd(InGraph);
-	TArray<TObjectPtr<UPCGComputeGraph>>& ComputeGraphs = GridToComputeGraphs.FindOrAdd(InGridSize);
-	const uint32 ComputeGraphIndex = ComputeGraphs.Num();
-	ComputeGraphs.Add(ComputeGraph);
-
-	if (InOutContext.GetGraphCompiler().IsCooking())
-	{
-		TObjectPtr<UPCGComputeGraphSettings> Settings = NewObject<UPCGComputeGraphSettings>(InGraph);
-		Settings->ComputeGraphIndex = ComputeGraphIndex;
-		InOutCompiledTasks[InGPUGraphTaskId].ElementSource = EPCGElementSource::FromCookedSettings;
-		InOutCompiledTasks[InGPUGraphTaskId].CookedSettings = Settings;
-	}
-	else
-	{
-		InOutCompiledTasks[InGPUGraphTaskId].Element = MakeShared<FPCGComputeGraphElement>(ComputeGraphIndex);
-	}
-
-	if (FApp::CanEverRender())
-	{
-		TRACE_CPUPROFILER_EVENT_SCOPE(UpdateResources);
-
-		// Compile shader resources and create render proxies.
-		ComputeGraph->UpdateResources();
-	}
+	return ComputeGraph;
 }
 
 void FPCGGraphCompilerGPU::CreateGPUNodes(FPCGGraphCompiler& InOutCompiler, UPCGGraph* InGraph, uint32 InGridSize, TArray<FPCGGraphTask>& InOutCompiledTasks)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGGraphCompilerGPU::CreateGPUNodes);
 
-	FPCGGPUCompilationContext Context(InOutCompiler);
-
-	// Clear out any previous compute graphs for this grid level before adding new ones.
-	if (ensure(InGraph))
+	if (!InGraph)
 	{
-		TMap<uint32, TArray<TObjectPtr<UPCGComputeGraph>>>& ComputeGraphs = InOutCompiler.GetCache().TopGraphToComputeGraphMap.FindOrAdd(InGraph);
-		ComputeGraphs.FindOrAdd(InGridSize).Reset();
+		ensure(false);
+		return;
 	}
+
+	FPCGGPUCompilationContext Context(InOutCompiler);
 
 	TSet<FPCGTaskId> GPUCompatibleTaskIds;
 	GPUCompatibleTaskIds.Reserve(InOutCompiledTasks.Num());
@@ -1203,6 +1237,8 @@ void FPCGGraphCompilerGPU::CreateGPUNodes(FPCGGraphCompiler& InOutCompiler, UPCG
 	TArray<TSet<FPCGTaskId>> NodeSubsetsToConvertToCFGraph;
 	CollectGPUNodeSubsets(InOutCompiledTasks, TaskSuccessors, GPUCompatibleTaskIds, NodeSubsetsToConvertToCFGraph);
 
+	const uint32 NumComputeGraphs = NodeSubsetsToConvertToCFGraph.Num();
+
 	// Mapping from task ID & pin label to a virtual pin label. Compute graphs are executed within a generated element,
 	// and the input and output pins of this element must have unique virtual pin labels so that we can parse the data that
 	// PCG provides through the input data collection correctly, and route the output data to the downstream pins correctly.
@@ -1210,11 +1246,11 @@ void FPCGGraphCompilerGPU::CreateGPUNodes(FPCGGraphCompiler& InOutCompiler, UPCG
 
 	TArray<TMap<TSoftObjectPtr<const UPCGPin>, FName>> OutputCPUPinToVirtualPin;
 
-	OriginalToVirtualPin.SetNum(NodeSubsetsToConvertToCFGraph.Num());
-	OutputCPUPinToVirtualPin.SetNum(NodeSubsetsToConvertToCFGraph.Num());
+	OriginalToVirtualPin.SetNum(NumComputeGraphs);
+	OutputCPUPinToVirtualPin.SetNum(NumComputeGraphs);
 
 	// Setup mappings from existing pins to compute graph element virtual pins as a prestep before wiring in the compute graph tasks.
-	for (int32 ComputeGraphIndex = 0; ComputeGraphIndex < NodeSubsetsToConvertToCFGraph.Num(); ++ComputeGraphIndex)
+	for (uint32 ComputeGraphIndex = 0; ComputeGraphIndex < NumComputeGraphs; ++ComputeGraphIndex)
 	{
 		SetupVirtualPins(
 			NodeSubsetsToConvertToCFGraph[ComputeGraphIndex],
@@ -1226,7 +1262,7 @@ void FPCGGraphCompilerGPU::CreateGPUNodes(FPCGGraphCompiler& InOutCompiler, UPCG
 
 	// Do actual collapsing now, one subset at a time. Each collapse will do all fixup of task ids? That will invalidate
 	// ids in NodeSubsetsToConvertToCFGraph, so may need remap table. But can ignore this for now.
-	for (int32 ComputeGraphIndex = 0; ComputeGraphIndex < NodeSubsetsToConvertToCFGraph.Num(); ++ComputeGraphIndex)
+	for (uint32 ComputeGraphIndex = 0; ComputeGraphIndex < NumComputeGraphs; ++ComputeGraphIndex)
 	{
 		TSet<FPCGTaskId>& NodeSubsetToConvertToCFGraph = NodeSubsetsToConvertToCFGraph[ComputeGraphIndex];
 
@@ -1263,6 +1299,7 @@ void FPCGGraphCompilerGPU::CreateGPUNodes(FPCGGraphCompiler& InOutCompiler, UPCG
 			Context,
 			InGraph,
 			InGridSize,
+			ComputeGraphIndex,
 			ComputeGraphTaskId,
 			NodeSubsetToConvertToCFGraph,
 			GPUCompatibleTaskIds,
@@ -1270,6 +1307,17 @@ void FPCGGraphCompilerGPU::CreateGPUNodes(FPCGGraphCompiler& InOutCompiler, UPCG
 			InOutCompiledTasks,
 			OriginalToVirtualPin[ComputeGraphIndex],
 			OutputCPUPinToVirtualPin[ComputeGraphIndex]);
+	}
+
+	{
+		FWriteScopeLock Lock(InOutCompiler.GetCache().GraphToTaskMapLock);
+		TMap<uint32, TArray<TObjectPtr<UPCGComputeGraph>>>& GridSizeToComputeGraphs = InOutCompiler.GetCache().TopGraphToComputeGraphMap.FindOrAdd(InGraph);
+		TArray<TObjectPtr<UPCGComputeGraph>>& ComputeGraphs = GridSizeToComputeGraphs.FindOrAdd(InGridSize);
+
+		// Replace any existing compute graphs with the newly compiled ones. It's okay if multiple threads do this, because
+		// compute graph index order should be deterministic, so different threads will produce the same results.
+		ComputeGraphs = MoveTemp(Context.GetCompiledComputeGraphs());
+		ensure(ComputeGraphs.Num() == NumComputeGraphs);
 	}
 
 	// Now cull all the GPU compatible nodes. The compute graph task are already wired in so we're fine to just delete.
