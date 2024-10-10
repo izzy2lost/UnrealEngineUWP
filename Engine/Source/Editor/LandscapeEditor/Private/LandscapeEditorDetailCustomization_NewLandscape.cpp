@@ -747,7 +747,7 @@ FText FLandscapeEditorDetailCustomization_NewLandscape::GetSectionsPerComponent(
 {
 	int32 SectionsPerComponent = 0;
 	FPropertyAccess::Result Result = PropertyHandle->GetValue(SectionsPerComponent);
-	check(Result != FPropertyAccess::Success);
+	check(Result != FPropertyAccess::Fail);
 
 	if (Result == FPropertyAccess::MultipleValues)
 	{
