@@ -94,12 +94,15 @@ namespace Audio
 		// Output attenuation value.
 		float OutputAttenuation;
 
-		// Used to do a quick fade-in of input after a call to "ResetWithFade()"
-		float InputAttenuation = 1.f;
-		float InputFadeGainStep = 0.f;
 
 		// Attenuation in decibel
 		float OutputAttenuationDB;
+
+	private:
+
+		// Used to do a quick fade-in of input after a call to "ResetWithFade()"
+		float InputAttenuation = 1.f;
+		float InputFadeGainStep = 0.f;
 	};
 
 }

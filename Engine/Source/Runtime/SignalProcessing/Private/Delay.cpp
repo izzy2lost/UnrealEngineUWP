@@ -85,7 +85,7 @@ namespace Audio
 		// (this could cause the two fades to create a small chirp)
 		// so we start the input gain negative and rely on the clamping to mute (gain = 0)
 		InputFadeGainStep = 1.f / static_cast<float>(NumSamplesToFade);
-		InputAttenuation = -1.2f;
+		InputAttenuation = -1.0f - InputFadeGainStep;
 
 
 		// simple case
@@ -166,14 +166,14 @@ namespace Audio
 	{
 		// Directly set the delay
 		const float NewDelayInSamples = InDelayMsec * SampleRate * 0.001f;
-		DelayInSamples = FMath::Min(NewDelayInSamples, MaxBufferLengthSamples);
+		DelayInSamples = FMath::Min(NewDelayInSamples, MaxBufferLengthSamples - 1);
 		ResizeIfNeeded(DelayInSamples);
 		Update(true);
 	}
 
 	void FDelay::SetDelaySamples(const float InDelaySamples)
 	{
-		DelayInSamples = FMath::Min(InDelaySamples, MaxBufferLengthSamples);
+		DelayInSamples = FMath::Min(InDelaySamples, MaxBufferLengthSamples - 1);
 		ResizeIfNeeded(DelayInSamples);
 		Update(true);
 	}
@@ -181,7 +181,7 @@ namespace Audio
 	void FDelay::SetEasedDelayMsec(const float InDelayMsec, const bool bIsInit)
 	{
 		const float DesiredDelayInSamples = InDelayMsec * SampleRate * 0.001f;
-		const float TargetDelayInSamples = FMath::Min(DesiredDelayInSamples, MaxBufferLengthSamples);
+		const float TargetDelayInSamples = FMath::Min(DesiredDelayInSamples, MaxBufferLengthSamples - 1);
 		ResizeIfNeeded(TargetDelayInSamples);
 
 		EaseDelayMsec.SetValue(InDelayMsec, bIsInit);
@@ -260,9 +260,14 @@ namespace Audio
 
 	void FDelay::WriteDelayAndInc(const float InDelayInput)
 	{
+		// update input gain
+		InputAttenuation = FMath::Min(InputAttenuation + InputFadeGainStep, 1.f); // Ceil to 1.0
+		float InputAttenuationTemp = FMath::Max(InputAttenuation, 0.f); // Floor to 0.0
+		
 		// write to the delay line
-		AudioBuffer[WriteIndex] = InDelayInput; // external feedback sample
-												// increment the pointers and wrap if necessary
+		AudioBuffer[WriteIndex] = InDelayInput * InputAttenuationTemp; // external feedback sample
+		
+		// increment the pointers and wrap if necessary
 		WriteIndex++;
 		if (WriteIndex >= AudioBufferSize)
 		{
@@ -311,10 +316,10 @@ namespace Audio
 				DelayInSamples = EaseDelayMsec.GetNextValue() * SampleRate * 0.001f;
 			}
 
-			DelayInSamples = FMath::Clamp(DelayInSamples, 0.0f, (float)(AudioBufferSize - 1));
+			DelayInSamples = FMath::Clamp(DelayInSamples, 0.0f, (float)(MaxBufferLengthSamples - 1));
 
 			// Subtract from write index the delay in samples (will do interpolation during read)
-			ReadIndex = WriteIndex - (int32)(DelayInSamples + 1.0f);
+			ReadIndex = WriteIndex - (int32)DelayInSamples;
 
 			// If negative, wrap around
 			if (ReadIndex < 0)
