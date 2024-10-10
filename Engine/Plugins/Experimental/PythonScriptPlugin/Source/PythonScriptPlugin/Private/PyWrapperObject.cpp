@@ -1684,7 +1684,7 @@ public:
 					PyUtil::SetPythonError(PyExc_Exception, PyType, *FString::Printf(TEXT("Failed to create return property (%s) for function '%s'"), *PyUtil::GetFriendlyTypename(RetType), *InFieldName));
 					return false;
 				}
-				RetProp->PropertyFlags |= (CPF_Parm | CPF_ReturnParm);
+				RetProp->PropertyFlags |= (CPF_Parm | CPF_OutParm | CPF_ReturnParm);
 				Func->AddCppProperty(RetProp);
 
 				if (bOptionalReturn)
