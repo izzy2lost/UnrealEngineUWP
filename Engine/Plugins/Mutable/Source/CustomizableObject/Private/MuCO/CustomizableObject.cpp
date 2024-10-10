@@ -766,6 +766,8 @@ void FModelResources::Serialize(FObjectAndNameAsStringProxyArchive& MemoryWriter
 	MemoryWriter << SkinWeightProfilesInfo;
 
 	MemoryWriter << ImageProperties;
+	MemoryWriter << MeshMetadata;
+	MemoryWriter << SurfaceMetadata;
 	MemoryWriter << ParameterUIDataMap;
 	MemoryWriter << StateUIDataMap;
 
@@ -918,6 +920,8 @@ bool FModelResources::Unserialize(FObjectAndNameAsStringProxyArchive& MemoryRead
 	MemoryReader << SkinWeightProfilesInfo;
 
 	MemoryReader << ImageProperties;
+	MemoryReader << MeshMetadata;
+	MemoryReader << SurfaceMetadata;
 	MemoryReader << ParameterUIDataMap;
 	MemoryReader << StateUIDataMap;
 
