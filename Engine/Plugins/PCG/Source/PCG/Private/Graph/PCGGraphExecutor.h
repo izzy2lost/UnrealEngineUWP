@@ -12,7 +12,6 @@
 #include "Graph/PCGGraphTask.h"
 #include "Graph/PCGStackContext.h"
 
-#include "Containers/Ticker.h"
 #include "Misc/SpinLock.h"
 #include "Tasks/Task.h"
 #include "Templates/UniquePtr.h"
@@ -39,19 +38,6 @@ namespace PCGGraphExecutor
 #if WITH_EDITOR
 	extern PCG_API TAutoConsoleVariable<float> CVarEditorTimePerFrame;
 #endif
-
-	template<typename FunctorType>
-	void ExecuteOnGameThread(const TCHAR* DebugName, FunctorType&& Functor)
-	{
-		if (IsInGameThread())
-		{
-			Functor();
-		}
-		else
-		{
-			::ExecuteOnGameThread(DebugName, std::forward<FunctorType>(Functor));
-		}
-	}
 
 	void ClearAsyncFlags(TSet<TObjectPtr<UObject>>& AsyncObjects);
 }

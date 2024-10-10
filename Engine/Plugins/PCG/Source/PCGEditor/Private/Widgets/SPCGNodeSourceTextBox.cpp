@@ -251,6 +251,7 @@ void SPCGNodeSourceTextBox::OnTriggerSearch()
 
 void SPCGNodeSourceTextBox::Refresh() const
 {
+	check(IsInGameThread());
 	Text->Refresh();
 }
 

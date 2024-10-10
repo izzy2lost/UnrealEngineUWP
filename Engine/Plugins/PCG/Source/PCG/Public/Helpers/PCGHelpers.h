@@ -5,6 +5,7 @@
 #include "PCGCommon.h"
 #include "PCGPoint.h"
 
+#include "Containers/Ticker.h"
 #include "Kismet/BlueprintFunctionLibrary.h"
 #include "Math/Box.h"
 
@@ -148,6 +149,19 @@ namespace PCGHelpers
 		}
 
 		Array = std::move(TempArray);
+	}
+
+	template<typename FunctorType>
+	void ExecuteOnGameThread(const TCHAR* DebugName, FunctorType&& Functor)
+	{
+		if (IsInGameThread())
+		{
+			Functor();
+		}
+		else
+		{
+			::ExecuteOnGameThread(DebugName, std::forward<FunctorType>(Functor));
+		}
 	}
 }
 
