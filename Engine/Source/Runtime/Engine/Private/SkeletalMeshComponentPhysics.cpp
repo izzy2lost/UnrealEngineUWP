@@ -2777,6 +2777,7 @@ void USkeletalMeshComponent::RecreateClothingActors()
 			if (World && World->bShouldSimulatePhysics && World->GetPhysicsScene())
 #endif
 			{
+				UE_LOG(LogSkeletalMesh, Log, TEXT("USkeletalMeshComponent: Recreating Clothing Actors for '%s' with '%s'"), *GetName(), *SkelMesh->GetName());
 				TArray<UClothingAssetBase*> AssetsInUse;
 				SkelMesh->GetClothingAssetsInUse(AssetsInUse);
 
