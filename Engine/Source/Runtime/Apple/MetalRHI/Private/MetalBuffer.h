@@ -198,13 +198,13 @@ public:
 	/** Tries to shrink the ring-buffer back toward its initial size, but not smaller. */
 	void Shrink();
 	
-	/** Submits all outstanding writes to the GPU, coalescing the updates into a single contiguous range. */
-	void Submit();
-	
 	/** Commits a completion handler to the cmd-buffer to release the processed range */
 	void Commit(FMetalCommandBuffer* CmdBuffer);
 	
 private:
+	/** Submits all outstanding writes to the GPU, coalescing the updates into a single contiguous range. */
+	void Submit();
+	
 	FMetalDevice& Device;
 	
 	NS::UInteger FrameSize[10];

@@ -134,6 +134,26 @@ void FMetalCommandQueue::CommitCommandBuffer(FMetalCommandBuffer* CommandBuffer)
 	{
 		CommandBuffer->GetMTLCmdBuffer()->waitUntilCompleted();
 	}
+	
+	if(IsInRHIThread() || !IsRunningRHIInSeparateThread())
+	{
+		FMetalDynamicRHI::Get().DeferredDelete([CommandBuffer]() {
+			delete CommandBuffer;
+		});
+	}
+	else
+	{
+		// Deferred deletes need to run on the RHI thread
+		FFunctionGraphTask::CreateAndDispatchWhenReady(
+		   [CommandBuffer]()
+		   {
+			   FMetalDynamicRHI::Get().DeferredDelete([CommandBuffer]() {
+				   delete CommandBuffer;
+			   });
+		   },
+		   QUICK_USE_CYCLE_STAT(FExecuteRHIThreadTask, STATGROUP_TaskGraphTasks), nullptr, ENamedThreads::RHIThread);	
+	}
+		
 }
 
 FMetalFence* FMetalCommandQueue::CreateFence(NS::String* Label) const
