@@ -394,10 +394,10 @@ bool FPCGSubdivisionBaseElement::MatchAndSetAttributes(const TArray<FPCGTaggedDa
 					continue;
 				}
 
-				// Skip any attribute that already exists in the output data
+				// If the attribute already exists, override it
 				if (OutputMetadata->HasAttribute(AttributeName))
 				{
-					continue;
+					OutputMetadata->DeleteAttribute(AttributeName);
 				}
 
 				InAttributes.Add(InputMetadata->GetConstAttribute(AttributeName));

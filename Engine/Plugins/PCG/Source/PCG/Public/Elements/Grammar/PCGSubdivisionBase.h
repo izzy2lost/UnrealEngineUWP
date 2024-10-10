@@ -124,21 +124,21 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings|Extra Output Attributes", meta = (PCG_Overridable, InlineEditConditionToggle))
 	bool bOutputSizeAttribute = true;
 
-	/** Name of the Size output attribute name, ignored if match and set from module info is true. */
+	/** Name of the Size output attribute name, ignored if Forward Attributes From Modules Info is true. */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings|Extra Output Attributes", meta = (PCG_Overridable, EditCondition = "bOutputSizeAttribute"))
 	FName SizeAttributeName = PCGSubdivisionBase::Constants::SizeAttributeName;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings|Extra Output Attributes", meta = (PCG_Overridable, InlineEditConditionToggle))
 	bool bOutputScalableAttribute = true;
 
-	/** Name of the Scalable output attribute name, ignored if match and set from module info is true. */
+	/** Name of the Scalable output attribute name, ignored if Forward Attributes From Modules Info is true. */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings|Extra Output Attributes", meta = (PCG_Overridable, EditCondition = "bOutputScalableAttribute"))
 	FName ScalableAttributeName = PCGSubdivisionBase::Constants::ScalableAttributeName;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings|Extra Output Attributes", meta = (PCG_Overridable, InlineEditConditionToggle))
 	bool bOutputDebugColorAttribute = false;
 
-	/** Name of the Debug Color output attribute name, ignored if match and set from module info is true. */
+	/** Name of the Debug Color output attribute name, ignored if Forward Attributes From Modules Info is true. */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings|Extra Output Attributes", meta = (PCG_Overridable, EditCondition = "bOutputDebugColorAttribute"))
 	FName DebugColorAttributeName = PCGSubdivisionBase::Constants::DebugColorAttributeName;
 
