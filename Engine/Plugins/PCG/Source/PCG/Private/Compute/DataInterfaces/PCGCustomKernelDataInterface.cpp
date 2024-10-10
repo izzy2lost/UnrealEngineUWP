@@ -25,6 +25,14 @@ void UPCGCustomKernelDataInterface::GetSupportedInputs(TArray<FShaderFunctionDef
 		.SetName(TEXT("GetSeed"))
 		.AddReturnType(FShaderValueType::Get(EShaderFundamentalType::Uint));
 
+	OutFunctions.AddDefaulted_GetRef()
+		.SetName(TEXT("GetSettingsSeed"))
+		.AddReturnType(FShaderValueType::Get(EShaderFundamentalType::Uint));
+
+	OutFunctions.AddDefaulted_GetRef()
+		.SetName(TEXT("GetComponentSeed"))
+		.AddReturnType(FShaderValueType::Get(EShaderFundamentalType::Uint));
+
 	// A convenient way to serve component bounds to all kernels. Could be pulled out into a PCG context DI in the future.
 	OutFunctions.AddDefaulted_GetRef()
 		.SetName(TEXT("GetComponentBoundsMin"))
@@ -38,6 +46,8 @@ void UPCGCustomKernelDataInterface::GetSupportedInputs(TArray<FShaderFunctionDef
 BEGIN_SHADER_PARAMETER_STRUCT(FPCGCustomKernelDataInterfaceParameters, )
 	SHADER_PARAMETER(FIntVector3, NumThreads)
 	SHADER_PARAMETER(uint32, Seed)
+	SHADER_PARAMETER(uint32, SeedSettings)
+	SHADER_PARAMETER(uint32, SeedComponent)
 	SHADER_PARAMETER(FVector3f, ComponentBoundsMin)
 	SHADER_PARAMETER(FVector3f, ComponentBoundsMax)
 END_SHADER_PARAMETER_STRUCT()
@@ -57,11 +67,15 @@ void UPCGCustomKernelDataInterface::GetHLSL(FString& OutHLSL, FString const& InD
 	OutHLSL += FString::Format(TEXT(
 		"int3 {DataInterfaceName}_NumThreads;\n"
 		"uint {DataInterfaceName}_Seed;\n"
+		"uint {DataInterfaceName}_SeedSettings;\n"
+		"uint {DataInterfaceName}_SeedComponent;\n"
 		"float3 {DataInterfaceName}_ComponentBoundsMin;\n"
 		"float3 {DataInterfaceName}_ComponentBoundsMax;\n"
 		"\n"
 		"int3 GetNumThreads_{DataInterfaceName}()\n{\n\treturn {DataInterfaceName}_NumThreads;\n}\n\n"
 		"uint GetSeed_{DataInterfaceName}()\n{\n\treturn {DataInterfaceName}_Seed;\n}\n\n"
+		"uint GetSettingsSeed_{DataInterfaceName}()\n{\n\treturn {DataInterfaceName}_SeedSettings;\n}\n\n"
+		"uint GetComponentSeed_{DataInterfaceName}()\n{\n\treturn {DataInterfaceName}_SeedComponent;\n}\n\n"
 		"float3 GetComponentBoundsMin_{DataInterfaceName}()\n{\n\treturn {DataInterfaceName}_ComponentBoundsMin;\n}\n\n"
 		"float3 GetComponentBoundsMax_{DataInterfaceName}()\n{\n\treturn {DataInterfaceName}_ComponentBoundsMax;\n}\n\n"),
 		TemplateArgs);
@@ -77,7 +91,11 @@ UComputeDataProvider* UPCGCustomKernelDataInterface::CreateDataProvider(TObjectP
 
 	UPCGCustomComputeKernelDataProvider* Provider = NewObject<UPCGCustomComputeKernelDataProvider>();
 	Provider->ThreadCount = Settings->ComputeKernelThreadCount(Binding);
+	
 	Provider->Seed = static_cast<uint32>(Settings->GetSeed(Binding->SourceComponent.Get()));
+	Provider->SeedSettings = static_cast<uint32>(Settings->Seed);
+	Provider->SeedComponent = static_cast<uint32>(Binding->SourceComponent->Seed);
+
 	Provider->SourceComponentBounds = Binding->SourceComponent.Get()->GetGridBounds();
 
 	return Provider;
@@ -85,7 +103,7 @@ UComputeDataProvider* UPCGCustomKernelDataInterface::CreateDataProvider(TObjectP
 
 FComputeDataProviderRenderProxy* UPCGCustomComputeKernelDataProvider::GetRenderProxy()
 {
-	return new FPCGCustomComputeKernelDataProviderProxy(ThreadCount, Seed, SourceComponentBounds);
+	return new FPCGCustomComputeKernelDataProviderProxy(ThreadCount, Seed, SeedSettings, SeedComponent, SourceComponentBounds);
 }
 
 bool FPCGCustomComputeKernelDataProviderProxy::IsValid(FValidationData const& InValidationData) const
@@ -121,6 +139,8 @@ void FPCGCustomComputeKernelDataProviderProxy::GatherDispatchData(FDispatchData 
 
 		// Seed for the node
 		Parameters.Seed = Seed;
+		Parameters.SeedSettings = SeedSettings;
+		Parameters.SeedComponent = SeedComponent;
 
 		// Set component bounds
 		Parameters.ComponentBoundsMin = (FVector3f)SourceComponentBounds.Min;

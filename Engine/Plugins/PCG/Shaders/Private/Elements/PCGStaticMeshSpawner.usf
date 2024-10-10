@@ -54,8 +54,13 @@ void Main(uint3 GroupId : SV_GroupID, uint GroupIndex : SV_GroupIndex)
 		else
 		{
 			// Randomly select a primitive by inverting the cumulative distribution function.
-			uint Seed = In_GetSeed(In_DataIndex, In_ElementIndex);
-			Seed = ComputeSeed(Seed, GetSeed());
+			
+			// Exactly matches UPCGBlueprintHelpers::GetRandomStreamFromPoint - three seeds passed in to consecutive arguments of ComputeSeed
+			// (argument count & order matters).
+			const uint SeedPoint = In_GetSeed(In_DataIndex, In_ElementIndex);
+			const uint SeedSettings = GetSettingsSeed();
+			const uint SeedComponent = GetComponentSeed();
+			const uint Seed = ComputeSeed(SeedPoint, SeedSettings, SeedComponent);
 
 			const float RandomDraw = FRand(Seed);
 

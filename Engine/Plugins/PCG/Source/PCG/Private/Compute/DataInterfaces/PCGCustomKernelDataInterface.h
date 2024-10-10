@@ -50,6 +50,8 @@ public:
 	int32 ThreadCount = -1;
 
 	uint32 Seed = 42;
+	uint32 SeedSettings = 42;
+	uint32 SeedComponent = 42;
 
 	FBox SourceComponentBounds;
 };
@@ -57,9 +59,11 @@ public:
 class FPCGCustomComputeKernelDataProviderProxy : public FComputeDataProviderRenderProxy
 {
 public:
-	FPCGCustomComputeKernelDataProviderProxy(int32 InThreadCount, int32 InSeed, const FBox& InSourceComponentBounds)
+	FPCGCustomComputeKernelDataProviderProxy(int32 InThreadCount, uint32 InSeed, uint32 InSeedSettings, uint32 InSeedComponent, const FBox& InSourceComponentBounds)
 		: ThreadCount(InThreadCount)
 		, Seed(InSeed)
+		, SeedSettings(InSeedSettings)
+		, SeedComponent(InSeedComponent)
 		, SourceComponentBounds(InSourceComponentBounds)
 	{}
 
@@ -73,6 +77,10 @@ protected:
 	using FParameters = FPCGCustomKernelDataInterfaceParameters;
 
 	int32 ThreadCount;
+
 	uint32 Seed = 42;
+	uint32 SeedSettings = 42;
+	uint32 SeedComponent = 42;
+
 	FBox SourceComponentBounds;
 };
