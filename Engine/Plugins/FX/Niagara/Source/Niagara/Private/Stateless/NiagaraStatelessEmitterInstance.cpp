@@ -546,6 +546,7 @@ void FNiagaraStatelessEmitterInstance::SendRenderData()
 
 			if (EmitterData.bHasBindingBufferData)
 			{
+				RenderThreadData->bBindingBufferDirty = true;
 				RenderThreadData->BindingBufferData = MoveTemp(EmitterData.BindingBufferData);
 			}
 
