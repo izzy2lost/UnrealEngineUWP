@@ -1828,6 +1828,11 @@ const BuildModal: React.FC<{ setUseLegacyDialog: (value: boolean) => void }> = o
          options.advAdditionalArgs.trim().replaceAll("\n", " ").match(argRegex)?.forEach(arg => additionalArgs.push(arg.replace(/"/g, "")));
       }
 
+      // trim all parameters
+      const parameters: Record<string, string> = {};
+      for (const [id, value] of Object.entries(options.parameters ?? {})) {
+         parameters[id?.trim()] = value?.trim()
+      }
 
       const data: CreateJobRequest = {
          streamId: options.streamId,
@@ -1835,7 +1840,7 @@ const BuildModal: React.FC<{ setUseLegacyDialog: (value: boolean) => void }> = o
          name: options.advJobName,
          priority: options.advJobPriority,
          changeQueries: changeQueries,
-         parameters: options.parameters,
+         parameters: parameters,
          additionalArguments: additionalArgs?.length ? additionalArgs : undefined,
          targets: options.advTargets,
          updateIssues: options.updateIssues
