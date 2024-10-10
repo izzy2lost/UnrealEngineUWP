@@ -3,9 +3,9 @@
 #include "Elements/PCGCopyPoints.h"
 
 #include "PCGContext.h"
-#include "Compute/DataInterfaces/PCGCopyPointsDataInterface.h"
 #include "Compute/PCGComputeCommon.h"
 #include "Compute/PCGDataBinding.h"
+#include "Compute/DataInterfaces/Elements/PCGCopyPointsDataInterface.h"
 #include "Data/PCGPointData.h"
 #include "Data/PCGSpatialData.h"
 #include "Graph/PCGGPUGraphCompilationContext.h"

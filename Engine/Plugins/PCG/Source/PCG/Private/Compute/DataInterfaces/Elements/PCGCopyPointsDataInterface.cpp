@@ -88,8 +88,14 @@ UComputeDataProvider* UPCGCopyPointsDataInterface::CreateDataProvider(TObjectPtr
 
 FComputeDataProviderRenderProxy* UPCGCopyPointsDataProvider::GetRenderProxy()
 {
-	FPCGCopyPointsDataProviderProxy* Proxy = new FPCGCopyPointsDataProviderProxy(Settings);
-	return Proxy;
+	return new FPCGCopyPointsDataProviderProxy(
+		static_cast<uint32>(Settings->RotationInheritance),
+		static_cast<uint32>(Settings->ScaleInheritance),
+		static_cast<uint32>(Settings->ColorInheritance),
+		static_cast<uint32>(Settings->SeedInheritance),
+		static_cast<uint32>(Settings->AttributeInheritance),
+		static_cast<uint32>(Settings->bCopyEachSourceOnEveryTarget)
+	);
 }
 
 bool FPCGCopyPointsDataProviderProxy::IsValid(FValidationData const& InValidationData) const
@@ -108,11 +114,11 @@ void FPCGCopyPointsDataProviderProxy::GatherDispatchData(FDispatchData const& In
 	for (int32 InvocationIndex = 0; InvocationIndex < ParameterArray.Num(); ++InvocationIndex)
 	{
 		FParameters& Parameters = ParameterArray[InvocationIndex];
-		Parameters.RotationInheritance = static_cast<uint32>(Settings->RotationInheritance);
-		Parameters.ScaleInheritance = static_cast<uint32>(Settings->ScaleInheritance);
-		Parameters.ColorInheritance = static_cast<uint32>(Settings->ColorInheritance);
-		Parameters.SeedInheritance = static_cast<uint32>(Settings->SeedInheritance);
-		Parameters.AttributeInheritance = static_cast<uint32>(Settings->AttributeInheritance);
-		Parameters.bCopyEachSourceOnEveryTarget = static_cast<uint32>(Settings->bCopyEachSourceOnEveryTarget);
+		Parameters.RotationInheritance = RotationInheritance;
+		Parameters.ScaleInheritance = ScaleInheritance;
+		Parameters.ColorInheritance = ColorInheritance;
+		Parameters.SeedInheritance = SeedInheritance;
+		Parameters.AttributeInheritance = AttributeInheritance;
+		Parameters.bCopyEachSourceOnEveryTarget = bCopyEachSourceOnEveryTarget;
 	}
 }
