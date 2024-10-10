@@ -15,6 +15,7 @@
 ENUM_VK_ENTRYPOINTS_ALL(DEFINE_VK_ENTRYPOINTS)
 
 static bool GRenderOffScreen = false;
+extern int32 GVulkanAMDCompatibilityMode;
 
 void* FVulkanLinuxPlatform::VulkanLib = nullptr;
 bool FVulkanLinuxPlatform::bAttemptedLoad = false;
@@ -50,6 +51,17 @@ bool FVulkanLinuxPlatform::LoadVulkanLibrary()
 		return (VulkanLib != nullptr);
 	}
 	bAttemptedLoad = true;
+
+	// Set regardless of GPU being used, it will simply get ignored on other vendors
+	if (GVulkanAMDCompatibilityMode && FPlatformMisc::GetEnvironmentVariable(TEXT("RADV_DEBUG")).IsEmpty())
+	{
+		// Force compiler backend to llvm for better compatibility with our ray tracing pipeline shaders at time of release 5.5 (with Mesa 24.0.9)
+		FPlatformMisc::SetEnvironmentVar(TEXT("RADV_DEBUG"), TEXT("llvm"));
+	}
+	else
+	{
+		UE_LOG(LogVulkanRHI, Display, TEXT("Found existing RADV_DEBUG, it will not be overwritten."));
+	}
 
 #if VULKAN_HAS_DEBUGGING_ENABLED
 	const FString VulkanSDK = FPlatformMisc::GetEnvironmentVariable(TEXT("VULKAN_SDK"));
