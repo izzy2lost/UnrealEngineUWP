@@ -7,6 +7,7 @@
 #include "Dataflow/DataflowNode.h"
 #include "Dataflow/DataflowConnectionTypes.h"
 #include "GeometryCollection/GeometryCollection.h"
+#include "Dataflow/DataflowSelection.h"
 
 #include "GeometryCollectionTransferVertexAttributeNode.generated.h"
 
@@ -18,8 +19,8 @@ namespace UE_DEPRECATED(5.5, "Use UE::Dataflow instead.") Dataflow {}
 
 namespace UE::Private 
 {
-
 	class FTransferFacade;
+	struct FTransferData;
 };
 
 
@@ -91,9 +92,14 @@ public:
 	FManagedArrayCollection FromCollection;
 
 	/* The name of the vertex attribute to generate indices from. */
-	UPROPERTY(EditAnywhere, Category = "Dataflow", Meta = (DataflowInput, DataflowOutput, DisplayName = "AttributeKey", DataflowPassthrough = "AttributeKey"))
+	UPROPERTY(EditAnywhere, Category = "Dataflow", Meta = (DataflowInput, DataflowOutput, DisplayName = "AttributeKey", DataflowPassthrough = "AttributeKey",
+		EditCondition = "!bTransferSkinWeights", EditConditionHides))
 	FCollectionAttributeKey AttributeKey = FCollectionAttributeKey(FString(""), FString("Vertices"));
 
+	/* If kinematic skin weight attribute is transferred. */
+	UPROPERTY(EditAnywhere, Category = "Dataflow", Meta = (DisplayName = "TransferSkinWeights"))
+	bool bTransferSkinWeights = false;
+	
 	/* Bounding volume type for source assets[default: Triangle] */
 	UPROPERTY(EditAnywhere, Category = "Thresholds")
 	EDataflowTransferVertexAttributeNodeBoundingVolume BoundingVolumeType = EDataflowTransferVertexAttributeNodeBoundingVolume::Triangle;
@@ -134,7 +140,7 @@ public:
 private:
 
 	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
-	
+
 	typedef Chaos::TSphere<Chaos::FReal, 3> SphereType;
 	typedef Chaos::TBoundingVolumeHierarchy<TArray<SphereType*>, TArray<int32>, Chaos::FReal, 3> BVH;
 
@@ -142,12 +148,11 @@ private:
 	// private helpers
 	//
 	TArray<FIntVector2> FindSourceToTargetGeometryMap(const FManagedArrayCollection& SourceCollection, const FManagedArrayCollection& TargetCollection) const;
+	TMap<int32, int32> FindSourceToTargetTransformMap(const FManagedArrayCollection& SourceCollection, const FManagedArrayCollection& TargetCollection) const;
 
-	template<typename T>
-	void PairedGeometryTransfer(FCollectionAttributeKey Key, const TArray<FIntVector2>& PairedGeometry, const UE::Private::FTransferFacade& Sample, UE::Private::FTransferFacade& Target, const TManagedArray<T>* SourceAttributeArray, TManagedArray<T>* TargetFloatArray) const;
-
-	template<typename T>
-	void NearestVertexTransfer(FCollectionAttributeKey Key, const UE::Private::FTransferFacade& Sample, UE::Private::FTransferFacade& Target, const TManagedArray<T>* SourceAttributeArray, TManagedArray<T>* TargetFloatArray) const;
+	TArray<UE::Private::FTransferData> PairedGeometryTransfer(FCollectionAttributeKey Key, const TArray<FIntVector2>& PairedGeometry,
+		const UE::Private::FTransferFacade& Sample, const UE::Private::FTransferFacade& Target) const;
+	TArray<UE::Private::FTransferData> NearestVertexTransfer(FCollectionAttributeKey Key, const UE::Private::FTransferFacade& Sample, const UE::Private::FTransferFacade& Target) const;
 	static float MaxEdgeLength(TArray<FVector3f>& Vert, const TManagedArray<FIntVector3>& Tri, int VertexOFfset, int TriStart, int TriCount);
 	static void BuildComponentSpaceVertices(const TManagedArray<FTransform3f>& LocalSpaceTransform, const TManagedArray<int32>& Parent, const TManagedArray<int32>& BoneMapArray, const TManagedArray<FVector3f>& VertexArray, int32 Start, int32 Count, TArray<FVector3f>& ComponentSpaceVertices);
 	static BVH* BuildParticleSphereBVH(const TArray<FVector3f>& Vertices, float Radius);
@@ -156,4 +161,34 @@ private:
 
 };
 
+/**
+ * Set VertexSelection to be kinematic. Note that kinematic particles need skin weights.
+ */
+USTRUCT(meta = (DataflowGeometryCollection))
+struct FGeometryCollectionSetKinematicVertexSelectionNode : public FDataflowNode
+{
+	GENERATED_USTRUCT_BODY()
+	DATAFLOW_NODE_DEFINE_INTERNAL(FGeometryCollectionSetKinematicVertexSelectionNode, "SetKinematicVertexSelection", "GeometryCollection", "Set Vertex Collection to be kinematic")
+	DATAFLOW_NODE_RENDER_TYPE("SurfaceRender", FGeometryCollection::StaticType(), "Collection")
 
+public:
+
+	UPROPERTY(Meta = (DataflowInput, DataflowOutput, DataflowPassthrough = "Collection"))
+	FManagedArrayCollection Collection;
+
+	/** Vertex Selection set to be kinematic */
+	UPROPERTY(meta = (DataflowInput, DisplayName = "VertexSelection"))
+	FDataflowVertexSelection VertexSelection;
+
+	FGeometryCollectionSetKinematicVertexSelectionNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+		: FDataflowNode(InParam, InGuid)
+	{
+		RegisterInputConnection(&Collection);
+		RegisterInputConnection(&VertexSelection);
+		RegisterOutputConnection(&Collection, &Collection);
+	}
+
+private:
+
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+};

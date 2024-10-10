@@ -4,6 +4,7 @@
 #include "GeometryCollection/Facades/CollectionKinematicBindingFacade.h"
 #include "GeometryCollection/Facades/CollectionPositionTargetFacade.h"
 #include "ChaosFlesh/TetrahedralCollection.h"
+#include "GeometryCollection/Facades/CollectionVertexBoneWeightsFacade.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(ChaosFleshVisualizeFiberFieldNode)
 
@@ -92,37 +93,16 @@ void FVisualizeKinematicFacesNode::Evaluate(UE::Dataflow::FContext& Context, con
 		TManagedArray<FIntVector>* Indices = InCollection.FindAttribute<FIntVector>("Indices", FGeometryCollection::FacesGroup);
 		TManagedArray<bool>* FaceVisibility = InCollection.FindAttribute<bool>("Visible", FGeometryCollection::FacesGroup);
 		TManagedArray<FVector3f>* Vertices = InCollection.FindAttribute<FVector3f>("Vertex", FGeometryCollection::VerticesGroup);
-		if (Indices && FaceVisibility && Vertices)
+		GeometryCollection::Facades::FVertexBoneWeightsFacade VertexBoneWeightsFacade(InCollection);
+		if (Indices && FaceVisibility && Vertices && VertexBoneWeightsFacade.IsValid())
 		{
-			//Find kinematic particles
-			TArray<bool> ParticleIsKinematic;
-			ParticleIsKinematic.Init(false, Vertices->Num());
-			typedef GeometryCollection::Facades::FKinematicBindingFacade FKinematics;
-			FKinematics Kinematics(InCollection);
-			//RemoveElements
-			// Add Kinematics Node
-			for (int i = Kinematics.NumKinematicBindings() - 1; i >= 0; i--)
-			{
-				FKinematics::FBindingKey Key = Kinematics.GetKinematicBindingKey(i);
-
-				int32 BoneIndex = INDEX_NONE;
-				TArray<int32> BoundVerts;
-				TArray<float> BoundWeights;
-				Kinematics.GetBoneBindings(Key, BoneIndex, BoundVerts, BoundWeights);
-
-				for (int32 vdx : BoundVerts)
-				{
-					ParticleIsKinematic[vdx] = true;
-				}
-			}
-
 			FaceVisibility->Fill(false);
 			for (int32 FaceIdx = 0; FaceIdx < Indices->Num(); ++FaceIdx)
 			{
 				bool IsElementKinematic = true;
 				for (int32 j = 0; j < 3; j++)
 				{
-					if (!ParticleIsKinematic[(*Indices)[FaceIdx][j]])
+					if (!VertexBoneWeightsFacade.IsKinematicVertex((*Indices)[FaceIdx][j]))
 					{
 						IsElementKinematic = false;
 						break;

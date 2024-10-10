@@ -169,7 +169,7 @@ namespace Chaos::Softs
 		bool bDoDrawKinematicParticles = false;
 		bool bDoDrawTransientKinematicParticles = false;
 		bool bDoDrawRigidCollisionGeometry = false;
-
+		FSolverReal ParticleRadius = 5.f;
 
 		bool IsDebugDrawingEnabled()
 		{ 
