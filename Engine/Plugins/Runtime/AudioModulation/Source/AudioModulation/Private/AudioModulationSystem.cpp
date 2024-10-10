@@ -41,6 +41,8 @@ UE_TRACE_EVENT_BEGIN(Audio, ControlBusUpdate)
 	UE_TRACE_EVENT_FIELD(uint32, DeviceId)
 	UE_TRACE_EVENT_FIELD(uint32, ControlBusId)
 	UE_TRACE_EVENT_FIELD(double, Timestamp)
+	UE_TRACE_EVENT_FIELD(UE::Trace::WideString, Name)
+	UE_TRACE_EVENT_FIELD(UE::Trace::WideString, ParamName)
 	UE_TRACE_EVENT_FIELD(float, Value)
 UE_TRACE_EVENT_END()
 
@@ -573,6 +575,8 @@ namespace AudioModulation
 					<< ControlBusUpdate.DeviceId(static_cast<uint32>(AudioDeviceId))
 					<< ControlBusUpdate.ControlBusId(static_cast<uint32>(Pair.Key))
 					<< ControlBusUpdate.Timestamp(FPlatformTime::Cycles64())
+					<< ControlBusUpdate.Name(*(Pair.Value.GetName().ToString()))
+					<< ControlBusUpdate.ParamName(*(Pair.Value.GetParameterName().ToString()))
 					<< ControlBusUpdate.Value(Pair.Value.GetValue());
 			}
 		}

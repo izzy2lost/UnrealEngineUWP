@@ -86,6 +86,15 @@ namespace AudioModulation
 		return FMath::Clamp(DefaultMixed * GeneratorValue, 0.0f, 1.0f);
 	}
 
+	FName FControlBusProxy::GetParameterName() const
+	{
+#if UE_BUILD_SHIPPING
+		static FName ParameterName;
+#endif // !UE_BUILD_SHIPPING
+
+		return ParameterName;
+	}
+
 	void FControlBusProxy::Init(FControlBusSettings&& InSettings)
 	{
 		check(ModSystem);
@@ -93,6 +102,10 @@ namespace AudioModulation
 		GeneratorValue = 1.0f;
 		MixValue = NAN;
 		MixFunction = MoveTemp(InSettings.MixFunction);
+
+#if !UE_BUILD_SHIPPING
+		ParameterName = InSettings.OutputParameter.ParameterName;
+#endif // !UE_BUILD_SHIPPING 
 
 		DefaultValue = FMath::Clamp(InSettings.DefaultValue, 0.0f, 1.0f);
 		bBypass = InSettings.bBypass;

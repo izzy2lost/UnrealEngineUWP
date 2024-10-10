@@ -53,8 +53,12 @@ namespace AudioModulationEditor
 		{
 			const UE::Trace::IAnalyzer::FEventData& EventData = InContext.EventData;
 			Value = EventData.GetValue<float>("Value");
+			EventData.GetString("Name", BusName);
+			EventData.GetString("ParamName", ParamName);
 		}
 
+		FString BusName;
+		FString ParamName;
 		float Value = 1.0f;
 	};
 

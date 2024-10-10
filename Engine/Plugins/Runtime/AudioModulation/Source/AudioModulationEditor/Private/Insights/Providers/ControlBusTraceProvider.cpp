@@ -45,6 +45,8 @@ namespace AudioModulationEditor
 		[](const FControlBusUpdateMessage& Msg, TSharedPtr<FControlBusDashboardEntry>* OutEntry)
 		{
 			FControlBusDashboardEntry& EntryRef = *OutEntry->Get();
+			EntryRef.Name = *Msg.BusName;
+			EntryRef.ParamName = Msg.ParamName;
 			EntryRef.Value = Msg.Value;
 		});
 
