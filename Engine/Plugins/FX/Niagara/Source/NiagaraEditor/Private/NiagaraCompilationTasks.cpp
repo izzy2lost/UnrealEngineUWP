@@ -55,7 +55,7 @@ namespace NiagaraSystemCookStats
 
 namespace NiagaraCompilationTasksImpl
 {
-	static const FGuid UE_NIAGARA_ASYNC_TASK_COMPILER_VER = FGuid(0xB2E44F66, 0x59164A73, 0x8D687867, 0xFBBBB30B);
+	static const FGuid UE_NIAGARA_ASYNC_TASK_COMPILER_VER = FGuid(0x0E657251, 0xB787406B, 0x8DE09B90, 0x817ABFB9);
 	
 	static UE::DerivedData::FCacheBucket NiagaraDDCBucket("NiagaraScript");
 
