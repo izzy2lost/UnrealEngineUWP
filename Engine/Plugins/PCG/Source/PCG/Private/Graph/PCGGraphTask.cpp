@@ -6,6 +6,7 @@
 #include "PCGSubsystem.h"
 #include "Compute/Elements/PCGComputeGraphElement.h"
 #include "Graph/PCGGraphExecutor.h"
+#include "Helpers/PCGHelpers.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(PCGGraphTask)
 
@@ -112,7 +113,7 @@ FPCGGraphActiveTask::~FPCGGraphActiveTask()
 {
 	if (Context)
 	{
-		PCGGraphExecutor::ExecuteOnGameThread(UE_SOURCE_LOCATION, [ContextPtr = Context.Release()]()
+		PCGHelpers::ExecuteOnGameThread(UE_SOURCE_LOCATION, [ContextPtr = Context.Release()]()
 		{
 			PCGGraphExecutor::ClearAsyncFlags(ContextPtr->AsyncObjects);
 			delete ContextPtr;

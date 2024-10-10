@@ -4,6 +4,7 @@
 
 #include "PCGSettings.h"
 #include "Compute/IPCGNodeSourceTextProvider.h"
+#include "Helpers/PCGHelpers.h"
 
 #include "PCGEditor.h"
 #include "PCGHLSLSyntaxHighlighter.h"
@@ -242,7 +243,17 @@ void SPCGEditorNodeSource::SetShaderSourceText() const
 void SPCGEditorNodeSource::OnDiagnosticsUpdated(const FPCGCompilerDiagnostics& InDiagnostics) const
 {
 	SyntaxHighlighterShaderText->SetCompilerMessages(InDiagnostics);
-	ShaderTextTextBox->Refresh();
+
+	PCGHelpers::ExecuteOnGameThread(UE_SOURCE_LOCATION, [ShaderTextBoxPtr = TWeakPtr<SPCGNodeSourceTextBox>(ShaderTextTextBox)]()
+	{
+		if (ShaderTextBoxPtr.IsValid())
+		{
+			if (TSharedPtr<SPCGNodeSourceTextBox> ShaderTextBox = ShaderTextBoxPtr.Pin())
+			{
+				ShaderTextBox->Refresh();
+			}
+		}
+	});
 }
 
 TSharedRef<SWidget> SPCGEditorNodeSource::ConstructNonExpandableHeaderWidget(const SExpandableArea::FArguments& InArgs) const
