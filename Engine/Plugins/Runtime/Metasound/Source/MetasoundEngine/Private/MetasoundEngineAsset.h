@@ -252,7 +252,7 @@ namespace Metasound::Engine
 				FName PlatformName;
 				if (const ITargetPlatform* TargetPlatform = InSaveContext.GetTargetPlatform())
 				{
-					PlatformName = *TargetPlatform->PlatformName();
+					PlatformName = *TargetPlatform->IniPlatformName();
 				}
 				const bool bIsDeterministic = SerializationRequiresDeterminism(bIsCooking);
 				FDocumentIDGenerator::FScopeDeterminism DeterminismScope(bIsDeterministic);
