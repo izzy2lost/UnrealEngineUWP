@@ -3650,10 +3650,15 @@ void UStaticMeshComponent::UpdateStaticLightingData()
 	if (!bAllowStaticLighting)
 		return;
 
-	if (HasStaticLighting() && LODData.IsEmpty() && StaticMesh)
+	if (HasStaticLighting() && StaticMesh && (LODData.Num() != StaticMesh->GetNumLODs()))
 	{		
-		SetLODDataCount(StaticMesh->GetNumLODs(), LODData.Num());
+		SetLODDataCount(StaticMesh->GetNumLODs(), LODData.Num());	
 	}
+
+	for (int32 LODIndex = 0; LODIndex < LODData.Num(); LODIndex++)
+	{
+		LODData[LODIndex].CreateMapBuildDataId(LODIndex);
+	}	
 }
 
 void UStaticMeshComponent::UpdateMapBuildDataId()
