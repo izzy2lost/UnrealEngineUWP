@@ -275,7 +275,7 @@ FMetalCommandBuffer* FMetalCommandEncoder::Finalize()
 		CommandBuffer->GetMTLCmdBuffer()->setLabel(DebugGroups.Last());
 	}
 	
-	RingBuffer.Submit();
+	RingBuffer.Commit(CommandBuffer);
     
 #if METAL_DEBUG_OPTIONS
     if(Device.GetRuntimeDebuggingLevel() >= EMetalDebugLevelValidation)
@@ -687,6 +687,7 @@ TRefCountPtr<FMetalFence> FMetalCommandEncoder::EndEncoding(void)
 		FMemory::Memzero(ShaderBuffers[Frequency].Usage);
 		ShaderBuffers[Frequency].Bound = 0;
 	}
+	
     return Fence;
 }
 
