@@ -35,7 +35,8 @@ namespace NiagaraStateless
 		TArray<FNiagaraStatelessRuntimeSpawnInfo>				SpawnInfos;
 		TUniquePtr<NiagaraStateless::FCommonShaderParameters, FShaderParametersDeletor>	ShaderParameters;
 
-		mutable TOptional<TArray<uint8>>						BindingBufferData;
+		mutable bool											bBindingBufferDirty = true;
+		mutable TArray<uint8>									BindingBufferData;
 		mutable FReadBuffer										BindingBuffer;
 
 		// Begin: INiagaraComputeDataBufferInterface
