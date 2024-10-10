@@ -5446,6 +5446,10 @@ void FKismetCompilerContext::PostCDOCompiled(const UObject::FPostCDOCompiledCont
 
 	// Allow children to customize PostCDOCompile:
 	OnPostCDOCompiled(Context);
+
+	// Run this function in case any native default property values have been changed on the CDO
+	// from all the user code above
+	NewClass->UpdateCustomPropertyListForPostConstruction();
 }
 
 void FKismetCompilerContext::AddPostCDOCompiledStep(TFunction<void(const UObject::FPostCDOCompiledContext&, UObject*)>&& StepFunction)
