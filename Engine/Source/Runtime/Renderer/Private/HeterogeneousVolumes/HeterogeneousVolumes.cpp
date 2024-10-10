@@ -206,7 +206,7 @@ static TAutoConsoleVariable<int32> CVarHeterogeneousVolumesLightingCache(
 	2,
 	TEXT("Enables an optimized pre-pass, caching certain volumetric rendering lighting quantities (Default = 2)\n")
 	TEXT("0: Disabled\n")
-	TEXT("1: Cache transmittance\n")
+	TEXT("1: Cache transmittance (deprecated)\n")
 	TEXT("2: Cache in-scattering\n"),
 	ECVF_RenderThreadSafe
 );
