@@ -246,3 +246,17 @@ void InitArgs()
 	OutInstanceWorkArgs1[4] = 0; // num groups (not the same as x dim because we drive also occluded instances from this indirect call)
 #endif
 }
+
+#ifdef InstanceHierarchySanitizeInstanceArgsCS
+
+RWBuffer< uint > InOutInstanceWorkArgs;
+uint GroupWorkArgsMaxCount;
+
+[numthreads(1, 1, 1)]
+void InstanceHierarchySanitizeInstanceArgsCS()
+{
+	InOutInstanceWorkArgs[0] = min(InOutInstanceWorkArgs[0], GroupWorkArgsMaxCount);
+}
+
+#endif
+
