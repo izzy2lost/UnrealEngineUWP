@@ -469,6 +469,7 @@ void FEntityManager::Destroy()
 	AllocationsWithCapacity.Reset();
 	EntityAllocationMasks.Reset();
 	EntityAllocations.Reset();
+	ParentToChild.Reset();
 
 	OnStructureChanged();
 }
