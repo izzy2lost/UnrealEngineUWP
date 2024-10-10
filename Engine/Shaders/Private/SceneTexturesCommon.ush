@@ -213,7 +213,7 @@ float LookupDeviceZ( float2 ScreenUV, float ArrayIndex )
 	return DepthbufferFetchES2();
 #elif MOBILE_DEPTHFECTH && VULKAN_PROFILE
 	return VulkanSubpassDepthFetch();
-#elif MOBILE_DEPTHFECTH && (METAL_PROFILE && !MAC)
+#elif MOBILE_DEPTHFECTH && (METAL_PROFILE && !MAC) && USE_SCENE_DEPTH_AUX
 	return DepthbufferFetchES2();
 #elif (USE_SCENE_DEPTH_AUX && !MOBILE_DEFERRED_SHADING)
 	// SceneDepth texture is discarded after BasePass (with forward shading) 

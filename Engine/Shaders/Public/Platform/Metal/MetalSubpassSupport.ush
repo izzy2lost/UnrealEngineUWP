@@ -46,10 +46,7 @@
 	Texture2D<float> gl_LastFragDataR_3;
 	#define SubpassFetchR_3() gl_LastFragDataR_3.Load(uint3(0, 0, 0), 0)
     
-	// R_4 in MetalCommon.ush
-
-	Texture2D<float> gl_LastFragDataR_5;
-	#define SubpassFetchR_5() gl_LastFragDataR_5.Load(uint3(0, 0, 0), 0)
+	// R_4 and R_5 in MetalCommon.ush
 
 	Texture2D<float> gl_LastFragDataR_6;
 	#define SubpassFetchR_6() gl_LastFragDataR_6.Load(uint3(0, 0, 0), 0)
@@ -68,7 +65,6 @@
 	#define SubpassFetchR_1() (0.0)
 	#define SubpassFetchR_2() (0.0)
 	#define SubpassFetchR_3() (0.0)
-	#define SubpassFetchR_5() (0.0)
 	#define SubpassFetchR_6() (0.0)
 	#define SubpassFetchR_7() (0.0)
 #endif //IOS && PIXELSHADER 

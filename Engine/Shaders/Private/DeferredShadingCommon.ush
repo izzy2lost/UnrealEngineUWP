@@ -769,23 +769,18 @@ void MobileFetchGBuffer(in float2 UV, out half4 GBufferA, out half4 GBufferB, ou
 	#if MOBILE_EXTENDED_GBUFFER
 		GBufferD = VulkanSubpassFetch4();
 	#endif
-	SceneDepth = ConvertFromDeviceZ(VulkanSubpassDepthFetch());
 #elif (METAL_PROFILE && !MAC && FRAMEBUFFER_FETCH_ACCESS)
 	GBufferA = SubpassFetchRGBA_1(); 
 	GBufferB = SubpassFetchRGBA_2(); 
 	GBufferC = SubpassFetchRGBA_3(); 
 	#if MOBILE_EXTENDED_GBUFFER
 		GBufferD = SubpassFetchRGBA_4();
-		SceneDepth = ConvertFromDeviceZ(SubpassFetchR_5());
-	#else
-		SceneDepth = ConvertFromDeviceZ(SubpassFetchR_4());
 	#endif
 #elif (USE_GLES_FBF_DEFERRED && FRAMEBUFFER_FETCH_ACCESS)
 	GBufferA = GLSubpassFetch1(); 
 	GBufferB = GLSubpassFetch2(); 
 	GBufferC = GLSubpassFetch3();  
 	GBufferD = 0; // PLS is limited to 128bits
-	SceneDepth = ConvertFromDeviceZ(DepthbufferFetchES2());
 #else
 	GBufferA = Texture2DSampleLevel(MobileSceneTextures.GBufferATexture, MobileSceneTextures.GBufferATextureSampler, UV, 0); 
 	GBufferB = Texture2DSampleLevel(MobileSceneTextures.GBufferBTexture, MobileSceneTextures.GBufferBTextureSampler, UV, 0);
@@ -793,6 +788,13 @@ void MobileFetchGBuffer(in float2 UV, out half4 GBufferA, out half4 GBufferB, ou
 	#if MOBILE_EXTENDED_GBUFFER
 		GBufferD = Texture2DSampleLevel(MobileSceneTextures.GBufferDTexture, MobileSceneTextures.GBufferDTextureSampler, UV, 0);
 	#endif
+#endif
+
+#if	(FRAMEBUFFER_FETCH_ACCESS && VULKAN_PROFILE)
+	SceneDepth = ConvertFromDeviceZ(VulkanSubpassDepthFetch());
+#elif (FRAMEBUFFER_FETCH_ACCESS && (USE_SCENE_DEPTH_AUX || USE_GLES_FBF_DEFERRED))
+	SceneDepth = ConvertFromDeviceZ(DepthbufferFetchES2());
+#else
 	SceneDepth = ConvertFromDeviceZ(Texture2DSampleLevel(MobileSceneTextures.SceneDepthTexture, MobileSceneTextures.SceneDepthTextureSampler, UV, 0).r);
 #endif
 }
