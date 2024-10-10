@@ -40,14 +40,20 @@ public:
 	FComputeDataProviderRenderProxy* GetRenderProxy() override;
 	//~ End UComputeDataProvider Interface
 
-	const UPCGCopyPointsSettings* Settings;
+	UPROPERTY()
+	TObjectPtr<const UPCGCopyPointsSettings> Settings;
 };
 
 class FPCGCopyPointsDataProviderProxy : public FComputeDataProviderRenderProxy
 {
 public:
-	FPCGCopyPointsDataProviderProxy(const UPCGCopyPointsSettings* InSettings)
-		: Settings(InSettings)
+	FPCGCopyPointsDataProviderProxy(uint32 InRotationInheritance, uint32 InScaleInheritance, uint32 InColorInheritance, uint32 InSeedInheritance, uint32 InAttributeInheritance, uint32 bInCopyEachSourceOnEveryTarget)
+		: RotationInheritance(InRotationInheritance)
+		, ScaleInheritance(InScaleInheritance)
+		, ColorInheritance(InColorInheritance)
+		, SeedInheritance(InSeedInheritance)
+		, AttributeInheritance(InAttributeInheritance)
+		, bCopyEachSourceOnEveryTarget(bInCopyEachSourceOnEveryTarget)
 	{}
 
 	//~ Begin FComputeDataProviderRenderProxy Interface
@@ -58,5 +64,10 @@ public:
 protected:
 	using FParameters = FPCGCopyPointsDataInterfaceParameters;
 
-	const UPCGCopyPointsSettings* Settings;
+	uint32 RotationInheritance = 0;
+	uint32 ScaleInheritance = 0;
+	uint32 ColorInheritance = 0;
+	uint32 SeedInheritance = 0;
+	uint32 AttributeInheritance = 0;
+	uint32 bCopyEachSourceOnEveryTarget = 0;
 };
