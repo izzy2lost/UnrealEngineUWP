@@ -13,8 +13,10 @@ class UNiagaraDataChannel;
 class UNiagaraDataChannelHandler;
 struct FNiagaraDataChannelGameData;
 struct FNiagaraDataChannelData;
+struct FNiagaraDataChannelLayoutInfo;
 using FNiagaraDataChannelGameDataPtr = TSharedPtr<FNiagaraDataChannelGameData>;
 using FNiagaraDataChannelDataPtr = TSharedPtr<FNiagaraDataChannelData>;
+using FNiagaraDataChannelLayoutInfoPtr = TSharedPtr<FNiagaraDataChannelLayoutInfo>;
 
 /** Niagara Data Channels are a system for communication between Niagara Systems and with game code/Blueprint.
 
@@ -145,7 +147,7 @@ struct FNiagaraDataChannelGameDataLayout
 	UPROPERTY()
 	TArray<FNiagaraLwcStructConverter> LwcConverters;
 
-	void Init(const TArray<FNiagaraDataChannelVariable>& Variables);
+	void Init(TConstArrayView<FNiagaraDataChannelVariable> Variables);
 };
 
 
@@ -288,6 +290,9 @@ private:
 	int32 PrevNumElements = 0;
 
 	TWeakObjectPtr<const UNiagaraDataChannel> DataChannel;
+
+	//Keep reference to the layout this data was built with.
+	FNiagaraDataChannelLayoutInfoPtr LayoutInfo;
 
 public:
 

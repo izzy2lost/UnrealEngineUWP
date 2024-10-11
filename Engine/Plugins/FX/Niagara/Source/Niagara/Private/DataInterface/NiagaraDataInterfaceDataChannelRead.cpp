@@ -297,7 +297,7 @@ namespace NDIDataChannelReadLocal
 struct FNDIDataChannelReadInstanceData_RT
 {
 	//RT proxy for game channel data from which we're reading.
-	FNiagaraDataChannelDataProxy* ChannelDataRTProxy = nullptr;
+	FNiagaraDataChannelDataProxyPtr ChannelDataRTProxy = nullptr;
 
 	bool bReadPrevFrame = false;
 
@@ -470,8 +470,8 @@ bool FNDIDataChannelReadInstanceData::Tick(UNiagaraDataInterfaceDataChannelRead*
 				}
 			}
 
-			const FNiagaraDataSetCompiledData& CPUSourceDataCompiledData = DataChannelPtr->GetDataChannel()->GetCompiledData(ENiagaraSimTarget::CPUSim);
-			const FNiagaraDataSetCompiledData& GPUSourceDataCompiledData = DataChannelPtr->GetDataChannel()->GetCompiledData(ENiagaraSimTarget::GPUComputeSim);
+			const FNiagaraDataSetCompiledData& CPUSourceDataCompiledData = DataChannelPtr->GetDataChannel()->GetLayoutInfo()->GetDataSetCompiledData();
+			const FNiagaraDataSetCompiledData& GPUSourceDataCompiledData = DataChannelPtr->GetDataChannel()->GetLayoutInfo()->GetDataSetCompiledDataGPU();
 			check(CPUSourceDataCompiledData.GetLayoutHash() && CPUSourceDataCompiledData.GetLayoutHash() == GPUSourceDataCompiledData.GetLayoutHash());			
 			uint64 SourceDataLayoutHash = CPUSourceDataCompiledData.GetLayoutHash();
 			bool bChanged = SourceDataLayoutHash != ChachedDataSetLayoutHash;
@@ -808,7 +808,7 @@ void UNiagaraDataInterfaceDataChannelRead::ProvidePerInstanceDataForRenderThread
 	{
 		SourceData.bUpdateFunctionBindingRTData = false;
 		
-		const FNiagaraDataSetCompiledData& GPUCompiledData = SourceData.DataChannel->GetDataChannel()->GetCompiledData(ENiagaraSimTarget::GPUComputeSim);
+		const FNiagaraDataSetCompiledData& GPUCompiledData = SourceData.DataChannel->GetDataChannel()->GetLayoutInfo()->GetDataSetCompiledDataGPU();
 		TargetData->ScriptParamInfo.Init(CompiledData, GPUCompiledData);
 	}
 
@@ -2063,7 +2063,10 @@ void FNiagaraDataInterfaceProxy_DataChannelRead::PreStage(const FNDIGpuComputePr
 
 	if(InstanceData)
 	{
-		InstanceData->GPUBuffer = InstanceData->ChannelDataRTProxy->PrepareForReadAccess(Context.GetGraphBuilder(), InstanceData->bReadPrevFrame == false);
+		if(InstanceData->ChannelDataRTProxy)
+		{
+			InstanceData->GPUBuffer = InstanceData->ChannelDataRTProxy->PrepareForReadAccess(Context.GetGraphBuilder(), InstanceData->bReadPrevFrame == false);
+		}
 
 		//TODO: Should grab just one for the whole frame...
 		//TODO: Add some wrap behavior...		
@@ -2103,6 +2106,7 @@ void FNiagaraDataInterfaceProxy_DataChannelRead::PostSimulate(const FNDIGpuCompu
 		{
 			InstanceData->NDCSpawnDataBuffer = nullptr;
 			Context.GetInstanceCountManager().FreeEntry(InstanceData->ConsumeInstanceCountOffset);
+			InstanceData->ConsumeInstanceCountOffset = INDEX_NONE;//This should already be done inside FreeEntry but just to be sure.
 		}
 	}
 }

@@ -240,6 +240,13 @@ FNiagaraGpuComputeDispatch::~FNiagaraGpuComputeDispatch()
 	FinishDispatches();
 
 	AsyncGpuTraceHelper->Reset();
+
+	for (auto It = NDCDataProxies.CreateIterator(); It; ++It)
+	{
+		FNiagaraDataChannelDataProxyPtr& NDCProxy = *It;
+		NDCProxy->OnRemovedFromDispatcher(this);
+	}
+	NDCDataProxies.Empty();
 }
 
 void FNiagaraGpuComputeDispatch::AddGpuComputeProxy(FNiagaraSystemGpuComputeProxy* ComputeProxy)
@@ -300,19 +307,15 @@ void FNiagaraGpuComputeDispatch::RemoveGpuComputeProxy(FNiagaraSystemGpuComputeP
 #endif
 }
 
-void FNiagaraGpuComputeDispatch::AddNDCDataProxy(FNiagaraDataChannelDataProxy* NDCDataProxy)
+void FNiagaraGpuComputeDispatch::AddNDCDataProxy(FNiagaraDataChannelDataProxyPtr NDCDataProxy)
 {
-#if !UE_BUILD_SHIPPING
-	check(NDCDataProxy->DispatchInterfaceForDebuggingOnly == this);
-#endif
+	NDCDataProxy->OnAddedToDispatcher(this);
 	NDCDataProxies.Add(NDCDataProxy);
 }
 
-void FNiagaraGpuComputeDispatch::RemoveNDCDataProxy(FNiagaraDataChannelDataProxy* NDCDataProxy)
-{
-#if !UE_BUILD_SHIPPING
-	check(NDCDataProxy->DispatchInterfaceForDebuggingOnly == this);
-#endif
+void FNiagaraGpuComputeDispatch::RemoveNDCDataProxy(FNiagaraDataChannelDataProxyPtr NDCDataProxy)
+{	
+	NDCDataProxy->OnRemovedFromDispatcher(this);
 	NDCDataProxies.RemoveSwap(NDCDataProxy);
 }
 
@@ -1946,9 +1949,18 @@ void FNiagaraGpuComputeDispatch::PreInitViews(FRDGBuilder& GraphBuilder, bool bA
 		{
 			FramesBeforeTickFlush = 0;
 
-			for(FNiagaraDataChannelDataProxy* NDCProxy : NDCDataProxies)
+			for (auto It = NDCDataProxies.CreateIterator(); It; ++It)
 			{
-				NDCProxy->BeginFrame(this, GraphBuilder.RHICmdList);
+				FNiagaraDataChannelDataProxyPtr& NDCProxy = *It;
+				if (NDCProxy.IsUnique() == false)
+				{
+					NDCProxy->BeginFrame(this, GraphBuilder.RHICmdList);
+				}
+				else
+				{
+					NDCProxy->OnRemovedFromDispatcher(this);
+					It.RemoveCurrentSwap();
+				}
 			}
 
 			UpdateInstanceCountManager(GraphBuilder.RHICmdList);
@@ -2112,9 +2124,18 @@ void FNiagaraGpuComputeDispatch::PostRenderOpaque(FRDGBuilder& GraphBuilder, TCo
 			{
 				FinishDispatches();
 
-				for (FNiagaraDataChannelDataProxy* NDCProxy : NDCDataProxies)
+				for (auto It = NDCDataProxies.CreateIterator(); It; ++It)
 				{
-					NDCProxy->EndFrame(this, RHICmdList);
+					FNiagaraDataChannelDataProxyPtr& NDCProxy = *It;
+					if(NDCProxy.IsUnique() == false)
+					{
+						NDCProxy->EndFrame(this, RHICmdList);
+					}
+					else
+					{
+						NDCProxy->OnRemovedFromDispatcher(this);
+						It.RemoveCurrentSwap();
+					}
 				}
 			}
 		}

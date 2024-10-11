@@ -98,8 +98,8 @@ public:
 	/** Remove system instance proxy from the batcher. */
 	virtual void RemoveGpuComputeProxy(FNiagaraSystemGpuComputeProxy* ComputeProxy) override;
 
-	virtual void AddNDCDataProxy(FNiagaraDataChannelDataProxy* NDCDataProxy) override;
-	virtual void RemoveNDCDataProxy(FNiagaraDataChannelDataProxy* NDCDataProxy) override;
+	virtual void AddNDCDataProxy(FNiagaraDataChannelDataProxyPtr NDCDataProxy) override;
+	virtual void RemoveNDCDataProxy(FNiagaraDataChannelDataProxyPtr NDCDataProxy) override;
 
 #if WITH_EDITOR
 	virtual void Suspend() override {}
@@ -249,7 +249,7 @@ private:
 	bool bRequiresReadback = false;
 	TArray<FNiagaraSystemGpuComputeProxy*> ProxiesPerStage[ENiagaraGpuComputeTickStage::Max];
 	
-	TArray<FNiagaraDataChannelDataProxy*> NDCDataProxies;
+	TArray<FNiagaraDataChannelDataProxyPtr> NDCDataProxies;
 
 	FNiagaraGpuDispatchList DispatchListPerStage[ENiagaraGpuComputeTickStage::Max];
 

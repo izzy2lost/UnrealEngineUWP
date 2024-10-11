@@ -33,7 +33,7 @@ struct FNDIDataChannelWriteInstanceData;
 class UNiagaraDataChannelHandler;
 class FNiagaraDataBuffer;
 
-struct FNiagaraDataChannelDataProxy;
+using FNiagaraDataChannelDataProxyPtr = TSharedPtr<struct FNiagaraDataChannelDataProxy>;
 
 /** Mode controlling the behavior of the Spawn function for Niagara's Data Channel Read Data Interface.*/
 UENUM()
@@ -311,7 +311,7 @@ struct FNiagaraDataInterfaceProxy_DataChannelRead : public FNiagaraDataInterface
 	{
 		//GPU Dataset from the channel handler. We'll grab the current buffer from this on the RT.
 		//This must be grabbed fresh from the handler each frame as it's lifetime cannot be ensured.
-		FNiagaraDataChannelDataProxy* ChannelDataRTProxy = nullptr;
+		FNiagaraDataChannelDataProxyPtr ChannelDataRTProxy = nullptr;
 
 		bool bReadPrevFrame = false;
 

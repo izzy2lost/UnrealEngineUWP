@@ -47,7 +47,7 @@ namespace NDCCVars
 
 //////////////////////////////////////////////////////////////////////////
 
-void FNiagaraDataChannelGameDataLayout::Init(const TArray<FNiagaraDataChannelVariable>& Variables)
+void FNiagaraDataChannelGameDataLayout::Init(TConstArrayView<FNiagaraDataChannelVariable> Variables)
 {
 	VariableIndices.Reset();
 	LwcConverters.Reserve(Variables.Num());
@@ -72,8 +72,9 @@ void FNiagaraDataChannelGameData::Init(const UNiagaraDataChannel* InDataChannel)
 {
 	check(InDataChannel);
 	DataChannel = InDataChannel;
+	LayoutInfo = InDataChannel->GetLayoutInfo();
 
-	const FNiagaraDataChannelGameDataLayout& Layout = DataChannel->GetGameDataLayout();
+	const FNiagaraDataChannelGameDataLayout& Layout = LayoutInfo->GetGameDataLayout();
 	VariableData.Empty();
 	VariableData.SetNum(Layout.VariableIndices.Num());
 	for(const auto& Pair : Layout.VariableIndices)
@@ -123,7 +124,7 @@ void FNiagaraDataChannelGameData::Reserve(int32 NewNum)
 
 FNiagaraDataChannelVariableBuffer* FNiagaraDataChannelGameData::FindVariableBuffer(const FNiagaraVariableBase& Var)
 {
-	const FNiagaraDataChannelGameDataLayout& Layout = DataChannel->GetGameDataLayout();
+	const FNiagaraDataChannelGameDataLayout& Layout = LayoutInfo->GetGameDataLayout();
 	const FNiagaraTypeDefinition& VarType = Var.GetType();
 	for(auto& Pair : Layout.VariableIndices)
 	{
@@ -158,7 +159,7 @@ void FNiagaraDataChannelGameData::WriteToDataSet(FNiagaraDataBuffer* DestBuffer,
 	
 	DestBuffer->SetNumInstances(DestStartIdx + NumInstances);
 
-	const FNiagaraDataChannelGameDataLayout& Layout = DataChannel->GetGameDataLayout();
+	const FNiagaraDataChannelGameDataLayout& Layout = LayoutInfo->GetGameDataLayout();
 
 	for (const TPair<FNiagaraVariableBase, int32>& VarIndexPair : Layout.VariableIndices)
 	{
@@ -316,7 +317,7 @@ void FNiagaraDataChannelGameData::AppendFromDataSet(const FNiagaraDataBuffer* Sr
 	int32 StartIndex = NumElements;
 	NumElements += NumInstances;
 
-	const FNiagaraDataChannelGameDataLayout& Layout = DataChannel->GetGameDataLayout();
+	const FNiagaraDataChannelGameDataLayout& Layout = LayoutInfo->GetGameDataLayout();
 	for (const TPair<FNiagaraVariableBase, int32>& VarIndexPair : Layout.VariableIndices)
 	{
 		FNiagaraVariableBase Var = VarIndexPair.Key;
@@ -446,7 +447,7 @@ void FNiagaraDataChannelGameData::AppendFromDataSet(const FNiagaraDataBuffer* Sr
 
 void FNiagaraDataChannelGameData::SetFromSimCache(const FNiagaraVariableBase& SourceVar, TConstArrayView<uint8> Data, int32 Size)
 {
-	const FNiagaraDataChannelGameDataLayout& Layout = DataChannel->GetGameDataLayout();
+	const FNiagaraDataChannelGameDataLayout& Layout = LayoutInfo->GetGameDataLayout();
 	if (const int* Index = Layout.VariableIndices.Find(SourceVar))
 	{
 		if (VariableData[*Index].Size == Size)
@@ -460,56 +461,57 @@ void FNiagaraDataChannelGameData::SetFromSimCache(const FNiagaraVariableBase& So
 
 FNiagaraDataChannelDataProxy::~FNiagaraDataChannelDataProxy()
 {
+	if(GPUDataSet)
+	{
+		delete GPUDataSet;
+	}
+	GPUDataSet = nullptr;
+
+	Owner = nullptr;
+	CurrFrameData = nullptr;
+	PrevFrameData = nullptr;
+	bNeedsPrevFrameData = false;
+	PendingCPUBuffers.Empty();
+	PendingGPUAllocations = 0;
+}
+
+
+void FNiagaraDataChannelDataProxy::OnAddedToDispatcher(FNiagaraGpuComputeDispatchInterface* ComputeDispatchInterface)
+{
 #if !UE_BUILD_SHIPPING
-	ensureMsgf(DispatchInterfaceForDebuggingOnly == nullptr, TEXT("FNiagaraDataChannelDataProxy - ComputeDispatchInterface was not cleared this could result in a crash"));
+	DispatchInterfaceForDebuggingOnly = ComputeDispatchInterface;
 #endif
 }
 
-void FNiagaraDataChannelDataProxy::Cleanup(FNiagaraGpuComputeDispatchInterface* ComputeDispatchInterface)
+void FNiagaraDataChannelDataProxy::OnRemovedFromDispatcher(FNiagaraGpuComputeDispatchInterface* ComputeDispatchInterface)
 {
 #if !UE_BUILD_SHIPPING
-	ensureMsgf(DispatchInterfaceForDebuggingOnly == ComputeDispatchInterface || ComputeDispatchInterface == nullptr, TEXT("FNiagaraDataChannelDataProxy - ComputeDispatchInterface has been modified without proper cleanup. This could cause a crash."));
+	check(DispatchInterfaceForDebuggingOnly == ComputeDispatchInterface);
 #endif
-	
-	if(ComputeDispatchInterface)
-	{
-		//Remove ourselves from the dispatcher and free our instance counts from the instance count manager.
-		ComputeDispatchInterface->RemoveNDCDataProxy(this);
-	
-		FNiagaraGPUInstanceCountManager& InstCountManager = ComputeDispatchInterface->GetGPUInstanceCounterManager();
-		
-		if(CurrFrameData)
-		{
-			uint32 InstanceCountOffset = CurrFrameData->GetGPUInstanceCountBufferOffset();
-			InstCountManager.FreeEntry(InstanceCountOffset);
-			CurrFrameData->SetGPUInstanceCountBufferOffset(INDEX_NONE);
-		}
 
-		if (PrevFrameData)
-		{
-			uint32 InstanceCountOffset = PrevFrameData->GetGPUInstanceCountBufferOffset();
-			InstCountManager.FreeEntry(InstanceCountOffset);
-			PrevFrameData->SetGPUInstanceCountBufferOffset(INDEX_NONE);
-		}
-	}
-	else
-	{
-		if (CurrFrameData)
-		{
-			CurrFrameData->SetGPUInstanceCountBufferOffset(INDEX_NONE);
-		}
+	FNiagaraGPUInstanceCountManager& InstCountManager = ComputeDispatchInterface->GetGPUInstanceCounterManager();
 
-		if (PrevFrameData)
-		{
-			PrevFrameData->SetGPUInstanceCountBufferOffset(INDEX_NONE);
-		}
+	if (CurrFrameData)
+	{
+		uint32 InstanceCountOffset = CurrFrameData->GetGPUInstanceCountBufferOffset();
+		InstCountManager.FreeEntry(InstanceCountOffset);
+		CurrFrameData->SetGPUInstanceCountBufferOffset(INDEX_NONE);
 	}
 
-#if !UE_BUILD_SHIPPING
-	DispatchInterfaceForDebuggingOnly = nullptr;
-#endif
-	CurrFrameData = nullptr;
-	PrevFrameData = nullptr;
+	if (PrevFrameData)
+	{
+		uint32 InstanceCountOffset = PrevFrameData->GetGPUInstanceCountBufferOffset();
+		InstCountManager.FreeEntry(InstanceCountOffset);
+		PrevFrameData->SetGPUInstanceCountBufferOffset(INDEX_NONE);
+	}
+
+	for (FNDCGpuReadbackInfo& ReadbackInfo : PendingGPUReadbackBuffers)
+	{
+		check(ReadbackInfo.Buffer);
+		uint32 Offset = ReadbackInfo.Buffer->GetGPUInstanceCountBufferOffset();
+		ComputeDispatchInterface->GetGPUInstanceCounterManager().FreeEntry(Offset);
+		ReadbackInfo.Buffer->SetGPUInstanceCountBufferOffset(INDEX_NONE);
+	}
 }
 
 void FNiagaraDataChannelDataProxy::Reset()
@@ -576,6 +578,10 @@ void FNiagaraDataChannelDataProxy::EndFrame(FNiagaraGpuComputeDispatchInterface*
 	check(GPUDataSet);
 	check(GPUDataSet->GetSimTarget() == ENiagaraSimTarget::GPUComputeSim);
 
+#if !UE_BUILD_SHIPPING
+	check(DispatchInterfaceForDebuggingOnly == DispatchInterface);
+#endif
+
 	check(CurrBufferAccessCounts == 0);
 
 	//Handle pending readbacks for GPU->CPU data.
@@ -589,17 +595,26 @@ void FNiagaraDataChannelDataProxy::EndFrame(FNiagaraGpuComputeDispatchInterface*
 				LocalOwner = Owner,
 				PASS_PublishCPU = ReadbackInfo.bPublishToCPU,
 				PASS_PublishGame = ReadbackInfo.bPublishToGame,
-				PASS_LWCTile = ReadbackInfo.LWCTile](FNiagaraDataBufferRef ReadbackBuffer)
+				PASS_LWCTile = ReadbackInfo.LWCTile,
+				PASS_DataSetLayoutHash = LayoutInfo->GetDataSetCompiledData().GetLayoutHash()](TSharedRef<FNiagaraDataBufferReadback> Readback)
 				{
 					if (FNiagaraDataChannelData* NDCData = LocalOwner.Pin().Get())
 					{
-						if (ReadbackBuffer && ReadbackBuffer->GetNumInstances())
+						const FNiagaraDataSetCompiledData& CompiledData = NDCData->GetCompiledData(ENiagaraSimTarget::CPUSim);
+						if(PASS_DataSetLayoutHash == CompiledData.GetLayoutHash())
 						{
-							FNiagaraDataChannelPublishRequest PublishRequest(ReadbackBuffer);
+							//Only consume the readback it the layouts match.
+							//It's possible the layout has been changed in the time it took for the readback to get here.
+							FNiagaraDataChannelPublishRequest PublishRequest;
 							PublishRequest.bVisibleToGame = PASS_PublishGame;
 							PublishRequest.bVisibleToCPUSims = PASS_PublishCPU;
 							PublishRequest.bVisibleToGPUSims = false;//Don't want to ping pong back to the GPU
 							PublishRequest.LwcTile = PASS_LWCTile;
+
+							FNiagaraDataBuffer* ReadbackBuffer = NDCData->GetBufferForCPUWrite();
+							Readback->ReadResultsToDataBuffer(ReadbackBuffer);
+							PublishRequest.Data = ReadbackBuffer->UnlockForRead();
+
 #if WITH_NIAGARA_DEBUGGER
 							PublishRequest.DebugSource = TEXT("NDC GPU Readback");//TODO: Feed in real source names also
 #endif
@@ -768,31 +783,18 @@ FNiagaraDataChannelData::~FNiagaraDataChannelData()
 {
 	GameData.Reset();
 
-	UWorld* OwnerWorld = WeakOwnerWorld.Get();
-	FNiagaraGpuComputeDispatchInterface* ComputeDispatchInterface = FNiagaraGpuComputeDispatchInterface::Get(OwnerWorld);
-
 	/** We defer the deletion of the dataset to the RT to be sure all in-flight RT commands have finished using it.*/
 	ENQUEUE_RENDER_COMMAND(FDeleteContextCommand)(
-		[ComputeDispatchInterface, CPUDataChannelDataSet = CPUSimData, GPUDataChannelDataSet = GPUSimData, ReleasedRTProxy = RTProxy.Release()](FRHICommandListImmediate& RHICmdList)
+		[CPUDataChannelDataSet = CPUSimData](FRHICommandListImmediate& RHICmdList)
 	{
-		if (ReleasedRTProxy)
-		{
-			ReleasedRTProxy->Cleanup(ComputeDispatchInterface);
-			delete ReleasedRTProxy;
-		}
 		if (CPUDataChannelDataSet != nullptr)
 		{
 			delete CPUDataChannelDataSet;
 		}
-		if (GPUDataChannelDataSet != nullptr)
-		{
-			delete GPUDataChannelDataSet;
-		}
 	}
 	);
 	CPUSimData = nullptr;
-	GPUSimData = nullptr;
-	check(RTProxy == nullptr);
+	RTProxy = nullptr;
 }
 
 void FNiagaraDataChannelData::Init(UNiagaraDataChannelHandler* Owner)
@@ -800,20 +802,18 @@ void FNiagaraDataChannelData::Init(UNiagaraDataChannelHandler* Owner)
 	check(Owner);
 	const UNiagaraDataChannel* DataChannel = Owner->GetDataChannel();
 	check(DataChannel);
-
+	
+	LayoutInfo = DataChannel->GetLayoutInfo();
+	
 	GameData = DataChannel->CreateGameData();
 
 	CPUSimData = new FNiagaraDataSet();
-	GPUSimData = new FNiagaraDataSet();
 
-	const FNiagaraDataSetCompiledData& CompiledData = DataChannel->GetCompiledData(ENiagaraSimTarget::CPUSim);
-	const FNiagaraDataSetCompiledData& CompiledDataGPU = DataChannel->GetCompiledData(ENiagaraSimTarget::GPUComputeSim);
-	CPUSimData->Init(&CompiledData, 1);
-	GPUSimData->Init(&CompiledDataGPU, 2);
+	CPUSimData->Init(&LayoutInfo->GetDataSetCompiledData(), 1);
 
 	//TODO: Send game data to GPU direct without staging.
 	GameDataStaging = new FNiagaraDataSet();
-	GameDataStaging->Init(&CompiledData);
+	GameDataStaging->Init(&LayoutInfo->GetDataSetCompiledData());
 
 	UWorld* OwnerWorld = Owner->GetWorld();
 	WeakOwnerWorld = OwnerWorld;
@@ -831,10 +831,9 @@ void FNiagaraDataChannelData::Reset()
 
 	GameData->Empty();
 	CPUSimData->ResetBuffers();
-	GPUSimData->ResetBuffers();
 	GameDataStaging->ResetBuffers();
 	ENQUEUE_RENDER_COMMAND(FResetProxyCommand)(
-		[RT_Proxy = RTProxy.Get()](FRHICommandListImmediate& RHICmdList)
+		[RT_Proxy = RTProxy](FRHICommandListImmediate& RHICmdList)
 	{
 		if (RT_Proxy)
 		{
@@ -877,7 +876,7 @@ void FNiagaraDataChannelData::EndFrame(UNiagaraDataChannelHandler* Owner)
 	if(RTProxy)
 	{
 		ENQUEUE_RENDER_COMMAND(FDataChannelProxyEndFrame) (
-			[RT_Proxy = RTProxy.Get(), RT_BuffersForGPU = MoveTemp(BuffersForGPU)](FRHICommandListImmediate& CmdList)
+			[RT_Proxy = RTProxy, RT_BuffersForGPU = MoveTemp(BuffersForGPU)](FRHICommandListImmediate& CmdList)
 			{
 				RT_Proxy->AddBuffersFromCPU(RT_BuffersForGPU);
 			});
@@ -1085,8 +1084,7 @@ void FNiagaraDataChannelData::RemovePublishRequests(const FNiagaraDataSet* DataS
 
 const FNiagaraDataSetCompiledData& FNiagaraDataChannelData::GetCompiledData(ENiagaraSimTarget SimTarget)
 {
-	check(CPUSimData && GPUSimData)
-	return SimTarget == ENiagaraSimTarget::CPUSim ? CPUSimData->GetCompiledData() : GPUSimData->GetCompiledData();
+	return SimTarget == ENiagaraSimTarget::CPUSim ? LayoutInfo->GetDataSetCompiledData() : LayoutInfo->GetDataSetCompiledDataGPU();
 }
 
 FNiagaraDataBuffer* FNiagaraDataChannelData::GetBufferForCPUWrite()
@@ -1101,17 +1099,8 @@ FNiagaraDataBuffer* FNiagaraDataChannelData::GetBufferForCPUWrite()
 
 void FNiagaraDataChannelData::DestroyRenderThreadProxy(FNiagaraGpuComputeDispatchInterface* ComputeDispatchInterface)
 {
-	ENQUEUE_RENDER_COMMAND(FDestroyRTProxyCommand)(
-		[ComputeDispatchInterface, ReleasedRTProxy = RTProxy.Release()](FRHICommandListImmediate& RHICmdList)
-		{
-			if (ReleasedRTProxy)
-			{
-				ReleasedRTProxy->Cleanup(ComputeDispatchInterface);
-				delete ReleasedRTProxy;
-			}
-		}
-	);
-	check(RTProxy == nullptr);
+	//We can leave the proxy to be destroyed by the dispatcher ( or in some edge cases perhaps a DI proxy ).
+	RTProxy = nullptr;
 }
 
 void FNiagaraDataChannelData::CreateRenderThreadProxy(UNiagaraDataChannelHandler* Owner)
@@ -1123,21 +1112,52 @@ void FNiagaraDataChannelData::CreateRenderThreadProxy(UNiagaraDataChannelHandler
 
 	if (FNiagaraGpuComputeDispatchInterface* ComputeDispatchInterface = FNiagaraGpuComputeDispatchInterface::Get(OwnerWorld))
 	{
-		RTProxy.Reset(new FNiagaraDataChannelDataProxy());
-		RTProxy->GPUDataSet = GPUSimData;
+		RTProxy = MakeShared<FNiagaraDataChannelDataProxy>();
+		RTProxy->GPUDataSet = new FNiagaraDataSet();
+		RTProxy->GPUDataSet->Init(&LayoutInfo->GetDataSetCompiledDataGPU());
 		RTProxy->bNeedsPrevFrameData = DataChannel->KeepPreviousFrameData();
 		RTProxy->Owner = this->AsWeak();
+		RTProxy->LayoutInfo = LayoutInfo;//Keep our own ref to the layout info as the NDCData may die on the GT before the proxy.
 #if !UE_BUILD_SHIPPING
 		RTProxy->DebugName = FString::Printf(TEXT("%s__GPUData"), *DataChannel->GetName());
 		RTProxy->DispatchInterfaceForDebuggingOnly = ComputeDispatchInterface;
 #endif
 		ENQUEUE_RENDER_COMMAND(FNiagaraDataChannelDataProxyInit) (
-			[ComputeDispatchInterface, RT_Proxy = RTProxy.Get()](FRHICommandListImmediate& CmdList)
+			[ComputeDispatchInterface, RT_Proxy = RTProxy](FRHICommandListImmediate& CmdList)
 			{
 				ComputeDispatchInterface->AddNDCDataProxy(RT_Proxy);
 			}
 		);
 	}
+}
+
+//////////////////////////////////////////////////////////////////////////
+
+FNiagaraDataChannelLayoutInfo::FNiagaraDataChannelLayoutInfo(const UNiagaraDataChannel* DataChannel)
+{
+	check(DataChannel);
+	GameDataLayout.Init(DataChannel->GetVariables());
+
+	CompiledData.SimTarget = ENiagaraSimTarget::CPUSim;
+	CompiledDataGPU.SimTarget = ENiagaraSimTarget::GPUComputeSim;
+	for (const FNiagaraDataChannelVariable& NDCVar : DataChannel->GetVariables())
+	{
+		FNiagaraVariableBase Var = NDCVar;
+		if (Var.GetType().IsEnum() == false)
+		{
+			Var.SetType(FNiagaraTypeDefinition(FNiagaraTypeHelper::FindNiagaraFriendlyTopLevelStruct(Var.GetType().GetScriptStruct(), ENiagaraStructConversion::Simulation)));
+		}
+		CompiledData.Variables.Add(Var);
+		CompiledDataGPU.Variables.Add(Var);
+	}
+	CompiledData.BuildLayout();
+	CompiledDataGPU.BuildLayout();
+}
+
+FNiagaraDataChannelLayoutInfo::~FNiagaraDataChannelLayoutInfo()
+{
+	CompiledData.Empty();
+	CompiledDataGPU.Empty();
 }
 
 //////////////////////////////////////////////////////////////////////////
@@ -1195,12 +1215,7 @@ void UNiagaraDataChannel::PostLoad()
 	}
 #endif
 
-	//Init compiled data. These are not currently serialized as we have no mechanism to rebuild then on internal data format changes like those in scripts.
-	GetCompiledData(ENiagaraSimTarget::CPUSim);
-	GetCompiledData(ENiagaraSimTarget::GPUComputeSim);
-
-	//TODO: Can serialize?
-	GameDataLayout.Init(ChannelVariables);
+	GetLayoutInfo();
 
 	INiagaraModule::RequestRefreshDataChannels();
 }
@@ -1269,59 +1284,21 @@ void UNiagaraDataChannel::PostEditChangeProperty(FPropertyChangedEvent& Property
 	check(IsInGameThread());
 
 	//Refresh compiled data
-	CompiledData.Empty();
-	CompiledDataGPU.Empty();
-	GetCompiledData(ENiagaraSimTarget::CPUSim);
-	GetCompiledData(ENiagaraSimTarget::GPUComputeSim);
-
-	GameDataLayout.Init(ChannelVariables);
+	LayoutInfo = nullptr;
+	GetLayoutInfo();
 
 	INiagaraModule::RequestRefreshDataChannels();
 }
 
 #endif//WITH_EDITOR
 
-const FNiagaraDataSetCompiledData& UNiagaraDataChannel::GetCompiledData(ENiagaraSimTarget SimTarget)const
+const FNiagaraDataChannelLayoutInfoPtr UNiagaraDataChannel::GetLayoutInfo()const
 {
-	if(SimTarget == ENiagaraSimTarget::CPUSim)
+	if(LayoutInfo == nullptr)
 	{
-		if (CompiledData.Variables.Num() != ChannelVariables.Num())
-		{
-			//Build the compiled data from the current variables but convert to Simulation types.
-			CompiledData.Empty();
-			CompiledData.SimTarget = ENiagaraSimTarget::CPUSim;
-			for (FNiagaraVariableBase Var : ChannelVariables)
-			{
-				if(Var.GetType().IsEnum() == false)
-				{
-					Var.SetType(FNiagaraTypeDefinition(FNiagaraTypeHelper::FindNiagaraFriendlyTopLevelStruct(Var.GetType().GetScriptStruct(), ENiagaraStructConversion::Simulation)));
-				}
-				CompiledData.Variables.Add(Var);
-			}
-			CompiledData.BuildLayout();
-		}
-		return CompiledData;
+		LayoutInfo =  MakeShared<FNiagaraDataChannelLayoutInfo>(this);
 	}
-	else
-	{
-		if (CompiledDataGPU.Variables.Num() != ChannelVariables.Num())
-		{
-			check(SimTarget == ENiagaraSimTarget::GPUComputeSim);
-			//Build the compiled data from the current variables but convert to Simulation types.
-			CompiledDataGPU.Empty();
-			CompiledDataGPU.SimTarget = ENiagaraSimTarget::GPUComputeSim;
-			for (FNiagaraVariableBase Var : ChannelVariables)
-			{
-				if (Var.GetType().IsEnum() == false)
-				{
-					Var.SetType(FNiagaraTypeDefinition(FNiagaraTypeHelper::FindNiagaraFriendlyTopLevelStruct(Var.GetType().GetScriptStruct(), ENiagaraStructConversion::Simulation)));
-				}
-				CompiledDataGPU.Variables.Add(Var);
-			}
-			CompiledDataGPU.BuildLayout();
-		}
-		return CompiledDataGPU;
-	}
+	return LayoutInfo;
 }
 
 FNiagaraDataChannelGameDataPtr UNiagaraDataChannel::CreateGameData()const
@@ -1333,7 +1310,7 @@ FNiagaraDataChannelGameDataPtr UNiagaraDataChannel::CreateGameData()const
 
 bool UNiagaraDataChannel::IsValid()const
 {
-	return ChannelVariables.Num() > 0 && CompiledData.Variables.Num() == ChannelVariables.Num() && CompiledDataGPU.Variables.Num() == ChannelVariables.Num();
+	return LayoutInfo && ChannelVariables.Num() > 0 && LayoutInfo->GetDataSetCompiledData().Variables.Num() == ChannelVariables.Num() && LayoutInfo->GetDataSetCompiledDataGPU().Variables.Num() == ChannelVariables.Num();
 }
 
 //////////////////////////////////////////////////////////////////////////

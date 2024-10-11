@@ -50,6 +50,7 @@ struct FNiagaraDataChannelPublishRequest;
 struct FNiagaraDataChannelGameDataLayout;
 class FNiagaraGpuReadbackManager;
 class FRDGBuilder;
+class UNiagaraDataChannel;
 
 //////////////////////////////////////////////////////////////////////////
 
@@ -61,8 +62,10 @@ struct FNDCGpuReadbackInfo
 	FVector3f LWCTile;
 };
 
+using FNiagaraDataChannelDataProxyPtr = TSharedPtr<struct FNiagaraDataChannelDataProxy>;
+
 /** Render thread proxy of FNiagaraDataChannelData. */
-struct FNiagaraDataChannelDataProxy
+struct FNiagaraDataChannelDataProxy : public TSharedFromThis<FNiagaraDataChannelDataProxy>
 {
 	~FNiagaraDataChannelDataProxy();
 
@@ -71,6 +74,9 @@ struct FNiagaraDataChannelDataProxy
 	FNiagaraDataBufferRef CurrFrameData = nullptr;
 	FNiagaraDataBufferRef PrevFrameData = nullptr;
 	bool bNeedsPrevFrameData = false;
+
+	//Keeping layout info ref to ensure lifetime for GPUDataSet.
+	FNiagaraDataChannelLayoutInfoPtr LayoutInfo;
 
 	//Buffers coming from the CPU that we're going to copy up for reading on the GPU
 	TArray<FNiagaraDataBufferRef> PendingCPUBuffers;
@@ -93,7 +99,6 @@ struct FNiagaraDataChannelDataProxy
 	const TCHAR* GetDebugName()const{return nullptr;}
 	#endif
 
-	void Cleanup(FNiagaraGpuComputeDispatchInterface* ComputeDispatchInterface);
 	void BeginFrame(FNiagaraGpuComputeDispatchInterface* DispatchInterface, FRHICommandListImmediate& RHICmdList);
 	void EndFrame(FNiagaraGpuComputeDispatchInterface* DispatchInterface, FRHICommandListImmediate& RHICmdList);
 	void Reset();
@@ -113,6 +118,36 @@ struct FNiagaraDataChannelDataProxy
 	FNiagaraDataBufferRef GetPrevFrameData()const { return PrevFrameData; }
 	
 	void AddTransition(FRDGBuilder& GraphBuilder, ERHIAccess AccessBefore, ERHIAccess AccessAfter, FNiagaraDataBuffer* Buffer);
+
+	//Perform and bookkeeping required when we remove a proxy from a dispatcher.
+	void OnAddedToDispatcher(FNiagaraGpuComputeDispatchInterface* ComputeDispatchInterface);
+	void OnRemovedFromDispatcher(FNiagaraGpuComputeDispatchInterface* ComputeDispatchInterface);
+};
+
+using FNiagaraDataChannelLayoutInfoPtr = TSharedPtr<FNiagaraDataChannelLayoutInfo>;
+
+
+/** Data describing the layout of Niagara Data channel buffers that is used in multiple places and must live beyond it's owning Data Channel. */
+struct FNiagaraDataChannelLayoutInfo : public TSharedFromThis<FNiagaraDataChannelLayoutInfo>
+{
+	FNiagaraDataChannelLayoutInfo(const UNiagaraDataChannel* DataChannel);
+	~FNiagaraDataChannelLayoutInfo();
+
+	const FNiagaraDataSetCompiledData& GetDataSetCompiledData()const{ return CompiledData; }
+	const FNiagaraDataSetCompiledData& GetDataSetCompiledDataGPU()const { return CompiledDataGPU; }
+	const FNiagaraDataChannelGameDataLayout& GetGameDataLayout()const { return GameDataLayout; }
+
+private:
+
+	/**
+	Data layout for payloads in Niagara datasets.
+	*/
+	FNiagaraDataSetCompiledData CompiledData;
+
+	FNiagaraDataSetCompiledData CompiledDataGPU;
+
+	/** Layout information for any data stored at the "Game" level. i.e. From game code/BP. AoS layout and LWC types. */
+	FNiagaraDataChannelGameDataLayout GameDataLayout;
 };
 
 DECLARE_MULTICAST_DELEGATE_OneParam(FOnDataChannelCreated, const UNiagaraDataChannel*);
@@ -140,13 +175,10 @@ public:
 	/** If true, we keep our previous frame's data. Some users will prefer a frame of latency to tick dependency. */
 	bool KeepPreviousFrameData() const { return bKeepPreviousFrameData; }
 
-	/** Returns the compiled data describing the data layout for DataChannels in this channel. */
-	NIAGARA_API const FNiagaraDataSetCompiledData& GetCompiledData(ENiagaraSimTarget SimTarget) const;
-
 	/** Create the appropriate handler object for this data channel. */
 	NIAGARA_API virtual UNiagaraDataChannelHandler* CreateHandler(UWorld* OwningWorld) const PURE_VIRTUAL(UNiagaraDataChannel::CreateHandler, {return nullptr;} );
 	
-	const FNiagaraDataChannelGameDataLayout& GetGameDataLayout() const { return GameDataLayout; }
+	const FNiagaraDataChannelLayoutInfoPtr GetLayoutInfo()const;
 
 	NIAGARA_API FNiagaraDataChannelGameDataPtr CreateGameData() const;
 
@@ -201,14 +233,7 @@ private:
 	/**
 	Data layout for payloads in Niagara datasets.
 	*/
-	UPROPERTY(Transient)
-	mutable FNiagaraDataSetCompiledData CompiledData;
-
-	UPROPERTY(Transient)
-	mutable FNiagaraDataSetCompiledData CompiledDataGPU;
-
-	/** Layout information for any data stored at the "Game" level. i.e. From game code/BP. AoS layout and LWC types. */
-	FNiagaraDataChannelGameDataLayout GameDataLayout;
+	mutable FNiagaraDataChannelLayoutInfoPtr LayoutInfo;
 	
 	#if WITH_NIAGARA_DEBUGGER
 	mutable bool bVerboseLogging = false;
