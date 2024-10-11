@@ -181,16 +181,6 @@ EAssetCommandResult UAssetDefinition_ClothAsset::OpenAssets(const FAssetOpenArgs
 
 	if (ClothObjects.Num() > 0)
 	{
-		// Validate the asset
-		UChaosClothAsset* const ClothAsset = CastChecked<UChaosClothAsset>(ClothObjects[0]);
-		if (!ClothAsset->GetDataflow())
-		{
-			if (UDataflow* const NewDataflowAsset = Cast<UDataflow>(NewOrOpenDataflowAsset(ClothAsset)))
-			{
-				ClothAsset->SetDataflow(NewDataflowAsset);
-			}
-		}
-		
 		UAssetEditorSubsystem* const AssetEditorSubsystem = GEditor->GetEditorSubsystem<UAssetEditorSubsystem>();
 		if(!UE::Chaos::ClothAsset::Private::bEnableClothDataflowEditor)
 		{

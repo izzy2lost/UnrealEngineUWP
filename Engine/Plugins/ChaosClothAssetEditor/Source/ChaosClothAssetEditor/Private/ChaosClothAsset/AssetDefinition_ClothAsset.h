@@ -14,6 +14,7 @@ class UAssetDefinition_ClothAsset : public UAssetDefinitionDefault
 
 public:
 
+	UE_DEPRECATED(5.5, "Dataflow assets are now created through the physics menu.")
 	static UObject* NewOrOpenDataflowAsset(const UChaosClothAsset* ClothAsset);
 
 private:

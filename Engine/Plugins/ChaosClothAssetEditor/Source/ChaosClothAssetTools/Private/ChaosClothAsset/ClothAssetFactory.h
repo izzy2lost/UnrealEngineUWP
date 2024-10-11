@@ -23,5 +23,6 @@ public:
 	virtual bool FactoryCanImport(const FString& Filename) override { return false; }
 	virtual bool ShouldShowInNewMenu() const override { return true; }
 	virtual UObject* FactoryCreateNew(UClass* InClass, UObject* InParent, FName InName, EObjectFlags Flags, UObject* Context, FFeedbackContext* Warn) override;
+	virtual FString GetDefaultNewAssetName() const override;
 	/** End UFactory Interface */
 };
