@@ -167,6 +167,7 @@ struct FNDIDataChannelCompiledData
 	bool UsedByCPU()const{ return bUsedByCPU; }
 	bool UsedByGPU()const{ return bUsedByGPU; }
 	bool NeedSpawnDataTable()const { return bNeedsSpawnDataTable; }
+	bool SpawnsParticles()const { return bSpawnsParticles; }
 	int32 GetTotalParams()const{ return TotalParams; }
 
 protected:
@@ -198,6 +199,9 @@ protected:
 	UPROPERTY()
 	bool bNeedsSpawnDataTable = true;
 
+	UPROPERTY()
+	bool bSpawnsParticles = false;
+
 	/** Iterates over all scripts for the owning system and gathers all functions and parameters accessing this DI. Building the FunctionInfoTable and GPUScriptParameterInfos map.  */
 	void GatherAccessInfo(UNiagaraSystem* System, UNiagaraDataInterface* Owner);
 };
@@ -228,6 +232,8 @@ public:
 namespace NDIDataChannelUtilities
 {
 	extern const FName GetNDCSpawnDataName;
+	extern const FName SpawnConditionalName;
+	extern const FName SpawnDirectName;
 
 	const TGlobalResource<FNDIDummyUAV>& GetDummyUAVFloat();
 	const TGlobalResource<FNDIDummyUAV>& GetDummyUAVInt32();

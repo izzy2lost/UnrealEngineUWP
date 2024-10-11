@@ -43,6 +43,11 @@ namespace NDCCVars
 		FConsoleCommandDelegate::CreateStatic(FNiagaraDataChannelDebugUtilities::DumpAllWritesToLog)
 	);
 #endif
+
+
+	bool AutoUploadGPUSpawnData = true;
+	static FAutoConsoleVariableRef CVarAutoUploadGPUSpawnData(TEXT("fx.Niagara.DataChannels.AutoUploadGPUSpawnData"), AutoUploadGPUSpawnData, TEXT("When true we will automatically upload any CPU NDC data to the GPU if it has been used to spawn GPU particles."), ECVF_Default);
+
 };
 
 //////////////////////////////////////////////////////////////////////////
@@ -825,7 +830,8 @@ void FNiagaraDataChannelData::Reset()
 {
 	FScopeLock Lock(&PublishCritSec);
 	PublishRequests.Reset();
-	BuffersForGPU.Reset();
+	PublishRequestsFromGPU.Reset();
+	PublishRequestsForGPU.Reset();
 	
 	PrevCPUSimData = nullptr;	
 
@@ -875,13 +881,62 @@ void FNiagaraDataChannelData::EndFrame(UNiagaraDataChannelHandler* Owner)
 
 	if(RTProxy)
 	{
-		ENQUEUE_RENDER_COMMAND(FDataChannelProxyEndFrame) (
-			[RT_Proxy = RTProxy, RT_BuffersForGPU = MoveTemp(BuffersForGPU)](FRHICommandListImmediate& CmdList)
+		int32 TotalGPUInstances = 0;
+		//Pass over any data bound for the GPU to the render thread.
+		TArray<FNiagaraDataBufferRef> BuffersForGPU;
+		BuffersForGPU.Reserve(PublishRequestsForGPU.Num());
+		
+		//If we've used our CPU data to spawn into a GPU sim this frame then we need to pass over all our CPU data regardless of if it was marked for GPU or not.		
+		if(NumGPUSpawningReaders > 0 && NDCCVars::AutoUploadGPUSpawnData)
+		{
+			if(CPUSimData->GetCurrentData() && CPUSimData->GetCurrentData()->GetNumInstances() > 0)
 			{
-				RT_Proxy->AddBuffersFromCPU(RT_BuffersForGPU);
-			});
+				//First add our entire CPU sim data buffer.
+				BuffersForGPU.Emplace(CPUSimData->GetCurrentData());
+				TotalGPUInstances += CPUSimData->GetCurrentData()->GetNumInstances();
+			}
+
+			//Next add existing buffers we've kept around to pass to the GPU but only those that don't already exist in the main CPU buffers.
+			for(auto It = PublishRequestsForGPU.CreateIterator() ; It; ++It)
+			{
+				FNiagaraDataChannelPublishRequest& PublishRequest = *It;
+				check(PublishRequest.bVisibleToGPUSims);
+				if(!PublishRequest.bVisibleToCPUSims)
+				{
+					if(PublishRequest.Data->GetNumInstances() > 0)
+					{
+						BuffersForGPU.Emplace(PublishRequest.Data);
+						TotalGPUInstances += PublishRequest.Data->GetNumInstances();
+					}
+				}
+			}
+		}
+		else
+		{
+			//Only add data that was explicitly marked for GPU.
+			for (auto It = PublishRequestsForGPU.CreateIterator(); It; ++It)
+			{
+				FNiagaraDataChannelPublishRequest& PublishRequest = *It;
+				check(PublishRequest.bVisibleToGPUSims);
+				if (PublishRequest.Data->GetNumInstances() > 0)
+				{
+					BuffersForGPU.Emplace(PublishRequest.Data);
+					TotalGPUInstances += PublishRequest.Data->GetNumInstances();
+				}
+			}
+		}
+
+		if(TotalGPUInstances > 0)
+		{
+			ENQUEUE_RENDER_COMMAND(FDataChannelProxyEndFrame) (
+				[RT_Proxy = RTProxy, RT_BuffersForGPU = MoveTemp(BuffersForGPU)](FRHICommandListImmediate& CmdList)
+				{
+
+					RT_Proxy->AddBuffersFromCPU(RT_BuffersForGPU);
+				});
+		}		
 	}
-	BuffersForGPU.Reset();
+	PublishRequestsForGPU.Reset();
 }
 
 int32 FNiagaraDataChannelData::ConsumePublishRequests(UNiagaraDataChannelHandler* Owner, const ETickingGroup& TickGroup)
@@ -925,32 +980,43 @@ int32 FNiagaraDataChannelData::ConsumePublishRequests(UNiagaraDataChannelHandler
 
 	//Each DI that generates DataChannel can control whether it's pushed to Game/CPU/GPU.
 	int32 RequestCount = PublishRequests.Num();
-	BuffersForGPU.Reserve(BuffersForGPU.Num() + RequestCount);
+	PublishRequestsForGPU.Reserve(PublishRequestsForGPU.Num() + RequestCount);
 
 	for (FNiagaraDataChannelPublishRequest& PublishRequest : PublishRequests)
 	{
 		uint32 NumInsts = 0;
+		//Don't bother uploading to the GPU separately if we already know we're going to be sending it via the CPU data as a whole.
+		bool bAutoUploadToGPU = NDCCVars::AutoUploadGPUSpawnData && NumGPUSpawningReaders > 0 && PublishRequest.bVisibleToCPUSims;
+		bool bShouldSendToGPU = PublishRequest.bVisibleToGPUSims && !bAutoUploadToGPU;
 
 		if (FNiagaraDataChannelGameData* RequestGameData = PublishRequest.GameData.Get())
 		{
 			NumInsts = RequestGameData->Num();
-			if (RequestGameData->Num() > 0 && PublishRequest.bVisibleToGPUSims)
+			if (RequestGameData->Num() > 0 && bShouldSendToGPU)
 			{
-				//We stage the game data into a data set to facilitate easier copy over to the GPU. TODO: Send and copy the game data directly.			
+				//We stage the game data into a data set to facilitate easier copy over to the GPU. TODO: Send and copy the game data directly.	
 				FNiagaraDataBuffer* StagingBuf = &GameDataStaging->BeginSimulate();
-				StagingBuf->Allocate(NumInsts);				
+				StagingBuf->Allocate(NumInsts);
 				RequestGameData->WriteToDataSet(StagingBuf, 0, LwcTile);
-				GameDataStaging->EndSimulate();				
-				BuffersForGPU.Emplace(StagingBuf);	
+				GameDataStaging->EndSimulate();
+				FNiagaraDataChannelPublishRequest& NewGPUReq = PublishRequestsForGPU.AddDefaulted_GetRef();
+				NewGPUReq.Data = StagingBuf;
+				NewGPUReq.bVisibleToCPUSims = PublishRequest.bVisibleToCPUSims;
+				NewGPUReq.bVisibleToGPUSims = PublishRequest.bVisibleToGPUSims;
+				NewGPUReq.LwcTile = PublishRequest.LwcTile;
 			}
 		}
 		else if (ensure(PublishRequest.Data))
 		{
 			NumInsts = PublishRequest.Data->GetNumInstances();
 
-			if (NumInsts > 0 && PublishRequest.bVisibleToGPUSims)
+			if (NumInsts > 0 && bShouldSendToGPU)
 			{
-				BuffersForGPU.Add(PublishRequest.Data);
+				FNiagaraDataChannelPublishRequest& NewGPUReq = PublishRequestsForGPU.AddDefaulted_GetRef();
+				NewGPUReq.Data = PublishRequest.Data;
+				NewGPUReq.bVisibleToCPUSims = PublishRequest.bVisibleToCPUSims;
+				NewGPUReq.bVisibleToGPUSims = PublishRequest.bVisibleToGPUSims;
+				NewGPUReq.LwcTile = PublishRequest.LwcTile;
 			}
 		}
 
@@ -1055,31 +1121,6 @@ void FNiagaraDataChannelData::PublishFromGPU(const FNiagaraDataChannelPublishReq
 {
 	check(IsInGameThread());
 	PublishRequestsFromGPU.Add(Request);
-}
-
-void FNiagaraDataChannelData::RemovePublishRequests(const FNiagaraDataSet* DataSet)
-{
-	FScopeLock Lock(&PublishCritSec);
-	//TODO: Have to ensure lifetime of anything we're holding
-	for (auto It = PublishRequests.CreateIterator(); It; ++It)
-	{
-		const FNiagaraDataChannelPublishRequest& PublishRequest = *It;
-
-		//First remove any buffers we've queued up to push to the GPU
-		for (auto BufferIt = BuffersForGPU.CreateIterator(); BufferIt; ++BufferIt)
-		{
-			FNiagaraDataBuffer* Buffer = *BufferIt;
-			if (Buffer == nullptr || Buffer->GetOwner() == DataSet)
-			{
-				BufferIt.RemoveCurrentSwap();
-			}
-		}
-
-		if (PublishRequest.Data && PublishRequest.Data->GetOwner() == DataSet)
-		{
-			It.RemoveCurrentSwap();
-		}
-	}
 }
 
 const FNiagaraDataSetCompiledData& FNiagaraDataChannelData::GetCompiledData(ENiagaraSimTarget SimTarget)

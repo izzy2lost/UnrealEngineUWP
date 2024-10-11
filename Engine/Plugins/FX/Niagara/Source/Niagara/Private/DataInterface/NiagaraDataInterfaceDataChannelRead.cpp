@@ -315,7 +315,8 @@ struct FNDIDataChannelReadInstanceData_RT
 
 FNDIDataChannelReadInstanceData::~FNDIDataChannelReadInstanceData()
 {
-
+	//We must have cleared this by now in Cleanup so that we can unregister if needed.
+	check(DataChannelData == nullptr);
 }
 
 FNiagaraDataBuffer* FNDIDataChannelReadInstanceData::GetReadBufferCPU(bool bPrevFrame)const
@@ -342,6 +343,34 @@ bool FNDIDataChannelReadInstanceData::Init(UNiagaraDataInterfaceDataChannelRead*
 	bool bSuccess = Tick(Interface, Instance, true);
 	bSuccess &= PostTick(Interface, Instance);
 	return bSuccess;
+}
+
+void FNDIDataChannelReadInstanceData::Cleanup(UNiagaraDataInterfaceDataChannelRead* Interface, FNiagaraSystemInstance* Instance)
+{
+	SetDataChannelData(nullptr, Interface);
+}
+
+void FNDIDataChannelReadInstanceData::SetDataChannelData(FNiagaraDataChannelDataPtr NewData, UNiagaraDataInterfaceDataChannelRead* Interface)
+{
+	FNDIDataChannelCompiledData& CompiledData = Interface->GetCompiledData();
+	//If this interface spawns into a GPU emitter then we need to inform the NDC data so that it can automatically upload all CPU data to the GPU.
+	//Otherwise we get mis-matching data used for spawn and the subsequent reads on the GPU to init particles.
+	//It can create some very confusing janky behavior.
+	//Unfortunately we can't detect if this is directly spawning into a GPU emitter without some additional compiler/translator work.
+	//For now we can make do with checking if it's used to spawn particles and if any GPU emitters read the NDC data.
+	if(CompiledData.UsedByGPU() && CompiledData.SpawnsParticles())
+	{
+		if(DataChannelData)
+		{
+			DataChannelData->UnregisterGPUSpawningReader();
+		}
+		if(NewData)
+		{
+			NewData->RegisterGPUSpawningReader();
+		}
+	}
+
+	DataChannelData = NewData;
 }
 
 bool FNDIDataChannelReadInstanceData::Tick(UNiagaraDataInterfaceDataChannelRead* Interface, FNiagaraSystemInstance* Instance, bool bIsInit)
@@ -426,7 +455,7 @@ bool FNDIDataChannelReadInstanceData::Tick(UNiagaraDataInterfaceDataChannelRead*
 		UNiagaraDataChannelHandler* DataChannelPtr = DataChannel.Get();
 		if (DataChannelPtr == nullptr)
 		{
-			DataChannelData = nullptr;
+			SetDataChannelData(nullptr, Interface);
 			ChachedDataSetLayoutHash = INDEX_NONE;
 			UWorld* World = Instance->GetWorld();
 			if (FNiagaraWorldManager* WorldMan = FNiagaraWorldManager::Get(World))
@@ -451,7 +480,7 @@ bool FNDIDataChannelReadInstanceData::Tick(UNiagaraDataInterfaceDataChannelRead*
 			{
 				//TODO: Automatically modify tick group if we have DIs that require current frame info?
 				FNiagaraDataChannelSearchParameters SearchParams(Instance->GetAttachComponent());
-				DataChannelData = DataChannelPtr->FindData(SearchParams, ENiagaraResourceAccess::ReadOnly);//TODO: Maybe should have two paths, one for system instances and another for SceneComponents...
+				SetDataChannelData(DataChannelPtr->FindData(SearchParams, ENiagaraResourceAccess::ReadOnly), Interface);//TODO: Maybe should have two paths, one for system instances and another for SceneComponents...
 			}	
 
 			if(const UNiagaraDataChannel* ChannelPtr = DataChannelPtr->GetDataChannel())
@@ -606,6 +635,7 @@ bool UNiagaraDataInterfaceDataChannelRead::InitPerInstanceData(void* PerInstance
 void UNiagaraDataInterfaceDataChannelRead::DestroyPerInstanceData(void* PerInstanceData, FNiagaraSystemInstance* SystemInstance)
 {
 	FNDIDataChannelReadInstanceData* InstanceData = static_cast<FNDIDataChannelReadInstanceData*>(PerInstanceData);
+	InstanceData->Cleanup(this, SystemInstance);
 	InstanceData->~FNDIDataChannelReadInstanceData();
 
 	ENQUEUE_RENDER_COMMAND(RemoveProxy)

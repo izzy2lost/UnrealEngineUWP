@@ -211,11 +211,15 @@ void FNDIDataChannelCompiledData::GatherAccessInfo(UNiagaraSystem* System, UNiag
 		{
 			bNeedsSpawnDataTable = true;
 		}
+		
+		if (BindingInfo.Name == NDIDataChannelUtilities::SpawnConditionalName || BindingInfo.Name == NDIDataChannelUtilities::SpawnDirectName)
+		{
+			bSpawnsParticles = true;			
+		}
 
 		return true;
 	};
 	FNiagaraDataInterfaceUtilities::ForEachVMFunction(Owner, System, HandleVMFunc);
-
 
 	//For every GPU script we iterate over the functions it calls and add each of them to the mapping.
 	//This will then be placed in a buffer for the RT to pass to the GPU so that each script can look up the correct function layout info.
@@ -288,6 +292,8 @@ int32 FNDIDataChannelCompiledData::FindFunctionInfoIndex(FName Name, const TArra
 namespace NDIDataChannelUtilities
 {
 	const FName GetNDCSpawnDataName(TEXT("GetNDCSpawnData"));
+	const FName SpawnConditionalName(TEXT("SpawnConditional"));
+	const FName SpawnDirectName(TEXT("SpawnConditional"));
 	const TGlobalResource<FNDIDummyUAV> DummyUAVFloat(PF_R32_FLOAT, sizeof(float));
 	const TGlobalResource<FNDIDummyUAV> DummyUAVInt32(PF_R32_SINT, sizeof(int32));
 	const TGlobalResource<FNDIDummyUAV> DummyUAVHalf(PF_R16F, sizeof(FFloat16));
