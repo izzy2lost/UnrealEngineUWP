@@ -234,19 +234,19 @@ private:
 	{
 		if (ISettingsModule* SettingsModule = FModuleManager::GetModulePtr<ISettingsModule>("Settings"))
 		{
-			SettingsModule->RegisterSettings("Editor", "Plugins", "LiveLink",
+			SettingsModule->RegisterSettings("Editor", "Plugins", "Live Link",
 				LOCTEXT("EditorSettingsName", "Live Link"),
 				LOCTEXT("EditorSettingsDescription", "Configure Live Link."),
 				GetMutableDefault<ULiveLinkEditorSettings>()
 			);
 
-			SettingsModule->RegisterSettings("Project", "Plugins", "LiveLink",
+			SettingsModule->RegisterSettings("Project", "Plugins", "Live Link",
 				LOCTEXT("LiveLinkSettingsName", "Live Link"),
 				LOCTEXT("LiveLinkDescription", "Configure the Live Link plugin."),
 				GetMutableDefault<ULiveLinkSettings>()
 			);
 
-			SettingsModule->RegisterSettings("Project", "Plugins", "LiveLinkComponent",
+			SettingsModule->RegisterSettings("Project", "Plugins", "Live Link Component",
 				LOCTEXT("LiveLinkComponentSettingsName", "Live Link Component"),
 				LOCTEXT("LiveLinkComponentDescription", "Configure the Live Link Component."),
 				GetMutableDefault<ULiveLinkComponentSettings>()
@@ -260,9 +260,9 @@ private:
 		ISettingsModule* SettingsModule = FModuleManager::GetModulePtr<ISettingsModule>("Settings");
 		if (SettingsModule != nullptr)
 		{
-			SettingsModule->UnregisterSettings("Project", "Plugins", "LiveLinkComponent");
-			SettingsModule->UnregisterSettings("Project", "Plugins", "LiveLink");
-			SettingsModule->UnregisterSettings("Editor", "Plugins", "LiveLink");
+			SettingsModule->UnregisterSettings("Project", "Plugins", "Live Link Component");
+			SettingsModule->UnregisterSettings("Project", "Plugins", "Live Link");
+			SettingsModule->UnregisterSettings("Editor", "Plugins", "Live Link");
 		}
 	}
 
