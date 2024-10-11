@@ -42,8 +42,8 @@ public:
 	 * Note that it is not required to manually refresh the cloth asset, this is done automatically when there is a change in the Dataflow.
 	 * This function is a developper utility used for debugging.
 	 */
-	UPROPERTY(EditAnywhere, Transient, Category = "Cloth Asset Terminal", Meta = (ButtonImage = "Icons.Refresh"))
-	FDataflowFunctionProperty RefreshAsset;
+	UPROPERTY(EditAnywhere, Transient, Category = "Cloth Asset Terminal", Meta = (DisplayName = "Refresh Asset", ButtonImage = "Icons.Refresh"))
+	FDataflowFunctionProperty Refresh;
 
 	FChaosClothAssetTerminalNode_v2(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
 
@@ -70,11 +70,6 @@ private:
 	mutable uint32 ClothColllectionChecksum = 0;
 	static constexpr int32 NumRequiredInputs = 0;
 	static constexpr int32 NumInitialCollectionLods = 1;
-
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	UPROPERTY()
-	FChaosClothAssetTerminalNodeRefreshAsset RefreshAssetOld_DEPRECATED;
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
 };
 
 /** Cloth terminal node to generate a cloth asset from a cloth collection. */
