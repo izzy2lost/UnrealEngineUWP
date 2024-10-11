@@ -8,6 +8,7 @@
 #include "GeometryCollection/Facades/CollectionKinematicBindingFacade.h"
 #include "GeometryCollection/Facades/CollectionPositionTargetFacade.h"
 #include "GeometryCollection/Facades/CollectionVertexBoneWeightsFacade.h"
+#include "GeometryCollection/Facades/CollectionTransformFacade.h"
 #include "Rendering/SkeletalMeshModel.h"
 #include "Rendering/SkeletalMeshRenderData.h"
 #include "BoneWeights.h"
@@ -28,13 +29,10 @@ void FSetFleshBonePositionTargetBindingDataflowNode::Evaluate(UE::Dataflow::FCon
 			const TManagedArray<FVector3f>* Vertices = InCollection.FindAttribute<FVector3f>("Vertex", FGeometryCollection::VerticesGroup);
 			const TManagedArray<FTransform3f>* Transform = InCollection.FindAttribute<FTransform3f>("Transform", FTransformCollection::TransformGroup);
 			const TManagedArray<FString>* TransformBoneName = InCollection.FindAttribute<FString>("BoneName", FTransformCollection::TransformGroup);
+			GeometryCollection::Facades::FCollectionTransformFacade TransformFacade(InCollection);
 			if (Indices && Vertices && Transform && TransformBoneName)
 			{
-				TMap<FString, int32> BoneNameIndexMap;
-				for (int32 BoneIndex = 0; BoneIndex < TransformBoneName->Num(); ++BoneIndex)
-				{
-					BoneNameIndexMap.Add((*TransformBoneName)[BoneIndex], BoneIndex);
-				}
+				const TMap<FString, int32> BoneNameIndexMap = TransformFacade.BoneNameIndexMap();
 				FSkeletalMeshRenderData* RenderData = BoneSkeletalMesh->GetResourceForRendering();
 				if (RenderData->LODRenderData.Num())
 				{

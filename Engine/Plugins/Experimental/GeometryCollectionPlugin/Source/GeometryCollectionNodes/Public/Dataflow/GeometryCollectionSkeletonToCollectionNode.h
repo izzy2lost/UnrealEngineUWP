@@ -16,8 +16,8 @@ namespace UE_DEPRECATED(5.5, "Use UE::Dataflow instead.") Dataflow {}
 
 class USkeletalMesh;
 
-USTRUCT(meta = (DataflowGeometryCollection))
-struct FSkeletonToCollectionDataflowNode : public FDataflowNode
+USTRUCT(meta = (DataflowGeometryCollection, Deprecated = "5.5"))
+struct UE_DEPRECATED(5.5, "Use SkeletalMeshToCollection instead") FSkeletonToCollectionDataflowNode : public FDataflowNode
 {
 	GENERATED_USTRUCT_BODY()
 	DATAFLOW_NODE_DEFINE_INTERNAL(FSkeletonToCollectionDataflowNode, "SkeletonToCollection", "GeometryCollection", "")

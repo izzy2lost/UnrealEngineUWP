@@ -701,16 +701,18 @@ namespace Chaos::Softs
 			Resize(InitialWCSize + Particles.Size());
 			std::atomic<int32> ConstraintIndex(InitialWCSize);
 			const TArray<TVec3<int32>>& Elements = TriangleMesh.GetSurfaceElements();
+			const float HalfRadius = DetectRadius / 2;
 			PhysicsParallelFor(SurfaceVertices.Num(),
-				[this, &Spatial, &Particles, &SurfaceVertices, &ConstraintIndex, &TriangleMesh, &Elements, &DetectRadius, &ComponentIndex, &PositionTargetStiffness, &UseAnisotropicSpring](int32 i)
+				[this, &Spatial, &Particles, &SurfaceVertices, &ConstraintIndex, &TriangleMesh, &Elements, &HalfRadius, &ComponentIndex, &PositionTargetStiffness, &UseAnisotropicSpring](int32 i)
 				{
 					const int32 Index = SurfaceVertices[i];
 					TArray< TTriangleCollisionPoint<FSolverReal>> Result;
 					//PointProximityQuery
-					if (TriangleMesh.PointClosestTriangleQuery(Spatial, static_cast<const TArrayView<const FSolverVec3>&>(Particles.XArray()), Index, Particles.GetX(Index), DetectRadius, DetectRadius,
+					if (TriangleMesh.PointClosestTriangleQuery(Spatial, static_cast<const TArrayView<const FSolverVec3>&>(Particles.XArray()), Index, Particles.GetX(Index), HalfRadius, HalfRadius,
 						[this, &ComponentIndex, &Elements](const int32 PointIndex, const int32 TriangleIndex)->bool
 						{
-							return ComponentIndex[PointIndex] != ComponentIndex[Elements[TriangleIndex][0]];
+							//Skip particles that are bound in initial springs
+							return ComponentIndex[PointIndex] != ComponentIndex[Elements[TriangleIndex][0]] && (!NoCollisionWCIncidentElements.IsValidIndex(PointIndex) || NoCollisionWCIncidentElements[PointIndex].Num() == 0);
 						},
 						Result))
 					{
@@ -749,19 +751,20 @@ namespace Chaos::Softs
 		}
 
 		template<typename SpatialAccelerator>
-		void CollisionDetectionSpatialHashInComponent(const FSolverParticles& Particles, const TArray<int32>& SurfaceVertices, const FTriangleMesh& TriangleMesh, const TMap<int32, TSet<int32>>& ExcludeMap, const SpatialAccelerator& Spatial, float DetectRadius = 1.f, float PositionTargetStiffness = 10000.f, bool UseAnisotropicSpring = true)
+		void CollisionDetectionSpatialHashInComponent(const FSolverParticles& Particles, const TArray<int32>& SurfaceVertices, const FTriangleMesh& TriangleMesh, const TMap<int32, TSet<int32>>& ExcludeMap, const SpatialAccelerator& Spatial, float DetectRadius = 0.f, float PositionTargetStiffness = 10000.f, bool UseAnisotropicSpring = true)
 		{
 			TRACE_CPUPROFILER_EVENT_SCOPE(STAT_ChaosGaussSeidelWeakConstraintsCollisionDetectionSpatialHashInComponent);
 			Resize(InitialWCSize + Particles.Size());
 			std::atomic<int32> ConstraintIndex(InitialWCSize);
 			const TArray<TVec3<int32>>& Elements = TriangleMesh.GetSurfaceElements();
+			const float HalfRadius = DetectRadius/2;
 			PhysicsParallelFor(SurfaceVertices.Num(),
-				[this, &Spatial, &Particles, &SurfaceVertices, &ConstraintIndex, &TriangleMesh, &ExcludeMap, &Elements, &DetectRadius, &PositionTargetStiffness, &UseAnisotropicSpring](int32 i)
+				[this, &Spatial, &Particles, &SurfaceVertices, &ConstraintIndex, &TriangleMesh, &ExcludeMap, &Elements, &HalfRadius, &PositionTargetStiffness, &UseAnisotropicSpring](int32 i)
 				{
 					const int32 Index = SurfaceVertices[i];
 					TArray< TTriangleCollisionPoint<FSolverReal>> Result;
 					//PointProximityQuery
-					if (TriangleMesh.PointClosestTriangleQuery(Spatial, static_cast<const TArrayView<const FSolverVec3>&>(Particles.XArray()), Index, Particles.GetX(Index), DetectRadius, DetectRadius,
+					if (TriangleMesh.PointClosestTriangleQuery(Spatial, static_cast<const TArrayView<const FSolverVec3>&>(Particles.XArray()), Index, Particles.GetX(Index), HalfRadius, HalfRadius,
 						[this, &Elements, &ExcludeMap](const int32 PointIndex, const int32 TriangleIndex)->bool
 						{	
 							return  !(ExcludeMap.Find(PointIndex) && ExcludeMap[PointIndex].Contains(TriangleIndex));
