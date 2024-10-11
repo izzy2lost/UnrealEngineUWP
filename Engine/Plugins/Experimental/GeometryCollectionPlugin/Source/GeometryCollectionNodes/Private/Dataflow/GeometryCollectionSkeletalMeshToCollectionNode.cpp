@@ -25,7 +25,7 @@ void FSkeletalMeshToCollectionDataflowNode::Evaluate(UE::Dataflow::FContext& Con
 		TObjectPtr<const USkeletalMesh> InSkeletalMesh = GetValue<TObjectPtr<const USkeletalMesh>>(Context, &SkeletalMesh);
 		if (InSkeletalMesh)
 		{
-			FGeometryCollectionEngineConversion::AppendSkeletalMesh(InSkeletalMesh, 0, FTransform::Identity, &OutCollection);
+			FGeometryCollectionEngineConversion::AppendSkeletalMesh(InSkeletalMesh, 0, FTransform::Identity, &OutCollection, /*bReindexMaterials = */ true, bImportTransformOnly);
 		}
 		SetValue(Context, FManagedArrayCollection(OutCollection), &Collection);
 	}

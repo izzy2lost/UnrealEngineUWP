@@ -49,6 +49,18 @@ namespace GeometryCollection::Facades
 		return FString();
 	}
 
+	TMap<FString, int32> FCollectionTransformFacade::BoneNameIndexMap() const
+	{
+		TMap<FString, int32> BoneNameToIndex;
+		if (BoneNameAttribute.IsValid())
+		{
+			for (int32 BoneIdx = 0; BoneIdx < BoneNameAttribute.Num(); ++BoneIdx)
+			{
+				BoneNameToIndex.Add(BoneNameAttribute[BoneIdx], BoneIdx);
+			}
+		}
+		return MoveTemp(BoneNameToIndex);
+	}
 
 	TArray<int32> FCollectionTransformFacade::GetRootIndices() const
 	{

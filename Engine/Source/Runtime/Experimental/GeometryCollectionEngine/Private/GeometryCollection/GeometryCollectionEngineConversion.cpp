@@ -1137,19 +1137,12 @@ void FGeometryCollectionEngineConversion::AppendGeometryCollection(const UGeomet
 
 
 bool FGeometryCollectionEngineConversion::AppendSkeletalMesh(const USkeletalMesh* InSkeletalMesh, int32 MaterialStartIndex, const FTransform& SkeletalMeshTransform, 
-	FManagedArrayCollection* InManagedArrayCollection, bool bReindexMaterials)
+	FManagedArrayCollection* InManagedArrayCollection, bool bReindexMaterials, bool bImportTransformOnly)
 {
 	//UE_LOG(UGeometryCollectionConversionLogging, Log, TEXT("FGeometryCollectionEngineConversion::AppendSkeletalMesh()"));
 #if WITH_EDITOR
 	int LODIndex = 0;
 	if (!InManagedArrayCollection)
-	{
-		return false;
-	}
-
-
-	FMeshDescription MeshDescription;
-	if (!InSkeletalMesh->CloneMeshDescription(LODIndex, MeshDescription))
 	{
 		return false;
 	}
@@ -1163,18 +1156,6 @@ bool FGeometryCollectionEngineConversion::AppendSkeletalMesh(const USkeletalMesh
 	TManagedArray<FLinearColor>& BoneColor = GeometryCollection.ModifyAttribute<FLinearColor>("BoneColor", FTransformCollection::TransformGroup);
 	TManagedArray<FString>& BoneName = GeometryCollection.ModifyAttribute<FString>("BoneName", FTransformCollection::TransformGroup);
 	TManagedArray<int32>& SimulationType = GeometryCollection.ModifyAttribute<int32>("SimulationType", FTransformCollection::TransformGroup);
-	// Vertices Attributes
-	TManagedArray<FVector3f>& Vertex = GeometryCollection.ModifyAttribute<FVector3f>("Vertex", FGeometryCollection::VerticesGroup);
-	TManagedArray<FVector3f>& Normal = GeometryCollection.ModifyAttribute<FVector3f>("Normal", FGeometryCollection::VerticesGroup);
-	TManagedArray<FLinearColor>& Color = GeometryCollection.ModifyAttribute<FLinearColor>("Color", FGeometryCollection::VerticesGroup);
-	TManagedArray<FVector3f>& TangentU = GeometryCollection.ModifyAttribute<FVector3f>("TangentU", FGeometryCollection::VerticesGroup);
-	TManagedArray<FVector3f>& TangentV = GeometryCollection.ModifyAttribute<FVector3f>("TangentV", FGeometryCollection::VerticesGroup);
-	TManagedArray<int32>& BoneMap = GeometryCollection.ModifyAttribute<int32>("BoneMap", FGeometryCollection::VerticesGroup);
-	// Index Attributes
-	TManagedArray<FIntVector>& Indices = GeometryCollection.ModifyAttribute<FIntVector>("Indices", FGeometryCollection::FacesGroup);
-	TManagedArray<bool>& Visible = GeometryCollection.ModifyAttribute<bool>("Visible", FGeometryCollection::FacesGroup);
-	TManagedArray<int32>& MaterialIndex = GeometryCollection.ModifyAttribute<int32>("MaterialIndex", FGeometryCollection::FacesGroup);
-	TManagedArray<int32>& MaterialID = GeometryCollection.ModifyAttribute<int32>("MaterialID", FGeometryCollection::FacesGroup);
 
 	//
 	// Convert the transform hierarchy
@@ -1183,7 +1164,7 @@ bool FGeometryCollectionEngineConversion::AppendSkeletalMesh(const USkeletalMesh
 	int32 TransformBaseIndex = INDEX_NONE;
 	const USkeleton* Skeleton = InSkeletalMesh->GetSkeleton();
 	const TArray<FTransform>& RestArray = Skeleton->GetRefLocalPoses();
-	const FReferenceSkeleton& ReferenceSkeleton = Skeleton->GetReferenceSkeleton();
+	const FReferenceSkeleton& ReferenceSkeleton = InSkeletalMesh->GetRefSkeleton();
 
 	if (ReferenceSkeleton.GetNum())
 	{
@@ -1219,6 +1200,30 @@ bool FGeometryCollectionEngineConversion::AppendSkeletalMesh(const USkeletalMesh
 		TransformSourceFacade.AddTransformSource(Skeleton->GetName(), Skeleton->GetGuid().ToString(), Roots);
 	}
 
+	if (bImportTransformOnly)
+	{
+		GeometryCollection.CopyTo(InManagedArrayCollection);
+		return true;
+	}
+
+	FMeshDescription MeshDescription;
+	if (!InSkeletalMesh->CloneMeshDescription(LODIndex, MeshDescription))
+	{
+		return false;
+	}
+
+	// Vertices Attributes
+	TManagedArray<FVector3f>& Vertex = GeometryCollection.ModifyAttribute<FVector3f>("Vertex", FGeometryCollection::VerticesGroup);
+	TManagedArray<FVector3f>& Normal = GeometryCollection.ModifyAttribute<FVector3f>("Normal", FGeometryCollection::VerticesGroup);
+	TManagedArray<FLinearColor>& Color = GeometryCollection.ModifyAttribute<FLinearColor>("Color", FGeometryCollection::VerticesGroup);
+	TManagedArray<FVector3f>& TangentU = GeometryCollection.ModifyAttribute<FVector3f>("TangentU", FGeometryCollection::VerticesGroup);
+	TManagedArray<FVector3f>& TangentV = GeometryCollection.ModifyAttribute<FVector3f>("TangentV", FGeometryCollection::VerticesGroup);
+	TManagedArray<int32>& BoneMap = GeometryCollection.ModifyAttribute<int32>("BoneMap", FGeometryCollection::VerticesGroup);
+	// Index Attributes
+	TManagedArray<FIntVector>& Indices = GeometryCollection.ModifyAttribute<FIntVector>("Indices", FGeometryCollection::FacesGroup);
+	TManagedArray<bool>& Visible = GeometryCollection.ModifyAttribute<bool>("Visible", FGeometryCollection::FacesGroup);
+	TManagedArray<int32>& MaterialIndex = GeometryCollection.ModifyAttribute<int32>("MaterialIndex", FGeometryCollection::FacesGroup);
+	TManagedArray<int32>& MaterialID = GeometryCollection.ModifyAttribute<int32>("MaterialID", FGeometryCollection::FacesGroup);
 
 	//
 	// Identify disconnected geoemtry
@@ -1491,7 +1496,8 @@ void FGeometryCollectionEngineConversion::AppendSkeletalMesh(const USkeletalMesh
 		if (FGeometryCollection* GeometryCollection = GeometryCollectionPtr.Get())
 		{
 			int32 MaterialStart = GeometryCollectionObject->Materials.Num();
-			if (AppendSkeletalMesh(SkeletalMesh, MaterialStart, SkeletalMeshTransform, GeometryCollection, bReindexMaterials))
+			constexpr bool bImportTransformOnly = false;
+			if (AppendSkeletalMesh(SkeletalMesh, MaterialStart, SkeletalMeshTransform, GeometryCollection, bReindexMaterials, bImportTransformOnly))
 			{
 				AppendSkeletalMeshMaterials(SkeletalMesh, SkeletalMeshComponent, GeometryCollectionObject);
 			}
@@ -1562,7 +1568,8 @@ bool FGeometryCollectionEngineConversion::AppendGeometryCollectionSourceNoMateri
 				StartMaterialIndex,
 				GeometryCollectionSource.LocalTransform,
 				&GeometryCollectionInOut,
-				ReindexMaterials
+				ReindexMaterials,
+				false
 				);
 			return true;
 		}

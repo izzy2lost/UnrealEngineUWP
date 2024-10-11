@@ -5,6 +5,7 @@
 #include "Engine/SkeletalMesh.h"
 #include "GeometryCollection/Facades/CollectionKinematicBindingFacade.h"
 #include "GeometryCollection/Facades/CollectionVertexBoneWeightsFacade.h"
+#include "GeometryCollection/Facades/CollectionTransformFacade.h"
 #include "Rendering/SkeletalMeshRenderData.h"
 #include "BoneWeights.h"
 
@@ -60,6 +61,8 @@ void FKinematicMuscleAttachmentsDataflowNode::Evaluate(UE::Dataflow::FContext& C
 						{
 							return;
 						}
+						GeometryCollection::Facades::FCollectionTransformFacade TransformFacade(InCollection);
+						const TMap<FString, int32> BoneNameToIndex = TransformFacade.BoneNameIndexMap();
 						auto DoubleVert = [](FVector3f V) { return FVector3d(V.X, V.Y, V.Z); };
 						for (int32 i = 0; i < BoundVerts.Num(); i++)
 						{
@@ -102,9 +105,9 @@ void FKinematicMuscleAttachmentsDataflowNode::Evaluate(UE::Dataflow::FContext& C
 								//get local coords of bound verts
 								typedef GeometryCollection::Facades::FKinematicBindingFacade FKinematics;
 								FKinematics Kinematics(InCollection); Kinematics.DefineSchema();
-								if (Kinematics.IsValid())
+								if (Kinematics.IsValid() && BoneNameToIndex.Contains(BoneName))
 								{
-									FKinematics::FBindingKey Binding = Kinematics.SetBoneBindings(BoneIndex, BoneBoundVerts[BoneIndex], BoneBoundWeights[BoneIndex]);
+									FKinematics::FBindingKey Binding = Kinematics.SetBoneBindings(BoneNameToIndex[BoneName], BoneBoundVerts[BoneIndex], BoneBoundWeights[BoneIndex]);
 									TManagedArray<TArray<FVector3f>>& LocalPos = InCollection.AddAttribute<TArray<FVector3f>>("LocalPosition", Binding.GroupName);
 									Kinematics.AddKinematicBinding(Binding);
 

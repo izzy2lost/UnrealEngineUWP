@@ -80,6 +80,8 @@ namespace GeometryCollection::Facades
 		/** Get a bone name from the index if the facade has the attribute defined. */
 		CHAOS_API FString BoneName(int32 Index) const;
 
+		/** Get a TMap from bone name to bone index if the facade has the attribute defined. */
+		CHAOS_API TMap<FString, int32> BoneNameIndexMap() const;
 
 		/** Builds a FMatrix from all the components */
 		static CHAOS_API FMatrix BuildMatrix(const FVector& Translate,
