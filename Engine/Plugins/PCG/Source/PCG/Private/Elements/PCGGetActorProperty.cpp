@@ -148,7 +148,7 @@ bool FPCGGetActorPropertyElement::IsCacheable(const UPCGSettings* InSettings) co
 {
 	if (const UPCGGetActorPropertySettings* Settings = Cast<UPCGGetActorPropertySettings>(InSettings))
 	{
-		return Settings->bAlwaysRequeryActors;
+		return !Settings->bAlwaysRequeryActors;
 	}
 	else
 	{
