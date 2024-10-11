@@ -155,7 +155,7 @@ namespace HordeAgent.Services
 			AgentRegistration? registrationInfo = registrationList.Entries.FirstOrDefault(x => x.Server == serverProfile.Url);
 			if (registrationInfo == null)
 			{
-				statusService.Set(AgentStatusMessage.WaitingForEnrollment);
+				statusService.SetDescription(AgentStatusMessage.WaitingForEnrollment);
 
 				registrationInfo = await RegisterAgentAsync(grpcService, currentSettings, capabilities, logger, cancellationToken);
 				registrationList.Entries.Add(registrationInfo);
@@ -169,7 +169,7 @@ namespace HordeAgent.Services
 			}
 
 			// Create the session
-			statusService.Set(AgentStatusMessage.ConnectingToServer);
+			statusService.SetDescription(AgentStatusMessage.ConnectingToServer);
 
 			RpcCreateSessionResponse createSessionResponse;
 			await using (HordeClient sessionClient = hordeClientFactory.Create(accessToken: registrationInfo.Token))

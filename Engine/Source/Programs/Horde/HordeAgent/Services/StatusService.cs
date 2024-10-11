@@ -74,7 +74,7 @@ namespace HordeAgent.Services
 		/// </summary>
 		public StatusService(IOptionsMonitor<AgentSettings> settings, ILogger<StatusService> logger)
 		{
-			_current = AgentStatusMessage.Starting;
+			_current = new AgentStatusMessage(true, 0, AgentStatusMessage.Starting);
 			_settings = settings;
 			_task = new BackgroundTask(RunPipeServerAsync);
 			_logger = logger;

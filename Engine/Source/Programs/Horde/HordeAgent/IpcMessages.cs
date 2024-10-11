@@ -174,16 +174,16 @@ namespace HordeAgent
 		/// <summary>
 		/// Static status object for starting an agent
 		/// </summary>
-		public static AgentStatusMessage Starting { get; } = new AgentStatusMessage(true, 0, "Starting up...");
+		public const string Starting = "Starting up...";
 
 		/// <summary>
 		/// Agent is waiting to be enrolled with the server
 		/// </summary>
-		public static AgentStatusMessage WaitingForEnrollment { get; } = new AgentStatusMessage(true, 0, "Waiting for enrollment...");
+		public const string WaitingForEnrollment = "Waiting for enrollment...";
 
 		/// <summary>
 		/// Agent is connecting to the server
 		/// </summary>
-		public static AgentStatusMessage ConnectingToServer { get; } = new AgentStatusMessage(true, 0, "Connecting to server...");
+		public const string ConnectingToServer = "Connecting to server...";
 	}
 }
