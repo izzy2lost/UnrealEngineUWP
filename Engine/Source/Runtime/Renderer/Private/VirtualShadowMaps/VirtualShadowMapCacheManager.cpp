@@ -1628,6 +1628,8 @@ void FVirtualShadowMapArrayCacheManager::ProcessInvalidations(
 	const FInvalidationPassCommon& InvalidationPassCommon,
 	const FInstanceGPULoadBalancer& Instances) const
 {
+	RDG_GPU_MASK_SCOPE(GraphBuilder, CacheValidGPUMask);
+
 	check(InvalidationPassCommon.UniformParameters->NumFullShadowMaps > 0);
 	check(!Instances.IsEmpty());
 

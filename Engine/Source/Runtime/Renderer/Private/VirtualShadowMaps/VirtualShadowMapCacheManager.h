@@ -280,6 +280,32 @@ public:
 	bool IsCacheDataAvailable();
 	bool IsHZBDataAvailable();
 
+	FRHIGPUMask GetCacheValidGPUMask() const
+	{
+#if WITH_MGPU
+		return CacheValidGPUMask;
+#else
+		return FRHIGPUMask::GPU0();
+#endif
+	}
+
+	void UpdateCacheValidGPUMask(FRHIGPUMask GPUMask, bool bMergeMask)
+	{
+#if WITH_MGPU
+		if (bMergeMask)
+		{
+			CacheValidGPUMask |= GPUMask;
+		}
+		else
+		{
+			// To handle initialization when first allocating cache resources, we overwrite the mask.  This is necessary because the FRHIGPUMask doesn't
+			// support empty masks.  Also, this deals with cases where the cache is cleared -- the cache resources will be missing, and it can use this
+			// code path to set the mask to a known state when they get re-created.
+			CacheValidGPUMask = GPUMask;
+		}
+#endif
+	}
+
 	bool IsAccumulatingStats();
 
 	using FInstanceGPULoadBalancer = TInstanceCullingLoadBalancer<SceneRenderingAllocator>;
@@ -468,6 +494,10 @@ private:
 
 	FScene* Scene;
 	FShadowInvalidatingInstancesImplementation ShadowInvalidatingInstancesImplementation;
+
+#if WITH_MGPU
+	FRHIGPUMask CacheValidGPUMask;
+#endif
 };
 
 
