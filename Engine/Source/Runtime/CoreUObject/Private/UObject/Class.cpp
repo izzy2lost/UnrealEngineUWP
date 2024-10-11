@@ -1879,8 +1879,9 @@ void UStruct::SerializeVersionedTaggedProperties(FStructuredArchive::FSlot Slot,
 				if (bAdvanceProperty)
 				{
 					checkf(Tag.Size == Loaded,
-						TEXT("Size mismatch in %s of %s of type %s. Loaded %" INT64_FMT " bytes but expected %d. Package: %s. Property '%s' has outer '%s'."),
-						*Tag.Name.ToString(), *GetName(), *WriteToString<64>(Tag.GetType()), Loaded, Tag.Size, *UnderlyingArchive.GetArchiveName(), *Property->GetName(), *Property->GetOwnerVariant().GetFullName());
+						TEXT("Size mismatch in %s of %s of type %s. Loaded %" INT64_FMT " bytes but expected %d. Package: %s. Property: '%s'. Type: '%s'."),
+						*Tag.Name.ToString(), *GetName(), *WriteToString<64>(Tag.GetType()), Loaded, Tag.Size, *UnderlyingArchive.GetArchiveName(),
+						Property ? *Property->GetName() : TEXT(""), *GetFullName());
 				}
 				else if (Tag.Size != Loaded)
 				{
