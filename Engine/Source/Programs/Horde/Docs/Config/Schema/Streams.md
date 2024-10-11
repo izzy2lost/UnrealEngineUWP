@@ -477,6 +477,7 @@ Name | Description
 `allowMentions` | `boolean`<br>Whether to mention people on this thread. Useful to disable for testing.
 `inviteRestrictedUsers` | `boolean`<br>Uses the admin.conversations.invite API to invite users to the channel
 `skipWhenEmpty` | `boolean`<br>Skips sending reports when there are no active issues.
+`showMergeWarnings` | `boolean`<br>Whether to show warnings about merging changes into the origin stream.
 `annotations` | `string` `->` `string`<br>Additional node annotations implicit in this workflow
 `externalIssues` | [ExternalIssueConfig](#externalissueconfig)<br>External issue tracking configuration for this workflow
 `issueHandlers` | `string[]`<br>Additional issue handlers enabled for this workflow
