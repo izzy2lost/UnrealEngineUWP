@@ -256,13 +256,6 @@ public class EOSSDK : ModuleRules
 		// Don't stage SDK binaries if we're not linking against the SDK, or if this is a unique build environment and a project binary is being provided
 		bool bEnableStage = bEnableLink && !(bIsUniqueBuildEnv && HasProjectBinary);
 
-		if (bEnableLink && Target.Platform == UnrealTargetPlatform.LinuxArm64)
-        {
-			// Not supported yet for non-project binaries.
-			PublicDefinitions.Add("WITH_EOS_SDK=0");
-			return;
-        }
-
 		PublicDefinitions.Add("WITH_EOS_SDK=1");
 		PublicSystemIncludePaths.Add(SDKIncludesDir);
 
