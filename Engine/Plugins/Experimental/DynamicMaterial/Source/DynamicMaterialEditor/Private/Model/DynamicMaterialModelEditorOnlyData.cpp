@@ -573,7 +573,14 @@ void UDynamicMaterialModelEditorOnlyData::BuildMaterial(bool bInDirtyAssets)
 	 */
 	BuildState.Reset();
 
-	MaterialStats = UMaterialEditingLibrary::GetStatistics(MaterialModel->DynamicMaterial);
+	/**
+	 * GetStatistics can call the GC which could potentially delete the material under us.
+	 * Add a reference to it while getting statistics to prevent it being destroyed.
+	 */
+	{
+		TStrongObjectPtr<UObject> ScopeReference(MaterialModel->DynamicMaterial);
+		MaterialStats = UMaterialEditingLibrary::GetStatistics(MaterialModel->DynamicMaterial);
+	}
 
 	State = EDMState::Idle;
 
