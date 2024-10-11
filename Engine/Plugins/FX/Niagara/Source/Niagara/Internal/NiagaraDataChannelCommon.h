@@ -88,14 +88,6 @@ struct FNiagaraDataChannelData final : public TSharedFromThis<FNiagaraDataChanne
 	NIAGARA_API void Publish(const FNiagaraDataChannelPublishRequest& Request);
 
 	NIAGARA_API void PublishFromGPU(const FNiagaraDataChannelPublishRequest& Request);
-		
-	/**
-	 *Removes all publish requests involving the given dataset.
-	 *TODO: REMOVE
-	 *This is a hack to get around lifetime issues wrt data buffers/datasets and their compiled data.
-	 *We should rework things such that data buffers can exist beyond their owning dataset, including the compiled data detailing their layout.
-	 **/
-	NIAGARA_API void RemovePublishRequests(const FNiagaraDataSet* DataSet);
 
 	NIAGARA_API const FNiagaraDataSetCompiledData& GetCompiledData(ENiagaraSimTarget SimTarget);
 
@@ -107,6 +99,9 @@ struct FNiagaraDataChannelData final : public TSharedFromThis<FNiagaraDataChanne
 
 	void DestroyRenderThreadProxy(FNiagaraGpuComputeDispatchInterface* ComputeDispatchInterface);
 
+	void RegisterGPUSpawningReader() { ++NumGPUSpawningReaders; }
+	void UnregisterGPUSpawningReader() { --NumGPUSpawningReaders; }
+	int32 NumRegisteredGPUSpawningReaders()const{ return NumGPUSpawningReaders; }
 private:
 
 	void CreateRenderThreadProxy(UNiagaraDataChannelHandler* Owner);
@@ -125,7 +120,7 @@ private:
 	FNiagaraDataSet* GameDataStaging = nullptr;
 
 	/** Data buffers we'll be passing to the RT proxy for uploading to the GPU */
-	TArray<FNiagaraDataBufferRef> BuffersForGPU;
+	TArray<FNiagaraDataChannelPublishRequest> PublishRequestsForGPU;
 
 	/** Render thread proxy for this data. Owns all RT side data meant for GPU simulations. */
 	FNiagaraDataChannelDataProxyPtr RTProxy;
@@ -146,4 +141,11 @@ private:
 
 	//Keep reference to the layout this data was built with.
 	FNiagaraDataChannelLayoutInfoPtr LayoutInfo;
+
+	/** 
+	Track number of explicitly registered readers that spawn GPU particles from this data.
+	If we're spawning GPU particles using the CPU data (Spawn Conditional etc) then we have to send all CPU data to the GPU every frame.
+	Can possibly extend this to be a more automatic, registration based approach to shipping NDC data around rather than exmplicit flags on write.
+	*/
+	std::atomic<int32> NumGPUSpawningReaders;
 };
