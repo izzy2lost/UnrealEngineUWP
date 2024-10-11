@@ -78,12 +78,13 @@ float3 DenoiserSpaceToRGB(float3 V)
 
 float PackNumFramesAccumulated(float X)
 {
-	return (X + 0.5f) / 63.0f;
+	// Assume UInt8 quantization
+	return X / 32.0f + 0.5f / 255.0f;
 }
 
 float UnpackNumFramesAccumulated(float X)
 {
-	return X * 63.0f;
+	return X * 32.0f;
 }
 
 uint GetMaxFramesAccumulated(uint MaxFrames, float Roughness)
