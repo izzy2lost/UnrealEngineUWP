@@ -105,7 +105,7 @@ void FChaosClothAssetTerminalNode_v2::SetAssetValue(TObjectPtr<UObject> Asset, U
 	{
 		using namespace UE::Chaos::ClothAsset;
 
-		TArray<TSharedRef<FManagedArrayCollection>> InClothCollections = bActive ? GetCleanedCollectionLodValues(Context) : TArray<TSharedRef<FManagedArrayCollection>>();
+		TArray<TSharedRef<FManagedArrayCollection>> InClothCollections = GetCleanedCollectionLodValues(Context);
 		TArray<TSharedRef<FManagedArrayCollection>>& ClothCollections = ClothAsset->GetClothCollections();
 
 		const uint32 PreviousChecksum = ClothColllectionChecksum;
@@ -389,7 +389,7 @@ PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		}
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
-		TArray<TSharedRef<FManagedArrayCollection>> InClothCollections = bActive ? GetCleanedCollectionLodValues(Context) : TArray<TSharedRef<FManagedArrayCollection>>();
+		TArray<TSharedRef<FManagedArrayCollection>> InClothCollections = GetCleanedCollectionLodValues(Context);
 		TArray<TSharedRef<FManagedArrayCollection>>& ClothCollections = ClothAsset->GetClothCollections();
 
 		const uint32 PreviousChecksum = ClothColllectionChecksum;
