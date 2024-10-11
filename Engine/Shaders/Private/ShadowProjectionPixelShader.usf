@@ -31,6 +31,9 @@
 #if MODULATED_SHADOWS
 	#define MobileSceneTextures MobileBasePass.SceneTextures
 #endif
+#if SHADING_PATH_MOBILE
+#include "MobileLightingCommon.ush"
+#endif
 
 #include "ShadowProjectionCommon.ush"
 #include "ShadowFilteringCommon.ush"
@@ -264,8 +267,11 @@ void Main(
 		Settings.bTreatMaxDepthUnshadowed = false;
 		Settings.DensityMulConstant = 0;
 		Settings.ProjectionDepthBiasParameters = 0;
-
+#if SHADING_PATH_MOBILE
+		Shadow = MobileShadowPCF(ShadowPosition.xy, Settings);
+#else
 		Shadow = ManualPCF(ShadowPosition.xy, Settings);
+#endif
 	}
 	#endif // !USE_PCSS
 		
