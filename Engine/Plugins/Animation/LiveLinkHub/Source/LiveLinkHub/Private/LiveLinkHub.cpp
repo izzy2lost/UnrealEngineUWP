@@ -58,6 +58,7 @@ void FLiveLinkHub::Initialize(bool bLauncherDistribution)
 	LiveLinkProvider = MakeShared<FLiveLinkHubProvider>(SessionManager.ToSharedRef());
 
 	FModuleManager::Get().LoadModule("Settings");
+	FModuleManager::Get().LoadModule("StatusBar");
 
 	if (bLauncherDistribution)
 	{
@@ -252,9 +253,9 @@ void FLiveLinkHub::UnregisterLiveLinkHubSettings()
 {
 	if (ISettingsModule* SettingsModule = FModuleManager::GetModulePtr<ISettingsModule>("Settings"))
 	{
-		SettingsModule->UnregisterSettings("Editor", "Plugins", "LiveLink");
-		SettingsModule->UnregisterSettings("Project", "Plugins", "LiveLink");
-		SettingsModule->UnregisterSettings("Project", "Plugins", "LiveLinkHub");
+		SettingsModule->UnregisterSettings("Editor", "Plugins", "Live Link");
+		SettingsModule->UnregisterSettings("Project", "Plugins", "Live Link");
+		SettingsModule->UnregisterSettings("Project", "Plugins", "Live Link Hub");
 	}
 }
 
