@@ -83,8 +83,11 @@ void UPCGDataBinding::BuildStringTable()
 	TRACE_CPUPROFILER_EVENT_SCOPE(UPCGDataBinding::BuildStringTable);
 	check(Graph);
 
-	// Start with any strings known statically at compilation time.
-	StringTable = Graph->GetStringTable();
+	// String table always contains empty string in index 0 (and string key attributes are 0-initialized).
+	StringTable = { FString() };
+
+	// Add any strings known statically at compilation time.
+	StringTable.Append(Graph->GetStringTable());
 
 	for (const FPCGTaggedData& Data : DataForGPU.InputDataCollection.TaggedData)
 	{

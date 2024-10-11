@@ -922,7 +922,8 @@ void UPCGCustomHLSLSettings::UpdateOutputDeclarations()
 			"void {0}_SetSeed(uint DataIndex, uint ElementIndex, int Seed);\n"
 			"void {0}_SetSteepness(uint DataIndex, uint ElementIndex, float Steepness);\n"
 			"void {0}_SetPointTransform(uint DataIndex, uint ElementIndex, float4x4 Transform);\n"
-			"bool {0}_RemovePoint(uint DataIndex, uint ElementIndex);\n"),
+			"bool {0}_RemovePoint(uint DataIndex, uint ElementIndex);\n"
+			"void {0}_InitializePoint(uint DataIndex, uint ElementIndex);\n"),
 			{ bMultiPin ? PCGHLSLElement::PinDeclTemplateStr : PointDataPins[0] });
 
 		OutputDeclarations += TEXT("\n");
