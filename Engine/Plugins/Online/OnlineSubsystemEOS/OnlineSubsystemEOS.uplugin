@@ -20,6 +20,7 @@
 				"Win64",
 				"Mac",
 				"Linux",
+				"LinuxArm64",
 				"Android"
 			]
 		},
@@ -31,6 +32,7 @@
 				"Win64",
 				"Mac",
 				"Linux",
+				"LinuxArm64",
 				"Android"
 			]
 		}
