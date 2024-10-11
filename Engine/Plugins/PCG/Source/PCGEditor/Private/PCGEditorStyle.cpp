@@ -90,6 +90,14 @@ FPCGEditorStyle::FPCGEditorStyle() : FSlateStyleSet("PCGEditorStyle")
 		FLinearColor::Black,
 		PCGEditorStyleConstants::Node_Overlay_GridSizeLabel_BorderStroke));
 
+	// Styles related to additional tokens on nodes (GPU, ...)
+	FTextBlockStyle AdditionalOverlayWidgetTextStyle = FTextBlockStyle(FAppStyle::Get().GetWidgetStyle<FTextBlockStyle>("NormalText"))
+		.SetFont(FCoreStyle::GetDefaultFontStyle("Bold", 8))
+		.SetColorAndOpacity(FLinearColor(218.0f / 255.0f, 218.0f / 255.0f, 218.0f / 255.0f))
+		.SetShadowOffset(FVector2D::ZeroVector)
+		.SetShadowColorAndOpacity(FLinearColor(0.f, 0.f, 0.f, 0.7f));
+	Set("PCG.Node.AdditionalOverlayWidgetText", AdditionalOverlayWidgetTextStyle);
+
 	// Plugin icon/editor/component icons
 	Set("ClassIcon.PCGComponent", new IMAGE_BRUSH_SVG("Icons/PCG_16", Icon16x16));
 	Set("ClassThumbnail.PCGComponent", new IMAGE_BRUSH_SVG("Icons/PCG_64", Icon64x64));

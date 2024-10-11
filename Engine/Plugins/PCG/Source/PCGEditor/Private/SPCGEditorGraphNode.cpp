@@ -627,7 +627,6 @@ TArray<FOverlayWidgetInfo> SPCGEditorGraphNode::GetOverlayWidgets(bool bSelected
 		const EPCGHiGenGrid InspectedGrid = PCGEditorGraphNode->GetInspectedGenerationGrid();
 		UPCGNode* PCGNode = PCGEditorGraphNode->GetPCGNode();
 
-		//const bool bHigenEnabled = PCGEditorGraphNode->GetPCGNode() && PCGEditorGraphNode->getpcn
 		const bool bInspectingHigen = InspectedGrid != EPCGHiGenGrid::Uninitialized;
 		if (bInspectingHigen && PCGEditorGraphNode->IsNodeEnabled())
 		{
@@ -689,6 +688,46 @@ TArray<FOverlayWidgetInfo> SPCGEditorGraphNode::GetOverlayWidgets(bool bSelected
 			GridSizeLabelInfo.OverlayOffset = FVector2D(GetDesiredSize().X - 30.0f, -9.0f);
 
 			OverlayWidgets.Add(GridSizeLabelInfo);
+		}
+
+		if (PCGEditorGraphNode->GetPCGNode() && PCGEditorGraphNode->GetPCGNode()->GetSettings() && PCGEditorGraphNode->GetPCGNode()->GetSettings()->ShouldExecuteOnGPU())
+		{
+			const FLinearColor LightGray(0.7f, 0.7f, 0.7f);
+			const float BorderRadius = 7.0f;
+			const float BorderStroke = 1.5f;
+
+			FText GPUText = FText::FromString(TEXT("GPU"));
+			FLinearColor Tint = LightGray;
+			FLinearColor TextColor = LightGray;
+			FLinearColor BackgroundColor = FColor::White;
+			const FSlateBrush* BorderBrush = new FSlateRoundedBoxBrush(
+				FLinearColor::Black,
+				BorderRadius,
+				LightGray,
+				BorderStroke);
+
+			TSharedPtr<SWidget> GPUUsageLabel =
+				SNew(SHorizontalBox)
+				.Visibility(EVisibility::Visible)
+				+SHorizontalBox::Slot()
+				[
+					SNew(SBorder)
+					.BorderImage(BorderBrush)
+					.Padding(FMargin(6, 3))
+					.ColorAndOpacity(Tint)
+					[
+						SNew(STextBlock)
+						.TextStyle(FPCGEditorStyle::Get(), "PCG.Node.AdditionalOverlayWidgetText")
+						.Text(GPUText)
+						.Justification(ETextJustify::Center)
+						.ColorAndOpacity(TextColor)
+					]
+				];
+
+			FOverlayWidgetInfo GPUUsageLabelInfo(GPUUsageLabel);
+			GPUUsageLabelInfo.OverlayOffset = FVector2D(GetDesiredSize().X - 34.0f, GetDesiredSize().Y + 5.0f);
+
+			OverlayWidgets.Add(GPUUsageLabelInfo);
 		}
 	}
 
