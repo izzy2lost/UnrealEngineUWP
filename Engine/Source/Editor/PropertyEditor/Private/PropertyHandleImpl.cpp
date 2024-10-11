@@ -3326,6 +3326,32 @@ void FPropertyHandleBase::NotifyPreChange()
 	}
 }
 
+static TArray<TMap<FString, int32>> BuildArrayIndices(const TSharedPtr<FPropertyNode>& PropertyNode)
+{
+	TArray<TMap<FString, int32>> ArrayIndices;
+	FReadAddressList ReadAddresses;
+	PropertyNode->GetReadAddress(PropertyNode->HasNodeFlags(EPropertyNodeFlags::SingleSelectOnly), ReadAddresses, false, true);
+
+	const int32 ObjectNum = ReadAddresses.Num();
+	if (ArrayIndices.IsEmpty())
+	{
+		ArrayIndices.SetNum(ObjectNum);
+	}
+	
+	for (const FPropertyNode* ItemNode = PropertyNode.Get(); ItemNode; ItemNode = ItemNode->GetParentNode())
+	{
+		if (int32 Index = ItemNode->GetArrayIndex(); Index != INDEX_NONE)
+		{
+			for (int ObjectIndex = 0; ObjectIndex < ObjectNum; ++ObjectIndex)
+			{
+				ArrayIndices[ObjectIndex].Add(ItemNode->GetProperty()->GetName(), Index);
+			}
+		}
+	} 
+
+	return ArrayIndices;
+}
+
 void FPropertyHandleBase::NotifyPostChange( EPropertyChangeType::Type ChangeType )
 {
 	TSharedPtr<FPropertyNode> PropertyNode = Implementation->GetPropertyNode();
@@ -3343,6 +3369,8 @@ void FPropertyHandleBase::NotifyPostChange( EPropertyChangeType::Type ChangeType
 		}
 
 		FPropertyChangedEvent PropertyChangedEvent( PropertyNode->GetProperty(), ChangeType, MakeArrayView(ObjectsBeingChanged) );
+		TArray<TMap<FString, int32>> ArrayIndices = BuildArrayIndices(PropertyNode);
+		PropertyChangedEvent.SetArrayIndexPerObject(ArrayIndices);
 		PropertyNode->NotifyPostChange( PropertyChangedEvent, Implementation->GetNotifyHook());
 	}
 }
