@@ -57,6 +57,7 @@ bool FChaosVDAABBTreeDataProcessor::ProcessRawData(const TArray<uint8>& InData)
 
 			TArray<TSharedPtr<FChaosVDAABBTreeDataWrapper>>& ABBTrees = CurrentFrameData->RecordedAABBTreesBySolverID.FindOrAdd(AABBTreeData->SolverId);
 			ABBTrees.Add(AABBTreeData);
+			CurrentFrameData->MarkDirty();
 		}
 	}
 

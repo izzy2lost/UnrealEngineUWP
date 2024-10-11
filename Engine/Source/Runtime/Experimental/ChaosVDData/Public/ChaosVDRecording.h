@@ -171,6 +171,10 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		return EndTime - StartTime;
 	}
 
+	bool IsDirty() const { return bIsDirty; };
+
+	void MarkDirty() { bIsDirty = true; }
+
 	TMap<FName, FChaosVDTrackedLocation> RecordedNonSolverLocationsByID;
 	TMap<FName, FChaosVDTrackedTransform> RecordedNonSolverTransformsByID;
 	TMap<int32, TMap<int32, TSharedPtr<FChaosVDQueryDataWrapper>>> RecordedSceneQueriesBySolverID;
@@ -185,6 +189,9 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	TMap<int32,TArray<TSharedPtr<FChaosVDDebugDrawLineDataWrapper>>> RecordedDebugDrawLinesBySolverID;
 	TMap<int32,TArray<TSharedPtr<FChaosVDDebugDrawSphereDataWrapper>>> RecordedDebugDrawSpheresBySolverID;
 	TMap<int32,TArray<TSharedPtr<FChaosVDDebugDrawImplicitObjectDataWrapper>>> RecordedDebugDrawImplicitObjectsBySolverID;
+
+private:
+	bool bIsDirty = false;
 };
 
 /**

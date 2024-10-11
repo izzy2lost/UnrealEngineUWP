@@ -193,7 +193,6 @@ int32 FChaosVDRecording::GetLowestSolverFrameNumberGameFrame(int32 SolverID, int
 
 int32 FChaosVDRecording::GetLowestSolverFrameNumberGameFrame_AssumesLocked(int32 SolverID, int32 GameFrame)
 {
-
 	if (!GameFrames.IsValidIndex(GameFrame))
 	{
 		return INDEX_NONE;
@@ -203,12 +202,11 @@ int32 FChaosVDRecording::GetLowestSolverFrameNumberGameFrame_AssumesLocked(int32
 	{
 		TArray<FChaosVDSolverFrameData>& SolverFrames = *SolverFramesPtr;
 		
-		return Algo::LowerBoundBy(SolverFrames,GameFrames[GameFrame].FirstCycle, &FChaosVDSolverFrameData::FrameCycle);
+		return Algo::LowerBoundBy(SolverFrames, GameFrames[GameFrame].FirstCycle, &FChaosVDSolverFrameData::FrameCycle);
 	}
 
 	return INDEX_NONE;
 }
-
 
 int32 FChaosVDRecording::GetLowestGameFrameAtSolverFrameNumber(int32 SolverID, int32 SolverFrame)
 {

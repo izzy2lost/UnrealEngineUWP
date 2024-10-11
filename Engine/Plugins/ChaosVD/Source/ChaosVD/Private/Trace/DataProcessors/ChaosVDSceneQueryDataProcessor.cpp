@@ -30,7 +30,7 @@ bool FChaosVDSceneQueryDataProcessor::ProcessRawData(const TArray<uint8>& InData
 	{
 		if (const TSharedPtr<FChaosVDGameFrameData> CurrentFrameData = ProviderSharedPtr->GetCurrentGameFrame().Pin())
 		{
-			// If ParentQueryID was set, this is a sub query, so find the parent add it to the sub-queries list so we can navigate trough the query "hierarchy" later on
+			// If ParentQueryID was set, this is a sub query, so find the parent add it to the sub-queries list so we can navigate through the query "hierarchy" later on
 			if (QueryData->ParentQueryID != INDEX_NONE)
 			{
 				if (TMap<int32, TSharedPtr<FChaosVDQueryDataWrapper>>* ParentQueryDataByQueryIDPtr = CurrentFrameData->RecordedSceneQueriesBySolverID.Find(QueryData->WorldSolverID))
@@ -44,6 +44,8 @@ bool FChaosVDSceneQueryDataProcessor::ProcessRawData(const TArray<uint8>& InData
 
 			CurrentFrameData->RecordedSceneQueriesByQueryID.Add(QueryData->ID, QueryData);
 			CurrentFrameData->RecordedSceneQueriesBySolverID.FindOrAdd(QueryData->WorldSolverID).Add(QueryData->ID, QueryData);
+
+			CurrentFrameData->MarkDirty();
 		}
 	}
 
