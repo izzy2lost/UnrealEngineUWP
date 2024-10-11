@@ -767,10 +767,27 @@ const TCHAR* FUnixPlatformMisc::GetNullRHIShaderFormat()
 	{
 		return TEXT("SF_VULKAN_SM5");
 	}
-	else
+	else if (FParse::Param(FCommandLine::Get(), TEXT("sm6")))
 	{
 		return TEXT("SF_VULKAN_SM6");
 	}
+	else
+	{
+		// Limit to the highest SM supported by the project
+		TArray<FString> TargetedShaderFormats;
+		GConfig->GetArray(TEXT("/Script/LinuxTargetPlatform.LinuxTargetSettings"), TEXT("TargetedRHIs"), TargetedShaderFormats, GEngineIni);
+		if (TargetedShaderFormats.Contains(TEXT("SF_VULKAN_SM6")))
+		{
+			return TEXT("SF_VULKAN_SM6");
+		}
+		if (TargetedShaderFormats.Contains(TEXT("SF_VULKAN_SM5")))
+		{
+			return TEXT("SF_VULKAN_SM5");
+		}
+	}
+
+	// Default to SM6
+	return TEXT("SF_VULKAN_SM6");
 }
 
 #define CPUINFO_TOKENS                            \

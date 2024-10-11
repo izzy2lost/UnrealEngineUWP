@@ -399,6 +399,8 @@ FDynamicRHI* FVulkanDynamicRHIModule::CreateRHI(ERHIFeatureLevel::Type InRequest
 	GMaxRHIShaderPlatform = ShaderPlatformForFeatureLevel[GMaxRHIFeatureLevel];
 	checkf(GMaxRHIShaderPlatform != SP_NumPlatforms, TEXT("Requested feature level [%s] mapped to unsupported shader platform!"), *LexToString(InRequestedFeatureLevel));
 
+	UE_LOG(LogVulkanRHI, Display, TEXT("Vulkan RHI ShaderPlatform for %s: %s."), *LexToString(InRequestedFeatureLevel), *LexToString(GMaxRHIShaderPlatform, false));
+
 	GVulkanRHI = new FVulkanDynamicRHI();
 	FDynamicRHI* FinalRHI = GVulkanRHI;
 
