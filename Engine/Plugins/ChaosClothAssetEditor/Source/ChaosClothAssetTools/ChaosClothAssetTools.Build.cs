@@ -24,6 +24,7 @@ public class ChaosClothAssetTools : ModuleRules
 				"Chaos",
 				"ChaosClothAsset",
 				"ChaosClothAssetEngine",
+				"DataflowEngine",
 				"SlateCore",
 				"UnrealEd",
 				"Projects",

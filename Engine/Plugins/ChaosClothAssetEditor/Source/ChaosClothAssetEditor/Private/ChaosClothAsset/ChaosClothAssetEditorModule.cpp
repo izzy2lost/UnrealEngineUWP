@@ -63,10 +63,12 @@ namespace UE::Chaos::ClothAsset
 							UChaosClothAsset* const ClothAsset = CastChecked<UChaosClothAsset>(AssetsToEdit[0]);
 							if (!ClothAsset->GetDataflow())
 							{
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 								if (UDataflow* const NewDataflowAsset = Cast<UDataflow>(UAssetDefinition_ClothAsset::NewOrOpenDataflowAsset(ClothAsset)))
 								{
 									ClothAsset->SetDataflow(NewDataflowAsset);
 								}
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 							}
 
 							const TSubclassOf<AActor> PreviewActorClass = StaticLoadClass(AActor::StaticClass(), nullptr,
