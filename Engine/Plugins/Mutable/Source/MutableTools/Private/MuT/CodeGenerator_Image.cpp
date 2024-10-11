@@ -1929,12 +1929,13 @@ namespace mu
 
 					if (MaxTextureSize > 0 && (MaxTextureSize < pImage->GetSizeX() || MaxTextureSize < pImage->GetSizeY()))
 					{
+						// Use a relative resize, because at this point we may be generating a layout block and not the full image
 						float Factor = FMath::Min(MaxTextureSize / (float)(pImage->GetSizeX()), MaxTextureSize / (float)(pImage->GetSizeY()));
 						Ptr<ASTOpFixed> op = new ASTOpFixed();
-						op->op.type = OP_TYPE::IM_RESIZE;
-						op->op.args.ImageResize.size[0] = (uint16)pImage->GetSizeX() * Factor;
-						op->op.args.ImageResize.size[1] = (uint16)pImage->GetSizeY() * Factor;
-						op->SetChild(op->op.args.ImageResize.source, ImageOp);
+						op->op.type = OP_TYPE::IM_RESIZEREL;
+						op->op.args.ImageResizeRel.factor[0] = Factor;
+						op->op.args.ImageResizeRel.factor[1] = Factor;
+						op->SetChild(op->op.args.ImageResizeRel.source, ImageOp);
 						ImageOp = op;
 					}
 				}

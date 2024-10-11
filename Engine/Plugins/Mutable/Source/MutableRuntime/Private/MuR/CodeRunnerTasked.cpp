@@ -1810,6 +1810,13 @@ namespace mu
 			Lods = Image::GetMipmapCount(DestSize[0], DestSize[1]);
 		}
 
+		if (Base->IsReference())
+		{
+			// We are trying to resize an external reference. This shouldn't happen, but be deffensive.
+			Runner->StoreImage(Op, Base);
+			return false;
+		}
+
 		Result = Runner->CreateImage(DestSize[0], DestSize[1], Lods, Base->GetFormat(), EInitializationType::NotInitialized);
 
 		ImagePixelFormatFunc = Runner->m_pSystem->ImagePixelFormatOverride;

@@ -1109,7 +1109,10 @@ mu::NodeImagePtr GenerateMutableSourceImage(const UEdGraphPin* Pin, FMutableGrap
 							ImageTableNode->bNoneOption = TypedNodeTable->bAddNoneOption;
 							ImageTableNode->DefaultRowName = TypedNodeTable->DefaultRowName.ToString();
 
-							if (UTexture2D* DefaultTexture2D = Cast<UTexture2D>(DefaultTexture))
+							bool bIsPassthrough = (Pin->PinType.PinCategory == Schema->PC_PassThroughImage);
+
+							UTexture2D* DefaultTexture2D = Cast<UTexture2D>(DefaultTexture);
+							if (!bIsPassthrough && DefaultTexture2D)
 							{
 								mu::FImageDesc ImageDesc = GenerateImageDescriptor(DefaultTexture2D);
 
