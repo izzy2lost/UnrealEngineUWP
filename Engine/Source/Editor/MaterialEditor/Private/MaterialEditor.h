@@ -555,6 +555,9 @@ protected:
 	 */
 	FReply OnSpawnGraphNodeByShortcut(FInputChord InChord, const FVector2D& InPosition, UEdGraph* InGraph);
 
+	/** Calls Modify() on the Material and its editor only data, as well as MaterialFunction (and its editor only data) if present */
+	void ModifyMaterial();
+
 	/** Select every node in the graph */
 	void SelectAllNodes();
 	/** Whether we can select every node */

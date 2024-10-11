@@ -4185,7 +4185,7 @@ void FMaterialEditor::OnPromoteObjects()
 	if (SelectedNodes.Num() > 0)
 	{
 		const FScopedTransaction Transaction(LOCTEXT("MaterialEditorPromote", "Material Editor: Promote"));
-		Material->Modify();
+		ModifyMaterial();
 		Material->MaterialGraph->Modify();
 		TArray<class UEdGraphNode*> NodesToDelete;
 		TArray<class UEdGraphNode*> NodesToSelect;
@@ -4277,7 +4277,7 @@ void FMaterialEditor::OnConvertObjects()
 	if (SelectedNodes.Num() > 0)
 	{
 		const FScopedTransaction Transaction( LOCTEXT("MaterialEditorConvert", "Material Editor: Convert") );
-		Material->Modify();
+		ModifyMaterial();
 		Material->MaterialGraph->Modify();
 		TArray<class UEdGraphNode*> NodesToDelete;
 		TArray<class UEdGraphNode*> NodesToSelect;
@@ -4533,7 +4533,7 @@ void FMaterialEditor::OnConvertTextures()
 	if (SelectedNodes.Num() > 0)
 	{
 		const FScopedTransaction Transaction( LOCTEXT("MaterialEditorConvertTexture", "Material Editor: Convert to Texture") );
-		Material->Modify();
+		ModifyMaterial();
 		Material->MaterialGraph->Modify();
 		TArray<class UEdGraphNode*> NodesToDelete;
 		TArray<class UEdGraphNode*> NodesToSelect;
@@ -5935,7 +5935,7 @@ UMaterialExpression* FMaterialEditor::CreateNewMaterialExpression(UClass* NewExp
 	UMaterialExpression* NewExpression = NULL;
 	{
 		const FScopedTransaction Transaction( NSLOCTEXT("UnrealEd", "MaterialEditorNewExpression", "Material Editor: New Expression") );
-		Material->Modify();
+		ModifyMaterial();
 
 		UObject* SelectedAsset = nullptr;
 		if (bAutoAssignResource)
@@ -5983,7 +5983,7 @@ UMaterialExpressionComposite* FMaterialEditor::CreateNewMaterialExpressionCompos
 	UMaterialExpressionComposite* NewComposite = nullptr;
 	{
 		const FScopedTransaction Transaction(NSLOCTEXT("UnrealEd", "MaterialEditorNewComposite", "Material Editor: New Composite"));
-		Material->Modify();
+		ModifyMaterial();
 
 		UObject* ExpressionOuter = Material;
 		if (MaterialFunction)
@@ -6044,7 +6044,7 @@ UMaterialExpressionComment* FMaterialEditor::CreateNewMaterialExpressionComment(
 	UMaterialExpressionComment* NewComment = NULL;
 	{
 		const FScopedTransaction Transaction(NSLOCTEXT("UnrealEd", "MaterialEditorCreateComment", "Material Editor: Create comment"));
-		Material->Modify();
+		ModifyMaterial();
 
 		UObject* ExpressionOuter = Material;
 		if (MaterialFunction)
@@ -6152,6 +6152,18 @@ void FMaterialEditor::JumpToExpression(UMaterialExpression* Expression)
 	JumpToNode(ExpressionNode);
 }
 
+void FMaterialEditor::ModifyMaterial()
+{
+	Material->Modify();
+	Material->GetEditorOnlyData()->Modify();
+
+	if (MaterialFunction)
+	{
+		MaterialFunction->Modify();
+		MaterialFunction->GetEditorOnlyData()->Modify();
+	}
+}
+
 void FMaterialEditor::SelectAllNodes()
 {
 	if (TSharedPtr<SGraphEditor> FocusedGraphEd = FocusedGraphEdPtr.Pin())
@@ -6223,6 +6235,7 @@ void FMaterialEditor::DeleteNodes(const TArray<UEdGraphNode*>& NodesToDelete, bo
 			}
 			RegenerateCodeView();
 		}
+
 		InvalidateSubstrateConversionVersion(Material);
 		UpdatePreviewMaterial();
 		Material->MarkPackageDirty();
@@ -6297,18 +6310,12 @@ void FMaterialEditor::DeleteSelectedDuplicatableNodes()
 
 void FMaterialEditor::DeleteNodesInternal(const TArray<class UEdGraphNode*>& NodesToDelete, bool& bHaveExpressionsToDelete, bool& bPreviewExpressionDeleted)
 {
-	Material->Modify();
+	ModifyMaterial();
 
 	for (int32 Index = 0; Index < NodesToDelete.Num(); ++Index)
 	{
 		if (NodesToDelete[Index]->CanUserDeleteNode())
 		{
-			// If this is a user-selected pinbase, don't allow the delete to pass
-			if (Cast<UMaterialGraphNode_PinBase>(NodesToDelete[Index]) && GetSelectedNodes().Contains(NodesToDelete[Index]))
-			{
-				continue;
-			}
-
 			if (UMaterialGraphNode* GraphNode = Cast<UMaterialGraphNode>(NodesToDelete[Index]))
 			{
 				// Break all node links first so that we don't update the material before deleting
@@ -6510,7 +6517,7 @@ void FMaterialEditor::PasteNodesHereFromBuffer(const FVector2D& Location, const 
 	// Undo/Redo support
 	const FScopedTransaction Transaction( NSLOCTEXT("UnrealEd", "MaterialEditorPaste", "Material Editor: Paste") );
 	Material->MaterialGraph->Modify();
-	Material->Modify();
+	ModifyMaterial();
 
 	UMaterialGraph* ExpressionGraph = Graph ? ToRawPtr(CastChecked<UMaterialGraph>(const_cast<UEdGraph*>(Graph))) : ToRawPtr(Material->MaterialGraph);
 	ExpressionGraph->Modify();
@@ -7027,7 +7034,7 @@ void FMaterialEditor::OnCollapseNodes()
 	if (CollapsableNodes.Num())
 	{
 		const FScopedTransaction Transaction(FGraphEditorCommands::Get().CollapseNodes->GetDescription());
-		Material->Modify();
+		ModifyMaterial();
 		Material->MaterialGraph->Modify();
 
 		CollapseNodes(CollapsableNodes);
@@ -7056,7 +7063,7 @@ bool FMaterialEditor::CanCollapseNodes() const
 void FMaterialEditor::OnExpandNodes()
 {
 	const FScopedTransaction Transaction(FGraphEditorCommands::Get().ExpandNodes->GetLabel());
-	Material->Modify();
+	ModifyMaterial();
 	Material->MaterialGraph->Modify();
 
 	TSet<UEdGraphNode*> ExpandedNodes;
@@ -7230,6 +7237,11 @@ void FMaterialEditor::PostUndo(bool bSuccess)
 {
 	if (bSuccess)
 	{	
+		if (MaterialFunction)
+		{
+			Material->AssignExpressionCollection(MaterialFunction->GetExpressionCollection());
+		}
+
 		if (TSharedPtr<SGraphEditor> FocusedGraphEd = FocusedGraphEdPtr.Pin())
 		{
 			FocusedGraphEd->ClearSelectionSet();
@@ -7252,10 +7264,9 @@ void FMaterialEditor::PostUndo(bool bSuccess)
 
 		// Update the current preview material.
 		UpdatePreviewMaterial();
-
 		UpdatePreviewViewportsVisibility();
-
 		RefreshExpressionPreviews();
+		UpdateOriginalMaterial();
 
 		// Remove any tabs are that are pending kill or otherwise invalid UObject pointers.
 		bool bNeedOpenGraphEditor = false;
@@ -7947,7 +7958,7 @@ void FMaterialEditor::CleanUnusedExpressions()
 			// Kill off expressions referenced by the material that aren't reachable.
 			const FScopedTransaction Transaction( NSLOCTEXT("UnrealEd", "MaterialEditorCleanUnusedExpressions", "Material Editor: Clean Unused Expressions") );
 				
-			Material->Modify();
+			ModifyMaterial();
 			Material->MaterialGraph->Modify();
 
 			for (int32 Index = 0; Index < UnusedNodes.Num(); ++Index)
