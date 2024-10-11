@@ -98,7 +98,7 @@ void FFontFaceEditor::InitFontFaceEditor(const EToolkitMode::Type Mode, const TS
 
 	CreateInternalWidgets();
 
-	const TSharedRef<FTabManager::FLayout> StandaloneDefaultLayout = FTabManager::NewLayout("Standalone_FontEditor_Layout_v4")
+	const TSharedRef<FTabManager::FLayout> StandaloneDefaultLayout = FTabManager::NewLayout("Standalone_FontFaceEditor_Layout_v1")
 	->AddArea
 	(
 		FTabManager::NewPrimaryArea() ->SetOrientation( Orient_Vertical )
