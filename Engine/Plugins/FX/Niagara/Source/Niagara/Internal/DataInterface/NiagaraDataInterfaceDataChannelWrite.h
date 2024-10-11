@@ -216,7 +216,7 @@ struct FNiagaraDataInterfaceProxy_DataChannelWrite : public FNiagaraDataInterfac
 	{
 		//GPU Dataset from the channel handler. We'll grab the current buffer from this on the RT.
 		//This must be grabbed fresh from the handler each frame as it's lifetime cannot be ensured.
-		FNiagaraDataChannelDataProxy* ChannelDataRTProxy = nullptr;
+		FNiagaraDataChannelDataProxyPtr ChannelDataRTProxy = nullptr;
 
 		/**
 		A buffer containing layout information needed to access parameters for each script using this DI.

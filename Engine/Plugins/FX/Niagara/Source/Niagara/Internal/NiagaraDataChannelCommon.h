@@ -16,7 +16,8 @@ class UNiagaraDataChannel;
 class UNiagaraDataChannelHandler;
 class UNiagaraDataInterfaceDataChannelWrite;
 class UNiagaraDataInterfaceDataChannelRead;
-struct FNiagaraDataChannelDataProxy;
+
+using FNiagaraDataChannelDataProxyPtr = TSharedPtr<struct FNiagaraDataChannelDataProxy>;
 
 /** A request to publish data into a Niagara Data Channel.  */
 struct FNiagaraDataChannelPublishRequest
@@ -81,7 +82,7 @@ struct FNiagaraDataChannelData final : public TSharedFromThis<FNiagaraDataChanne
 
 	NIAGARA_API FNiagaraDataChannelGameData* GetGameData();
 	NIAGARA_API FNiagaraDataBufferRef GetCPUData(bool bPreviousFrame);
-	FNiagaraDataChannelDataProxy* GetRTProxy(){ return RTProxy.Get(); }
+	FNiagaraDataChannelDataProxyPtr GetRTProxy(){ return RTProxy; }
 	
 	/** Adds a request to publish some data into the channel on the next tick. */
 	NIAGARA_API void Publish(const FNiagaraDataChannelPublishRequest& Request);
@@ -113,12 +114,6 @@ private:
 	/** DataChannel data accessible from Game/BP. AoS Layout. LWC types. */
 	FNiagaraDataChannelGameDataPtr GameData;
 
-	//		▲	CPU Sim Data can optionally be made visible to the Game Data.
-	//		|
-	//		|
-	//		|
-	//		▼	Game/BP Data can optionally be made visible to CPU sims.
-
 	/** DataChannel data accessible to Niagara CPU sims. SoA layout. Non LWC types. */
 	FNiagaraDataSet* CPUSimData = nullptr;
 
@@ -129,20 +124,11 @@ private:
 	/** Dataset we use for staging game data for the consumption by RT/GPU sims. */
 	FNiagaraDataSet* GameDataStaging = nullptr;
 
-	//		▲	GPU Sim Data can optionally be made visible to CPU Sims and Game Data.
-	//		|
-	//		|
-	//		|
-	//		▼	CPU Sim and Game Data can optionally be made visible to the GPU.
-
-	/** DataChannel data accessible to Niagara GPU sims. SoA layout. Non LWC types. */
-	FNiagaraDataSet* GPUSimData = nullptr;
-
 	/** Data buffers we'll be passing to the RT proxy for uploading to the GPU */
 	TArray<FNiagaraDataBufferRef> BuffersForGPU;
 
 	/** Render thread proxy for this data. Owns all RT side data meant for GPU simulations. */
-	TUniquePtr<FNiagaraDataChannelDataProxy> RTProxy;
+	FNiagaraDataChannelDataProxyPtr RTProxy;
 
 	/** Pending requests to publish data into this data channel. These requests are consumed at tick tick group. */
 	TArray<FNiagaraDataChannelPublishRequest> PublishRequests;
@@ -157,4 +143,7 @@ private:
 
 	/** Critical section protecting shared state for multiple writers publishing from different threads. */
 	FCriticalSection PublishCritSec;
+
+	//Keep reference to the layout this data was built with.
+	FNiagaraDataChannelLayoutInfoPtr LayoutInfo;
 };

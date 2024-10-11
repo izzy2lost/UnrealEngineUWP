@@ -398,7 +398,7 @@ void FNDCIsland::OnAcquired(FVector Location)
 
 void FNDCIsland::OnReleased()
 {
-	Data->Reset();
+	Data = nullptr;
 	for (UNiagaraComponent* Comp : NiagaraSystems)
 	{
 		Comp->ReleaseToPool();

@@ -177,7 +177,15 @@ UNiagaraDataChannelHandler* FNiagaraDataChannelManager::InitDataChannel(const UN
 void FNiagaraDataChannelManager::RemoveDataChannel(const UNiagaraDataChannel* InChannel)
 {
 	check(IsInGameThread());
-	Channels.Remove(InChannel);
+
+	TObjectPtr<UNiagaraDataChannelHandler> RemovedHandler;
+	if(Channels.RemoveAndCopyValue(InChannel, RemovedHandler))
+	{
+		if(RemovedHandler)
+		{
+			RemovedHandler->Cleanup();
+		}
+	}
 }
 
 UWorld* FNiagaraDataChannelManager::GetWorld()const

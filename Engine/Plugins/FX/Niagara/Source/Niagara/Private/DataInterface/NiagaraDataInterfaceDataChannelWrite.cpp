@@ -195,7 +195,7 @@ namespace NDIDataChannelWriteLocal
 struct FNDIDataChannelWriteInstanceData_RT
 {
 	//RT proxy for game channel data from which we're reading.
-	FNiagaraDataChannelDataProxy* ChannelDataRTProxy = nullptr;
+	FNiagaraDataChannelDataProxyPtr ChannelDataRTProxy = nullptr;
 
 	/** Parameter mapping info for every function in every script used by this DI. */
 	FVariadicParameterGPUScriptInfo ScriptParamInfo;
@@ -321,7 +321,7 @@ struct FNDIDataChannelWriteInstanceData
 						const FNDIDataChannelCompiledData& CompiledData = Interface->GetCompiledData();
 						for (const FNDIDataChannelFunctionInfo& FuncInfo : CompiledData.GetFunctionInfo())
 						{
-							FNDIDataChannelLayoutManager::Get().GetLayoutInfo(FuncInfo, DataChannelPtr->GetDataChannel()->GetCompiledData(ENiagaraSimTarget::CPUSim), MissingParams);
+							FNDIDataChannelLayoutManager::Get().GetLayoutInfo(FuncInfo, DataChannelPtr->GetDataChannel()->GetLayoutInfo()->GetDataSetCompiledData(), MissingParams);
 						}
 
 						if (MissingParams.Num() > 0)
@@ -374,8 +374,8 @@ struct FNDIDataChannelWriteInstanceData
 					}
 				}
 
-				const FNiagaraDataSetCompiledData& CPUSourceDataCompiledData = DataChannelPtr->GetDataChannel()->GetCompiledData(ENiagaraSimTarget::CPUSim);
-				const FNiagaraDataSetCompiledData& GPUSourceDataCompiledData = DataChannelPtr->GetDataChannel()->GetCompiledData(ENiagaraSimTarget::GPUComputeSim);
+				const FNiagaraDataSetCompiledData& CPUSourceDataCompiledData = DataChannelPtr->GetDataChannel()->GetLayoutInfo()->GetDataSetCompiledData();
+				const FNiagaraDataSetCompiledData& GPUSourceDataCompiledData = DataChannelPtr->GetDataChannel()->GetLayoutInfo()->GetDataSetCompiledDataGPU();
 				check(CPUSourceDataCompiledData.GetLayoutHash() && CPUSourceDataCompiledData.GetLayoutHash() == GPUSourceDataCompiledData.GetLayoutHash());
 				uint64 SourceDataLayoutHash = CPUSourceDataCompiledData.GetLayoutHash();
 				bool bChanged = SourceDataLayoutHash != ChachedDataSetLayoutHash;
@@ -564,7 +564,7 @@ void UNiagaraDataInterfaceDataChannelWrite::ProvidePerInstanceDataForRenderThrea
 	{
 		SourceData.bUpdateFunctionBindingRTData = false;
 
-		const FNiagaraDataSetCompiledData& GPUCompiledData = SourceData.DataChannel->GetDataChannel()->GetCompiledData(ENiagaraSimTarget::GPUComputeSim);
+		const FNiagaraDataSetCompiledData& GPUCompiledData = SourceData.DataChannel->GetDataChannel()->GetLayoutInfo()->GetDataSetCompiledDataGPU();
 		TargetData->ScriptParamInfo.Init(CompiledData, GPUCompiledData);
 	}
 
@@ -783,7 +783,7 @@ bool UNiagaraDataInterfaceDataChannelWrite::SimCacheWriteFrame(UObject* StorageO
 				FrameBuffer.Size = VarBuffer.Size;
 				FrameBuffer.Data = VarBuffer.Data;
 			}
-			const FNiagaraDataChannelGameDataLayout& Layout = Channel->Get()->GetGameDataLayout();
+			const FNiagaraDataChannelGameDataLayout& Layout = Channel->Get()->GetLayoutInfo()->GetGameDataLayout();
 			for (const TPair<FNiagaraVariableBase, int32>& VarPair : Layout.VariableIndices)
 			{
 				FrameData.VariableData[VarPair.Value].SourceVar = VarPair.Key;
@@ -1411,6 +1411,10 @@ void FNiagaraDataInterfaceProxy_DataChannelWrite::ConsumePerInstanceDataFromGame
 		InstData.bPublishToGPU = SourceData.bPublishToGPU;
 		InstData.LwcTile = SourceData.LwcTile;
 	}
+	else
+	{
+		InstData.ChannelDataRTProxy = nullptr;
+	}
 
 	if (SourceData.ScriptParamInfo.bDirty)
 	{
@@ -1457,7 +1461,7 @@ void FNiagaraDataInterfaceProxy_DataChannelWrite::PreStage(const FNDIGpuComputeP
 			//Allocate a separate buffer that we will write into and ship back to the CPU.			 
 			InstanceData->BufferForCPU = InstanceData->ChannelDataRTProxy->AllocateBufferForCPU(Context.GetGraphBuilder(), Context.GetComputeDispatchInterface().GetFeatureLevel(), InstanceData->AllocationCount, InstanceData->bPublishToGame, InstanceData->bPublishToCPU, InstanceData->LwcTile);
 
-			//Get a new instance count.
+			//Get a new instance count. This is later released by the ndc proxy
 			uint32 Offset = InstanceData->BufferForCPU->GetGPUInstanceCountBufferOffset();
 			Context.GetInstanceCountManager().FreeEntry(Offset);
 			InstanceData->BufferForCPU->SetGPUInstanceCountBufferOffset(Context.GetInstanceCountManager().AcquireOrAllocateEntry(Context.GetGraphBuilder().RHICmdList));

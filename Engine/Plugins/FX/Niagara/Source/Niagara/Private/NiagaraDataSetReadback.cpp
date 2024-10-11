@@ -201,31 +201,39 @@ void FNiagaraDataBufferReadback::EnqueueReadback(FRHICommandList& RHICmdList, FN
 	check(InDataBuffer);
 	check(IsInRenderingThread());
 
-	FNiagaraDataBuffer* DestBuffer = &InDataBuffer->GetOwner()->AllocateBuffer();
 	bool bHasGPUData = InDataBuffer->GetGPUBufferFloat().NumBytes > 0 || InDataBuffer->GetGPUBufferInt().NumBytes > 0 || InDataBuffer->GetGPUBufferHalf().NumBytes > 0;
 	++PendingReadbacks;
 	if (bHasGPUData)
 	{
-		GPUReadbackInternal(RHICmdList, ReadbackManager, InstanceCountManager, InDataBuffer, DestBuffer);
+		GPUReadbackInternal(RHICmdList, ReadbackManager, InstanceCountManager, InDataBuffer);
 	}
 	else
 	{
-		InDataBuffer->CopyTo(*DestBuffer, 0, 0, InDataBuffer->GetNumInstances());
-		ReadbackCompleteInternal(DestBuffer);
+		GatherResults(	InDataBuffer->GetNumInstances(), 
+						(const float*)InDataBuffer->GetFloatBuffer().GetData(), 
+						(const int32*)InDataBuffer->GetInt32Buffer().GetData(), 
+						(const FFloat16*)InDataBuffer->GetHalfBuffer().GetData(), 
+						InDataBuffer->GetFloatStride(), 
+						InDataBuffer->GetInt32Stride(), 
+						InDataBuffer->GetHalfStride(),
+						InDataBuffer->GetOwner()->GetNumFloatComponents(),
+						InDataBuffer->GetOwner()->GetNumInt32Components(),
+						InDataBuffer->GetOwner()->GetNumHalfComponents());
+
+		ReadbackCompleteInternal();
 	}
 }
 
-void FNiagaraDataBufferReadback::ReadbackCompleteInternal(FNiagaraDataBuffer* CompleteDataBuffer)
+void FNiagaraDataBufferReadback::ReadbackCompleteInternal()
 {	
-	if (OnReadbackComplete.IsBound() && CompleteDataBuffer)
+	if (OnReadbackComplete.IsBound())
 	{
 		AsyncTask(
 			ENamedThreads::GameThread,
-			[Readback = AsShared(),
-			 CompleteBuffer_GT = CompleteDataBuffer->UnlockForRead()]()
+			[Readback = AsShared()]()
 			{
 				Readback->PendingReadbacks--;
-				Readback->OnReadbackComplete.Execute(CompleteBuffer_GT);
+				Readback->OnReadbackComplete.Execute(Readback);
 			}
 		);
 	}
@@ -235,18 +243,29 @@ void FNiagaraDataBufferReadback::ReadbackCompleteInternal(FNiagaraDataBuffer* Co
 	}
 }
 
-void FNiagaraDataBufferReadback::GPUReadbackInternal(FRHICommandList& RHICmdList, FNiagaraGpuReadbackManager* ReadbackManager, FNiagaraGPUInstanceCountManager& InstanceCountManager, FNiagaraDataBufferRef SrcDataBuffer, FNiagaraDataBuffer* DestDataBuffer)
+void FNiagaraDataBufferReadback::ReadResultsToDataBuffer(FNiagaraDataBuffer* DestBuffer)const
 {
-	if (SrcDataBuffer == nullptr || DestDataBuffer == nullptr || ReadbackManager == nullptr)
+	check(DestBuffer);
+
+	check(ReadbackData_NumFloatComponents == DestBuffer->GetOwner()->GetNumFloatComponents());
+	check(ReadbackData_NumInt32Components == DestBuffer->GetOwner()->GetNumInt32Components());
+	check(ReadbackData_NumHalfComponents == DestBuffer->GetOwner()->GetNumHalfComponents());
+
+	DestBuffer->GPUCopyFrom(ReadbackData_Float.GetData(), ReadbackData_Int32.GetData(), ReadbackData_Half.GetData(), 0, ReadbackData_Count, ReadbackData_FloatStride, ReadbackData_Int32Stride, ReadbackData_HalfStride);
+}
+
+void FNiagaraDataBufferReadback::GPUReadbackInternal(FRHICommandList& RHICmdList, FNiagaraGpuReadbackManager* ReadbackManager, FNiagaraGPUInstanceCountManager& InstanceCountManager, FNiagaraDataBufferRef SrcDataBuffer)
+{
+	if (SrcDataBuffer == nullptr || ReadbackManager == nullptr)
 	{
-		ReadbackCompleteInternal(nullptr);
+		ReadbackCompleteInternal();
 		return;
 	}
 
 	const uint32 CountOffset = SrcDataBuffer->GetGPUInstanceCountBufferOffset();
 	if (CountOffset == INDEX_NONE)
 	{
-		ReadbackCompleteInternal(nullptr);
+		ReadbackCompleteInternal();
 		return;
 	}
 
@@ -267,9 +286,11 @@ void FNiagaraDataBufferReadback::GPUReadbackInternal(FRHICommandList& RHICmdList
 	const int32 HalfBufferStride = SrcDataBuffer->GetHalfStride();
 	const int32 IntBufferStride = SrcDataBuffer->GetInt32Stride();
 
-	int32 SourceNumInstancesAllocated = (int32)SrcDataBuffer->GetNumInstancesAllocated();
+	const int32 NumFloatComponents = SrcDataBuffer->GetOwner()->GetNumFloatComponents();
+	const int32 NumInt32Components = SrcDataBuffer->GetOwner()->GetNumInt32Components();
+	const int32 NumHalfComponents = SrcDataBuffer->GetOwner()->GetNumHalfComponents();
 
-	check(SrcDataBuffer->GetOwner() == DestDataBuffer->GetOwner());
+	int32 SourceNumInstancesAllocated = (int32)SrcDataBuffer->GetNumInstancesAllocated();
 
 	// Transition buffers to copy
 	TArray<FRHITransitionInfo, TInlineAllocator<NumReadbackBuffers>> Transitions;
@@ -299,32 +320,30 @@ void FNiagaraDataBufferReadback::GPUReadbackInternal(FRHICommandList& RHICmdList
 			const float* FloatDataBuffer = FloatBufferIndex == INDEX_NONE ? nullptr : reinterpret_cast<float*>(BufferData[FloatBufferIndex].Key);
 			const FFloat16* HalfDataBuffer = HalfBufferIndex == INDEX_NONE ? nullptr : reinterpret_cast<FFloat16*>(BufferData[HalfBufferIndex].Key);
 			const int32* IntDataBuffer = IntBufferIndex == INDEX_NONE ? nullptr : reinterpret_cast<int32*>(BufferData[IntBufferIndex].Key);
-			DestDataBuffer->GPUCopyFrom(FloatDataBuffer, IntDataBuffer, HalfDataBuffer, 0, InstanceCount, FloatBufferStride, IntBufferStride, HalfBufferStride);
+			
+			Readback->GatherResults(InstanceCount, FloatDataBuffer, IntDataBuffer, HalfDataBuffer, FloatBufferStride, IntBufferStride, HalfBufferStride, NumFloatComponents, NumInt32Components, NumHalfComponents);
 
-			check(DestDataBuffer->GetNumInstances() <= DestDataBuffer->GetNumInstancesAllocated());
-
-//			DestDataBuffer->Dump(0, DestDataBuffer->GetNumInstances(), TEXT("GPU Readback dump"));
-
+			//TODO: Safely copy IDToIndex Table.
 			// Copy ID to Index table
-			if (SrcDataBuffer)
-			{
-				TArray<int32>& IDTable = SrcDataBuffer->GetIDTable();
+// 			if (SrcDataBuffer)
+// 			{
+// 				TArray<int32>& IDTable = SrcDataBuffer->GetIDTable();
+// 
+// 				const int32* IDtoIndexBuffer = IDtoIndexBufferIndex == INDEX_NONE ? nullptr : reinterpret_cast<int32*>(BufferData[IDtoIndexBufferIndex].Key);
+// 				if (IDtoIndexBuffer != nullptr)
+// 				{
+// 					const int32 NumIDs = BufferData[IDtoIndexBufferIndex].Value / sizeof(int32);
+// 					check(NumIDs >= InstanceCount);
+// 					IDTable.SetNumUninitialized(NumIDs);
+// 					FMemory::Memcpy(IDTable.GetData(), IDtoIndexBuffer, NumIDs * sizeof(int32));
+// 				}
+// 				else
+// 				{
+// 					IDTable.Empty();
+// 				}
+// 			}
 
-				const int32* IDtoIndexBuffer = IDtoIndexBufferIndex == INDEX_NONE ? nullptr : reinterpret_cast<int32*>(BufferData[IDtoIndexBufferIndex].Key);
-				if (IDtoIndexBuffer != nullptr)
-				{
-					const int32 NumIDs = BufferData[IDtoIndexBufferIndex].Value / sizeof(int32);
-					check(NumIDs >= InstanceCount);
-					IDTable.SetNumUninitialized(NumIDs);
-					FMemory::Memcpy(IDTable.GetData(), IDtoIndexBuffer, NumIDs * sizeof(int32));
-				}
-				else
-				{
-					IDTable.Empty();
-				}
-			}
-
-			Readback->ReadbackCompleteInternal(DestDataBuffer);
+			Readback->ReadbackCompleteInternal();
 		}
 	);
 
@@ -334,4 +353,41 @@ void FNiagaraDataBufferReadback::GPUReadbackInternal(FRHICommandList& RHICmdList
 		Swap(Transition.AccessBefore, Transition.AccessAfter);
 	}
 	RHICmdList.Transition(Transitions);
+}
+
+void FNiagaraDataBufferReadback::GatherResults(	int32 InstanceCount, const float* FloatData, const int32* Int32Data, const FFloat16* HalfData, 
+												int32 FloatStride, int32 Int32Stride, int32 HalfStride,
+												int32 NumFloatComponents, int32 NumInt32Components, int32 NumHalfComponents)
+{
+	//Copy over data to local temp buffers for use to pass over the to GT.
+	//It is not safe for us to copy directly into an RT owned data buffer at this point.
+	//We must wait until we're on the GT and copy into a GT owned data buffer.
+	if(FloatData)
+	{
+		int32 BufferSize = NumFloatComponents * FloatStride;
+		ReadbackData_Float.SetNumUninitialized(BufferSize);
+		FMemory::Memcpy(ReadbackData_Float.GetData(), FloatData, BufferSize);
+	}
+
+	if(Int32Data)
+	{
+		int32 BufferSize = NumInt32Components * Int32Stride;
+		ReadbackData_Int32.SetNumUninitialized(BufferSize);
+		FMemory::Memcpy(ReadbackData_Int32.GetData(), Int32Data, BufferSize);
+	}
+	
+	if(HalfData)
+	{
+		int32 BufferSize = NumHalfComponents * HalfStride;
+		ReadbackData_Half.SetNumUninitialized(BufferSize);
+		FMemory::Memcpy(ReadbackData_Half.GetData(), HalfData, BufferSize);
+	}
+
+	ReadbackData_Count = InstanceCount;
+	ReadbackData_FloatStride = FloatStride;
+	ReadbackData_Int32Stride = Int32Stride;
+	ReadbackData_HalfStride = HalfStride;
+	ReadbackData_NumFloatComponents = NumFloatComponents;
+	ReadbackData_NumInt32Components = NumInt32Components;
+	ReadbackData_NumHalfComponents = NumHalfComponents;
 }
