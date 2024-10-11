@@ -685,27 +685,32 @@ FSlateDrawWindowPassOutputs FSlateRHIRenderer::DrawWindow_RenderThread(FRDGBuild
 		FRDGTexture* ElementsTexture = OutputTexture;
 		const FIntPoint OutputExtent = OutputTexture->Desc.Extent;
 
+		TArray<FRDGTexture*, FRDGArrayAllocator> PostProcessTextures;
+		PostProcessTextures.Reserve(Inputs.PostProcessUpdateRequests.Num());
+
 		for (const FSlatePostProcessUpdateRequest& Request : Inputs.PostProcessUpdateRequests)
 		{
-			FRHITexture* PostProcessOutputTextureRHI = Request.RenderTargetTextureResource->GetTexture2DRHI();
-			const FScreenPassTexture PostProcessOutputTexture(RegisterExternalTexture(GraphBuilder, PostProcessOutputTextureRHI, TEXT("PostProcessRT")));
+			FRDGTexture* Texture = RegisterExternalTexture(GraphBuilder, Request.RenderTargetTextureResource->GetTexture2DRHI(), TEXT("PostProcessRT"));
+			PostProcessTextures.Emplace(Texture);
+			GraphBuilder.UseInternalAccessMode(Texture);
+		}
 
-			FIntRect PostProcessInputViewRect;
-			FRHITexture* PostProcessInputTextureRHI;
+		// The post process input texture will be the separate viewport texture if it exists, or the swap chain.
+		FScreenPassTexture PostProcessInputTexture(RegisterExternalTexture(GraphBuilder, ViewportTextureRHI ? ViewportTextureRHI : SwapChainTextureRHI, TEXT("ViewportTexture")));
 
-			// The viewport texture will contain the scene if it's valid.
+		for (int32 PostProcessIndex = 0; PostProcessIndex < Inputs.PostProcessUpdateRequests.Num(); ++PostProcessIndex)
+		{
+			const FSlatePostProcessUpdateRequest& Request = Inputs.PostProcessUpdateRequests[PostProcessIndex];
+			const FScreenPassTexture PostProcessOutputTexture(PostProcessTextures[PostProcessIndex]);
+
 			if (ViewportTextureRHI)
 			{
-				PostProcessInputTextureRHI = ViewportTextureRHI;
-				PostProcessInputViewRect.Max = ViewportTextureRHI->GetSizeXY();
+				PostProcessInputTexture.ViewRect = FIntRect(FIntPoint::ZeroValue, ViewportTextureRHI->GetSizeXY());
 			}
 			else
 			{
-				PostProcessInputTextureRHI = SwapChainTextureRHI;
-				PostProcessInputViewRect = Inputs.SceneViewRect;
+				PostProcessInputTexture.ViewRect = Inputs.SceneViewRect;
 			}
-
-			const FScreenPassTexture PostProcessInputTexture(RegisterExternalTexture(GraphBuilder, PostProcessInputTextureRHI, TEXT("ViewportTexture")), PostProcessInputViewRect);
 
 			if (Request.PostProcessorProxy)
 			{
@@ -715,6 +720,11 @@ FSlateDrawWindowPassOutputs FSlateRHIRenderer::DrawWindow_RenderThread(FRDGBuild
 			{
 				AddDrawTexturePass(GraphBuilder, FScreenPassViewInfo(), PostProcessInputTexture, PostProcessOutputTexture);
 			}
+		}
+
+		for (FRDGTexture* Texture : PostProcessTextures)
+		{
+			GraphBuilder.UseExternalAccessMode(Texture, ERHIAccess::SRVMask);
 		}
 
 		const bool bCompositeUIWithSceneHDR = ViewportInfo.bDisplayFormatIsHDR && CompositeUIWithSceneHDR();

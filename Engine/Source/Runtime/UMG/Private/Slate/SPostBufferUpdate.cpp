@@ -66,23 +66,32 @@ void FPostBufferUpdater::Draw_RenderThread(FRDGBuilder& GraphBuilder, const FDra
 		return;
 	}
 
+	struct FActivePostBuffer
+	{
+		FRDGTexture* Texture = nullptr;
+		TSharedPtr<FSlateRHIPostBufferProcessorProxy> Proxy;
+	};
+
+	// Issue internal / external access mode calls in batches before and after to reduce the number of RDG passes.
+	TStaticArray<FActivePostBuffer, (int32)ESlatePostRT::Num> ActivePostBuffers;
+	int32 SlatePostBufferIndex = 0;
+
 	for (ESlatePostRT SlatePostBufferBit : MakeFlagsRange(Inputs.UsedSlatePostBuffers & BuffersToUpdate_Renderthread))
 	{
+		ON_SCOPE_EXIT
+		{
+			SlatePostBufferIndex++;
+		};
+
 		UTextureRenderTarget2D* SlatePostBuffer = Cast<UTextureRenderTarget2D>(RendererSettings->TryGetPostBufferRT(SlatePostBufferBit));
 		if (!SlatePostBuffer)
 		{
 			continue;
 		}
 
-		// Provided output texture is actually the input into our custom post process texture.
-		const FScreenPassTexture InputTexture(Inputs.OutputTexture, Inputs.SceneViewRect);
+		TSharedPtr<FSlateRHIPostBufferProcessorProxy> PostProcessorProxy = USlateFXSubsystem::GetPostProcessorProxy(SlatePostBufferBit);
 
-		// Write to our custom post process texture.
-		const FScreenPassTexture OutputTexture(RegisterExternalTexture(GraphBuilder, SlatePostBuffer->TextureReference.TextureReferenceRHI, TEXT("SlatePostProcessTexture")));
-
-		GraphBuilder.UseInternalAccessMode(OutputTexture.Texture);
-
-		if (TSharedPtr<FSlateRHIPostBufferProcessorProxy> PostProcessorProxy = USlateFXSubsystem::GetPostProcessorProxy(SlatePostBufferBit))
+		if (PostProcessorProxy)
 		{
 			if (TSharedPtr<FSlatePostProcessorUpdaterProxy>* ProcessorUpdaterItr = ProcessorUpdaters.Find(SlatePostBufferBit))
 			{
@@ -92,19 +101,49 @@ void FPostBufferUpdater::Draw_RenderThread(FRDGBuilder& GraphBuilder, const FDra
 
 					if (ProcessorUpdater->bSkipBufferUpdate)
 					{
-						return;
+						continue;
 					}
 				}
 			}
-
-			PostProcessorProxy->PostProcess_Renderthread(GraphBuilder, InputTexture, OutputTexture);
 		}
-		else
+
+		FRDGTexture* Texture = RegisterExternalTexture(GraphBuilder, SlatePostBuffer->TextureReference.TextureReferenceRHI, TEXT("SlatePostProcessTexture"));
+
+		ActivePostBuffers[SlatePostBufferIndex] = FActivePostBuffer
 		{
-			AddDrawTexturePass(GraphBuilder, FScreenPassViewInfo(), InputTexture, OutputTexture);
-		}
+			  .Texture = Texture
+			, .Proxy = MoveTemp(PostProcessorProxy)
+		};
 
-		GraphBuilder.UseExternalAccessMode(OutputTexture.Texture, ERHIAccess::SRVMask);
+		GraphBuilder.UseInternalAccessMode(Texture);
+	}
+
+	// Provided output texture is actually the input into our custom post process texture.
+	const FScreenPassTexture InputTexture(Inputs.OutputTexture, Inputs.SceneViewRect);
+
+	for (const FActivePostBuffer& ActivePostBuffer : ActivePostBuffers)
+	{
+		if (ActivePostBuffer.Texture)
+		{
+			const FScreenPassTexture OutputTexture(ActivePostBuffer.Texture);
+	
+			if (ActivePostBuffer.Proxy)
+			{
+				ActivePostBuffer.Proxy->PostProcess_Renderthread(GraphBuilder, InputTexture, OutputTexture);
+			}
+			else
+			{
+				AddDrawTexturePass(GraphBuilder, FScreenPassViewInfo(), InputTexture, OutputTexture);
+			}
+		}
+	}
+
+	for (const FActivePostBuffer& ActivePostBuffer : ActivePostBuffers)
+	{
+		if (ActivePostBuffer.Texture)
+		{
+			GraphBuilder.UseExternalAccessMode(ActivePostBuffer.Texture, ERHIAccess::SRVMask);
+		}
 	}
 }
 
