@@ -45,6 +45,7 @@
 #include "UObject/PackageReload.h"
 #include "ContextObjectStore.h"
 #include "SClothEditorAdvancedPreviewDetailsTab.h"
+#include "ToolMenus.h"
 
 #define LOCTEXT_NAMESPACE "ChaosClothAssetEditorToolkit"
 
@@ -304,10 +305,6 @@ void FChaosClothAssetEditorToolkit::InitializeEdMode(UBaseCharacterFXEditorMode*
 		FChaosClothAssetEditorModeToolkit* ClothModeToolkit = static_cast<FChaosClothAssetEditorModeToolkit*>(ModeToolkit.Get());
 		ClothModeToolkit->SetRestSpaceViewportWidget(RestSpaceViewportWidget);
 		ClothModeToolkit->SetPreviewViewportWidget(PreviewViewportWidget);
-
-		FName ParentToolbarName;
-		const FName ToolBarName = GetToolMenuToolbarName(ParentToolbarName);
-		ClothModeToolkit->BuildEditorToolBar(ToolBarName);
 	}
 }
 
@@ -508,6 +505,22 @@ void FChaosClothAssetEditorToolkit::PostInitAssetEditor()
 
 	// Handle Dataflow asset reload event
 	OnPackageReloadedDelegateHandle = FCoreUObjectDelegates::OnPackageReloaded.AddSP(this, &FChaosClothAssetEditorToolkit::HandlePackageReloaded);
+
+	// Populate editor toolbar
+
+	FName ParentToolbarName;
+	const FName ToolBarName = GetToolMenuToolbarName(ParentToolbarName);
+	UToolMenu* const AssetToolbar = UToolMenus::Get()->ExtendMenu(ToolBarName);
+	FToolMenuSection& Section = AssetToolbar->FindOrAddSection("ClothTools");
+
+	for (const TPair<FName, TSharedPtr<const FUICommandInfo>>& NodeAndAddCommand : ClothMode->NodeTypeToAddNodeCommandMap)
+	{
+		ToolkitCommands->MapAction(NodeAndAddCommand.Value,
+			FExecuteAction::CreateUObject(ClothMode, &UChaosClothAssetEditorMode::AddNode, NodeAndAddCommand.Key),
+			FCanExecuteAction::CreateUObject(ClothMode, &UChaosClothAssetEditorMode::CanAddNode, NodeAndAddCommand.Key));
+
+		Section.AddEntry(FToolMenuEntry::InitToolBarButton(NodeAndAddCommand.Value));
+	}
 }
 
 void FChaosClothAssetEditorToolkit::InitToolMenuContext(FToolMenuContext& MenuContext)

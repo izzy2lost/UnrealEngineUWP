@@ -21,10 +21,6 @@ class DATAFLOWEDITOR_API FDataflowEditorModeToolkit : public FBaseCharacterFXEdi
 public:
 	void Init(const TSharedPtr<IToolkitHost>& InitToolkitHost, TWeakObjectPtr<UEdMode> InOwningMode);
 
-	// Add buttons to the toolbar with the specified name
-	// Note: Most FModeToolkits would define BuildToolPalette, but we are putting buttons in the top toolbar instead
-	void BuildEditorToolBar(const FName& EditorToolBarName);
-
 	// FBaseCharacterFXEditorModeToolkit interface
 	virtual const FSlateBrush* GetActiveToolIcon(const FString& Identifier) const override;
 
