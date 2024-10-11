@@ -7,7 +7,7 @@
 #include "MoviePipelineAppleProResOutput.generated.h"
 
 // Forward Declare
-
+struct FMoviePipelineShotRenderTelemetry;
 
 UCLASS(BlueprintType)
 class UMoviePipelineAppleProResOutput : public UMoviePipelineVideoOutputBase
@@ -39,6 +39,10 @@ protected:
 	virtual FText GetDisplayText() const override;
 #endif
 	// ~UMoviePipelineOutputBase Interface
+
+	// UMoviePipelineSetting Interface
+	virtual void UpdateTelemetry(FMoviePipelineShotRenderTelemetry* InTelemetry) const override;
+	// ~UMoviePipelineSetting Interface
 
 public:
 	/** Which Apple ProRes codec should we use? See Apple documentation for more specifics. Uses Rec 709 color primaries. */

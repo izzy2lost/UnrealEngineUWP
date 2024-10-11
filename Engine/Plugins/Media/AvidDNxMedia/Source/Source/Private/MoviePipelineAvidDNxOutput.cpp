@@ -4,6 +4,7 @@
 #include "MoviePipeline.h"
 #include "MoviePipelineOutputSetting.h"
 #include "MoviePipelinePrimaryConfig.h"
+#include "MoviePipelineTelemetry.h"
 #include "ImagePixelData.h"
 #include "MoviePipelineImageQuantization.h"
 #include "SampleBuffer.h"
@@ -104,4 +105,9 @@ void UMoviePipelineAvidDNxOutput::Finalize_EncodeThread(MovieRenderPipeline::IVi
 	// Commit this to disk.
 	FAvidWriter* CodecWriter = static_cast<FAvidWriter*>(InWriter);
 	CodecWriter->Writer->Finalize();
+}
+
+void UMoviePipelineAvidDNxOutput::UpdateTelemetry(FMoviePipelineShotRenderTelemetry* InTelemetry) const
+{
+	InTelemetry->bUsesAvid = true;
 }

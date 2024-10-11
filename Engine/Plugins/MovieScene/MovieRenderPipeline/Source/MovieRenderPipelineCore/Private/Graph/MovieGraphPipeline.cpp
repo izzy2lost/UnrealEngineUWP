@@ -39,6 +39,7 @@ UMovieGraphPipeline::UMovieGraphPipeline()
 	, bIsTransitioningState(false)
 	, bIsTearingDownShot(false)
 	, PipelineState(EMovieRenderPipelineState::Uninitialized)
+	, bDidStartInsightsCapture(false)
 {
 	OutputMerger = MakeShared<UE::MovieGraph::FMovieGraphOutputMerger>(this);
 	CustomEngineTimeStep = CreateDefaultSubobject<UMovieGraphEngineTimeStep>("MovieGraphEngineTimeStep");
@@ -865,6 +866,7 @@ void UMovieGraphPipeline::StartUnrealInsightsCapture(UMovieGraphEvaluatedConfig*
 	const bool bTraceStarted = FTraceAuxiliary::Start(FTraceAuxiliary::EConnectionType::File, *FinalFilePath);
 	if (bTraceStarted)
 	{
+		bDidStartInsightsCapture = true;
 		UE_LOG(LogMovieRenderPipeline, Log, TEXT("Started capturing UnrealInsights trace file to %s"), *FinalFilePath);
 	}
 	else
@@ -1456,11 +1458,7 @@ void UMovieGraphPipeline::TransitionToState(const EMovieRenderPipelineState InNe
 			}
 
 			// Stop Insights trace
-			constexpr bool bIncludeCDOs = false;
-			constexpr bool bExactMatch = true;
-			const UMovieGraphDebugSettingNode* DebugSetting =
-				PostRenderEvaluatedGraph->GetSettingForBranch<UMovieGraphDebugSettingNode>(UMovieGraphNode::GlobalsPinName, bIncludeCDOs, bExactMatch);
-			if (DebugSetting && DebugSetting->bCaptureUnrealInsightsTrace)
+			if (bDidStartInsightsCapture)
 			{
 				StopUnrealInsightsCapture();
 			}

@@ -32,6 +32,9 @@ struct MOVIERENDERPIPELINECORE_API FMoviePipelineShotRenderTelemetry
 	int32 TemporalSampleCount = 0;
 	int32 SpatialSampleCount = 0;
 	int32 RenderLayerCount = 0;
+
+	// Note: If adding an entry here, make sure to also update FMoviePipelineTelemetry::SendBeginShotRenderTelemetry()
+	// Also remember to track the telemetry in both the graph and legacy.
 };
 
 /** Responsible for sending out telemetry for both Movie Render Queue and Movie Render Graph. */
