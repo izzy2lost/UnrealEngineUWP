@@ -199,7 +199,7 @@ class CUSTOMIZABLEOBJECT_API UCustomizableInstancePrivate : public UObject
 public:
 	GENERATED_BODY()
 
-	/** The generated skeletal meshes for this Instance, one for each component in the Object component list which means that some may be null if the component hasn't been generated. */
+	/** The generated skeletal meshes for this Instance. They may be null if the component is empty. */
 	UPROPERTY(Transient, VisibleAnywhere, Category = NoCategory, meta=(DisplayName = "Meshes"))
 	TMap<FName, TObjectPtr<USkeletalMesh>> SkeletalMeshes;
 	

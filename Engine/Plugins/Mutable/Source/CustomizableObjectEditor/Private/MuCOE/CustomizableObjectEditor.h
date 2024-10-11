@@ -357,9 +357,6 @@ private:
 
 	/** Open the Performance Analyzer tab */
 	void OpenPerformanceAnalyzerTab();
-	
-	/** Creates the actor and necessary components for the preview of the CO instance */
-	void CreatePreviewActor();
 
 	/** Recursively find any property that its name or value contains the given string.
 	  * @param Property Root property.
@@ -395,9 +392,6 @@ private:
 	/** The currently viewed object. */
 	TObjectPtr<UCustomizableObject> CustomizableObject = nullptr;
 	TObjectPtr<UCustomizableObjectInstance> PreviewInstance = nullptr;
-
-	/** Preview Actor. All preview components are attached to this actor. */
-	TStrongObjectPtr<AActor> Actor;
 
 	/** List of open tool panels; used to ensure only one exists at any one time */
 	TMap< FName, TWeakPtr<class SDockableTab> > SpawnedToolPanels;

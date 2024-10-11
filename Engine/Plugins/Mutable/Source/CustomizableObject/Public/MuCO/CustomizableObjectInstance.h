@@ -620,7 +620,7 @@ public:
 	float GetMinSquareDistToPlayer() const;
 	void SetMinSquareDistToPlayer(float NewValue);
 
-	/** Return the number of components generated in this instance. */
+	/** Return the number of components that are defined in the CO, unrelated to this instance parameters. */
 	UFUNCTION(BlueprintCallable, Category = CustomizableObjectInstance)
 	int32 GetNumComponents() const;
 

@@ -67,9 +67,9 @@ void FCustomizableObjectCustomSettingsDetails::CustomizeDetails(IDetailLayoutBui
 					return true;
 				}
 
-				for (TWeakObjectPtr<UDebugSkelMeshComponent>& WeakPreviewMeshComponent : Editor->GetViewport()->GetViewportClient()->GetPreviewMeshComponents())
+				for (TPair<FName,TWeakObjectPtr<UDebugSkelMeshComponent>>& Entry : Editor->GetViewport()->GetViewportClient()->GetPreviewMeshComponents())
 				{
-					UDebugSkelMeshComponent* PreviewMeshComponent = WeakPreviewMeshComponent.Get();
+					UDebugSkelMeshComponent* PreviewMeshComponent = Entry.Value.Get();
 					if (!PreviewMeshComponent)
 					{
 						continue;

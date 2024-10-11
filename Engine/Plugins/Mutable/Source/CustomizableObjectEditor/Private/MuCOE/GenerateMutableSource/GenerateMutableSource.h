@@ -854,10 +854,6 @@ public:
 	// For a given material node (the key is node package path + node uid + image index in node) stores images generated for the same node at a higher quality LOD to reuse that image node
 	TMap<FString, FGroupProjectorImageInfo> GroupProjectorLODCache;
 
-	// Data structures used for clipping feature by assigning a Customizable Object
-	// Map with pairs (Unreal Mutable material node Guid, array with its corresponding Mutable surface node) to add tags from clipping nodes
-	TMap<class UCustomizableObjectNodeMaterial*, TArray<mu::Ptr<mu::NodeSurfaceNew>>> MapMaterialNodeToMutableSurfaceNodeArray;
-
 	// Data used for MorphTarget reconstruction.
 	TMap<uint32, FRealTimeMorphMeshData> RealTimeMorphTargetPerMeshData;
 

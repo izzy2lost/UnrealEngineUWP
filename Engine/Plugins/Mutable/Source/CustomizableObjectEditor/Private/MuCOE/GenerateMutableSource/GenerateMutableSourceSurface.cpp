@@ -958,18 +958,6 @@ mu::Ptr<mu::NodeSurface> GenerateMutableSourceSurface(const UEdGraphPin * Pin, F
 			SurfNode->Tags.AddUnique( TypedNodeMat->GetInternalTag() );
 		}
 
-		TArray<mu::Ptr<mu::NodeSurfaceNew>>* ArraySurfaceNodePtr = GenerationContext.MapMaterialNodeToMutableSurfaceNodeArray.Find(TypedNodeMat->GetMaterialNode());
-		if (ArraySurfaceNodePtr == nullptr)
-		{
-			TArray<mu::Ptr<mu::NodeSurfaceNew>> ArraySurfaceNode;
-			ArraySurfaceNode.Add(SurfNode);
-			ArraySurfaceNodePtr = &GenerationContext.MapMaterialNodeToMutableSurfaceNodeArray.Add(TypedNodeMat->GetMaterialNode(), ArraySurfaceNode);
-		}
-		else
-		{
-			ArraySurfaceNodePtr->AddUnique(SurfNode);
-		}
-
 		// If an alternate resolution for a particular state is present, clone the surface node, add the image resizing and inject the surface variation node
 		if (TextureNameToProjectionResFactor.Num() > 0 && !AlternateResStateName.IsEmpty())
 		{
@@ -1016,8 +1004,6 @@ mu::Ptr<mu::NodeSurface> GenerateMutableSourceSurface(const UEdGraphPin * Pin, F
 					}
 				}
 			}
-
-			ArraySurfaceNodePtr->AddUnique(SurfNode2);
 
 			mu::Ptr<mu::NodeSurfaceVariation> SurfaceVariation = new mu::NodeSurfaceVariation;
 			SurfaceVariation->Type = mu::NodeSurfaceVariation::VariationType::State;

@@ -112,9 +112,9 @@ public:
 	virtual void SetViewportType(ELevelViewportType InViewportType) override;
 	// End of FEditorViewportClient
 	
-	void SetPreviewActor(const TWeakObjectPtr<AActor>& InActor, const TWeakObjectPtr<UCustomizableObjectInstance>& InInstance, const TArray<TWeakObjectPtr<UDebugSkelMeshComponent>>& InSkeletalMeshComponents);
+	void CreatePreviewActor(const TWeakObjectPtr<UCustomizableObjectInstance>& InInstance);
 
-	TArray<TWeakObjectPtr<UDebugSkelMeshComponent>>& GetPreviewMeshComponents();
+	TMap<FName, TWeakObjectPtr<UDebugSkelMeshComponent>>& GetPreviewMeshComponents();
 
 	void SetPreviewAnimationAsset(UAnimationAsset* AnimAsset);
 
@@ -152,7 +152,7 @@ public:
 	bool IsSetDrawUVOverlayChecked() const;
 
 	/** Specify which UV to draw. -1 values will not draw anything. */
-	void SetDrawUV(const int32 ComponentIndex, const int32 LODIndex, const int32 SectionIndex, const int32 UVIndex);
+	void SetDrawUV(const FName ComponentName, const int32 LODIndex, const int32 SectionIndex, const int32 UVIndex);
 
 	/** Callback for toggling the grid show flag. */
 	void UpdateShowGridFromButton();
@@ -316,7 +316,7 @@ public:
 
 private:
 	/** Draws Mesh Bones in foreground (From: FAnimationViewportClient) */
-	void DrawMeshBones(UDebugSkelMeshComponent* MeshComponent, FPrimitiveDrawInterface* PDI);
+	void DrawMeshBones(const UDebugSkelMeshComponent* MeshComponent, FPrimitiveDrawInterface* PDI);
 
 	void SetWidgetType(EWidgetType Type);
 
@@ -325,8 +325,10 @@ private:
 
 	void OnInstanceUpdate(UCustomizableObjectInstance* Instance);
 
-	TWeakObjectPtr<AActor> Actor;
-	TArray<TWeakObjectPtr<UDebugSkelMeshComponent>> SkeletalMeshComponents;
+
+	/** Preview Actor. All preview components are attached to this actor. */
+	TStrongObjectPtr<AActor> Actor;
+	TMap<FName, TWeakObjectPtr<UDebugSkelMeshComponent>> SkeletalMeshComponents;
 
 	/** True if the widget is being dragged. */
 	bool bManipulating = false;
@@ -339,7 +341,7 @@ private:
 	bool bDrawSky;
 
 	// UV to draw
-	int32 UVDrawComponentIndex = 0;
+	FName UVDrawComponentName = NAME_None;
 	int32 UVDrawSectionIndex = 0;
 	int32 UVDrawLODIndex = 0;
 	int32 UVDrawUVIndex = 0;

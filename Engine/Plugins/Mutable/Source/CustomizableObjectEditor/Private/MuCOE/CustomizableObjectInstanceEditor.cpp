@@ -671,7 +671,7 @@ void FCustomizableObjectInstanceEditor::OnCustomizableObjectStatusChanged(FCusto
 	{
 		if (CurrentState == FCustomizableObjectStatusTypes::EState::ModelLoaded)
 		{
-			CreatePreviewActor();
+			Viewport->CreatePreviewActor(CustomizableObjectInstance);
 			CustomizableObjectInstance->UpdateSkeletalMeshAsync(true, true);
 		}
 		else if (CurrentState == FCustomizableObjectStatusTypes::EState::NoModel)
@@ -693,7 +693,7 @@ void FCustomizableObjectInstanceEditor::OpenTextureAnalyzerTab()
 
 void FCustomizableObjectInstanceEditor::OnPostCompile()
 {
-	CreatePreviewActor();
+	Viewport->CreatePreviewActor(CustomizableObjectInstance);
 	CustomizableObjectInstance->UpdateSkeletalMeshAsync(true, true);
 }
 
@@ -953,48 +953,6 @@ void FCustomizableObjectInstanceEditor::HideGizmoProjectorParameter(const TShare
 	
 	ProjectorParameter->UnselectProjector();
 	InstanceDetailsView->ForceRefresh();		
-}
-
-
-void FCustomizableObjectInstanceEditor::CreatePreviewActor()
-{
-	const UCustomizableObject* Object = CustomizableObjectInstance->GetCustomizableObject();
-	
-	if (!Object)
-	{
-		return;
-	}
-
-	if (Actor)
-	{
-		Viewport->GetViewportClient()->GetWorld()->RemoveActor(Actor.Get(), false);
-	}
-	
-	Actor.Reset(Viewport->GetViewportClient()->GetWorld()->SpawnActor<ASkeletalMeshActor>());
-
-	PreviewSkeletalMeshComponents.Reset();
-	
-	for (int32 ObjectComponentIndex = 0; ObjectComponentIndex < Object->GetComponentCount(); ++ObjectComponentIndex)
-	{
-		UDebugSkelMeshComponent* DebugComponent = NewObject<UDebugSkelMeshComponent>(Actor.Get(), NAME_None, RF_Transient);
-		DebugComponent->bCastInsetShadow = true; // For better quality shadows in the editor previews, more similar to the in-game ones
-		DebugComponent->bCanHighlightSelectedSections = false;
-		DebugComponent->bComponentUseFixedSkelBounds = true; // First bounds computed would be using physics asset
-		DebugComponent->MarkRenderStateDirty();
-		DebugComponent->AttachToComponent(Actor->GetRootComponent(), FAttachmentTransformRules::KeepRelativeTransform);
-		DebugComponent->RegisterComponent();
-		
-		PreviewSkeletalMeshComponents.Add(DebugComponent);
-		
-		UCustomizableSkeletalComponent* CustomizableComponent = NewObject<UCustomizableSkeletalComponent>(DebugComponent);
-		CustomizableComponent->SetSkipSetReferenceSkeletalMesh(true);
-		CustomizableComponent->CustomizableObjectInstance = CustomizableObjectInstance;
-		CustomizableComponent->SetComponentName(Object->GetComponentName(ObjectComponentIndex));
-		CustomizableComponent->AttachToComponent(DebugComponent, FAttachmentTransformRules::KeepRelativeTransform);
-		CustomizableComponent->RegisterComponent();
-	}
-	
-	Viewport->SetPreviewActor(Actor.Get(), CustomizableObjectInstance, PreviewSkeletalMeshComponents);
 }
 
 

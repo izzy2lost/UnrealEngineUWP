@@ -152,7 +152,7 @@ public:
 	/** Callback to show / hide the state and runtime parameter test in the viewport */
 	TSharedRef<SWidget> ShowStateTestData();
 	
-	void SetPreviewActor(const TWeakObjectPtr<AActor>& InActor, const TWeakObjectPtr<UCustomizableObjectInstance>& InInstance, const TArray<TWeakObjectPtr<UDebugSkelMeshComponent>>& InSkeletalMeshComponents);
+	void CreatePreviewActor(const TWeakObjectPtr<UCustomizableObjectInstance>& InInstance);
 	
 	/** Function to get the number of LOD models associated with the preview skeletal mesh*/
 	int32 GetLODModelCount() const;
@@ -228,9 +228,6 @@ private:
 	
 	bool IsPlaybackSpeedSelected(int32 PlaybackSpeedMode);
 
-	// Components for the preview mesh.
-	TArray<TWeakObjectPtr<UDebugSkelMeshComponent>> PreviewSkeletalMeshComponents;
-
 	// The scene for this viewport.
 	TSharedPtr<FCustomizableObjectPreviewScene> PreviewScenePtr;
 
@@ -250,7 +247,7 @@ private:
 	/** Section identifier. */
 	struct FSection
 	{
-		int32 ComponentIndex = -1;
+		FName ComponentName = NAME_None;
 		int32 LODIndex = -1;
 		int32 SectionIndex = -1;
 	};
