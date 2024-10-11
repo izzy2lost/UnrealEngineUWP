@@ -25,6 +25,7 @@ bool FChaosVDDebugDrawImplicitObjectDataProcessor::ProcessRawData(const TArray<u
 		if (TSharedPtr<FChaosVDGameFrameData> CurrentFrameData = ProviderSharedPtr->GetCurrentGameFrame().Pin())
 		{
 			CurrentFrameData->RecordedDebugDrawImplicitObjectsBySolverID.FindOrAdd(DebugDrawData->SolverID).Add(DebugDrawData);
+			CurrentFrameData->MarkDirty();
 		}
 	}
 

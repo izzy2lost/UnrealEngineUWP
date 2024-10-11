@@ -100,6 +100,9 @@ private:
 
 	void EnqueueGameFrameForProcessing(const TSharedPtr<FChaosVDGameFrameData>& FrameData);
 	void DeQueueGameFrameForProcessing(TSharedPtr<FChaosVDGameFrameData>& OutFrameData);
+
+	/** Gathers any solver id from solver data that is not fully processed yet but that will be valid for the provided game frame data later on */
+	void GetAvailablePendingSolverIDsAtGameFrame(const TSharedRef<FChaosVDGameFrameData>& InProcessedGameFrameData, TArray<int32, TInlineAllocator<16>>& OutSolverIDs);
 	
 	TraceServices::IAnalysisSession& Session;
 

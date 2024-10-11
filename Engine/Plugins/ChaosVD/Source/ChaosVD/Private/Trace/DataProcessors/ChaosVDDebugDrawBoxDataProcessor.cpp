@@ -25,6 +25,7 @@ bool FChaosVDDebugDrawBoxDataProcessor::ProcessRawData(const TArray<uint8>& InDa
 		if (TSharedPtr<FChaosVDGameFrameData> CurrentFrameData = ProviderSharedPtr->GetCurrentGameFrame().Pin())
 		{
 			CurrentFrameData->RecordedDebugDrawBoxesBySolverID.FindOrAdd(DebugDrawData->SolverID).Add(DebugDrawData);
+			CurrentFrameData->MarkDirty();
 		}
 	}
 
