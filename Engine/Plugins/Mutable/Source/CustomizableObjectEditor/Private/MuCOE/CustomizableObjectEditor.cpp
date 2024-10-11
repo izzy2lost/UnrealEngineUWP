@@ -23,7 +23,6 @@
 #include "MaterialGraph/MaterialGraphNode_Comment.h"
 #include "MuCO/CustomizableObjectInstance.h"
 #include "MuCO/CustomizableObjectSystem.h"
-#include "MuCO/CustomizableSkeletalComponent.h"
 #include "MuCO/UnrealPortabilityHelpers.h"
 #include "MuCO/CustomizableObjectCompilerTypes.h"
 #include "MuCOE/CustomizableObjectCustomSettings.h"
@@ -67,9 +66,7 @@
 #include "Widgets/Layout/SScrollBox.h"
 #include "Widgets/Notifications/SNotificationList.h"
 #include "SMutableObjectViewer.h"
-#include "MuCO/CustomizableSkeletalComponentPrivate.h"
 #include "MuCO/CustomizableObjectCustomVersion.h"
-#include "MuCO/CustomizableSkeletalMeshActor.h"
 #include "MuCOE/CustomizableObjectInstanceFactory.h"
 
 class FAdvancedPreviewScene;
@@ -2109,7 +2106,7 @@ void FCustomizableObjectEditor::FindProperty(const FProperty* Property, const vo
 
 void FCustomizableObjectEditor::OnPostCompile()
 {
-	CreatePreviewActor();
+	Viewport->CreatePreviewActor(PreviewInstance);
 	PreviewInstance->UpdateSkeletalMeshAsync(true, true);
 }
 
@@ -2199,12 +2196,6 @@ void FCustomizableObjectEditor::LogSearchResult(const UObject& Context, const FS
 
 void FCustomizableObjectEditor::OnUpdatePreviewInstance(UCustomizableObjectInstance* Instance)
 {
-	if (PreviewInstance->GetPrivate()->SkeletalMeshStatus != ESkeletalMeshStatus::Success)
-	{
-		Actor->GetRootComponent()->SetVisibility(false, true);
-	}
-	Actor->GetRootComponent()->UpdateBounds();
-	
 	if (TextureAnalyzer.IsValid())
 	{
 		TextureAnalyzer->RefreshTextureAnalyzerTable(PreviewInstance);
@@ -2317,41 +2308,6 @@ UCustomizableObject* FCustomizableObjectEditor::GetAbsoluteCOParent(const UCusto
 }
 
 
-void FCustomizableObjectEditor::CreatePreviewActor()
-{
-	if (Actor)
-	{
-		Actor->Destroy();
-	}
-	
-	Actor.Reset(ViewportClient->GetWorld()->SpawnActor<ASkeletalMeshActor>());
-
-	TArray<TWeakObjectPtr<UDebugSkelMeshComponent>> PreviewSkeletalMeshComponents;
-	
-	for (int32 ObjectComponentIndex = 0; ObjectComponentIndex < CustomizableObject->GetComponentCount(); ++ObjectComponentIndex)
-	{
-		UDebugSkelMeshComponent* DebugComponent = NewObject<UDebugSkelMeshComponent>(Actor.Get(), NAME_None, RF_Transient);
-		DebugComponent->bCastInsetShadow = true; // For better quality shadows in the editor previews, more similar to the in-game ones
-		DebugComponent->bCanHighlightSelectedSections = false;
-		DebugComponent->bComponentUseFixedSkelBounds = true; // First bounds computed would be using physics asset
-		DebugComponent->MarkRenderStateDirty();
-		DebugComponent->AttachToComponent(Actor->GetRootComponent(), FAttachmentTransformRules::KeepRelativeTransform);
-		DebugComponent->RegisterComponent();
-		
-		PreviewSkeletalMeshComponents.Add(DebugComponent);
-		
-		UCustomizableSkeletalComponent* CustomizableComponent = NewObject<UCustomizableSkeletalComponent>(DebugComponent);
-		CustomizableComponent->SetSkipSetReferenceSkeletalMesh(true);
-		CustomizableComponent->CustomizableObjectInstance = PreviewInstance;
-		CustomizableComponent->SetComponentName(CustomizableObject->GetComponentName(ObjectComponentIndex));
-		CustomizableComponent->AttachToComponent(DebugComponent, FAttachmentTransformRules::KeepRelativeTransform);
-		CustomizableComponent->RegisterComponent();
-	}
-	
-	Viewport->SetPreviewActor(Actor.Get(), PreviewInstance, PreviewSkeletalMeshComponents);
-}
-
-
 void RemoveRestrictedChars(FString& String)
 {
 	// Remove restricted chars, according to FPaths::ValidatePath, RestrictedChars = "/?:&\\*\"<>|%#@^ ";
@@ -2380,7 +2336,7 @@ void FCustomizableObjectEditor::OnCustomizableObjectStatusChanged(FCustomizableO
 	{
 		if (CurrentState == FCustomizableObjectStatusTypes::EState::ModelLoaded)
 		{
-			CreatePreviewActor();
+			Viewport->CreatePreviewActor(PreviewInstance);
 			PreviewInstance->UpdateSkeletalMeshAsync(true, true);
 		}
 		else if (CurrentState == FCustomizableObjectStatusTypes::EState::NoModel)

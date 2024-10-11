@@ -1994,12 +1994,12 @@ bool UCustomizableInstancePrivate::DoComponentsNeedUpdate(UCustomizableObjectIns
 		// Components with mesh must have valid geometry at CurrentMaxLOD
 
 		TObjectPtr<USkeletalMesh>* SkeletalMeshPtr = SkeletalMeshes.Find(ComponentName);
-		const bool bHasSkeletalMesh = SkeletalMeshPtr && *SkeletalMeshPtr;
+		const bool bHadSkeletalMesh = SkeletalMeshPtr && *SkeletalMeshPtr;
 
 		if (Component.LODCount == 0)
 		{
 			// We don't have a mesh in the component, so it has changed if we had one before.
-			OperationData->MeshChanged[InstanceComponentIndex] = bHasSkeletalMesh;
+			OperationData->MeshChanged[InstanceComponentIndex] = bHadSkeletalMesh;
 			continue;
 		}
 
@@ -2017,8 +2017,8 @@ bool UCustomizableInstancePrivate::DoComponentsNeedUpdate(UCustomizableObjectIns
 			}
 		}
 
-		// Update the component if there is a mesh and it shouldn't, or the other way around.
-		OperationData->MeshChanged[InstanceComponentIndex] = (ComponentWithMesh[InstanceComponentIndex] != bHasSkeletalMesh);
+		// If the component wasn't there and now is there, we need to update it.
+		OperationData->MeshChanged[InstanceComponentIndex] = !bHadSkeletalMesh && LOD.Mesh && (LOD.Mesh->GetFaceCount()>0);
 
 		const FCustomizableInstanceComponentData* ComponentData = GetComponentData(ObjectComponentIndex);
 		if (!ComponentData) // Could be nullptr if the component has not been generated.
@@ -2038,6 +2038,33 @@ bool UCustomizableInstancePrivate::DoComponentsNeedUpdate(UCustomizableObjectIns
 		OperationData->MeshChanged.Num() != SkeletalMeshes.Num()
 		||
 		OperationData->MeshChanged.Find(true) != INDEX_NONE;
+
+	// It also changed if we removed a component that we did have before
+	if (!bChanged)
+	{
+		for (const TPair<FName, TObjectPtr<USkeletalMesh>>& OldMesh : SkeletalMeshes)
+		{
+			bool bFound = false;
+			for (int32 InstanceComponentIndex = 0; InstanceComponentIndex < NumInstanceComponents; ++InstanceComponentIndex)
+			{
+				const FInstanceUpdateData::FComponent& Component = OperationData->InstanceUpdateData.Components[InstanceComponentIndex];
+				const int32 ObjectComponentIndex = Component.Id;
+				const FName ComponentName = OperationData->Instance->GetCustomizableObject()->GetPrivate()->GetModelResources().ComponentNames[ObjectComponentIndex];
+
+				if (ComponentName == OldMesh.Key)
+				{
+					bFound = true;
+					break;
+				}
+			}
+
+			if (!bFound)
+			{
+				bChanged = true;
+				break;
+			}
+		}
+	}
 
 	return !bHasInvalidMesh && bChanged;
 }

@@ -31,7 +31,11 @@
 #include "Misc/PackageName.h"
 #include "Misc/ConfigCacheIni.h"
 #include "MuCO/CustomizableObjectInstance.h"
+#include "MuCO/CustomizableObjectInstancePrivate.h"
 #include "MuCO/CustomizableObjectSystem.h"
+#include "MuCO/CustomizableSkeletalMeshActor.h"
+#include "MuCO/CustomizableSkeletalComponent.h"
+#include "MuCO/CustomizableSkeletalComponentPrivate.h"
 #include "MuCOE/CustomizableObjectPreviewScene.h"
 #include "MuCOE/ICustomizableObjectInstanceEditor.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeModifierClipMorph.h"
@@ -259,11 +263,12 @@ void FCustomizableObjectEditorViewportClient::Draw(const FSceneView* View, FPrim
 		{
 			float MaxSphereRadius = 0.f;
 
-			for (TWeakObjectPtr<USkeletalMeshComponent> SkeletalMeshComponent : SkeletalMeshComponents)
+			for (const TPair<FName, TWeakObjectPtr<UDebugSkelMeshComponent>>& Key : SkeletalMeshComponents)
 			{
-				if (SkeletalMeshComponent.IsValid())
+				const UDebugSkelMeshComponent* Component = Key.Value.Get();
+				if (Component)
 				{
-					MaxSphereRadius = FMath::Max(MaxSphereRadius, SkeletalMeshComponent->Bounds.SphereRadius);
+					MaxSphereRadius = FMath::Max(MaxSphereRadius, Component->Bounds.SphereRadius);
 				}
 			}
 
@@ -382,11 +387,12 @@ void FCustomizableObjectEditorViewportClient::Draw(const FSceneView* View, FPrim
 
 	if (bShowBones)
 	{
-		for (const TWeakObjectPtr<UDebugSkelMeshComponent>& SkeletalMeshComponent : SkeletalMeshComponents)
+		for (const TPair<FName, TWeakObjectPtr<UDebugSkelMeshComponent>>& Key : SkeletalMeshComponents)
 		{
-			if (SkeletalMeshComponent.IsValid())
+			const UDebugSkelMeshComponent* Component = Key.Value.Get();
+			if (Component)
 			{
-				DrawMeshBones(SkeletalMeshComponent.Get(), PDI);
+				DrawMeshBones(Component, PDI);
 			}
 		}
 	}
@@ -398,11 +404,12 @@ void FCustomizableObjectEditorViewportClient::Draw(const FSceneView* View, FPrim
 		const bool bPreviousValue = CVar->GetBool();
 		CVar->Set(true);
 		
-		for (const TWeakObjectPtr<UDebugSkelMeshComponent>& SkeletalMeshComponent : SkeletalMeshComponents)
+		for (const TPair<FName, TWeakObjectPtr<UDebugSkelMeshComponent>>& Key : SkeletalMeshComponents)
 		{
-			if (SkeletalMeshComponent.IsValid())
+			UDebugSkelMeshComponent* Component = Key.Value.Get();
+			if (Component)
 			{
-				SkeletalMeshComponent->DebugDrawClothing(PDI);
+				Component->DebugDrawClothing(PDI);
 			}
 		}
 		
@@ -414,13 +421,37 @@ void FCustomizableObjectEditorViewportClient::Draw(const FSceneView* View, FPrim
 void FCustomizableObjectEditorViewportClient::Draw(FViewport* InViewport, FCanvas* Canvas)
 {
 	// Defensive check to avoid unreal crashing inside render if the mesh is degenereated
-	for (TWeakObjectPtr<USkeletalMeshComponent> SkeletalMeshComponent : SkeletalMeshComponents)
+	for (const TPair<FName, TWeakObjectPtr<UDebugSkelMeshComponent>>& Key : SkeletalMeshComponents)
 	{
-		if (SkeletalMeshComponent.IsValid() && UE_MUTABLE_GETSKINNEDASSET(SkeletalMeshComponent) && UE_MUTABLE_GETSKINNEDASSET(SkeletalMeshComponent)->GetLODNum() == 0)
+		UDebugSkelMeshComponent* Component = Key.Value.Get();
+
+		if (Component && Component->GetSkinnedAsset() && Component->GetSkinnedAsset()->GetLODNum() == 0)
 		{
-			SkeletalMeshComponent->SetSkeletalMesh(nullptr);
+			Component->SetSkeletalMesh(nullptr);
 		}
 	}
+
+	// Configure the initial orbital position of the camera
+	if (!bIsCameraSetup)
+	{
+		if (!Actor.IsValid())
+		{
+			return;
+		}
+
+		FVector Center;
+		FVector Extents;
+		Actor.Get()->GetActorBounds(false, Center, Extents, true);
+
+		bIsCameraSetup = Extents.X * Extents.Y * Extents.Z > 0.0;
+
+		static FRotator CustomOrbitRotation(-33.75, -135, 0);
+		FVector CustomOrbitZoom(0, Extents.GetMax() * 2.5 / (75.0 * PI / 360.0), 0);
+
+		SetCameraSetup(Center, CustomOrbitRotation, CustomOrbitZoom, Center, FVector::Zero(), {} /** Not used since orbital is enable just after. */);
+		EnableCameraLock(true);
+	}
+
 
 	FEditorViewportClient::Draw(InViewport, Canvas);
 
@@ -449,7 +480,7 @@ namespace
 
 void FCustomizableObjectEditorViewportClient::DrawUVs(FViewport* InViewport, FCanvas* InCanvas, int32 InTextYPos)
 {
-	const uint32 ComponentIndex = UVDrawComponentIndex;
+	const FName ComponentName = UVDrawComponentName;
 	const uint32 LODLevel = UVDrawLODIndex; 	// TODO use the overriden LOD level
 	const int32 SectionIndex = UVDrawSectionIndex;
 	const int32 UVChannel = UVDrawUVIndex;
@@ -496,16 +527,17 @@ void FCustomizableObjectEditorViewportClient::DrawUVs(FViewport* InViewport, FCa
 
 	if (SkeletalMeshComponents.Num())
 	{
-		if (SkeletalMeshComponents.IsValidIndex(ComponentIndex))
+		TWeakObjectPtr<UDebugSkelMeshComponent>* ComponentPtr = SkeletalMeshComponents.Find(ComponentName);
+		if (ComponentPtr && ComponentPtr->IsValid())
 		{
-			TWeakObjectPtr<USkeletalMeshComponent> SkeletalMeshComponent = SkeletalMeshComponents[ComponentIndex];
+			TWeakObjectPtr<USkeletalMeshComponent> SkeletalMeshComponent = *ComponentPtr;
 
-			if (!SkeletalMeshComponent.IsValid() || !UE_MUTABLE_GETSKINNEDASSET(SkeletalMeshComponent))
+			if (!SkeletalMeshComponent.IsValid() || !SkeletalMeshComponent->GetSkinnedAsset())
 			{
 				return;
 			}
 
-			const FSkeletalMeshRenderData* MeshRes = UE_MUTABLE_GETSKINNEDASSET(SkeletalMeshComponent)->GetResourceForRendering();
+			const FSkeletalMeshRenderData* MeshRes = SkeletalMeshComponent->GetSkinnedAsset()->GetResourceForRendering();
 			if (!MeshRes->LODRenderData.IsValidIndex(LODLevel))
 			{
 				return;
@@ -696,21 +728,15 @@ void FCustomizableObjectEditorViewportClient::HideGizmoLight()
 }
 
 
-void FCustomizableObjectEditorViewportClient::SetPreviewActor(const TWeakObjectPtr<AActor>& InActor, const TWeakObjectPtr<UCustomizableObjectInstance>& InInstance, const TArray<TWeakObjectPtr<UDebugSkelMeshComponent>>& InSkeletalMeshComponents)
+void FCustomizableObjectEditorViewportClient::CreatePreviewActor(const TWeakObjectPtr<UCustomizableObjectInstance>& InInstance)
 {
-	SkeletalMeshComponents = InSkeletalMeshComponents;
-	Actor = InActor;
-
-	for (const TWeakObjectPtr<UDebugSkelMeshComponent>& SkeletalMeshComponent : SkeletalMeshComponents)
+	if (Actor)
 	{
-		if (SkeletalMeshComponent.IsValid())
-		{
-			SkeletalMeshComponent->bDisableClothSimulation = bDisableClothSimulation;
-			SkeletalMeshComponent->bDrawNormals = bDrawNormals;
-			SkeletalMeshComponent->bDrawTangents = bDrawTangents;
-			SkeletalMeshComponent->bDrawBinormals = bDrawBinormals;
-		}
+		Actor->Destroy();
+		SkeletalMeshComponents.Reset();
 	}
+
+	Actor.Reset(GetWorld()->SpawnActor<ASkeletalMeshActor>());
 
 	bUpdated = false;
 	
@@ -720,7 +746,7 @@ void FCustomizableObjectEditorViewportClient::SetPreviewActor(const TWeakObjectP
 }
 
 
-TArray<TWeakObjectPtr<UDebugSkelMeshComponent>>& FCustomizableObjectEditorViewportClient::GetPreviewMeshComponents()
+TMap<FName, TWeakObjectPtr<UDebugSkelMeshComponent>>& FCustomizableObjectEditorViewportClient::GetPreviewMeshComponents()
 {
 	return SkeletalMeshComponents;
 }
@@ -728,9 +754,9 @@ TArray<TWeakObjectPtr<UDebugSkelMeshComponent>>& FCustomizableObjectEditorViewpo
 
 void FCustomizableObjectEditorViewportClient::SetPreviewAnimationAsset(UAnimationAsset* AnimAsset)
 {
-	for (TWeakObjectPtr<UDebugSkelMeshComponent>& WeakSkeletalMeshComponent : SkeletalMeshComponents)
+	for (TPair<FName,TWeakObjectPtr<UDebugSkelMeshComponent>>& Entry : SkeletalMeshComponents)
 	{
-		UDebugSkelMeshComponent* SkeletalMeshComponent = WeakSkeletalMeshComponent.Get();
+		UDebugSkelMeshComponent* SkeletalMeshComponent = Entry.Value.Get();
 		if (!SkeletalMeshComponent)
 		{
 			continue;
@@ -760,6 +786,75 @@ void FCustomizableObjectEditorViewportClient::SetPreviewAnimationAsset(UAnimatio
 
 void FCustomizableObjectEditorViewportClient::OnInstanceUpdate(UCustomizableObjectInstance* Instance)
 {
+	if (!Instance)
+	{
+		return;
+	}
+
+	const UCustomizableObject* CO = Instance->GetCustomizableObject();
+	if (!CO)
+	{
+		return;
+	}
+
+	// Remove components that are no longer there
+	TArray<FName> ToRemove;
+	ToRemove.Reserve(SkeletalMeshComponents.Num());
+	for (const TPair<FName,TWeakObjectPtr<UDebugSkelMeshComponent>>& Item : SkeletalMeshComponents)
+	{
+		// TODO: This will not work with different types of components like grooms or panel clothing.
+		bool bInstanceHasComponent = Instance->GetComponentMeshSkeletalMesh(Item.Key) != nullptr;
+
+		if (!bInstanceHasComponent)
+		{ 
+			if (UDebugSkelMeshComponent* Comp = Item.Value.Get())
+			{
+				Comp->DestroyComponent();
+			}
+			ToRemove.Add(Item.Key);
+		}
+	}
+
+	for (const FName Name: ToRemove)
+	{
+		SkeletalMeshComponents.Remove(Name);
+	}
+
+	// Add new components
+	for (int32 ObjectComponentIndex = 0; ObjectComponentIndex < CO->GetComponentCount(); ++ObjectComponentIndex)
+	{
+		FName Name = CO->GetComponentName(ObjectComponentIndex);
+		if (Instance->GetComponentMeshSkeletalMesh(Name))
+		{
+			if (!SkeletalMeshComponents.Contains(Name))
+			{
+				// We need to add it.
+				UDebugSkelMeshComponent* DebugComponent = NewObject<UDebugSkelMeshComponent>(Actor.Get(), Name, RF_Transient);
+				DebugComponent->bCastInsetShadow = true; // For better quality shadows in the editor previews, more similar to the in-game ones
+				DebugComponent->bCanHighlightSelectedSections = false;
+				DebugComponent->bComponentUseFixedSkelBounds = true; // First bounds computed would be using physics asset
+				DebugComponent->MarkRenderStateDirty();
+				DebugComponent->AttachToComponent(Actor->GetRootComponent(), FAttachmentTransformRules::KeepRelativeTransform);
+				DebugComponent->RegisterComponent();
+
+				SkeletalMeshComponents.Add(Name, DebugComponent);
+
+				UCustomizableSkeletalComponent* CustomizableComponent = NewObject<UCustomizableSkeletalComponent>(DebugComponent);
+				CustomizableComponent->SetSkipSetReferenceSkeletalMesh(true);
+				CustomizableComponent->CustomizableObjectInstance = Instance;
+				CustomizableComponent->SetComponentName(Name);
+				CustomizableComponent->AttachToComponent(DebugComponent, FAttachmentTransformRules::KeepRelativeTransform);
+				CustomizableComponent->RegisterComponent();
+
+				DebugComponent->bDisableClothSimulation = bDisableClothSimulation;
+				DebugComponent->bDrawNormals = bDrawNormals;
+				DebugComponent->bDrawTangents = bDrawTangents;
+				DebugComponent->bDrawBinormals = bDrawBinormals;
+			}
+		}
+	}
+
+
 	if (!bUpdated)
 	{
 		bUpdated = true;
@@ -769,25 +864,13 @@ void FCustomizableObjectEditorViewportClient::OnInstanceUpdate(UCustomizableObje
 	
 	Invalidate();
 	
-	// Configure the initial orbital position of the camera
-	if (!bIsCameraSetup)
+	if (Actor)
 	{
-		if (!Actor.IsValid())
+		if (Instance->GetPrivate()->SkeletalMeshStatus != ESkeletalMeshStatus::Success)
 		{
-			return;
+			Actor->GetRootComponent()->SetVisibility(false, true);
 		}
-		
-		FVector Center;
-		FVector Extents;
-		Actor.Get()->GetActorBounds(false, Center, Extents, true);
-
-		bIsCameraSetup = Extents.X * Extents.Y * Extents.Z > 0.0;
-		
-		static FRotator CustomOrbitRotation(-33.75, -135, 0);
-		FVector CustomOrbitZoom(0, Extents.GetMax() * 2.5 / (75.0 * PI / 360.0), 0);
-
-		SetCameraSetup(Center, CustomOrbitRotation, CustomOrbitZoom, Center, FVector::Zero(), {} /** Not used since orbital is enable just after. */ );	
-		EnableCameraLock(true);
+		Actor->GetRootComponent()->UpdateBounds();
 	}
 }
 
@@ -799,9 +882,9 @@ void FCustomizableObjectEditorViewportClient::SetDrawUVOverlay()
 }
 
 
-void FCustomizableObjectEditorViewportClient::SetDrawUV(const int32 ComponentIndex, const int32 LODIndex, const int32 SectionIndex, const int32 UVIndex)
+void FCustomizableObjectEditorViewportClient::SetDrawUV(const FName ComponentName, const int32 LODIndex, const int32 SectionIndex, const int32 UVIndex)
 {
-	UVDrawComponentIndex = ComponentIndex;
+	UVDrawComponentName = ComponentName;
 	UVDrawLODIndex = LODIndex;
 	UVDrawSectionIndex = SectionIndex;
 	UVDrawUVIndex = UVIndex;
@@ -1371,9 +1454,9 @@ bool FCustomizableObjectEditorViewportClient::CanSetWidgetMode(UE::Widget::EWidg
 
 void FCustomizableObjectEditorViewportClient::SetAnimation(UAnimationAsset* Animation)
 {
-	for (TWeakObjectPtr<UDebugSkelMeshComponent>& WeakPreviewMeshComponent : SkeletalMeshComponents)
+	for (TPair<FName, TWeakObjectPtr<UDebugSkelMeshComponent>>& Entry : SkeletalMeshComponents)
 	{
-		UDebugSkelMeshComponent* PreviewMeshComponent = WeakPreviewMeshComponent.Get();
+		UDebugSkelMeshComponent* PreviewMeshComponent = Entry.Value.Get();
 		if (!PreviewMeshComponent)
 		{
 			continue;
@@ -1548,11 +1631,13 @@ void FCustomizableObjectEditorViewportClient::ShowInstanceGeometryInformation(FC
 	int32 ComponentIndex = 0;
 
 	// Show total number of triangles and vertices
-	for (TWeakObjectPtr<USkeletalMeshComponent> SkeletalMeshComponent : SkeletalMeshComponents)
+	for (TPair<FName, TWeakObjectPtr<UDebugSkelMeshComponent>>& Entry : SkeletalMeshComponents)
 	{
-		if (SkeletalMeshComponent.IsValid() && UE_MUTABLE_GETSKINNEDASSET(SkeletalMeshComponent))
+		UDebugSkelMeshComponent* SkeletalMeshComponent = Entry.Value.Get();
+
+		if (SkeletalMeshComponent && SkeletalMeshComponent->GetSkinnedAsset())
 		{
-			const FSkeletalMeshRenderData* MeshRes = UE_MUTABLE_GETSKINNEDASSET(SkeletalMeshComponent)->GetResourceForRendering();
+			const FSkeletalMeshRenderData* MeshRes = SkeletalMeshComponent->GetSkinnedAsset()->GetResourceForRendering();
 			int32 NumTriangles;
 			int32 NumVertices;
 			int32 NumLODLevel = MeshRes->LODRenderData.Num();
@@ -1892,9 +1977,10 @@ void FCustomizableObjectEditorViewportClient::OnEnableClothSimulation()
 {
 	bDisableClothSimulation = !bDisableClothSimulation;
 	
-	for (const TWeakObjectPtr<UDebugSkelMeshComponent>& SkeletalMeshComponent : SkeletalMeshComponents)
+	for (TPair<FName, TWeakObjectPtr<UDebugSkelMeshComponent>>& Entry : SkeletalMeshComponents)
 	{
-		if (SkeletalMeshComponent.IsValid())
+		UDebugSkelMeshComponent* SkeletalMeshComponent = Entry.Value.Get();
+		if (SkeletalMeshComponent)
 		{
 			SkeletalMeshComponent->bDisableClothSimulation = bDisableClothSimulation;
 		}
@@ -1939,12 +2025,13 @@ FText MergeLine(const FText& InText, const FText& InNewLine)
 FText FCustomizableObjectEditorViewportClient::GetMeshInfoText() const
 {
 	FText TextValue;
+	bool bFirst = true;
 
-	for (int32 ComponentIndex = 0; ComponentIndex < SkeletalMeshComponents.Num(); ++ComponentIndex)
+	for (const TPair<FName, TWeakObjectPtr<UDebugSkelMeshComponent>>& Entry : SkeletalMeshComponents)
 	{
-		TWeakObjectPtr<UDebugSkelMeshComponent> PreviewMeshComponent = SkeletalMeshComponents[ComponentIndex];
+		UDebugSkelMeshComponent* PreviewMeshComponent = Entry.Value.Get();
 		
-		if (!PreviewMeshComponent.IsValid())
+		if (!PreviewMeshComponent)
 		{
 			continue;
 		}
@@ -1975,13 +2062,14 @@ FText FCustomizableObjectEditorViewportClient::GetMeshInfoText() const
 			NumTotalTriangles += LODData.RenderSections[SectionIndex].NumTriangles;
 		}
 
-		if (ComponentIndex > 0)
+		if (!bFirst)
 		{
 			TextValue = FText::Format(LOCTEXT("MeshInfoComponentSeparation", "{0}\n"), TextValue);
 		}
+		bFirst = false;
 		
 		TextValue = MergeLine(TextValue, FText::Format(LOCTEXT("MeshInfoFormat", "Component: {0}, LOD: {1}, Bones: {2} (Mapped to Vertices: {3}), Polys: {4}"),
-			FText::AsNumber(ComponentIndex),
+			FText::FromString(Entry.Key.ToString()),
 			FText::AsNumber(LODIndex),
 			FText::AsNumber(NumBonesInUse),
 			FText::AsNumber(NumBonesMappedToVerts),
@@ -2060,9 +2148,10 @@ void FCustomizableObjectEditorViewportClient::ToggleShowNormals()
 {
 	bDrawNormals = !bDrawNormals;
 	
-	for (const TWeakObjectPtr<UDebugSkelMeshComponent>& SkeletalMeshComponent : SkeletalMeshComponents)
+	for (TPair<FName, TWeakObjectPtr<UDebugSkelMeshComponent>>& Entry : SkeletalMeshComponents)
 	{
-		if (SkeletalMeshComponent.IsValid())
+		UDebugSkelMeshComponent* SkeletalMeshComponent = Entry.Value.Get();
+		if (SkeletalMeshComponent)
 		{
 			SkeletalMeshComponent->bDrawNormals = bDrawNormals;
 			SkeletalMeshComponent->MarkRenderStateDirty();
@@ -2083,9 +2172,10 @@ void FCustomizableObjectEditorViewportClient::ToggleShowTangents()
 {
 	bDrawTangents = !bDrawTangents;
 
-	for (const TWeakObjectPtr<UDebugSkelMeshComponent>& SkeletalMeshComponent : SkeletalMeshComponents)
+	for (TPair<FName, TWeakObjectPtr<UDebugSkelMeshComponent>>& Entry : SkeletalMeshComponents)
 	{
-		if (SkeletalMeshComponent.IsValid())
+		UDebugSkelMeshComponent* SkeletalMeshComponent = Entry.Value.Get();
+		if (SkeletalMeshComponent)
 		{
 			SkeletalMeshComponent->bDrawTangents = bDrawTangents;
 			SkeletalMeshComponent->MarkRenderStateDirty();
@@ -2106,9 +2196,10 @@ void FCustomizableObjectEditorViewportClient::ToggleShowBinormals()
 {
 	bDrawBinormals = !bDrawBinormals;
 	
-	for (const TWeakObjectPtr<UDebugSkelMeshComponent>& SkeletalMeshComponent : SkeletalMeshComponents)
+	for (TPair<FName, TWeakObjectPtr<UDebugSkelMeshComponent>>& Entry : SkeletalMeshComponents)
 	{
-		if (SkeletalMeshComponent.IsValid())
+		UDebugSkelMeshComponent* SkeletalMeshComponent = Entry.Value.Get();
+		if (SkeletalMeshComponent)
 		{
 			SkeletalMeshComponent->bDrawBinormals = bDrawBinormals;
 			SkeletalMeshComponent->MarkRenderStateDirty();
@@ -2127,7 +2218,7 @@ bool FCustomizableObjectEditorViewportClient::IsSetShowBinormalsChecked() const
 }
 
 
-void FCustomizableObjectEditorViewportClient::DrawMeshBones(UDebugSkelMeshComponent* MeshComponent, FPrimitiveDrawInterface* PDI)
+void FCustomizableObjectEditorViewportClient::DrawMeshBones(const UDebugSkelMeshComponent* MeshComponent, FPrimitiveDrawInterface* PDI)
 {
 	if (!MeshComponent ||
 		!MeshComponent->GetSkeletalMeshAsset() ||

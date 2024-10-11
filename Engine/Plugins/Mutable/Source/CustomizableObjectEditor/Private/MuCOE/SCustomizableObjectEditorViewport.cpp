@@ -308,19 +308,22 @@ void SCustomizableObjectEditorViewportTabBody::Tick(const FGeometry& AllottedGeo
 	// Needed?
 	PreviewScenePtr->GetWorld()->Tick(LEVELTICK_All, InDeltaTime);
 
+
+	const TMap<FName, TWeakObjectPtr<UDebugSkelMeshComponent>>& PreviewSkeletalMeshComponents = LevelViewportClient->GetPreviewMeshComponents();
+
 	// Update the material list. Not ideal to do it every tick, but tracking changes on materials in the current instance is not easy right now.
 	if (PreviewSkeletalMeshComponents.Num()>0)
 	{
 		MaterialNames.Empty();
 
-		for (TWeakObjectPtr<UDebugSkelMeshComponent> PreviewSkeletalMeshComponent : PreviewSkeletalMeshComponents)
+		for (TPair<FName,TWeakObjectPtr<UDebugSkelMeshComponent>> Entry : PreviewSkeletalMeshComponents)
 		{
-			if (!PreviewSkeletalMeshComponent.IsValid())
+			if (!Entry.Value.IsValid())
 			{
 				continue;
 			}
 			
-			const TArray<UMaterialInterface*> Materials = PreviewSkeletalMeshComponent->GetMaterials();
+			const TArray<UMaterialInterface*> Materials = Entry.Value->GetMaterials();
 			for (UMaterialInterface* m : Materials)
 			{
 				if (m)
@@ -442,10 +445,9 @@ void SCustomizableObjectEditorViewportTabBody::HideGizmoLight() const
 }
 
 
-void SCustomizableObjectEditorViewportTabBody::SetPreviewActor(const TWeakObjectPtr<AActor>& InActor, const TWeakObjectPtr<UCustomizableObjectInstance>& InInstance, const TArray<TWeakObjectPtr<UDebugSkelMeshComponent>>& InSkeletalMeshComponents)
+void SCustomizableObjectEditorViewportTabBody::CreatePreviewActor(const TWeakObjectPtr<UCustomizableObjectInstance>& InInstance)
 {
-	PreviewSkeletalMeshComponents = InSkeletalMeshComponents;
-	LevelViewportClient->SetPreviewActor(InActor, InInstance, InSkeletalMeshComponents);
+	LevelViewportClient->CreatePreviewActor(InInstance);
 	
 	LODSelection = 0;
 }
@@ -689,7 +691,12 @@ void SCustomizableObjectEditorViewportTabBody::BindCommands()
 
 void SCustomizableObjectEditorViewportTabBody::OnTakeHighResScreenshot()
 {
-	CustomizableObjectHighresScreenshot = SCustomizableObjectHighresScreenshot::OpenDialog(ViewportWidget->GetSceneViewport(), LevelViewportClient, PreviewSkeletalMeshComponents[0].Get(), PreviewScenePtr);
+	// TODO: Fix for multicomponents
+	TMap<FName, TWeakObjectPtr<UDebugSkelMeshComponent>>& Comps = LevelViewportClient->GetPreviewMeshComponents();
+	if (!Comps.IsEmpty())
+	{
+		CustomizableObjectHighresScreenshot = SCustomizableObjectHighresScreenshot::OpenDialog(ViewportWidget->GetSceneViewport(), LevelViewportClient, Comps.begin().Value().Get(), PreviewScenePtr);
+	}
 }
 
 
@@ -714,7 +721,7 @@ void SCustomizableObjectEditorViewportTabBody::SetDrawDefaultUVMaterial()
 	if (!SelectedUVSection ||
 		!SelectedUVChannel)
 	{
-		LevelViewportClient->SetDrawUV(-1, -1, -1, -1);
+		LevelViewportClient->SetDrawUV(NAME_None, -1, -1, -1);
 	}
 	else
 	{
@@ -725,7 +732,7 @@ void SCustomizableObjectEditorViewportTabBody::SetDrawDefaultUVMaterial()
 		const int32 UVIndex = UVChannelOptionString.IndexOfByKey(SelectedUVChannel);
 		check(UVIndex != INDEX_NONE);
 	
-		LevelViewportClient->SetDrawUV(Section.ComponentIndex, Section.LODIndex, Section.SectionIndex, UVIndex);
+		LevelViewportClient->SetDrawUV(Section.ComponentName, Section.LODIndex, Section.SectionIndex, UVIndex);
 	}
 }
 
@@ -846,14 +853,15 @@ void SCustomizableObjectEditorViewportTabBody::GenerateUVSectionOptions()
 	UVSectionOptionString.Empty();
 	UVSectionOption.Empty();
 	
-	for (int32 ComponentIndex = 0; ComponentIndex < PreviewSkeletalMeshComponents.Num(); ++ComponentIndex)
+	TMap<FName, TWeakObjectPtr<UDebugSkelMeshComponent>>& Comps = LevelViewportClient->GetPreviewMeshComponents();
+	for (TPair<FName, TWeakObjectPtr<UDebugSkelMeshComponent>>& Entry : Comps)
 	{
-		const TWeakObjectPtr<UDebugSkelMeshComponent>& PreviewSkeletalMeshComponent = PreviewSkeletalMeshComponents[ComponentIndex];
+		const TWeakObjectPtr<UDebugSkelMeshComponent>& PreviewSkeletalMeshComponent = Entry.Value;
 		
-		if (PreviewSkeletalMeshComponent.IsValid() && UE_MUTABLE_GETSKINNEDASSET(PreviewSkeletalMeshComponent) != nullptr && UE_MUTABLE_GETSKINNEDASSET(PreviewSkeletalMeshComponent)->GetResourceForRendering() != nullptr)
+		if (PreviewSkeletalMeshComponent.IsValid() && PreviewSkeletalMeshComponent->GetSkinnedAsset() != nullptr && PreviewSkeletalMeshComponent->GetSkinnedAsset()->GetResourceForRendering() != nullptr)
 		{
 			const TArray<UMaterialInterface*> Materials = PreviewSkeletalMeshComponent->GetMaterials();
-			const FSkeletalMeshRenderData* MeshRes = UE_MUTABLE_GETSKINNEDASSET(PreviewSkeletalMeshComponent)->GetResourceForRendering();
+			const FSkeletalMeshRenderData* MeshRes = PreviewSkeletalMeshComponent->GetSkinnedAsset()->GetResourceForRendering();
 			for (int32 LODIndex = 0; LODIndex < MeshRes->LODRenderData.Num(); ++LODIndex)
 			{
 				for (int32 SectionIndex = 0; SectionIndex < MeshRes->LODRenderData[LODIndex].RenderSections.Num(); ++SectionIndex)
@@ -876,7 +884,7 @@ void SCustomizableObjectEditorViewportTabBody::GenerateUVSectionOptions()
 					UVSectionOptionString.Add(MakeShared<FString>(BaseMaterialName));
 
 					FSection SectionOption;
-					SectionOption.ComponentIndex = ComponentIndex;
+					SectionOption.ComponentName = Entry.Key;
 					SectionOption.SectionIndex = SectionIndex;
 					SectionOption.LODIndex = LODIndex;
 
@@ -924,11 +932,11 @@ void SCustomizableObjectEditorViewportTabBody::OnSectionChanged(TSharedPtr<FStri
 		const int32 UVIndex = UVChannelOptionString.IndexOfByKey(SelectedUVChannel);
 		check(UVIndex != INDEX_NONE);
 	
-		LevelViewportClient->SetDrawUV(Section.ComponentIndex, Section.LODIndex, Section.SectionIndex, UVIndex);
+		LevelViewportClient->SetDrawUV(Section.ComponentName, Section.LODIndex, Section.SectionIndex, UVIndex);
 	}
 	else
 	{
-		LevelViewportClient->SetDrawUV(-1, -1, -1, -1);
+		LevelViewportClient->SetDrawUV(NAME_None, -1, -1, -1);
 	}
 }
 
@@ -956,12 +964,13 @@ void SCustomizableObjectEditorViewportTabBody::GenerateUVChannelOptions()
 	check(Index != INDEX_NONE);
 	const FSection& Section = UVSectionOption[Index];
 
-	const TWeakObjectPtr<UDebugSkelMeshComponent>& PreviewSkeletalMeshComponent = PreviewSkeletalMeshComponents[Section.ComponentIndex];
-
-	if (PreviewSkeletalMeshComponent.IsValid() && UE_MUTABLE_GETSKINNEDASSET(PreviewSkeletalMeshComponent) != nullptr
-		&& UE_MUTABLE_GETSKINNEDASSET(PreviewSkeletalMeshComponent)->GetResourceForRendering() != nullptr)
+	TMap<FName, TWeakObjectPtr<UDebugSkelMeshComponent>>& Comps = LevelViewportClient->GetPreviewMeshComponents();
+	const TWeakObjectPtr<UDebugSkelMeshComponent>* PreviewSkeletalMeshComponent = Comps.Find(Section.ComponentName);
+	
+	if (PreviewSkeletalMeshComponent && PreviewSkeletalMeshComponent->IsValid() && (*PreviewSkeletalMeshComponent)->GetSkinnedAsset() != nullptr
+		&& (*PreviewSkeletalMeshComponent)->GetSkinnedAsset()->GetResourceForRendering() != nullptr)
 	{
-		const FSkeletalMeshRenderData* MeshRes = UE_MUTABLE_GETSKINNEDASSET(PreviewSkeletalMeshComponent)->GetResourceForRendering();
+		const FSkeletalMeshRenderData* MeshRes = (*PreviewSkeletalMeshComponent)->GetSkinnedAsset()->GetResourceForRendering();
 		
 		const int32 UVChannels = MeshRes->LODRenderData[Section.LODIndex].GetNumTexCoords();
 		for (int32 UVChan = 0; UVChan < UVChannels; ++UVChan)
@@ -1001,11 +1010,11 @@ void SCustomizableObjectEditorViewportTabBody::OnUVChannelChanged(TSharedPtr<FSt
 		const int32 UVIndex = UVChannelOptionString.IndexOfByKey(SelectedUVChannel);
 		check(UVIndex != INDEX_NONE);
 	
-		LevelViewportClient->SetDrawUV(Section.ComponentIndex, Section.LODIndex, Section.SectionIndex, UVIndex);
+		LevelViewportClient->SetDrawUV(Section.ComponentName, Section.LODIndex, Section.SectionIndex, UVIndex);
 	}
 	else
 	{
-		LevelViewportClient->SetDrawUV(-1, -1, -1, -1);
+		LevelViewportClient->SetDrawUV(NAME_None, -1, -1, -1);
 	}
 }
 
@@ -1035,11 +1044,12 @@ int32 SCustomizableObjectEditorViewportTabBody::GetLODModelCount() const
 {
 	int32 LODModelCount = 0;
 
-	for (const TWeakObjectPtr<UDebugSkelMeshComponent>& PreviewComponent : PreviewSkeletalMeshComponents)
+	TMap<FName, TWeakObjectPtr<UDebugSkelMeshComponent>>& Comps = LevelViewportClient->GetPreviewMeshComponents();
+	for (const TPair<FName,TWeakObjectPtr<UDebugSkelMeshComponent>>& Entry : Comps)
 	{
-		if (PreviewComponent.IsValid() && UE_MUTABLE_GETSKINNEDASSET(PreviewComponent))
+		if (Entry.Value.IsValid() && Entry.Value->GetSkinnedAsset())
 		{
-			const TIndirectArray<FSkeletalMeshLODRenderData>& LODModels = UE_MUTABLE_GETSKINNEDASSET(PreviewComponent)->GetResourceForRendering()->LODRenderData;
+			const TIndirectArray<FSkeletalMeshLODRenderData>& LODModels = Entry.Value->GetSkinnedAsset()->GetResourceForRendering()->LODRenderData;
 			LODModelCount = FMath::Max(LODModelCount, LODModels.Num());
 		}
 	}
@@ -1094,11 +1104,12 @@ void SCustomizableObjectEditorViewportTabBody::OnSetLODModel(int32 LODSelectionT
 {
 	LODSelection = LODSelectionType;
 
-	for (const TWeakObjectPtr<UDebugSkelMeshComponent>& PreviewComponent : PreviewSkeletalMeshComponents)
+	TMap<FName, TWeakObjectPtr<UDebugSkelMeshComponent>>& Comps = LevelViewportClient->GetPreviewMeshComponents();
+	for (const TPair<FName, TWeakObjectPtr<UDebugSkelMeshComponent>>& Entry : Comps)
 	{
-		if (PreviewComponent.IsValid())
+		if (Entry.Value.IsValid())
 		{
-			PreviewComponent->SetForcedLOD(LODSelection);
+			Entry.Value.Get()->SetForcedLOD(LODSelection);
 		}
 	}
 }

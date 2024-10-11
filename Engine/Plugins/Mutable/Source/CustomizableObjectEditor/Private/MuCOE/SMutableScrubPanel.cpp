@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "MuCOE/SMutableScrubPanel.h"
 
@@ -67,9 +67,9 @@ void SMutableScrubPanel::Construct(const FArguments& InArgs, const TSharedRef<FC
 
 float SMutableScrubPanel::GetViewMinInput() const
 {
-	for (TWeakObjectPtr<UDebugSkelMeshComponent>& WeakPreviewMeshComponent : GetPreviewScene()->GetPreviewMeshComponents())
+	for (TPair<FName,TWeakObjectPtr<UDebugSkelMeshComponent>>& Entry : GetPreviewScene()->GetPreviewMeshComponents())
 	{
-		UDebugSkelMeshComponent* PreviewMeshComponent = WeakPreviewMeshComponent.Get();
+		UDebugSkelMeshComponent* PreviewMeshComponent = Entry.Value.Get();
 		if (!PreviewMeshComponent)
 		{
 			continue;
@@ -91,9 +91,9 @@ float SMutableScrubPanel::GetViewMinInput() const
 
 float SMutableScrubPanel::GetViewMaxInput() const
 { 
-	for (TWeakObjectPtr<UDebugSkelMeshComponent>& WeakPreviewMeshComponent : GetPreviewScene()->GetPreviewMeshComponents())
+	for (TPair<FName, TWeakObjectPtr<UDebugSkelMeshComponent>>& Entry : GetPreviewScene()->GetPreviewMeshComponents())
 	{
-		UDebugSkelMeshComponent* PreviewMeshComponent = WeakPreviewMeshComponent.Get();
+		UDebugSkelMeshComponent* PreviewMeshComponent = Entry.Value.Get();
 		if (!PreviewMeshComponent)
 		{
 			continue;
@@ -115,9 +115,9 @@ float SMutableScrubPanel::GetViewMaxInput() const
 
 FReply SMutableScrubPanel::OnClick_Forward_Step()
 {
-	for (TWeakObjectPtr<UDebugSkelMeshComponent>& WeakPreviewMeshComponent : GetPreviewScene()->GetPreviewMeshComponents())
+	for (TPair<FName, TWeakObjectPtr<UDebugSkelMeshComponent>>& Entry : GetPreviewScene()->GetPreviewMeshComponents())
 	{
-		UDebugSkelMeshComponent* PreviewMeshComponent = WeakPreviewMeshComponent.Get();
+		UDebugSkelMeshComponent* PreviewMeshComponent = Entry.Value.Get();
 		if (!PreviewMeshComponent)
 		{
 			continue;
@@ -153,9 +153,9 @@ FReply SMutableScrubPanel::OnClick_Forward_Step()
 
 FReply SMutableScrubPanel::OnClick_Forward_End()
 {
-	for (TWeakObjectPtr<UDebugSkelMeshComponent>& WeakPreviewMeshComponent : GetPreviewScene()->GetPreviewMeshComponents())
+	for (TPair<FName, TWeakObjectPtr<UDebugSkelMeshComponent>>& Entry : GetPreviewScene()->GetPreviewMeshComponents())
 	{
-		UDebugSkelMeshComponent* PreviewMeshComponent = WeakPreviewMeshComponent.Get();
+		UDebugSkelMeshComponent* PreviewMeshComponent = Entry.Value.Get();
 		if (!PreviewMeshComponent)
         {
         	continue;
@@ -175,9 +175,9 @@ FReply SMutableScrubPanel::OnClick_Forward_End()
 
 FReply SMutableScrubPanel::OnClick_Backward_Step()
 {
-	for (TWeakObjectPtr<UDebugSkelMeshComponent>& WeakPreviewMeshComponent : GetPreviewScene()->GetPreviewMeshComponents())
+	for (TPair<FName, TWeakObjectPtr<UDebugSkelMeshComponent>>& Entry : GetPreviewScene()->GetPreviewMeshComponents())
 	{
-		UDebugSkelMeshComponent* PreviewMeshComponent = WeakPreviewMeshComponent.Get();
+		UDebugSkelMeshComponent* PreviewMeshComponent = Entry.Value.Get();
 		if (!PreviewMeshComponent)
 		{
 			continue;
@@ -204,9 +204,9 @@ FReply SMutableScrubPanel::OnClick_Backward_Step()
 
 FReply SMutableScrubPanel::OnClick_Backward_End()
 {
-	for (TWeakObjectPtr<UDebugSkelMeshComponent>& WeakPreviewMeshComponent : GetPreviewScene()->GetPreviewMeshComponents())
+	for (TPair<FName, TWeakObjectPtr<UDebugSkelMeshComponent>>& Entry : GetPreviewScene()->GetPreviewMeshComponents())
 	{
-		UDebugSkelMeshComponent* PreviewMeshComponent = WeakPreviewMeshComponent.Get();
+		UDebugSkelMeshComponent* PreviewMeshComponent = Entry.Value.Get();
 		if (!PreviewMeshComponent)
 		{
 			continue;
@@ -226,9 +226,9 @@ FReply SMutableScrubPanel::OnClick_Backward_End()
 
 FReply SMutableScrubPanel::OnClick_Forward()
 {
-	for (TWeakObjectPtr<UDebugSkelMeshComponent>& WeakPreviewMeshComponent : GetPreviewScene()->GetPreviewMeshComponents())
+	for (TPair<FName, TWeakObjectPtr<UDebugSkelMeshComponent>>& Entry : GetPreviewScene()->GetPreviewMeshComponents())
 	{
-		UDebugSkelMeshComponent* PreviewMeshComponent = WeakPreviewMeshComponent.Get();
+		UDebugSkelMeshComponent* PreviewMeshComponent = Entry.Value.Get();
 		if (!PreviewMeshComponent)
 		{
 			continue;
@@ -285,9 +285,9 @@ FReply SMutableScrubPanel::OnClick_Forward()
 
 FReply SMutableScrubPanel::OnClick_Backward()
 {
-	for (TWeakObjectPtr<UDebugSkelMeshComponent>& WeakPreviewMeshComponent : GetPreviewScene()->GetPreviewMeshComponents())
+	for (TPair<FName, TWeakObjectPtr<UDebugSkelMeshComponent>>& Entry : GetPreviewScene()->GetPreviewMeshComponents())
 	{
-		UDebugSkelMeshComponent* PreviewMeshComponent = WeakPreviewMeshComponent.Get();
+		UDebugSkelMeshComponent* PreviewMeshComponent = Entry.Value.Get();
 		if (!PreviewMeshComponent)
 		{
 			continue;
@@ -327,9 +327,9 @@ FReply SMutableScrubPanel::OnClick_Backward()
 
 FReply SMutableScrubPanel::OnClick_ToggleLoop()
 {
-	for (TWeakObjectPtr<UDebugSkelMeshComponent>& WeakPreviewMeshComponent : GetPreviewScene()->GetPreviewMeshComponents())
+	for (TPair<FName, TWeakObjectPtr<UDebugSkelMeshComponent>>& Entry : GetPreviewScene()->GetPreviewMeshComponents())
 	{
-		UDebugSkelMeshComponent* PreviewMeshComponent = WeakPreviewMeshComponent.Get();
+		UDebugSkelMeshComponent* PreviewMeshComponent = Entry.Value.Get();
 		if (!PreviewMeshComponent)
 		{
 			continue;
@@ -349,9 +349,9 @@ FReply SMutableScrubPanel::OnClick_ToggleLoop()
 
 bool SMutableScrubPanel::IsLoopStatusOn() const
 {
-	for (TWeakObjectPtr<UDebugSkelMeshComponent>& WeakPreviewMeshComponent : GetPreviewScene()->GetPreviewMeshComponents())
+	for (TPair<FName, TWeakObjectPtr<UDebugSkelMeshComponent>>& Entry : GetPreviewScene()->GetPreviewMeshComponents())
 	{
-		UDebugSkelMeshComponent* PreviewMeshComponent = WeakPreviewMeshComponent.Get();
+		UDebugSkelMeshComponent* PreviewMeshComponent = Entry.Value.Get();
 		if (!PreviewMeshComponent)
 		{
 			continue;
@@ -369,9 +369,9 @@ bool SMutableScrubPanel::IsLoopStatusOn() const
 
 EPlaybackMode::Type SMutableScrubPanel::GetPlaybackMode() const
 {
-	for (TWeakObjectPtr<UDebugSkelMeshComponent>& WeakPreviewMeshComponent : GetPreviewScene()->GetPreviewMeshComponents())
+	for (TPair<FName, TWeakObjectPtr<UDebugSkelMeshComponent>>& Entry : GetPreviewScene()->GetPreviewMeshComponents())
 	{
-		UDebugSkelMeshComponent* PreviewMeshComponent = WeakPreviewMeshComponent.Get();
+		UDebugSkelMeshComponent* PreviewMeshComponent = Entry.Value.Get();
 		if (!PreviewMeshComponent)
 		{
 			continue;
@@ -397,9 +397,9 @@ EPlaybackMode::Type SMutableScrubPanel::GetPlaybackMode() const
 
 bool SMutableScrubPanel::IsRealtimeStreamingMode() const
 {
-	for (TWeakObjectPtr<UDebugSkelMeshComponent>& WeakPreviewMeshComponent : GetPreviewScene()->GetPreviewMeshComponents())
+	for (TPair<FName, TWeakObjectPtr<UDebugSkelMeshComponent>>& Entry : GetPreviewScene()->GetPreviewMeshComponents())
 	{
-		UDebugSkelMeshComponent* PreviewMeshComponent = WeakPreviewMeshComponent.Get();
+		UDebugSkelMeshComponent* PreviewMeshComponent = Entry.Value.Get();
 		if (!PreviewMeshComponent)
 		{
 			continue;
@@ -417,9 +417,9 @@ bool SMutableScrubPanel::IsRealtimeStreamingMode() const
 
 void SMutableScrubPanel::OnValueChanged(float NewValue)
 {
-	for (TWeakObjectPtr<UDebugSkelMeshComponent>& WeakPreviewMeshComponent : GetPreviewScene()->GetPreviewMeshComponents())
+	for (TPair<FName, TWeakObjectPtr<UDebugSkelMeshComponent>>& Entry : GetPreviewScene()->GetPreviewMeshComponents())
 	{
-		UDebugSkelMeshComponent* PreviewMeshComponent = WeakPreviewMeshComponent.Get();
+		UDebugSkelMeshComponent* PreviewMeshComponent = Entry.Value.Get();
 		if (!PreviewMeshComponent)
 		{
 			continue;
@@ -446,9 +446,9 @@ void SMutableScrubPanel::OnBeginSliderMovement()
 {
 	bSliderBeingDragged = true;
 
-	for (TWeakObjectPtr<UDebugSkelMeshComponent>& WeakPreviewMeshComponent : GetPreviewScene()->GetPreviewMeshComponents())
+	for (TPair<FName, TWeakObjectPtr<UDebugSkelMeshComponent>>& Entry : GetPreviewScene()->GetPreviewMeshComponents())
 	{
-		UDebugSkelMeshComponent* PreviewMeshComponent = WeakPreviewMeshComponent.Get();
+		UDebugSkelMeshComponent* PreviewMeshComponent = Entry.Value.Get();
 		if (!PreviewMeshComponent)
 		{
 			continue;
@@ -470,9 +470,9 @@ void SMutableScrubPanel::OnEndSliderMovement(float NewValue)
 
 uint32 SMutableScrubPanel::GetNumberOfKeys() const
 {
-	for (TWeakObjectPtr<UDebugSkelMeshComponent>& WeakPreviewMeshComponent : GetPreviewScene()->GetPreviewMeshComponents())
+	for (TPair<FName, TWeakObjectPtr<UDebugSkelMeshComponent>>& Entry : GetPreviewScene()->GetPreviewMeshComponents())
 	{
-		UDebugSkelMeshComponent* PreviewMeshComponent = WeakPreviewMeshComponent.Get();
+		UDebugSkelMeshComponent* PreviewMeshComponent = Entry.Value.Get();
 		if (!PreviewMeshComponent)
 		{
 			continue;
@@ -508,9 +508,9 @@ uint32 SMutableScrubPanel::GetNumberOfKeys() const
 
 float SMutableScrubPanel::GetSequenceLength() const
 {
-	for (TWeakObjectPtr<UDebugSkelMeshComponent>& WeakPreviewMeshComponent : GetPreviewScene()->GetPreviewMeshComponents())
+	for (TPair<FName, TWeakObjectPtr<UDebugSkelMeshComponent>>& Entry : GetPreviewScene()->GetPreviewMeshComponents())
 	{
-		UDebugSkelMeshComponent* PreviewMeshComponent = WeakPreviewMeshComponent.Get();
+		UDebugSkelMeshComponent* PreviewMeshComponent = Entry.Value.Get();
 		if (!PreviewMeshComponent)
 		{
 			continue;
@@ -546,9 +546,9 @@ UAnimSingleNodeInstance* SMutableScrubPanel::GetPreviewInstance(UDebugSkelMeshCo
 
 float SMutableScrubPanel::GetScrubValue() const
 {
-	for (TWeakObjectPtr<UDebugSkelMeshComponent>& WeakPreviewMeshComponent : GetPreviewScene()->GetPreviewMeshComponents())
+	for (TPair<FName, TWeakObjectPtr<UDebugSkelMeshComponent>>& Entry : GetPreviewScene()->GetPreviewMeshComponents())
 	{
-		UDebugSkelMeshComponent* PreviewMeshComponent = WeakPreviewMeshComponent.Get();
+		UDebugSkelMeshComponent* PreviewMeshComponent = Entry.Value.Get();
 		if (!PreviewMeshComponent)
 		{
 			continue;
@@ -571,9 +571,9 @@ bool SMutableScrubPanel::GetAnimBlueprintDebugData(UAnimInstance*& Instance, FAn
 {
 	Instance = nullptr;
 
-	for (TWeakObjectPtr<UDebugSkelMeshComponent>& WeakPreviewMeshComponent : GetPreviewScene()->GetPreviewMeshComponents())
+	for (TPair<FName, TWeakObjectPtr<UDebugSkelMeshComponent>>& Entry : GetPreviewScene()->GetPreviewMeshComponents())
 	{
-		UDebugSkelMeshComponent* PreviewMeshComponent = WeakPreviewMeshComponent.Get();
+		UDebugSkelMeshComponent* PreviewMeshComponent = Entry.Value.Get();
 		if (!PreviewMeshComponent)
 		{
 			continue;
@@ -615,9 +615,9 @@ TSharedRef<FCustomizableObjectEditorViewportClient> SMutableScrubPanel::GetPrevi
 
 void SMutableScrubPanel::OnReZeroAnimSequence(int32 FrameIndex)
 {
-	for (TWeakObjectPtr<UDebugSkelMeshComponent>& WeakPreviewMeshComponent : GetPreviewScene()->GetPreviewMeshComponents())
+	for (TPair<FName, TWeakObjectPtr<UDebugSkelMeshComponent>>& Entry : GetPreviewScene()->GetPreviewMeshComponents())
 	{
-		UDebugSkelMeshComponent* PreviewSkelComp = WeakPreviewMeshComponent.Get();
+		UDebugSkelMeshComponent* PreviewSkelComp = Entry.Value.Get();
 		if (!PreviewSkelComp)
 		{
 			continue;
@@ -688,9 +688,9 @@ void SMutableScrubPanel::OnReZeroAnimSequence(int32 FrameIndex)
 
 bool SMutableScrubPanel::GetDisplayDrag() const
 {
-	for (TWeakObjectPtr<UDebugSkelMeshComponent>& WeakPreviewMeshComponent : GetPreviewScene()->GetPreviewMeshComponents())
+	for (TPair<FName, TWeakObjectPtr<UDebugSkelMeshComponent>>& Entry : GetPreviewScene()->GetPreviewMeshComponents())
 	{
-		UDebugSkelMeshComponent* PreviewMeshComponent = WeakPreviewMeshComponent.Get();
+		UDebugSkelMeshComponent* PreviewMeshComponent = Entry.Value.Get();
 		if (!PreviewMeshComponent)
 		{
 			continue;

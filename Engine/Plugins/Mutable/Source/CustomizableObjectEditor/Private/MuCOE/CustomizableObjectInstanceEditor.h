@@ -276,7 +276,6 @@ public:
 		const TSharedPtr<IDetailsView>& InstanceDetailsView);
 	
 private:
-	void CreatePreviewActor();
 	
 	void OnPostCompile();
 	

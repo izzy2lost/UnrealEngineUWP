@@ -28,7 +28,6 @@
 #define UE_MUTABLE_ASSETCLASS(X)				X.AssetClassPath
 #define UE_MUTABLE_GETOBJECTPATH(X)				X.GetObjectPathString()
 
-#define UE_MUTABLE_GETSKINNEDASSET(X)			X->GetSkinnedAsset()
 #define UE_MUTABLE_SETSKINNEDASSET(X,Y)			X->SetSkinnedAsset(Y)
 #define UE_MUTABLE_GETSKELETALMESHASSET(X)		X->GetSkeletalMeshAsset()
 
@@ -43,7 +42,6 @@
 #define UE_MUTABLE_ASSETCLASS(X)				X.AssetClass
 #define UE_MUTABLE_GETOBJECTPATH(X)				X.ObjectPath.ToString()
 
-#define UE_MUTABLE_GETSKINNEDASSET(X)			X->SkeletalMesh
 #define UE_MUTABLE_SETSKINNEDASSET(X,Y)			X->SetSkeletalMesh(Y)
 #define UE_MUTABLE_GETSKELETALMESHASSET(X)		X->SkeletalMesh
 
