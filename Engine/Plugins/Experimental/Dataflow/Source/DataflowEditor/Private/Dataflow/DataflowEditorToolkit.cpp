@@ -1115,16 +1115,23 @@ void FDataflowEditorToolkit::Tick(float DeltaTime)
 
 							// Take the Max of the existing time stamp, as other terminal nodes might have more recent invalidations
 							const UE::Dataflow::FTimestamp LastModifiedTimestamp = FMath::Max(EditorContent->GetLastModifiedTimestamp(), TerminalNodeTimeStamp);
-							EditorContent->SetLastModifiedTimestamp(LastModifiedTimestamp);
+							
+							constexpr bool bDontMakeDirty = false;
+							EditorContent->SetLastModifiedTimestamp(LastModifiedTimestamp, bDontMakeDirty);
 						}
 					}
 				}
+
+				const bool bMakeDirty = (EditorContent->GetLastModifiedTimestamp() != InitTimeStamp);
+				EditorContent->SetLastModifiedTimestamp(EditorContent->GetLastModifiedTimestamp(), bMakeDirty);
 			}
 			else
 			{
 				UE::Dataflow::FTimestamp TerminalNodeTimeStamp = InitTimeStamp;
 				EvaluateNode(nullptr, nullptr, TerminalNodeTimeStamp);
-				EditorContent->SetLastModifiedTimestamp(TerminalNodeTimeStamp);
+
+				const bool bMakeDirty = (TerminalNodeTimeStamp != InitTimeStamp);
+				EditorContent->SetLastModifiedTimestamp(TerminalNodeTimeStamp, bMakeDirty);
 			}
 
 			// Ensure the context object's selected node matches the selected node in the graph editor

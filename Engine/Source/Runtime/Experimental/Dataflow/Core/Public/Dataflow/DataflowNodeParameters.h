@@ -38,6 +38,7 @@ namespace UE::Dataflow
 		FTimestamp(Type InValue) : Value(InValue) {}
 		bool operator>=(const FTimestamp& InTimestamp) const { return Value >= InTimestamp.Value; }
 		bool operator<(const FTimestamp& InTimestamp) const { return Value < InTimestamp.Value; }
+		bool operator==(const FTimestamp& InTimestamp) const { return Value == InTimestamp.Value; }
 		bool IsInvalid() { return Value == Invalid; }
 
 		static DATAFLOWCORE_API Type Current();
