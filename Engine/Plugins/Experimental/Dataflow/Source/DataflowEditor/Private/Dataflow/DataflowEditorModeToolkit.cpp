@@ -133,19 +133,6 @@ void FDataflowEditorModeToolkit::Init(const TSharedPtr<IToolkitHost>& InitToolki
 	];
 }
 
-void FDataflowEditorModeToolkit::BuildEditorToolBar(const FName& EditorToolBarName)
-{
-	check(EditorToolBarName != FName());
-
-	const TSharedRef<const FUICommandList> EdModeToolkitCommands = GetToolkitCommands();
-
-	UToolMenu* const ToolBarMenu = UToolMenus::Get()->ExtendMenu(EditorToolBarName);
-	FToolMenuSection& Section = ToolBarMenu->FindOrAddSection("DataflowTools");
-
-	FToolMenuEntry& WeightMapButtonEntry = Section.AddEntry(FToolMenuEntry::InitToolBarButton(FDataflowEditorCommandsImpl::Get().AddWeightMapNode));
-	WeightMapButtonEntry.SetCommandList(EdModeToolkitCommands);
-}
-
 const FSlateBrush* FDataflowEditorModeToolkit::GetActiveToolIcon(const FString& ActiveToolIdentifier) const
 {
 	FName ActiveToolIconName = ISlateStyle::Join(FDataflowEditorCommandsImpl::Get().GetContextName(), TCHAR_TO_ANSI(*ActiveToolIdentifier));

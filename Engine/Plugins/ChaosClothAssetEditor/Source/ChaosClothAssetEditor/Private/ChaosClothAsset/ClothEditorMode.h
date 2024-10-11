@@ -226,6 +226,9 @@ private:
 	*/
 	UEdGraphNode* CreateAndConnectNewNode(const FName& NewNodeTypeName,	UEdGraphNode& UpstreamNode,	const FName& ConnectionTypeName, const FName& NewNodeConnectionName);
 
+	void AddNode(FName NewNodeType);
+	bool CanAddNode(FName NewNodeType) const;
+
 
 	void InitializeContextObject();
 	void UpdateContextObject(const TSharedPtr<FManagedArrayCollection>& Collection);
@@ -316,6 +319,9 @@ private:
 	TWeakPtr<UE::Dataflow::FEngineContext> DataflowContext;
 	TSharedPtr<FManagedArrayCollection> SelectedClothCollection = nullptr;
 	TSharedPtr<FManagedArrayCollection> SelectedInputClothCollection = nullptr;
+
+	// Correspondence between node types and commands to add the node to the graph
+	TMap<FName, TSharedPtr<const FUICommandInfo>> NodeTypeToAddNodeCommandMap;
 
 	// Correspondence between node types and commands to launch tools
 	TMap<FName, TSharedPtr<const FUICommandInfo>> NodeTypeToToolCommandMap;

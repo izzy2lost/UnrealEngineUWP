@@ -55,7 +55,7 @@
 #include "Styling/SlateStyleRegistry.h"
 #include "Widgets/Docking/SDockTab.h"
 #include "GeometryCache.h"
-
+#include "ToolMenus.h"
 
 #define LOCTEXT_NAMESPACE "DataflowEditorToolkit"
 
@@ -499,6 +499,22 @@ void FDataflowEditorToolkit::PostInitAssetEditor()
 
 	FDataflowConstructionViewportClient* ConstructionViewportClient = static_cast<FDataflowConstructionViewportClient*>(ViewportClient.Get());
 	OnConstructionSelectionChangedDelegateHandle = ConstructionViewportClient->OnSelectionChangedMulticast.AddSP(this, &FDataflowEditorToolkit::OnConstructionViewSelectionChanged);
+
+	// Populate editor toolbar
+
+	FName ParentToolbarName;
+	const FName ToolBarName = GetToolMenuToolbarName(ParentToolbarName);
+	UToolMenu* const AssetToolbar = UToolMenus::Get()->ExtendMenu(ToolBarName);
+	FToolMenuSection& Section = AssetToolbar->FindOrAddSection("ClothTools");
+
+	for (const TPair<FName, TSharedPtr<const FUICommandInfo>>& NodeAndAddCommand : DataflowMode->NodeTypeToAddNodeCommandMap)
+	{
+		ToolkitCommands->MapAction(NodeAndAddCommand.Value,
+			FExecuteAction::CreateUObject(DataflowMode, &UDataflowEditorMode::AddNode, NodeAndAddCommand.Key),
+			FCanExecuteAction::CreateUObject(DataflowMode, &UDataflowEditorMode::CanAddNode, NodeAndAddCommand.Key));
+
+		Section.AddEntry(FToolMenuEntry::InitToolBarButton(NodeAndAddCommand.Value));
+	}
 }
 
 void FDataflowEditorToolkit::InitializeEdMode(UBaseCharacterFXEditorMode* EdMode)
@@ -522,10 +538,6 @@ void FDataflowEditorToolkit::InitializeEdMode(UBaseCharacterFXEditorMode* EdMode
 		FDataflowEditorModeToolkit* DataflowModeToolkit = static_cast<FDataflowEditorModeToolkit*>(ModeToolkit.Get());
 		DataflowModeToolkit->SetConstructionViewportWidget(DataflowConstructionViewport);
 		DataflowModeToolkit->SetSimulationViewportWidget(DataflowSimulationViewport);
-
-		FName ParentToolbarName;
-		const FName ToolBarName = GetToolMenuToolbarName(ParentToolbarName);
-		DataflowModeToolkit->BuildEditorToolBar(ToolBarName);
 	}
 
 	// @todo(brice) : This used to crash when comnmented out. 

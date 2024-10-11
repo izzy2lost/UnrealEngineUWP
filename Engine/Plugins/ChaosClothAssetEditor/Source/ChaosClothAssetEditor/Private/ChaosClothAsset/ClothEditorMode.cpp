@@ -298,35 +298,31 @@ void UChaosClothAssetEditorMode::RegisterClothTool(TSharedPtr<FUICommandInfo> UI
 
 }
 
+void UChaosClothAssetEditorMode::AddNode(FName NewNodeType)
+{
+	const FName ConnectionType = FManagedArrayCollection::StaticType();
+	const FName ConnectionName("Collection");
+
+	UEdGraphNode* const CurrentlySelectedNode = GetSingleSelectedNodeWithOutputType(ConnectionType);
+	checkf(CurrentlySelectedNode, TEXT("No node with FManagedArrayCollection output is currently selected in the Dataflow graph"));
+
+	const UEdGraphNode* const NewNode = CreateAndConnectNewNode(NewNodeType, *CurrentlySelectedNode, ConnectionType, ConnectionName);
+	verifyf(NewNode, TEXT("Failed to create a new node: %s"), *NewNodeType.ToString());
+
+	StartToolForSelectedNode(NewNode);
+}
+
+bool UChaosClothAssetEditorMode::CanAddNode(FName NewNodeType) const
+{
+	const UEdGraphNode* const CurrentlySelectedNode = GetSingleSelectedNodeWithOutputType(FManagedArrayCollection::StaticType());
+	return (CurrentlySelectedNode != nullptr);
+}
+
 void UChaosClothAssetEditorMode::RegisterAddNodeCommand(TSharedPtr<FUICommandInfo> AddNodeCommand, const FName& NewNodeType, TSharedPtr<FUICommandInfo> StartToolCommand)
 {
-	auto AddNode = [this](const FName& NewNodeType)
-	{
-		const FName ConnectionType = FManagedArrayCollection::StaticType();
-		const FName ConnectionName("Collection");
+	// ToolkitCommands->MapAction(AddNodeCommand) is done in FChaosClothAssetEditorToolkit
 
-		UEdGraphNode* const CurrentlySelectedNode = GetSingleSelectedNodeWithOutputType(ConnectionType);
-		checkf(CurrentlySelectedNode, TEXT("No node with FManagedArrayCollection output is currently selected in the Dataflow graph"));
-
-		const UEdGraphNode* const NewNode = CreateAndConnectNewNode(NewNodeType, *CurrentlySelectedNode, ConnectionType, ConnectionName);
-		verifyf(NewNode, TEXT("Failed to create a new node: %s"), *NewNodeType.ToString());
-
-		StartToolForSelectedNode(NewNode);
-	};
-
-	auto CanAddNode = [this](const FName& NewNodeType) -> bool
-	{
-		const UEdGraphNode* const CurrentlySelectedNode = GetSingleSelectedNodeWithOutputType(FManagedArrayCollection::StaticType());
-		return (CurrentlySelectedNode != nullptr);
-	};
-
-	const TSharedRef<FUICommandList>& CommandList = Toolkit->GetToolkitCommands();
-
-	CommandList->MapAction(AddNodeCommand,
-		FExecuteAction::CreateWeakLambda(this, AddNode, NewNodeType),
-		FCanExecuteAction::CreateWeakLambda(this, CanAddNode, NewNodeType)
-	);
-
+	NodeTypeToAddNodeCommandMap.Add(NewNodeType, AddNodeCommand);
 	NodeTypeToToolCommandMap.Add(NewNodeType, StartToolCommand);
 }
 

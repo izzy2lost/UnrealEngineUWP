@@ -117,8 +117,9 @@ private:
 							  UEditorInteractiveToolsContext* const ToolsContext,
 							  EToolsContextScope ToolScope = EToolsContextScope::Default);
 
-	// Command for quickly adding a new node to the graph, e.g. triggered by a button press
-	void RegisterAddNodeCommand(TSharedPtr<FUICommandInfo> AddNodeCommand, const FName& NewNodeType);
+	// Functions for quickly adding a node to the graph, e.g. when triggered by a toolbar button
+	void AddNode(FName NewNodeType);
+	bool CanAddNode(FName NewNodeType) const;
 
 	void SetSimulationViewportClient(TWeakPtr<FDataflowSimulationViewportClient, ESPMode::ThreadSafe>);
 	void RefocusSimulationViewportClient();
@@ -172,6 +173,9 @@ private:
 
 	/** Dataflow simulation scene from the toolkit */
 	FDataflowSimulationScene* SimulationScene = nullptr;
+
+	/** Correspondence between node types and commands to add the node to the graph */
+	TMap<FName, TSharedPtr<const FUICommandInfo>> NodeTypeToAddNodeCommandMap;
 
 	/** Correspondence between node types and commands to launch tools */
 	TMap<FName, TSharedPtr<const FUICommandInfo>> NodeTypeToToolCommandMap;

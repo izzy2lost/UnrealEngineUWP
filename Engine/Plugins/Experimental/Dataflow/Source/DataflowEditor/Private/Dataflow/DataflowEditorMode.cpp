@@ -229,34 +229,24 @@ void UDataflowEditorMode::RegisterDataflowTool(TSharedPtr<FUICommandInfo> UIComm
 	);
 }
 
-void UDataflowEditorMode::RegisterAddNodeCommand(TSharedPtr<FUICommandInfo> AddNodeCommand, const FName& NewNodeType)
+void UDataflowEditorMode::AddNode(FName NewNodeType)
 {
-	auto AddNode = [this](const FName& NewNodeType)
-	{
-		const FName ConnectionType = FManagedArrayCollection::StaticType();
-		const FName ConnectionName("Collection");
+	const FName ConnectionType = FManagedArrayCollection::StaticType();
+	const FName ConnectionName("Collection");
 
-		UEdGraphNode* const CurrentlySelectedNode = GetSingleSelectedNodeWithOutputType(ConnectionType);
-		checkf(CurrentlySelectedNode, TEXT("No node with FManagedArrayCollection output is currently selected in the Dataflow graph"));
+	UEdGraphNode* const CurrentlySelectedNode = GetSingleSelectedNodeWithOutputType(ConnectionType);
+	checkf(CurrentlySelectedNode, TEXT("No node with FManagedArrayCollection output is currently selected in the Dataflow graph"));
 
-		const UEdGraphNode* const NewNode = CreateAndConnectNewNode(NewNodeType, *CurrentlySelectedNode, ConnectionType, ConnectionName);
-		verifyf(NewNode, TEXT("Failed to create a new node: %s"), *NewNodeType.ToString());
+	const UEdGraphNode* const NewNode = CreateAndConnectNewNode(NewNodeType, *CurrentlySelectedNode, ConnectionType, ConnectionName);
+	verifyf(NewNode, TEXT("Failed to create a new node: %s"), *NewNodeType.ToString());
 
-		StartToolForSelectedNode(NewNode);
-	};
+	StartToolForSelectedNode(NewNode);
+}
 
-	auto CanAddNode = [this](const FName& NewNodeType) -> bool
-	{
-		const UEdGraphNode* const CurrentlySelectedNode = GetSingleSelectedNodeWithOutputType(FManagedArrayCollection::StaticType());
-		return (CurrentlySelectedNode != nullptr);
-	};
-
-	const TSharedRef<FUICommandList>& CommandList = Toolkit->GetToolkitCommands();
-
-	CommandList->MapAction(AddNodeCommand,
-		FExecuteAction::CreateWeakLambda(this, AddNode, NewNodeType),
-		FCanExecuteAction::CreateWeakLambda(this, CanAddNode, NewNodeType)
-	);
+bool UDataflowEditorMode::CanAddNode(FName NewNodeType) const
+{
+	const UEdGraphNode* const CurrentlySelectedNode = GetSingleSelectedNodeWithOutputType(FManagedArrayCollection::StaticType());
+	return (CurrentlySelectedNode != nullptr);
 }
 
 void UDataflowEditorMode::RegisterTools()
@@ -283,8 +273,8 @@ void UDataflowEditorMode::RegisterTools()
 		NodeTypeToToolCommandMap.Add(RegisteredNodeName, CommandInfo);
 	}
 
-	// Register "Add Node" commands for buttons in the UI. So far we just have the one
-	RegisterAddNodeCommand(CommandInfos.AddWeightMapNode, FDataflowCollectionAddScalarVertexPropertyNode::StaticType());
+	// Register "Add Node" commands for buttons in the UI. The EditorToolkit will construct the actual toolbar buttons.
+	NodeTypeToAddNodeCommandMap.Add(FDataflowCollectionAddScalarVertexPropertyNode::StaticType(), CommandInfos.AddWeightMapNode);
 }
 
 bool UDataflowEditorMode::ShouldToolStartBeAllowed(const FString& ToolIdentifier) const
