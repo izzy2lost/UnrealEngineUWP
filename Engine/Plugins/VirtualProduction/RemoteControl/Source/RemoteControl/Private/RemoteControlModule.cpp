@@ -29,6 +29,7 @@
 #include "RemoteControlInterceptionHelpers.h"
 #include "RemoteControlInterceptionProcessor.h"
 #include "RemoteControlPreset.h"
+#include "RemoteControlProtocolEntityProcessor.h"
 #include "RemoteControlSettings.h"
 #include "SceneInterface.h"
 #include "Serialization/PropertyMapStructDeserializerBackendWrapper.h"
@@ -794,8 +795,10 @@ void FRemoteControlModule::StartupModule()
 	// Register Property Factories
 	RegisterEntityFactory(FRemoteControlInstanceMaterial::StaticStruct()->GetFName(), FRemoteControlInstanceMaterialFactory::MakeInstance());
 
-	// Register Masking Factories
+	// DEPRECATED 5.5, here to keep support of the old implementation while it cannot be removed yet.
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	RegisterMaskingFactories();
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	// Register PropertyIdHandler
 	RegisterPropertyIdHandler();
@@ -827,9 +830,13 @@ void FRemoteControlModule::ShutdownModule()
 		// Unregister Property Factories
 		UnregisterEntityFactory(FRemoteControlInstanceMaterial::StaticStruct()->GetFName());
 		
-		// Unregister Default Value & Masking factories.
+		// Unregister Default Value
 		DefaultValueFactories.Empty();
+
+		// DEPRECATED 5.5, here to keep support of the old implementation while it cannot be removed yet.
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		MaskingFactories.Empty();
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 }
 
@@ -1027,8 +1034,10 @@ void FRemoteControlModule::ResetToDefaultValue(UObject* InObject, FRCResetToDefa
 	}
 }
 
-void FRemoteControlModule::PerformMasking(const TSharedRef<FRCMaskingOperation>& InMaskingOperation, const ERCModifyOperationFlags ModifyOperationFlags)
+void FRemoteControlModule::PerformMasking(const TSharedRef<FRCMaskingOperation>& InMaskingOperation)
 {
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	// DEPRECATED 5.5, here to keep support of the old implementation while it cannot be removed yet.
 	TRACE_CPUPROFILER_EVENT_SCOPE(FRemoteControlModule::PerformMasking);
 
 	if (!InMaskingOperation->IsValid())
@@ -1050,7 +1059,7 @@ void FRemoteControlModule::PerformMasking(const TSharedRef<FRCMaskingOperation>&
 			{
 				constexpr bool bIsInteractive = true;
 
-				(*MaskingFactory)->ApplyMaskedValues(InMaskingOperation, bIsInteractive, ModifyOperationFlags);
+				(*MaskingFactory)->ApplyMaskedValues(InMaskingOperation, bIsInteractive);
 
 				ActiveMaskingOperations.Remove(InMaskingOperation);
 			}
@@ -1062,10 +1071,12 @@ void FRemoteControlModule::PerformMasking(const TSharedRef<FRCMaskingOperation>&
 			}
 		}
 	}
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 }
 
 void FRemoteControlModule::RegisterMaskingFactoryForType(UScriptStruct* RemoteControlPropertyType, const TSharedPtr<IRemoteControlMaskingFactory>& InMaskingFactory)
 {
+	// DEPRECATED 5.5, here to keep support of the old implementation while it cannot be removed yet.
 	if (!MaskingFactories.Contains(RemoteControlPropertyType))
 	{
 		MaskingFactories.Add(RemoteControlPropertyType, InMaskingFactory);
@@ -1073,22 +1084,21 @@ void FRemoteControlModule::RegisterMaskingFactoryForType(UScriptStruct* RemoteCo
 }
 
 void FRemoteControlModule::UnregisterMaskingFactoryForType(UScriptStruct* RemoteControlPropertyType)
-{
+{	
+	// DEPRECATED 5.5, here to keep support of the old implementation while it cannot be removed yet.
 	MaskingFactories.Remove(RemoteControlPropertyType);
 }
 
 bool FRemoteControlModule::SupportsMasking(const UScriptStruct* InStruct) const
 {
-	return MaskingFactories.Contains(InStruct);
+	using namespace UE::RemoteControl;
+	return ProtocolEntityProcessor::DoesScriptStructSupportMasking(InStruct);
 }
 
 bool FRemoteControlModule::SupportsMasking(const FProperty* InProperty) const
 {
-	if (const FStructProperty* StructProperty = CastField<FStructProperty>(InProperty))
-	{
-		return SupportsMasking(StructProperty->Struct);
-	}
-	return false;
+	using namespace UE::RemoteControl;
+	return ProtocolEntityProcessor::DoesPropertySupportMasking(InProperty);
 }
 
 bool FRemoteControlModule::ResolveCall(const FString& ObjectPath, const FString& FunctionName, FRCCallReference& OutCallRef, FString* OutErrorText)
@@ -1211,14 +1221,14 @@ bool FRemoteControlModule::InvokeCall(FRCCall& InCall, ERCPayloadType InPayloadT
 		}
 
 		const bool bIsManualTransaction = InCall.TransactionMode == ERCTransactionMode::MANUAL;
-		if ((bIsNewTransaction || bIsManualTransaction) && ensureAlways(InCall.CallRef.Object.IsValid()))
+		if ((bIsNewTransaction || bIsManualTransaction) && ensure(InCall.CallRef.Object.IsValid()))
 		{
 			InCall.CallRef.Object->Modify();
 		}
 			
 #endif
 		FEditorScriptExecutionGuard ScriptGuard;
-		if (ensureAlways(InCall.CallRef.Object.IsValid()))
+		if (ensure(InCall.CallRef.Object.IsValid()))
 		{
 			if (InCall.CallRef.PropertyWithSetter.IsValid())
 			{
@@ -2712,6 +2722,8 @@ void FRemoteControlModule::RegisterDefaultValueFactories()
 
 void FRemoteControlModule::RegisterMaskingFactories()
 {
+	// DEPRECATED 5.5, here to keep support of the old implementation while it cannot be removed yet.
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	RegisterMaskingFactoryForType(TBaseStructure<FVector>::Get(), FVectorMaskingFactory::MakeInstance());
 	RegisterMaskingFactoryForType(TBaseStructure<FVector4>::Get(), FVector4MaskingFactory::MakeInstance());
 	RegisterMaskingFactoryForType(TBaseStructure<FIntVector>::Get(), FIntVectorMaskingFactory::MakeInstance());
@@ -2719,6 +2731,7 @@ void FRemoteControlModule::RegisterMaskingFactories()
 	RegisterMaskingFactoryForType(TBaseStructure<FRotator>::Get(), FRotatorMaskingFactory::MakeInstance());
 	RegisterMaskingFactoryForType(TBaseStructure<FColor>::Get(), FColorMaskingFactory::MakeInstance());
 	RegisterMaskingFactoryForType(TBaseStructure<FLinearColor>::Get(), FLinearColorMaskingFactory::MakeInstance());
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 }
 
 void FRemoteControlModule::RegisterPropertyIdHandler()

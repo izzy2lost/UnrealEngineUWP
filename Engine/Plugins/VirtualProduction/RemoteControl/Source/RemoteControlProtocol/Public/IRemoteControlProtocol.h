@@ -112,6 +112,9 @@ public:
 	/** Unbind all protocol entities from the protocol */
 	virtual void UnbindAll() = 0;
 
+	/** Build to core engine delegated and called at the beginning of a frame */
+	virtual void OnBeginFrame() {};
+
 	/** Build to core engine delegated and called at the end of a frame */
 	virtual void OnEndFrame() {};
 
