@@ -6,6 +6,8 @@
 #include "RHIShaderPlatform.h"
 #include "RHIFeatureLevel.h"
 #include "SceneTypes.h"
+#include "Materials/Material.h"
+#include "Materials/MaterialInstance.h"
 
 #include "EditorValidator_Material.generated.h"
 
@@ -34,6 +36,19 @@ private:
 	};
 
 	TArray<FShaderValidationPlatform> ValidationPlatforms;
+
+	static UMaterial* DuplicateMaterial(UMaterial* OriginalMaterial);
+	static UMaterialInstance* DuplicateMaterialInstance(UMaterialInstance* OriginalMaterialInstance);
+};
+
+UCLASS()
+class UValidationMaterial : public UMaterial
+{
+	GENERATED_BODY()
+
+public:
+	virtual FMaterialResource* AllocateResource() override;
+	virtual bool IsAsset() const override { return false; }
 };
 
 USTRUCT()
