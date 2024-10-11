@@ -94,7 +94,10 @@ namespace UE::Dataflow
 					Context.Evaluate(*NodeOutput);
 				}
 			}
-			else
+			// Note: If the node is deactivated and has an output (like above), then the output might still need to be forwarded.
+			//       Therefore the Evaluate method has to be called for whichever value of bActive.
+			//       However if the node is deactivated and has no outputs (like below), now is the time to check its bActive state.
+			else if (Node->bActive)
 			{
 				// TODO: When no outputs are specified, this call to Evaluate should really be removed.
 				//       The purpose of the node evaluation function is to evaluate outputs.

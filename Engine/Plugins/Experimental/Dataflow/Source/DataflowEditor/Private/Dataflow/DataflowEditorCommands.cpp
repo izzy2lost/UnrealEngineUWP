@@ -159,11 +159,14 @@ const FDataflowNode* FDataflowEditorCommands::EvaluateNode(UE::Dataflow::FContex
 	}
 	if (Node && InOutLastNodeTimestamp < Node->GetTimestamp())
 	{
+		// Note: If the node is deactivated and has any outputs, then these outputs might still need to be forwarded.
+		//       Therefore the Evaluate method has to be called for whichever value of bActive.
+		//       This however isn't the case of SetAssetValue() for which the active state needs to be checked before the call.
 		Context.Evaluate(Node, Output);
 
-		if (Asset)
+		if (const FDataflowTerminalNode* const TerminalNode = Node->AsType<const FDataflowTerminalNode>())
 		{
-			if (const FDataflowTerminalNode* const TerminalNode = Node->AsType<const FDataflowTerminalNode>())
+			if (TerminalNode->bActive && Asset)
 			{
 				UE_LOG(LogChaosDataflow, Verbose, TEXT("FDataflowTerminalNode::SetAssetValue(): TerminalNode [%s], Asset [%s]"), *TerminalNode->GetName().ToString(), *Asset->GetName());
 				TerminalNode->SetAssetValue(Asset, Context);
