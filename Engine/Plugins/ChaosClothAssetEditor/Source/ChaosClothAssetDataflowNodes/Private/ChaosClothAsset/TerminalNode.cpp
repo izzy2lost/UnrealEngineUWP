@@ -89,7 +89,7 @@ namespace UE::Chaos::ClothAsset::Private
 
 FChaosClothAssetTerminalNode_v2::FChaosClothAssetTerminalNode_v2(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid)
 	: FDataflowTerminalNode(InParam, InGuid)
-	, RefreshAsset(FDataflowFunctionProperty::FDelegate::CreateLambda([this](UE::Dataflow::FContext& /*Context*/) { bClothCollectionChecksumValid = false; }))
+	, Refresh(FDataflowFunctionProperty::FDelegate::CreateLambda([this](UE::Dataflow::FContext& /*Context*/) { bClothCollectionChecksumValid = false; }))
 {
 	// Start with Lod0
 	for (int32 Index = 0; Index < NumInitialCollectionLods; ++Index)
