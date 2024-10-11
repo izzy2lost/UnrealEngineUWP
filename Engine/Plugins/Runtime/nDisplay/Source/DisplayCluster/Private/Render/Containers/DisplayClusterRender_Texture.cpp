@@ -2,6 +2,7 @@
 
 #include "Render/Containers/DisplayClusterRender_Texture.h"
 #include "Misc/App.h"
+#include "Misc/DisplayClusterLog.h"
 #include "RenderingThread.h"
 
 int32 GDisplayClusterRender_TextureCacheEnable = 1;
@@ -29,7 +30,19 @@ FDisplayClusterRender_Texture::FDisplayClusterRender_Texture(const FString& InUn
 { }
 
 FDisplayClusterRender_Texture::~FDisplayClusterRender_Texture()
-{ }
+{
+	if (TextureResourcePtr.IsValid())
+	{
+		UE_LOG(LogDisplayClusterRender, Error, TEXT("FDisplayClusterRender_Texture::SetTextureResource(nullptr) function must be called before the destructor."));
+
+		// Forced release of a resource
+		TextureResourcePtr->ReleaseRenderResource();
+		TextureResourcePtr.Reset();
+
+		TextureResourceProxyPtr->ReleaseRenderResource();
+		TextureResourceProxyPtr.Reset();
+	}
+}
 
 const TSharedPtr<FDisplayClusterRender_TextureResource, ESPMode::ThreadSafe>& FDisplayClusterRender_Texture::GetTextureResource() const
 {
