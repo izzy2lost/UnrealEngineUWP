@@ -511,9 +511,11 @@ namespace UE::USDListener::Private
 			{
 				if (Entry.Flags.bDidReloadContent)
 				{
-					OutInfoChanges = {};
 					OutResyncChanges = {};
 					OutResyncChanges.Add(RootPath, *RootInfoChange);
+
+					// Careful, as this will destroy our RootInfoChange/Entry
+					OutInfoChanges = {};
 					return true;
 				}
 			}
