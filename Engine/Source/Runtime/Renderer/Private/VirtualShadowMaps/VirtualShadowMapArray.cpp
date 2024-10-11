@@ -2179,15 +2179,17 @@ void FVirtualShadowMapArray::BuildPageAllocations(
 
 	// Update cached or newly invalidated pages with respect to the new requests
 	{	
-		// Cached data from previous frames is available and valid
+		// Cached data from previous frames is available and valid.  Note that we currently don't support GPUMask varying within
+		// a view family, so just use the first view's GPU mask.
 		const bool bCacheDataAvailable = CacheManager->IsCacheDataAvailable();
+		const bool bCacheDataValid = bCacheDataAvailable && CacheManager->GetCacheValidGPUMask().ContainsAll(Views[0].GPUMask);
 
 		FUpdatePhysicalPages::FParameters* PassParameters = GraphBuilder.AllocParameters<FUpdatePhysicalPages::FParameters>();
 		PassParameters->VirtualShadowMap		= GetUncachedUniformBuffer(GraphBuilder);
 		PassParameters->OutPhysicalPageMetaData = GraphBuilder.CreateUAV(PhysicalPageMetaDataRDG);
 		PassParameters->OutPhysicalPageLists	= GraphBuilder.CreateUAV(PhysicalPageListsRDG);
 
-		if (bCacheDataAvailable)
+		if (bCacheDataValid)
 		{
 			PassParameters->PageRequestFlags		   = GraphBuilder.CreateSRV(PageRequestFlagsRDG);
 			PassParameters->OutPageTable			   = GraphBuilder.CreateUAV(PageTableRDG);
@@ -2202,7 +2204,7 @@ void FVirtualShadowMapArray::BuildPageAllocations(
 		}
 
 		FUpdatePhysicalPages::FPermutationDomain PermutationVector;
-		PermutationVector.Set<FUpdatePhysicalPages::FHasCacheDataDim>(bCacheDataAvailable);
+		PermutationVector.Set<FUpdatePhysicalPages::FHasCacheDataDim>(bCacheDataValid);
 		SetStatsArgsAndPermutation<FUpdatePhysicalPages>(ShouldGenerateStats(), StatsBufferUAV, PassParameters, PermutationVector);
 		auto ComputeShader = Views[0].ShaderMap->GetShader<FUpdatePhysicalPages>(PermutationVector);
 
@@ -2213,6 +2215,21 @@ void FVirtualShadowMapArray::BuildPageAllocations(
 			PassParameters,
 			FIntVector(FMath::DivideAndRoundUp(GetMaxPhysicalPages(), FUpdatePhysicalPages::DefaultCSGroupX), 1, 1)
 		);
+
+#if WITH_MGPU
+		// Need to propagate previous physical page lists for GPUs we didn't update in the above pass.  This is only a
+		// 64 KB structure, so copying it is cheap.  Ping ponging and independently tracking which is the current buffer
+		// separately per GPU is another option, which avoids the copy, but adds a bunch of complexity.
+		FRHIGPUMask InverseGPUMask;
+		if (CacheManager->GetPrevBuffers().PhysicalPageLists && Views[0].GPUMask.Invert(InverseGPUMask) && InverseGPUMask.Intersects(CacheManager->GetCacheValidGPUMask()))
+		{
+			RDG_GPU_MASK_SCOPE(GraphBuilder, InverseGPUMask);
+			AddCopyBufferPass(GraphBuilder, PhysicalPageListsRDG, GraphBuilder.RegisterExternalBuffer(CacheManager->GetPrevBuffers().PhysicalPageLists));
+		}
+
+		// Track which GPUs the cache has been initialized on.  Merges GPU mask if cache data was already available, otherwise sets mask to initialize it.
+		CacheManager->UpdateCacheValidGPUMask(Views[0].GPUMask, bCacheDataAvailable);
+#endif
 	}
 
 	{

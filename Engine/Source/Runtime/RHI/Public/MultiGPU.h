@@ -192,6 +192,21 @@ public:
 		return FRHIGPUMask(~((1u << GPUIndex) - 1)) & All();
 	}
 
+	// Inverts a GPU mask, returning true if the inverse succeeded.  If it fails, OutInverse is arbitrarily set to GPU0.
+	FORCEINLINE bool Invert(FRHIGPUMask& OutInverse) const
+	{
+		if (*this == All())
+		{
+			OutInverse = FRHIGPUMask::GPU0();
+			return false;
+		}
+		else
+		{
+			OutInverse = FRHIGPUMask(~GetMask()) & All();
+			return true;
+		}
+	}
+
 	struct FIterator
 	{
 		FORCEINLINE explicit FIterator(const uint32 InGPUMask)
