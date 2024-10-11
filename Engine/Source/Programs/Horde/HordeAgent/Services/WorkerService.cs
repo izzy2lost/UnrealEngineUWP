@@ -109,7 +109,7 @@ namespace HordeAgent.Services
 			while (!stoppingToken.IsCancellationRequested)
 			{
 				SessionResult? result = null;
-				_statusService.Set(AgentStatusMessage.Starting);
+				_statusService.SetDescription(AgentStatusMessage.Starting);
 
 				Stopwatch sessionTime = Stopwatch.StartNew();
 

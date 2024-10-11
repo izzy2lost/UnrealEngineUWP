@@ -262,7 +262,7 @@ namespace UnrealToolbox.Plugins.HordeAgent
 
 		async Task StatusTaskAsync(CancellationToken cancellationToken)
 		{
-			SetStatus(AgentStatusMessage.Starting);
+			SetStatus(new AgentStatusMessage(true, 0, AgentStatusMessage.Starting));
 			for (; ; )
 			{
 				try
