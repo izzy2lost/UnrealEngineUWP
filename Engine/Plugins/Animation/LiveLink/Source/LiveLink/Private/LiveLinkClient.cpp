@@ -1126,6 +1126,8 @@ bool FLiveLinkClient::CreateSubject(const FLiveLinkSubjectPreset& InSubjectPrese
 			SubjectSettings = NewObject<ULiveLinkSubjectSettings>();
 		}
 
+		SubjectSettings->Initialize(InSubjectPreset.Key);
+
 		bool bEnabled = false;
 
 		FLiveLinkCollectionSubjectItem CollectionSubjectItem(InSubjectPreset.Key, MakeUnique<FLiveLinkSubject>(SourceItem->TimedData), SubjectSettings, bEnabled);
