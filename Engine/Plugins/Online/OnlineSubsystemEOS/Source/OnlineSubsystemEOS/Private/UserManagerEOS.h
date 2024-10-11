@@ -470,6 +470,8 @@ private:
 
 	/** Relevant information about the login session for local users */
 	TLocalUserArray<FLoginSession> LoginSessions;
+	// Remove from LoginSessions, but only if LocalUserNum is in there
+	void TryRemoveLoginSession(int32 LocalUserNum);
 
 	// Online user info
 
