@@ -39,6 +39,10 @@ RWByteAddressBuffer {DataInterfaceName}_DataCollectionBuffer;
 #define ATTRIBUTE_HEADER_SIZE_BYTES 8
 #define KERNEL_EXECUTED_FLAG (1u << 31)
 
+// TODO: should be code-gen'd from PCGComputeCommon.h
+#define MAX_NUM_ATTRS 128
+#define NUM_RESERVED_ATTRS 32
+
 // #################### HEADER READERS ##########################
 
 uint GetNumData_{DataInterfaceName}()
@@ -421,7 +425,7 @@ void RemovePoint_{DataInterfaceName}(uint InDataIndex, uint InElementIndex)
 // Initialize a single point with default values.
 void InitializePoint_{DataInterfaceName}(uint InDataIndex, uint InElementIndex)
 {
-	SetPosition_{DataInterfaceName}(InDataIndex, InElementIndex, 1.0f);
+	SetPosition_{DataInterfaceName}(InDataIndex, InElementIndex, 0.0f);
 	SetRotation_{DataInterfaceName}(InDataIndex, InElementIndex, float4(0.0f, 0.0f, 0.0f, 1.0f));
 	SetScale_{DataInterfaceName}(InDataIndex, InElementIndex, 1.0f);
 	SetBoundsMin_{DataInterfaceName}(InDataIndex, InElementIndex, -50.0f);
@@ -429,7 +433,32 @@ void InitializePoint_{DataInterfaceName}(uint InDataIndex, uint InElementIndex)
 	SetColor_{DataInterfaceName}(InDataIndex, InElementIndex, 1.0f);
 	SetDensity_{DataInterfaceName}(InDataIndex, InElementIndex, 1.0f);
 	SetSeed_{DataInterfaceName}(InDataIndex, InElementIndex, 42);
-	SetSteepness_{DataInterfaceName}(InDataIndex, InElementIndex, 0.5f);
+	SetSteepness_{DataInterfaceName}(InDataIndex, InElementIndex, 1.0f);
 	
-	// TODO - pass in relevant attribute IDs and init them
+	int NumAttributesRemaining = (int)GetDataNumAttributesInternal_{DataInterfaceName}(InDataIndex);
+
+	for (int AttributeId = NUM_RESERVED_ATTRS; AttributeId < MAX_NUM_ATTRS; ++AttributeId)
+	{
+		const uint Stride = GetAttributeStrideInternal_{DataInterfaceName}(InDataIndex, AttributeId);
+
+		if (Stride == 0)
+		{
+			// No output attribute to write to.
+			continue;
+		}
+
+		const uint ElementAddress = GetElementAddressInternal_{DataInterfaceName}(InDataIndex, InElementIndex, AttributeId);
+		
+		for (uint Offset = 0; Offset < Stride; Offset += 4)
+		{
+			// TODO: In future could upload actual default values for attributes rather than 0-initializing.
+			StoreBufferInternal_{DataInterfaceName}(ElementAddress + Offset, 0u);
+		}
+
+		if (--NumAttributesRemaining <= 0)
+		{
+			// Early-out when we've looked at all the possible attributes
+			break;
+		}
+	}
 }

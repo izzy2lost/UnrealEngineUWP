@@ -60,7 +60,7 @@ void Main(uint3 GroupId : SV_GroupID, uint GroupIndex : SV_GroupIndex)
 			const uint SeedPoint = In_GetSeed(In_DataIndex, In_ElementIndex);
 			const uint SeedSettings = GetSettingsSeed();
 			const uint SeedComponent = GetComponentSeed();
-			const uint Seed = ComputeSeed(SeedPoint, SeedSettings, SeedComponent);
+			uint Seed = ComputeSeed(SeedPoint, SeedSettings, SeedComponent);
 
 			const float RandomDraw = FRand(Seed);
 

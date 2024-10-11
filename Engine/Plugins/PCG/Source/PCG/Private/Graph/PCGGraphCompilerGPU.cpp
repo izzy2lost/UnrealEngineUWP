@@ -1187,6 +1187,10 @@ UPCGComputeGraph* FPCGGraphCompilerGPU::CompileComputeGraph(
 		}
 	}
 
+	// Remove empty strings (at execution time empty string is placed in table slot 0).
+	// NOTE: This can scramble order but order is not important at this stage (key values created at execution time in data binding).
+	ComputeGraph->StringTable.RemoveAllSwap([](const FString& InString) { return InString.IsEmpty(); });
+
 	return ComputeGraph;
 }
 
