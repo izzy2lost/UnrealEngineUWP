@@ -17,6 +17,7 @@ RWTexture2D<float4> RWSceneColor;
 float SpatialFilterDepthWeightScale;
 float SpatialFilterKernelRadius;
 uint SpatialFilterNumSamples;
+float SpatialFilterMaxDisocclusionFrames;
 float TemporalMaxFramesAccumulated;
 
 float3 TonemapLighting(float3 Lighting, float DisocclusionFactor)
@@ -62,14 +63,14 @@ void DenoiserSpatialCS(
 			float CenterDiffuseStdDev = sqrt(max(CenterDiffuseLightingAndSecondMoment.w - Pow2(Luminance(CenterDiffuseLightingAndSecondMoment.xyz)), 0.0f));
 			float CenterSpecularStdDev = sqrt(max(CenterSpecularLightingAndSecondMoment.w - Pow2(Luminance(CenterSpecularLightingAndSecondMoment.xyz)), 0.0f));
 	
-			// Run spatial filter until we accumulate enough frames to estimated temporal variance
-			float NumFramesAccumulated = NumFramesAccumulatedTexture[ScreenCoord] * TemporalMaxFramesAccumulated;
+			// Boost spatial filter until we accumulate enough frames to be able to rely on temporal variance
+			float NumFramesAccumulated = UnpackNumFramesAccumulated(NumFramesAccumulatedTexture[ScreenCoord]);
 			float DisocclusionFactor = 0.0f;
-			if (TemporalMaxFramesAccumulated > 1 && ShadingConfidence <= 0.2f)
+			if (TemporalMaxFramesAccumulated > 1 && ShadingConfidence <= 0.25f && SpatialFilterMaxDisocclusionFrames > 0.0f)
 			{
-				DisocclusionFactor = 1.0f - saturate((NumFramesAccumulated - 1.0f) / min(2.0f, TemporalMaxFramesAccumulated - 1.0f));
+				DisocclusionFactor = 1.0f - saturate((NumFramesAccumulated - 1.0f) / (SpatialFilterMaxDisocclusionFrames - 1.0f));
+				CenterDiffuseStdDev = lerp(CenterDiffuseStdDev, 1.0f, DisocclusionFactor);
 			}
-			CenterDiffuseStdDev = lerp(1.0f, CenterDiffuseStdDev, saturate(NumFramesAccumulated / min(5.0f, TemporalMaxFramesAccumulated)));
 
 			float3 DiffuseLightingSum = TonemapLighting(CenterDiffuseLightingAndSecondMoment.xyz, DisocclusionFactor);
 			float3 SpecularLightingSum = TonemapLighting(CenterSpecularLightingAndSecondMoment.xyz, DisocclusionFactor);
@@ -85,7 +86,7 @@ void DenoiserSpatialCS(
 			bool bFilterSpecular = false;
 
 			// #ml_todo: expose as CVars
-			if (ShadingConfidence <= 0.2f)
+			if (ShadingConfidence <= 0.2f || DisocclusionFactor > 0.01f)
 			{
 				// Don't run any filtering if relative error isn't big enough. TSR can clean it up without adding extra blur.
 				bFilterDiffuse = CenterDiffuseStdDev / max(Luminance(CenterDiffuseLightingAndSecondMoment.xyz), 0.1f) > 0.5f;
@@ -180,15 +181,18 @@ void DenoiserSpatialCS(
 				Print(Context, TEXT("CenterSpecularStdDev  : "));
 				Print(Context, CenterSpecularStdDev, FontValue);
 				Newline(Context);
-				Print(Context, TEXT("Filter                : "));
-				Print(Context, bFilterDiffuse ? 1u : 0u, FontValue);
-				Print(Context, bFilterSpecular ? 1u : 0u, FontValue);
+				Print(Context, TEXT("NumFramesAccumulated  : "));
+				Print(Context, NumFramesAccumulated, FontValue);
 				Newline(Context);
 				Print(Context, TEXT("DisocclusionFactor    : "));
 				Print(Context, DisocclusionFactor, FontValue);
 				Newline(Context);
 				Print(Context, TEXT("ShadingConfidence     : "));
 				Print(Context, ShadingConfidence, Select(ShadingConfidence > 0.75f, FontYellow, Select(ShadingConfidence > 0.25f, FontWhite, FontGrey)));
+				Newline(Context);
+				Print(Context, TEXT("Filter                : "));
+				Print(Context, bFilterDiffuse ? 1u : 0u, FontValue);
+				Print(Context, bFilterSpecular ? 1u : 0u, FontValue);
 			}
 			#endif
 

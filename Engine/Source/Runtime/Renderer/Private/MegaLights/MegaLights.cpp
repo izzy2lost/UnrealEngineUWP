@@ -83,8 +83,8 @@ static TAutoConsoleVariable<int32> CVarMegaLightsTemporalMaxFramesAccumulated(
 
 static TAutoConsoleVariable<float> CVarMegaLightsTemporalNeighborhoodClampScale(
 	TEXT("r.MegaLights.Temporal.NeighborhoodClampScale"),
-	2.0f,
-	TEXT("Scales how permissive is neighborhood clamp. Higher values reduce noise, but also increase ghosting."),
+	1.0f,
+	TEXT("Scales how permissive is neighborhood clamp. Higher values increase ghosting, but reduce noise and instability."),
 	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 
@@ -113,6 +113,13 @@ static TAutoConsoleVariable<int32> CVarMegaLightsSpatialNumSamples(
 	TEXT("r.MegaLights.Spatial.NumSamples"),
 	4,
 	TEXT("Number of spatial filter samples."),
+	ECVF_Scalability | ECVF_RenderThreadSafe
+);
+
+static TAutoConsoleVariable<int32> CVarMegaLightsSpatialMaxDisocclusionFrames(
+	TEXT("r.MegaLights.Spatial.MaxDisocclusionFrames"),
+	3,
+	TEXT("Number of of history frames to boost spatial filtering in order to minimize noise after disocclusion."),
 	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 
@@ -469,6 +476,16 @@ namespace MegaLights
 	{
 		return TileType == MegaLights::ETileType::SimpleShading_Rect_Textured
 			|| TileType == MegaLights::ETileType::ComplexShading_Rect_Textured;
+	}
+
+	float GetTemporalMaxFramesAccumulated()
+	{
+		return FMath::Max(CVarMegaLightsTemporalMaxFramesAccumulated.GetValueOnRenderThread(), 1.0f);
+	}
+
+	float GetSpatialFilterMaxDisocclusionFrames()
+	{
+		return FMath::Max(FMath::Min(CVarMegaLightsSpatialMaxDisocclusionFrames.GetValueOnRenderThread(), GetTemporalMaxFramesAccumulated() - 1.0f), 0.0f);
 	}
 };
 
@@ -1007,6 +1024,7 @@ class FDenoiserSpatialCS : public FGlobalShader
 		SHADER_PARAMETER(float, SpatialFilterDepthWeightScale)
 		SHADER_PARAMETER(float, SpatialFilterKernelRadius)
 		SHADER_PARAMETER(uint32, SpatialFilterNumSamples)
+		SHADER_PARAMETER(float, SpatialFilterMaxDisocclusionFrames)
 	END_SHADER_PARAMETER_STRUCT()
 
 	class FSpatialFilter : SHADER_PERMUTATION_BOOL("SPATIAL_FILTER");
@@ -1282,9 +1300,8 @@ void FDeferredShadingSceneRenderer::RenderMegaLights(FRDGBuilder& GraphBuilder, 
 			MegaLightsParameters.MinSampleWeight = FMath::Max(CVarMegaLightsMinSampleWeight.GetValueOnRenderThread(), 0.0f);
 			MegaLightsParameters.TileDataStride = TileDataStride;
 			MegaLightsParameters.DownsampledTileDataStride = DownsampledTileDataStride;
-			MegaLightsParameters.TemporalMaxFramesAccumulated = FMath::Max(CVarMegaLightsTemporalMaxFramesAccumulated.GetValueOnRenderThread(), 0.0f);
+			MegaLightsParameters.TemporalMaxFramesAccumulated = MegaLights::GetTemporalMaxFramesAccumulated();
 			MegaLightsParameters.TemporalNeighborhoodClampScale = CVarMegaLightsTemporalNeighborhoodClampScale.GetValueOnRenderThread();
-			MegaLightsParameters.TemporalAdvanceFrame = View.ViewState && !View.bStatePrevViewInfoIsReadOnly ? 1 : 0;
 			MegaLightsParameters.bOverrideCursorPosition = GIsEditor ? 0u : 1u;
 			MegaLightsParameters.DebugMode = MegaLights::GetDebugMode();
 			MegaLightsParameters.DebugLightId = INDEX_NONE;
@@ -1786,6 +1803,7 @@ void FDeferredShadingSceneRenderer::RenderMegaLights(FRDGBuilder& GraphBuilder, 
 			PassParameters->SpatialFilterDepthWeightScale = CVarMegaLightsSpatialDepthWeightScale.GetValueOnRenderThread();
 			PassParameters->SpatialFilterKernelRadius = CVarMegaLightsSpatialKernelRadius.GetValueOnRenderThread();
 			PassParameters->SpatialFilterNumSamples = FMath::Clamp(CVarMegaLightsSpatialNumSamples.GetValueOnRenderThread(), 0, 1024);
+			PassParameters->SpatialFilterMaxDisocclusionFrames = MegaLights::GetSpatialFilterMaxDisocclusionFrames();
 
 			FDenoiserSpatialCS::FPermutationDomain PermutationVector;
 			PermutationVector.Set<FDenoiserSpatialCS::FSpatialFilter>(CVarMegaLightsSpatial.GetValueOnRenderThread() != 0);

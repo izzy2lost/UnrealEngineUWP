@@ -28,7 +28,6 @@ float4 HistoryGatherUVMinMax;
 float PrevSceneColorPreExposureCorrection;
 float TemporalMaxFramesAccumulated;
 float TemporalNeighborhoodClampScale;
-uint TemporalAdvanceFrame;
 
 RWTexture2D<float4> RWDiffuseLightingAndSecondMoment;
 RWTexture2D<float4> RWSpecularLightingAndSecondMoment;
@@ -145,6 +144,14 @@ float3 ClampLuminance(float3 Lighting, float LuminanceClamp)
 	}
 
 	return Lighting;
+}
+
+float ShadingConfidenceWeight(float ShadingConfidence)
+{
+	// #ml_todo: expose as CVars
+	float Edge0 = 0.75f;
+	float Edge1 = 0.25f;
+	return saturate((ShadingConfidence - Edge0) / (Edge1 - Edge0));
 }
 
 /**
@@ -312,20 +319,6 @@ void DenoiserTemporalCS(
 					// Use history only if we found at least one valid sample
 					if (any(HistoryWeights > 0.01f))
 					{
-						// Reproject and rescale normalized NumFramesAccumulated
-						float NumFramesAccumulatedHistory = 0.0f;
-						NumFramesAccumulatedHistory = dot(NumFramesAccumulatedHistoryTexture.GatherRed(GlobalPointClampedSampler, HistoryGatherUV).wzxy, HistoryWeights) * TemporalMaxFramesAccumulated;
-						NumFramesAccumulatedHistory = NumFramesAccumulatedHistory / dot(HistoryWeights, 1.0f);
-
-						// Advance the frame counter
-						if (TemporalAdvanceFrame != 0)
-						{
-							// #ml_todo: expose as CVars
-							float MaxFrames = smoothstep(0.75f, 0.25f, ShadingConfidence) * TemporalMaxFramesAccumulated;
-							NumFramesAccumulatedHistory = min(NumFramesAccumulatedHistory, MaxFrames) + 1.0f;
-						}
-						NumFramesAccumulated = min(NumFramesAccumulatedHistory, TemporalMaxFramesAccumulated);
-
 						float4 DiffuseLightingAndSecondMomentHistory = 0.0f;
 						DiffuseLightingAndSecondMomentHistory.x = dot(DiffuseLightingAndSecondMomentHistoryTexture.GatherRed(GlobalPointClampedSampler, HistoryGatherUV).wzxy, HistoryWeights);
 						DiffuseLightingAndSecondMomentHistory.y = dot(DiffuseLightingAndSecondMomentHistoryTexture.GatherGreen(GlobalPointClampedSampler, HistoryGatherUV).wzxy, HistoryWeights);
@@ -351,25 +344,59 @@ void DenoiserTemporalCS(
 						GetNeighborhood(GroupThreadId.xy, DiffuseLighting, SpecularLighting, DiffuseNeighborhood, SpecularNeighborhood, Debug);
 
 						// Clamp diffuse history
-						HistoryDiffuseLighting = LumenRGBToYCoCg(HistoryDiffuseLighting);
-						float3 ClampedHistoryDiffuseLighting = clamp(HistoryDiffuseLighting, DiffuseNeighborhood.Center - DiffuseNeighborhood.Extent, DiffuseNeighborhood.Center + DiffuseNeighborhood.Extent);
-						ClampedHistoryDiffuseLighting = LumenYCoCgToRGB(ClampedHistoryDiffuseLighting);
+						float DiffuseConfidence = 1.0f;
+						float3 ClampedHistoryDiffuseLighting = HistoryDiffuseLighting;
+						{
+							HistoryDiffuseLighting = LumenRGBToYCoCg(HistoryDiffuseLighting);
+							ClampedHistoryDiffuseLighting = clamp(HistoryDiffuseLighting, DiffuseNeighborhood.Center - DiffuseNeighborhood.Extent, DiffuseNeighborhood.Center + DiffuseNeighborhood.Extent);
+
+							// Speedup accumulation if history is far away from the current neighborhood
+							float NormalizedDistanceToNeighborhood = length(abs(ClampedHistoryDiffuseLighting - HistoryDiffuseLighting) / DiffuseNeighborhood.Extent);
+							DiffuseConfidence = saturate(1.0f - NormalizedDistanceToNeighborhood);
+
+							ClampedHistoryDiffuseLighting = LumenYCoCgToRGB(ClampedHistoryDiffuseLighting);
+						}
 
 						// Clamp specular history
-						HistorySpecularLighting = LumenRGBToYCoCg(HistorySpecularLighting);						
-						float3 ClampedHistorySpecularLighting = clamp(HistorySpecularLighting, SpecularNeighborhood.Center - SpecularNeighborhood.Extent, SpecularNeighborhood.Center + SpecularNeighborhood.Extent);
-						ClampedHistorySpecularLighting = LumenYCoCgToRGB(ClampedHistorySpecularLighting);
+						float SpecularConfidence = 1.0f;
+						float3 ClampedHistorySpecularLighting = HistorySpecularLighting;
+						{
+							HistorySpecularLighting = LumenRGBToYCoCg(HistorySpecularLighting);						
+							ClampedHistorySpecularLighting = clamp(HistorySpecularLighting, SpecularNeighborhood.Center - SpecularNeighborhood.Extent, SpecularNeighborhood.Center + SpecularNeighborhood.Extent);
+
+							// Speedup accumulation if history is far away from the current neighborhood
+							float NormalizedDistanceToNeighborhood = length(abs(ClampedHistorySpecularLighting - HistorySpecularLighting) / SpecularNeighborhood.Extent);
+							SpecularConfidence = saturate(1.0f - NormalizedDistanceToNeighborhood);
+
+							ClampedHistorySpecularLighting = LumenYCoCgToRGB(ClampedHistorySpecularLighting);
+						}
 
 						// #ml_todo: clamp also the second moment
 						float ClampedHistoryDiffuseSecondMoment = max(HistoryDiffuseSecondMoment, 0.0f);
 						float ClampedHistorySpecularSecondMoment = max(HistorySpecularSecondMoment, 0.0f);
 
+						// Blend a bit of history even when we have low confidence in order to smoothen transitions
+						DiffuseConfidence = 0.75f * DiffuseConfidence + 0.25f;
+						SpecularConfidence = 0.75f * SpecularConfidence + 0.25f;
+
+						// Reproject and rescale normalized NumFramesAccumulated
+						float NumFramesAccumulatedHistory = 0.0f;
+						NumFramesAccumulatedHistory = UnpackNumFramesAccumulated(dot(NumFramesAccumulatedHistoryTexture.GatherRed(GlobalPointClampedSampler, HistoryGatherUV).wzxy, HistoryWeights) / dot(HistoryWeights, 1.0f));
+
+						// Advance the frame counter
+						float MaxFrames = ShadingConfidenceWeight(ShadingConfidence) * (TemporalMaxFramesAccumulated - 1.0f) + 1.0f;
+						float DiffuseNumFramesAccumulated = min(NumFramesAccumulatedHistory * DiffuseConfidence + 1.0f, MaxFrames);
+						float SpecularNumFramesAccumulated = min(NumFramesAccumulatedHistory * SpecularConfidence + 1.0f, MaxFrames);
+						NumFramesAccumulated = lerp(DiffuseNumFramesAccumulated, SpecularNumFramesAccumulated, 0.5f);
+
 						// Blend history with new samples
-						float Alpha = 1.0f / NumFramesAccumulated;
-						DiffuseLighting = lerp(ClampedHistoryDiffuseLighting, DiffuseLighting, Alpha);
-						DiffuseSecondMoment = lerp(ClampedHistoryDiffuseSecondMoment, DiffuseSecondMoment, Alpha);
-						SpecularLighting = lerp(ClampedHistorySpecularLighting, SpecularLighting, Alpha);
-						SpecularSecondMoment = lerp(ClampedHistorySpecularSecondMoment, SpecularSecondMoment, Alpha);
+						float DiffuseAlpha = 1.0f / DiffuseNumFramesAccumulated;
+						DiffuseLighting = lerp(ClampedHistoryDiffuseLighting, DiffuseLighting, DiffuseAlpha);
+						DiffuseSecondMoment = lerp(ClampedHistoryDiffuseSecondMoment, DiffuseSecondMoment, DiffuseAlpha);
+
+						float SpecularAlpha = 1.0f / SpecularNumFramesAccumulated;
+						SpecularLighting = lerp(ClampedHistorySpecularLighting, SpecularLighting, SpecularAlpha);
+						SpecularSecondMoment = lerp(ClampedHistorySpecularSecondMoment, SpecularSecondMoment, SpecularAlpha);
 
 						DiffuseLighting = MakeFinite(DiffuseLighting);
 						SpecularLighting = MakeFinite(SpecularLighting);
@@ -390,9 +417,6 @@ void DenoiserTemporalCS(
 							Print(Debug.Context, TEXT("SpecularVariance    : "));
 							Print(Debug.Context, SpecularVariance, FontValue);
 							Newline(Debug.Context);
-							Print(Debug.Context, TEXT("Specular 2nd Moment : "));
-							Print(Debug.Context, SpecularSecondMoment, FontValue);
-							Newline(Debug.Context);
 							Print(Debug.Context, TEXT("Diffuse             : "));
 							Print(Debug.Context, DiffuseLighting, FontValue);
 							Newline(Debug.Context);
@@ -412,6 +436,6 @@ void DenoiserTemporalCS(
 
 		RWDiffuseLightingAndSecondMoment[ScreenCoord] = float4(DiffuseLighting, DiffuseSecondMoment);
 		RWSpecularLightingAndSecondMoment[ScreenCoord] = float4(SpecularLighting, SpecularSecondMoment);
-		RWNumFramesAccumulated[ScreenCoord] = (NumFramesAccumulated + 0.5f) / TemporalMaxFramesAccumulated;
+		RWNumFramesAccumulated[ScreenCoord] = PackNumFramesAccumulated(NumFramesAccumulated);
 	}
 }
