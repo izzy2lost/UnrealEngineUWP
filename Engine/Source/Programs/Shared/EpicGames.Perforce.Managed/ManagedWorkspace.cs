@@ -971,6 +971,10 @@ namespace EpicGames.Perforce.Managed
 					{
 						await CleanInternalAsync(removeUntracked, cancellationToken);
 					}
+					
+					// Immediately after a potential clean, mark repository having untracked files.
+					// This ensure a clean is run next time even if the sync below is aborted or fails
+					await SaveUntrackedStateAsync(perforce, true, cancellationToken);
 
 					// Wait for the have table update to finish
 					await updateHaveTableTask;
@@ -999,9 +1003,6 @@ namespace EpicGames.Perforce.Managed
 				await RemoveFilesFromWorkspaceAsync(contents, cancellationToken);
 				await AddFilesToWorkspaceAsync(perforce, contents, fakeSync, cancellationToken);
 			}
-			
-			// Once sync is complete and about to be handed off, mark repository having untracked files
-			await SaveUntrackedStateAsync(perforce, true, cancellationToken);
 			
 			_logger.LogInformation("Completed in {ElapsedTime}s", $"{timer.Elapsed.TotalSeconds:0.0}");
 		}

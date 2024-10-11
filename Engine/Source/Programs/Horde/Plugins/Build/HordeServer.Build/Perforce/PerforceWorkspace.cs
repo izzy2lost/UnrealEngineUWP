@@ -126,7 +126,9 @@ namespace HordeServer.Perforce
 				Stream = workspace.Stream,
 				Incremental = workspace.Incremental,
 				Partitioned = partitioned,
-				Method = workspace.Method ?? String.Empty
+				Method = workspace.Method ?? String.Empty,
+				MinScratchSpace = workspace.MinScratchSpace ?? 0,
+				ConformDiskFreeSpace = workspace.ConformDiskFreeSpace ?? 0,
 			};
 
 			if (workspace.View != null)

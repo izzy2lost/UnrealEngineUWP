@@ -124,12 +124,25 @@ namespace HordeServer.Storage
 			{
 				return NotFound(namespaceId);
 			}
-			if (!Authorize(namespaceId, StorageAclAction.WriteBlobs) && !HasPathClaim(User, HordeClaimTypes.WriteNamespace, namespaceId, request.Prefix ?? String.Empty))
+			if (!Authorize(namespaceId, StorageAclAction.WriteBlobs) && !HasPathClaim(User, HordeClaimTypes.WriteNamespace, namespaceId, GetPathFromLocator(locator)))
 			{
 				return Forbid(StorageAclAction.WriteBlobs, namespaceId);
 			}
 
 			return await WriteBlobAsync(storageBackend, locator, request, cancellationToken);
+		}
+
+		static string GetPathFromLocator(BlobLocator locator)
+		{
+			int lastIdx = locator.Path.LastIndexOf('/');
+			if (lastIdx == -1)
+			{
+				return String.Empty;
+			}
+			else
+			{
+				return locator.Path.Substring(0, lastIdx).ToString();
+			}
 		}
 
 		/// <summary>
@@ -145,13 +158,30 @@ namespace HordeServer.Storage
 			IReadOnlyCollection<BlobLocator> imports = request.Imports ?? (IReadOnlyCollection<BlobLocator>)Array.Empty<BlobLocator>();
 			if (request.File == null)
 			{
-				(BlobLocator Path, Uri UploadUrl)? result = await storageBackend.TryGetBlobWriteRedirectAsync(imports, request.Prefix ?? String.Empty, cancellationToken);
-				if (result == null)
+				if (locator == null)
 				{
-					return new WriteBlobResponse { SupportsRedirects = false };
+					(BlobLocator Locator, Uri UploadUrl)? result = await storageBackend.TryGetBlobWriteRedirectAsync(imports, request.Prefix ?? String.Empty, cancellationToken);
+					if (result == null)
+					{
+						return new WriteBlobResponse { SupportsRedirects = false };
+					}
+					else
+					{
+						return new WriteBlobResponse { Blob = result.Value.Locator.Path.ToString(), UploadUrl = result.Value.UploadUrl };
+					}
 				}
-
-				return new WriteBlobResponse { Blob = result.Value.Path.ToString(), UploadUrl = result.Value.UploadUrl };
+				else
+				{
+					Uri? uploadUrl = await storageBackend.TryGetBlobWriteRedirectAsync(locator.Value, imports, cancellationToken);
+					if (uploadUrl == null)
+					{
+						return new WriteBlobResponse { SupportsRedirects = false };
+					}
+					else
+					{
+						return new WriteBlobResponse { Blob = locator.Value.Path.ToString(), UploadUrl = uploadUrl };
+					}
+				}
 			}
 			else
 			{

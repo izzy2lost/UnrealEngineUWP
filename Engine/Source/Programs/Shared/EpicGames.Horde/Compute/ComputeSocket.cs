@@ -538,7 +538,7 @@ namespace EpicGames.Horde.Compute
 			}
 			catch (Exception e)
 			{
-				_logger.LogInformation(e, "Error in background receive");
+				_logger.LogInformation(e, "Exception in background receive");
 				throw;
 			}
 		}

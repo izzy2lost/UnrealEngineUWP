@@ -611,7 +611,8 @@ namespace EpicGames.OIDC
 				Address = discoUrl,
 				Policy =
 				{
-					ValidateEndpoints = false
+					ValidateEndpoints = false,
+					RequireHttps = _authorityUri.Scheme == "https"
 				}
 			};
 			DiscoveryDocumentResponse disco = await client.GetDiscoveryDocumentAsync(doc, cancellationToken);

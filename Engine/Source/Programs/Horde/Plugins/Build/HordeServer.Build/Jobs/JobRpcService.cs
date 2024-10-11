@@ -95,20 +95,46 @@ namespace HordeServer.Jobs
 				}
 
 				// Get the new workspaces
-				List<AgentWorkspaceInfo> newWorkspaces = request.Workspaces.Select(x => new AgentWorkspaceInfo(x)).ToList();
+				List<AgentWorkspaceInfo> currentWorkspaces = request.Workspaces.Select(x => new AgentWorkspaceInfo(x)).ToList();
 
 				// Get the set of workspaces that are currently required
 				HashSet<AgentWorkspaceInfo> conformWorkspaces = await _poolService.GetWorkspacesAsync(agent, DateTime.UtcNow, _buildConfig.Value, context.CancellationToken);
-				bool pendingConform = !conformWorkspaces.SetEquals(newWorkspaces) || (agent.RequestFullConform && !request.RemoveUntrackedFiles);
+				bool workspaceSetEquals = conformWorkspaces.SetEquals(currentWorkspaces);
+				bool pendingConform = !workspaceSetEquals || (agent.RequestFullConform && !request.RemoveUntrackedFiles);
 
 				// Update the workspaces
-				if (await _agentService.TryUpdateWorkspacesAsync(agent, newWorkspaces, pendingConform, context.CancellationToken))
+				if (await _agentService.TryUpdateWorkspacesAsync(agent, currentWorkspaces, pendingConform, context.CancellationToken))
 				{
 					RpcUpdateAgentWorkspacesResponse response = new RpcUpdateAgentWorkspacesResponse();
 					if (pendingConform)
 					{
 						response.Retry = await _conformTaskSource.GetWorkspacesAsync(agent, response.PendingWorkspaces, context.CancellationToken);
 						response.RemoveUntrackedFiles = request.RemoveUntrackedFiles || agent.RequestFullConform;
+
+						if (response.Retry)
+						{
+							HashSet<string> identifiers = new HashSet<string>();
+							identifiers.UnionWith(currentWorkspaces.Select(x => x.Identifier));
+							identifiers.UnionWith(conformWorkspaces.Select(x => x.Identifier));
+
+							int numChanged = 0;
+							foreach (string identifier in identifiers)
+							{
+								AgentWorkspaceInfo? prevWorkspace = currentWorkspaces.FirstOrDefault(x => x.Identifier.Equals(identifier, StringComparison.OrdinalIgnoreCase));
+								AgentWorkspaceInfo? nextWorkspace = conformWorkspaces.FirstOrDefault(x => x.Identifier.Equals(identifier, StringComparison.OrdinalIgnoreCase));
+								string prevWorkspaceText = (prevWorkspace == null)? "(does not exist)" : JsonSerializer.Serialize(prevWorkspace);
+								string nextWorkspaceText = (nextWorkspace == null)? "(does not exist)" : JsonSerializer.Serialize(nextWorkspace);
+
+								if (!String.Equals(prevWorkspaceText, nextWorkspaceText, StringComparison.Ordinal))
+								{
+									_logger.LogInformation("{AgentId} {Identifier} was: {OldWorkspace}", agent.Id, identifier, prevWorkspaceText);
+									_logger.LogInformation("{AgentId} {Identifier} now: {NewWorkspace}", agent.Id, identifier, nextWorkspaceText);
+									numChanged++;
+								}
+							}
+
+							_logger.LogInformation("Retrying conform for {AgentId} ({NumChanged} changed, set equals: {SetEquals}, request conform: {RequestConform}, request full conform: {RequestFullConform}, remove untracked: {RemoveUntracked})", agent.Id, numChanged, workspaceSetEquals, agent.RequestConform, agent.RequestFullConform, request.RemoveUntrackedFiles);
+						}
 					}
 					return response;
 				}

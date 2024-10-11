@@ -119,7 +119,6 @@ namespace UnrealGameSync
 			WorkspaceControl.GenerateUprojectSpecificSolution.Checked = GlobalControl.GenerateUprojectSpecificSolution.Checked;
 		}
 
-
 		private static void SetExcludedCategories(
 			CheckedListBox listBox, 
 			Dictionary<Guid, WorkspaceSyncCategory> uniqueIdToFilter,

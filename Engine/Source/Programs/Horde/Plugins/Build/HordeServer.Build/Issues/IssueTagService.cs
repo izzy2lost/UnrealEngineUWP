@@ -159,7 +159,7 @@ namespace HordeServer.Issues
 			{
 				foreach (Match match in Regex.Matches(description, $"^\\s*{issueFixedTag}\\s+(.*)$", RegexOptions.Multiline))
 				{
-					string[] issues = match.Groups[1].Value.Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
+					string[] issues = match.Groups[1].Value.Split(new[] { ' ', '\t', ',' }, StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
 					foreach (string issue in issues)
 					{
 						if (Int32.TryParse(issue, System.Globalization.NumberStyles.None, null, out int issueId))
