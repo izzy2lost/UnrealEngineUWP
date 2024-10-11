@@ -150,6 +150,7 @@ void FCurveColorCustomization::CustomizeHeader(TSharedRef<IPropertyHandle> InStr
 		else
 		{
 			CurveWidget->SetCurveOwner(this);
+			CurveWidget->SetPropertyUtils(StructCustomizationUtils.GetPropertyUtilities());
 		}
 	}
 	else

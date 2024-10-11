@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "Misc/Attribute.h"
 #include "Templates/SubclassOf.h"
+#include "Templates/SharedPointer.h"
 #include "Layout/Geometry.h"
 #include "Input/Reply.h"
 #include "Layout/Visibility.h"
@@ -21,6 +22,7 @@
 class FPaintArgs;
 class FSlateWindowElementList;
 class FUICommandList;
+class IPropertyUtilities;
 class IMenu;
 class SBox;
 class SErrorText;
@@ -240,6 +242,11 @@ public:
 
 	/** Set the curve that is being edited by this track widget. Also provide an option to enable/disable editing */
 	UNREALED_API void SetCurveOwner(FCurveOwnerInterface* InCurveOwner, bool bCanEdit = true);
+	
+	UNREALED_API void SetPropertyUtils(const TSharedPtr<IPropertyUtilities>& InPropertyUtils)
+	{
+		PropertyUtilitiesWeak = InPropertyUtils;
+	}
 
 	/** Set new zoom to fit **/
 	UNREALED_API void SetZoomToFit(bool bNewZoomToFitVertical, bool bNewZoomToFitHorizontal);
@@ -651,6 +658,9 @@ protected:
 	/** Access the user-supplied settings object */
 	UCurveEditorSettings* GetSettings() const { return Settings; }
 
+	/** Empty all the curve view models */
+	void EmptyAllCurveViewModels();
+
 	/** Clear the selected curve view models */
 	UNREALED_API void ClearSelectedCurveViewModels();
 
@@ -849,4 +859,8 @@ protected:
 
 	/** Generic Popup Entry */
 	TWeakPtr<IMenu> EntryPopupMenu;
+
+private:
+	bool bIsPendingRebuilt;
+	TWeakPtr<IPropertyUtilities> PropertyUtilitiesWeak;
 };
