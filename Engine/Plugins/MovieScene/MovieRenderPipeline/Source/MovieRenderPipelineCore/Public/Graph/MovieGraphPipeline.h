@@ -346,6 +346,9 @@ protected:
 	/** Simulation settings cache per cloth interactor object. Needs one per LOD, hence the array. */
 	TMap<TWeakObjectPtr<UObject>, TArray<MoviePipeline::FClothSimSettingsCache>> ClothSimCache;
 	
+	/** Whether an insights capture was started when the pipeline was initialized. */
+	bool bDidStartInsightsCapture;
+	
 public:
 	static FString DefaultPreviewWidgetAsset;
 };

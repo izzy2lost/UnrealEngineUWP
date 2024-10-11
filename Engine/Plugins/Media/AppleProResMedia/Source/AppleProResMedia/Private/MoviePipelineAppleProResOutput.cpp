@@ -4,6 +4,7 @@
 #include "MoviePipeline.h"
 #include "MoviePipelineOutputSetting.h"
 #include "MoviePipelinePrimaryConfig.h"
+#include "MoviePipelineTelemetry.h"
 #include "ImagePixelData.h"
 #include "MoviePipelineImageQuantization.h"
 #include "SampleBuffer.h"
@@ -143,3 +144,8 @@ FText UMoviePipelineAppleProResOutput::GetDisplayText() const
 	}
 }
 #endif
+
+void UMoviePipelineAppleProResOutput::UpdateTelemetry(FMoviePipelineShotRenderTelemetry* InTelemetry) const
+{
+	InTelemetry->bUsesProRes = true;
+}

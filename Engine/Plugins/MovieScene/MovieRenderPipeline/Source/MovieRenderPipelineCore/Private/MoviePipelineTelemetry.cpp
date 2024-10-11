@@ -84,6 +84,8 @@ void FMoviePipelineTelemetry::SendBeginShotRenderTelemetry(UMoviePipelineExecuto
 	EventAttributes.Add(FAnalyticsEventAttribute(TEXT("UsesSubgraphs"), ShotRenderTelemetry.bUsesSubgraphs));
 	EventAttributes.Add(FAnalyticsEventAttribute(TEXT("UsesPPMs"), ShotRenderTelemetry.bUsesPPMs));
 	EventAttributes.Add(FAnalyticsEventAttribute(TEXT("UsesAudio"), ShotRenderTelemetry.bUsesAudio));
+	EventAttributes.Add(FAnalyticsEventAttribute(TEXT("UsesAvid"), ShotRenderTelemetry.bUsesAvid));
+	EventAttributes.Add(FAnalyticsEventAttribute(TEXT("UsesProRes"), ShotRenderTelemetry.bUsesProRes));
 	EventAttributes.Add(FAnalyticsEventAttribute(TEXT("ResolutionX"), ShotRenderTelemetry.ResolutionX));
 	EventAttributes.Add(FAnalyticsEventAttribute(TEXT("ResolutionY"), ShotRenderTelemetry.ResolutionY));
 	EventAttributes.Add(FAnalyticsEventAttribute(TEXT("HandleFrameCount"), ShotRenderTelemetry.HandleFrameCount));

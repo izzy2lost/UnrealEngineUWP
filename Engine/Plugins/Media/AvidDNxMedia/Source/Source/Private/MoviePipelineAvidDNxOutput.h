@@ -7,7 +7,7 @@
 #include "MoviePipelineAvidDNxOutput.generated.h"
 
 // Forward Declare
-
+struct FMoviePipelineShotRenderTelemetry;
 
 UCLASS(BlueprintType)
 class UMoviePipelineAvidDNxOutput : public UMoviePipelineVideoOutputBase
@@ -37,6 +37,10 @@ protected:
 	virtual FText GetDisplayText() const override { return NSLOCTEXT("MovieRenderPipeline", "AvidDNx_DisplayName", "Avid DNx [8bit]"); }
 #endif
 	// ~UMoviePipelineOutputBase Interface
+
+	// UMoviePipelineSetting Interface
+	virtual void UpdateTelemetry(FMoviePipelineShotRenderTelemetry* InTelemetry) const override;
+	// ~UMoviePipelineSetting Interface
 
 public:
 	/** Should we use a lossy compression for the output? */
