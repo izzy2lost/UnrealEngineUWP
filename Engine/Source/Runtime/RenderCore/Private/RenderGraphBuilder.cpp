@@ -1642,9 +1642,9 @@ void FRDGBuilder::Compile()
 
 void FRDGBuilder::LaunchAsyncSetupQueueTask()
 {
-	if (AsyncSetupQueue.LastTask.IsCompleted())
+	if (!AsyncSetupQueue.Pipe.HasWork())
 	{
-		AsyncSetupQueue.LastTask = AsyncSetupQueue.Pipe.Launch(UE_SOURCE_LOCATION, [this]() mutable
+		AsyncSetupQueue.Pipe.Launch(UE_SOURCE_LOCATION, [this]() mutable
 		{
 			ProcessAsyncSetupQueue();
 		});
@@ -1760,7 +1760,7 @@ void FRDGBuilder::Execute()
 
 		if (ParallelSetup.bEnabled)
 		{
-			AsyncSetupQueue.LastTask.Wait();
+			AsyncSetupQueue.Pipe.WaitUntilEmpty();
 			ProcessAsyncSetupQueue();
 		}
 

@@ -939,7 +939,6 @@ private:
 
 		UE::FMutex Mutex;
 		TArray<FAsyncSetupOp, FRDGArrayAllocator> Ops;
-		UE::Tasks::FTask LastTask;
 		UE::Tasks::FPipe Pipe{ TEXT("FRDGBuilder::AsyncSetupQueue") };
 
 	} AsyncSetupQueue;
