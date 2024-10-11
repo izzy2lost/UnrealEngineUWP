@@ -268,6 +268,38 @@ bool UNiagaraNodeStaticSwitch::CanModifyPin(const UEdGraphPin* Pin) const
 	return true;
 }
 
+bool UNiagaraNodeStaticSwitch::CanMovePin(const UEdGraphPin* Pin, int32 DirectionToMove) const
+{
+	auto FindPredicate = [=](const FGuid& Guid) { return Guid == Pin->PersistentGuid; };
+	int32 FoundIndex = OutputVarGuids.IndexOfByPredicate(FindPredicate);
+	if (FoundIndex != INDEX_NONE && OutputVars.IsValidIndex(FoundIndex + DirectionToMove))
+	{
+		return Pin->Direction == EGPD_Output && Pin->bOrphanedPin == false;
+	}
+
+	return false;
+}
+
+void UNiagaraNodeStaticSwitch::MoveDynamicPin(UEdGraphPin* Pin, int32 MoveAmount)
+{
+	auto FindPredicate = [=](const FGuid& Guid) { return Guid == Pin->PersistentGuid; };
+	int32 FoundIndex = OutputVarGuids.IndexOfByPredicate(FindPredicate);
+	if (FoundIndex != INDEX_NONE && OutputVars.IsValidIndex(FoundIndex + MoveAmount))
+	{
+		this->Modify();
+		
+		FNiagaraVariable TmpVar = OutputVars[FoundIndex];
+		OutputVars[FoundIndex] = OutputVars[FoundIndex + MoveAmount];
+		OutputVars[FoundIndex + MoveAmount] = TmpVar;
+
+		FGuid TmpGuid = OutputVarGuids[FoundIndex];
+		OutputVarGuids[FoundIndex] = OutputVarGuids[FoundIndex + MoveAmount];
+		OutputVarGuids[FoundIndex + MoveAmount] = TmpGuid;
+
+		ReallocatePins();
+	}
+}
+
 void UNiagaraNodeStaticSwitch::PreChange(const UUserDefinedEnum* Changed, FEnumEditorUtils::EEnumEditorChangeInfo ChangedType)
 {
 	// do nothing
