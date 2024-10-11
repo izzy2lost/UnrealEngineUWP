@@ -150,6 +150,7 @@ void FCurveVectorCustomization::CustomizeHeader(TSharedRef<IPropertyHandle> InSt
 		else if (RuntimeCurve)
 		{
 			CurveWidget->SetCurveOwner(this, InStructPropertyHandle->IsEditable());
+			CurveWidget->SetPropertyUtils(StructCustomizationUtils.GetPropertyUtilities());
 		}
 	}
 	else
