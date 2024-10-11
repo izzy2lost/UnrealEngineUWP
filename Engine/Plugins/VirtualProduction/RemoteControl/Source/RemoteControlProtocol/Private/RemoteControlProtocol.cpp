@@ -7,6 +7,7 @@
 #include "RCModifyOperationFlags.h"
 #include "RemoteControlPreset.h"
 #include "RemoteControlProtocolBinding.h"
+#include "RemoteControlProtocolEntityProcessor.h"
 #include "RemoteControlProtocolModule.h"
 #include "RemoteControlSettings.h"
 #include "UObject/StructOnScope.h"
@@ -14,11 +15,13 @@
 FRemoteControlProtocol::FRemoteControlProtocol(const FName InProtocolName)
 	: ProtocolName(InProtocolName)
 {
+	FCoreDelegates::OnBeginFrame.AddRaw(this, &FRemoteControlProtocol::OnBeginFrame);
 	FCoreDelegates::OnEndFrame.AddRaw(this, &FRemoteControlProtocol::OnEndFrame);
 }
 
 FRemoteControlProtocol::~FRemoteControlProtocol()
 {
+	FCoreDelegates::OnBeginFrame.RemoveAll(this);
 	FCoreDelegates::OnEndFrame.RemoveAll(this);
 }
 
@@ -45,61 +48,10 @@ void FRemoteControlProtocol::QueueValue(const FRemoteControlProtocolEntityPtr In
 	EntityValuesToApply.Add(InProtocolEntity, InProtocolValue);
 }
 
-void FRemoteControlProtocol::OnEndFrame()
+void FRemoteControlProtocol::OnBeginFrame()
 {
-	TArray<AActor*> ActorsWithoutPropertyChangedEvents;
-	for (const TPair<const FRemoteControlProtocolEntityPtr, double>& EntityValuesToApplyPair : EntityValuesToApply)
-	{
-		// Check is the Shared ptr and TStructOnScope is valid
-		if (EntityValuesToApplyPair.Key.IsValid() && EntityValuesToApplyPair.Key->IsValid())
-		{
-			FRemoteControlProtocolEntity* ProtocolEntity = EntityValuesToApplyPair.Key->Get();
-
-			const double ThisFrameValue = EntityValuesToApplyPair.Value;
-			const double* PreviousFrameValuePtr = PreviousTickValuesToApply.Find(EntityValuesToApplyPair.Key);
-
-			// Check the value from previous frame
-			if (PreviousFrameValuePtr == nullptr || !FMath::IsNearlyEqual(ThisFrameValue, *PreviousFrameValuePtr))
-			{
-				// Remember actors that will not get property change events
-				URemoteControlPreset* Preset = ProtocolEntity->GetOwner().Get();
-				if (Preset && EnumHasAnyFlags(Preset->GetModifyOperationFlagsForProtocols(), ERCModifyOperationFlags::SkipPropertyChangeEvents))
-				{
-					const TSharedPtr<FRemoteControlProperty> RemoteControlProperty = Preset->GetExposedEntity<FRemoteControlProperty>(ProtocolEntity->GetPropertyId()).Pin();
-					if (!RemoteControlProperty.IsValid())
-					{
-						continue;
-					}
-
-					for (UObject* Object : RemoteControlProperty->GetBoundObjects())
-					{
-						if (AActor* Actor = Object->GetTypedOuter<AActor>())
-						{
-							ActorsWithoutPropertyChangedEvents.AddUnique(Actor);
-						}
-					}
-				}
-
-				// Apply the protocol value
-				if (!ProtocolEntity->ApplyProtocolValueToProperty(EntityValuesToApplyPair.Value))
-				{
-					// Warn if the the value can't by applied
-					ensureMsgf(false, TEXT("Can't apply property for Protocol %s and PropertyId %s"),
-					           *ProtocolName.ToString(), *ProtocolEntity->GetPropertyId().ToString());
-				}
-			}
-		}
-	}
-
-	// Update actors that did not get property changed events
-	for (AActor* Actor : ActorsWithoutPropertyChangedEvents)
-	{
-		Actor->UpdateComponentTransforms();
-		Actor->MarkComponentsRenderStateDirty();
-	}
-
-	// Move the values from this frame to cached map
-	PreviousTickValuesToApply = MoveTemp(EntityValuesToApply);
+	using namespace UE::RemoteControl;
+	ProtocolEntityProcessor::ProcessEntities(EntityValuesToApply);
 }
 
 #if WITH_EDITOR

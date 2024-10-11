@@ -2520,7 +2520,7 @@ void URemoteControlPreset::OnActorDeleted(AActor* Actor)
 	{
 		for (auto It = Bindings.CreateIterator(); It; ++It)
 		{
-			UObject* ResolvedObject = (*It)->Resolve();
+			UObject* ResolvedObject = *It ? (*It)->Resolve() : nullptr;
 			if (ResolvedObject && (Actor == ResolvedObject || Actor == ResolvedObject->GetTypedOuter<AActor>()))
 			{
 				// Defer binding clean up to next frame in case the actor deletion is actually an actor being moved to a different sub level.

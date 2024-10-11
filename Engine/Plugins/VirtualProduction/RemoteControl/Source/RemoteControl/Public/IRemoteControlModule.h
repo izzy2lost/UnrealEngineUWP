@@ -318,16 +318,19 @@ public:
 	 * @param InMaskingOperation	Masking operation to be performed.
 	 * @param ModifyOperationFlags	(optional) Flags that specify how the property is modified when the value is applied.
 	 */
-	virtual void PerformMasking(const TSharedRef<FRCMaskingOperation>& InMaskingOperation, const ERCModifyOperationFlags ModifyOperationFlags = ERCModifyOperationFlags::None) = 0;
+	UE_DEPRECATED(5.5, "PerformMasking is deprecated, masking is now applied where appropriate automatically.")
+	virtual void PerformMasking(const TSharedRef<FRCMaskingOperation>& InMaskingOperation) = 0;
 
 	/**
 	 * Register a masking factory to handle that masks the supported properties.
 	 */
+	UE_DEPRECATED(5.5, "RegisterMaskingFactoryForType is deprecated, masking is now applied where appropriate automatically.")
 	virtual void RegisterMaskingFactoryForType(UScriptStruct* RemoteControlPropertyType, const TSharedPtr<IRemoteControlMaskingFactory>& InMaskingFactory) = 0;
 
 	/**
 	 * Unregister a previously registered masking factory.
 	 */
+	UE_DEPRECATED(5.5, "UnregisterMaskingFactoryForType is deprecated, masking is now applied where appropriate automatically.")
 	virtual void UnregisterMaskingFactoryForType(UScriptStruct* RemoteControlPropertyType) = 0;
 
 	/**

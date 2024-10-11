@@ -190,7 +190,8 @@ namespace UE::RemoteControlProtocol::Private
 		bool TryApply(FRemoteControlProtocolMapping& InOutMapping) const
 		{
 			InCppType PropertyValue;
-			if (!PropertyHandle->GetValue(PropertyValue))
+			if (!PropertyHandle->GetValue(PropertyValue) ||
+				!InOutMapping.CanGetMappingValueAsPrimitive<InCppType>())
 			{
 				return false;
 			}

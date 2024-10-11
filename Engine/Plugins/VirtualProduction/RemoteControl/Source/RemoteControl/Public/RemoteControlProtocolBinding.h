@@ -115,6 +115,23 @@ public:
 		RefreshCachedData(PropertyType::StaticClass()->GetFName());
 	}
 
+	/** Returns true if one can get mapping value as primitive for the specified type */
+	template <typename ValueType>
+	bool CanGetMappingValueAsPrimitive() const
+	{
+		if constexpr (RemoteControlTypeTraits::TIsStringLikeValue<ValueType>::Value)
+		{
+			return TRemoteControlTypeTraits<ValueType>::IsSupportedMappingType();
+		}
+		else
+		{
+			return 
+				TRemoteControlTypeTraits<ValueType>::IsSupportedMappingType() &&
+				!InterpolationMappingPropertyData.IsEmpty() &&
+				InterpolationMappingPropertyData.Num() == sizeof(ValueType);
+		}
+	}
+
 	/** Get Mapping Property Value as a primitive type */
 	template <typename ValueType>
 	typename TEnableIf<!RemoteControlTypeTraits::TIsStringLikeValue<ValueType>::Value, ValueType>::Type
@@ -391,6 +408,7 @@ public:
 	 * @param ModifyOperationFlags			(optional) Flags that specify how the property is modified when the value is applied.
 	 * @return								True if the value was applied successfully
 	 */
+	UE_DEPRECATED(5.5, "ApplyProtocolValueToProperty is deprecated. Instead please refer to UE::RemoteControl::ProtocolEntityProcessor::ProcessEntities")
 	bool ApplyProtocolValueToProperty(const double InProtocolValue);
 
 	/** 
@@ -439,6 +457,9 @@ public:
 	/** Returns true if the given mask is enabled, false otherwise. */
 	virtual bool HasMask(ERCMask InMaskBit) const;
 
+	/** Returns the overriden masks. */
+	ERCMask GetOverridenMask() const { return OverridenMasks; }
+
 #if WITH_EDITOR
 	/** Retrieves the name of property corresponding to the given column name. */
 	const FName GetPropertyName(const FName& ForColumnName);
@@ -450,7 +471,6 @@ public:
 	/** Returns the preset that owns this protocol entity */
 	const TWeakObjectPtr<URemoteControlPreset>& GetOwner() const { return Owner; }
 
-public:
 	/** Container for range and mapping value pointers, and an optional number of elements (arrays, strings). */
 	struct FRangeMappingData
 	{
@@ -514,21 +534,25 @@ public:
 		}
 	};
 
+	/** Get Ranges and Mapping Value pointers */
+	TArray<FRangeMappingData> GetRangeMappingBuffers();
+
+	/** The current protocol value. Useful to test if the value changed */
+	double ProtocolValue = 0.0;
+
 private:
 	friend struct FRemoteControlProtocolBinding;
 
 	/**
 	 * Serialize interpolated property value to Cbor buffer
-	 * @param InProperty Property to apply serialization 
+	 * @param InProperty Property to apply serialization
 	 * @param InProtocolValue double value from the protocol
 	 * @param OutBuffer serialized buffer
 	 * @return true if serialized correctly
 	 */
+	UE_DEPRECATED(5.5, "Deprecated in favor of the overload that specifies the OwnerObject of the property.")
 	bool GetInterpolatedPropertyBuffer(FProperty* InProperty, double InProtocolValue, TArray<uint8>& OutBuffer);
 
-private:
-	/** Get Ranges and Mapping Value pointers */
-	TArray<FRangeMappingData> GetRangeMappingBuffers();
 
 protected:
 	/** The preset that owns this entity. */
