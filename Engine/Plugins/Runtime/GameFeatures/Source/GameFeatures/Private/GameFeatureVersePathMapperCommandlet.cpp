@@ -159,12 +159,22 @@ namespace GameFeatureVersePathMapper
 		return FString::Format(*ChunkPatternFormat, FStringFormatNamedArguments{ {TEXT("Chunk"), Chunk} });
 	}
 
-	static TArray<int32> GetAlwaysResidentChunks()
+	static TArray<int32> GetAlwaysResidentChunks(const FString& IniPlatformName)
 	{
 		TArray<int32> AlwaysResidentChunks;
 
 		TArray<FString> AlwaysResidentChunksStr;
+#if WITH_EDITOR
+		FConfigCacheIni* ConfigCache = FConfigCacheIni::ForPlatform(FName(IniPlatformName));
+		if (!ConfigCache)
+		{
+			UE_LOGFMT(LogGameFeatureVersePathMapper, Warning, "Failed to find config for {PlatformName}", *IniPlatformName);
+			ConfigCache = GConfig;
+		}
+		if (!ConfigCache->GetArray(TEXT("GameFeaturePlugins"), TEXT("GFPAlwaysResidentChunks"), AlwaysResidentChunksStr, GInstallBundleIni))
+#else
 		if (!GConfig->GetArray(TEXT("GameFeaturePlugins"), TEXT("GFPAlwaysResidentChunks"), AlwaysResidentChunksStr, GInstallBundleIni))
+#endif
 		{
 			AlwaysResidentChunks.Empty(1);
 			AlwaysResidentChunks.Add(0);
@@ -181,14 +191,26 @@ namespace GameFeatureVersePathMapper
 		return AlwaysResidentChunks;
 	}
 
-	static TArray<FString> GetAlwaysResidentBundles()
+	static TArray<FString> GetAlwaysResidentBundles(const FString& IniPlatformName)
 	{
 		TArray<FString> AlwaysResidentBundles;
+#if WITH_EDITOR
+		FConfigCacheIni* ConfigCache = FConfigCacheIni::ForPlatform(FName(IniPlatformName));
+		if (!ConfigCache)
+		{
+			UE_LOGFMT(LogGameFeatureVersePathMapper, Warning, "Failed to find config for {PlatformName}", *IniPlatformName);
+			ConfigCache = GConfig;
+		}
+		if (!ConfigCache->GetArray(TEXT("GameFeaturePlugins"), TEXT("GFPAlwaysResidentBundles"), AlwaysResidentBundles, GInstallBundleIni))
+		{
+			AlwaysResidentBundles.Empty();
+		}
+#else
 		if (!GConfig->GetArray(TEXT("GameFeaturePlugins"), TEXT("GFPAlwaysResidentBundles"), AlwaysResidentBundles, GInstallBundleIni))
 		{
 			AlwaysResidentBundles.Empty();
 		}
-
+#endif
 		return AlwaysResidentBundles;
 	}
 
@@ -380,8 +402,9 @@ namespace GameFeatureVersePathMapper
 		const FString GameFeatureRootVersePath = UGameFeatureVersePathMapperCommandlet::GetGameFeatureRootVersePath();
 		const FString ChunkPatternFormat = GetChunkPatternFormat();
 
-		const TArray<int32> AlwaysResidentChunks = GetAlwaysResidentChunks();
-		const TArray<FString> AlwaysResidentBundles = GetAlwaysResidentBundles();
+		const FString& IniPlatformName = TargetPlatform ? TargetPlatform->IniPlatformName() : FPlatformProperties::IniPlatformName();
+		const TArray<int32> AlwaysResidentChunks = GetAlwaysResidentChunks(IniPlatformName);
+		const TArray<FString> AlwaysResidentBundles = GetAlwaysResidentBundles(IniPlatformName);
 
 		FString TargetPlatformName = TargetPlatform ? TargetPlatform->IniPlatformName() : FPlatformMisc::GetUBTPlatform();
 		if (TargetPlatformName.Equals(TEXT("Windows"), ESearchCase::IgnoreCase))
