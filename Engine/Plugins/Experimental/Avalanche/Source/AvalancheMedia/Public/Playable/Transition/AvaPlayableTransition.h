@@ -5,6 +5,7 @@
 #include "AvaMediaDefines.h"
 #include "Playable/AvaPlayableRemoteControlValues.h"
 #include "UObject/Object.h"
+#include "UObject/ObjectKey.h"
 #include "AvaPlayableTransition.generated.h"
 
 class UAvaPlayable;
@@ -46,8 +47,14 @@ public:
 
 	void SetEnterPlayableValues(TArray<TSharedPtr<FAvaPlayableRemoteControlValues>>&& InPlayableValues);
 
-	TSharedPtr<FAvaPlayableRemoteControlValues> GetValuesForPlayable(const UAvaPlayable* InPlayable);
-	
+	/**
+	 * Finds the stored values for a given playable
+	 * @param InPlayable the playable to look for
+	 * @param bInIsEnterPlayable whether to look for the Enter Playable Values
+	 * @return the remote control values for the playable if found. null otherwise
+	 */
+	TSharedPtr<FAvaPlayableRemoteControlValues> GetValuesForPlayable(const UAvaPlayable* InPlayable, bool bInIsEnterPlayable);
+
 	/** This is called during the transition evaluation to indicate discarded playables. */
 	void MarkPlayableAsDiscard(UAvaPlayable* InPlayable);
 
@@ -66,7 +73,10 @@ protected:
 	EAvaPlayableTransitionFlags TransitionFlags = EAvaPlayableTransitionFlags::None;
 	
 	TArray<TSharedPtr<FAvaPlayableRemoteControlValues>> EnterPlayableValues;
-	
+
+	/** Other Playable Values that are not the Enter Playable's (i.e. Exiting or Playing Playable Values) */
+	TMap<TObjectKey<UAvaPlayable>, TSharedPtr<FAvaPlayableRemoteControlValues>> OtherPlayableValues;
+
 	TArray<TWeakObjectPtr<UAvaPlayable>> EnterPlayablesWeak;
 	TArray<TWeakObjectPtr<UAvaPlayable>> PlayingPlayablesWeak;
 	TArray<TWeakObjectPtr<UAvaPlayable>> ExitPlayablesWeak;

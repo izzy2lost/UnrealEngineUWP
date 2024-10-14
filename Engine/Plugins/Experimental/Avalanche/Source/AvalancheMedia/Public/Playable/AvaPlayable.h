@@ -147,9 +147,9 @@ public:
 	virtual void SetUserData(const FString& InUserData) { UserData = InUserData; }
 	const FString& GetUserData() const { return UserData; }
 
-	const FAvaPlayableRemoteControlValues& GetLatestRemoteControlValues() const
+	TSharedPtr<FAvaPlayableRemoteControlValues> GetLatestRemoteControlValues() const
 	{
-		return LatestRemoteControlValues.IsValid() ? *LatestRemoteControlValues : FAvaPlayableRemoteControlValues::GetDefaultEmpty();
+		return LatestRemoteControlValues;
 	}
 
 protected:

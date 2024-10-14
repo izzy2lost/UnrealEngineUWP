@@ -82,7 +82,9 @@ bool UAvaTransitionRCLibrary::CompareRCControllerValues(const FAvaTransitionCont
 	{
 		check(BehaviorInstance);
 
-		const FAvaTransitionScene* OtherTransitionScene = BehaviorInstance->GetTransitionContext().GetTransitionScene();
+		const FAvaTransitionContext& OtherTransitionContext = BehaviorInstance->GetTransitionContext();
+
+		const FAvaTransitionScene* OtherTransitionScene = OtherTransitionContext.GetTransitionScene();
 		if (!OtherTransitionScene)
 		{
 			continue;
@@ -92,8 +94,8 @@ bool UAvaTransitionRCLibrary::CompareRCControllerValues(const FAvaTransitionCont
 		if (RCTransitionExtension)
 		{
 			Result = RCTransitionExtension->CompareControllers(Controller->Id
-				, *TransitionScene
-				, *OtherTransitionScene);
+				, InTransitionContext
+				, OtherTransitionContext);
 		}
 		else if (URCVirtualPropertyBase* OtherController = UE::Ava::Private::GetController(InControllerId, *SceneSubsystem, OtherTransitionScene->GetLevel()))
 		{

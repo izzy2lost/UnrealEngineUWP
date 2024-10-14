@@ -94,18 +94,26 @@ void UAvaPlayableTransition::SetEnterPlayableValues(TArray<TSharedPtr<FAvaPlayab
 	EnterPlayableValues = MoveTemp(InPlayableValues);
 }
 
-TSharedPtr<FAvaPlayableRemoteControlValues> UAvaPlayableTransition::GetValuesForPlayable(const UAvaPlayable* InPlayable)
+TSharedPtr<FAvaPlayableRemoteControlValues> UAvaPlayableTransition::GetValuesForPlayable(const UAvaPlayable* InPlayable, bool bInIsEnterPlayable)
 {
-	int32 ArrayIndex = 0;
-	for (const TWeakObjectPtr<UAvaPlayable> PlayableWeak : EnterPlayablesWeak)
+	if (bInIsEnterPlayable)
 	{
-		const UAvaPlayable* Playable = PlayableWeak.Get();
-		if (Playable == InPlayable && EnterPlayableValues.IsValidIndex(ArrayIndex))
+		int32 ArrayIndex = 0;
+		for (const TWeakObjectPtr<UAvaPlayable> PlayableWeak : EnterPlayablesWeak)
 		{
-			return EnterPlayableValues[ArrayIndex];
+			const UAvaPlayable* Playable = PlayableWeak.Get();
+			if (Playable == InPlayable && EnterPlayableValues.IsValidIndex(ArrayIndex))
+			{
+				return EnterPlayableValues[ArrayIndex];
+			}
+			++ArrayIndex;
 		}
-		++ArrayIndex;
 	}
+	else if (TSharedPtr<FAvaPlayableRemoteControlValues>* FoundValues = OtherPlayableValues.Find(InPlayable))
+	{
+		return *FoundValues;
+	}
+
 	return nullptr;
 }
 
