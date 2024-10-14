@@ -224,10 +224,10 @@ TOnlineAsyncOpHandle<FCommerceCheckout> FCommerceEOS::Checkout(FCommerceCheckout
 		{
 			Utf8CheckoutIds.Emplace(*Offer.OfferId);
 
-			EosCheckoutEntries.AddDefaulted();
-			EosCheckoutEntries.Last().ApiVersion = 1;
+			EOS_Ecom_CheckoutEntry& CheckoutEntry = EosCheckoutEntries.AddDefaulted_GetRef();
+			CheckoutEntry.ApiVersion = 1;
 			UE_EOS_CHECK_API_MISMATCH(EOS_ECOM_CHECKOUTENTRY_API_LATEST, 1);
-			EosCheckoutEntries.Last().OfferId = Utf8CheckoutIds.Last().Get();
+			CheckoutEntry.OfferId = Utf8CheckoutIds.Last().Get();
 		}
 
 		EOS_Ecom_CheckoutOptions Options = { };
