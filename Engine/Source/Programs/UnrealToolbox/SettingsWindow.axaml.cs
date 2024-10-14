@@ -16,6 +16,10 @@ namespace UnrealToolbox
 	{
 		readonly IServiceProvider? _serviceProvider;
 		readonly Dictionary<string, ITrayAppPlugin> _typeToPlugin = new Dictionary<string, ITrayAppPlugin>();
+		readonly Dictionary<ITrayAppPlugin, Control> _pluginPages = new Dictionary<ITrayAppPlugin, Control>();
+
+		AboutPage? _aboutPage;
+		GeneralSettingsPage? _generalSettingsPage;
 
 		public SettingsWindow()
 			: this(null!)
@@ -94,17 +98,31 @@ namespace UnrealToolbox
 				string? typeName = (string?)nvi.Tag;
 				if (typeName != null && _typeToPlugin.TryGetValue(typeName, out ITrayAppPlugin? plugin))
 				{
-					_navView.Content = plugin.CreateSettingsPage(context);
+					Control pluginPage = CreatePluginPage(plugin, context);
+					_navView.Content = pluginPage;
 				}
 				else if (nvi == _navView.FooterMenuItems.FirstOrDefault())
 				{
-					_navView.Content = new AboutPage();
+					_aboutPage ??= new AboutPage();
+					_navView.Content = _aboutPage;
 				}
 				else
 				{
-					_navView.Content = new GeneralSettingsPage(context);
+					_generalSettingsPage ??= new GeneralSettingsPage(context);
+					_navView.Content = _generalSettingsPage;
 				}
 			}
+		}
+
+		private Control CreatePluginPage(ITrayAppPlugin plugin, SettingsContext context)
+		{
+			Control? pluginPage;
+			if (!_pluginPages.TryGetValue(plugin, out pluginPage))
+			{
+				pluginPage = plugin.CreateSettingsPage(context);
+				_pluginPages.Add(plugin, pluginPage);
+			}
+			return pluginPage;
 		}
 	}
 }

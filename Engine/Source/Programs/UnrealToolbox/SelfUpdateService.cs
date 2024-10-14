@@ -286,11 +286,7 @@ namespace UnrealToolbox
 				return;
 			}
 
-			using IHordeClientRef? clientRef = await _hordeClientProvider.GetClientRefAsync().WaitAsync(cancellationToken);
-			if (clientRef == null)
-			{
-				return;
-			}
+			using IHordeClientRef clientRef = _hordeClientProvider.GetClientRef();
 
 			ITool? tool = await clientRef.Client.Tools.GetAsync(ToolId, cancellationToken);
 			if (tool == null || tool.Deployments.Count == 0)
