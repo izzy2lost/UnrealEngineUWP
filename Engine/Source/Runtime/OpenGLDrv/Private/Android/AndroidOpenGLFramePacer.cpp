@@ -263,19 +263,20 @@ bool FAndroidOpenGLFramePacer::SwapBuffers(bool bLockToVsync)
 	int32 CurrentFramePace = 0;
 	if (FAndroidPlatformRHIFramePacer::CVarUseSwappyForFramePacing.GetValueOnRenderThread() != 0 && (CurrentFramePace = FAndroidPlatformRHIFramePacer::GetFramePace()) != 0 && ensure(bSwappyInit))
 	{
-		// cache refresh rate and sync interval
-		if (CurrentFramePace != CachedFramePace)
-		{
-			CachedFramePace = CurrentFramePace;
-			SupportsFramePaceInternal(CurrentFramePace, CachedRefreshRate, CachedSyncInterval);
-		}
-
 		ANativeWindow* CurrentNativeWindow = AndroidEGL::GetInstance()->GetNativeWindow();
 		if (CurrentNativeWindow != CachedNativeWindow)
 		{
 			CachedNativeWindow = CurrentNativeWindow;
 			UE_LOG(LogRHI, Verbose, TEXT("Swappy - setting native window %p"), CachedNativeWindow);
 			SwappyGL_setWindow(CurrentNativeWindow);
+		}
+		
+		// cache refresh rate and sync interval
+		if (CurrentFramePace != CachedFramePace)
+		{
+			CachedFramePace = CurrentFramePace;
+			SupportsFramePaceInternal(CurrentFramePace, CachedRefreshRate, CachedSyncInterval);
+			SwappyGL_resetFramePacing();
 		}
 
 		SwappyGL_setAutoSwapInterval(false);

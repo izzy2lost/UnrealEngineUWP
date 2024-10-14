@@ -27,7 +27,7 @@ public class GoogleGameSDK : ModuleRules
 
 			string StaticLibName = "libswappy_static.a";
 
-			bool UseStaticLib = true;
+			bool UseStaticLib = false;
 			if (UseStaticLib)
 			{
 				PublicAdditionalLibraries.Add(Arm64GameSDKPath + StaticLibName);

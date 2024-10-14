@@ -391,3 +391,24 @@ void SwappyGL_uninjectTracer(const SwappyTracer* t)
 {
 	fpSwappyGL_uninjectTracer(t);
 }
+
+void SwappyGL_clearStats()
+{
+	fpSwappyGL_clearStats();
+}
+
+void SwappyGL_resetFramePacing()
+{
+	fpSwappyGL_resetFramePacing();
+}
+
+void SwappyGL_enableFramePacing(bool enable)
+{
+	fpSwappyGL_enableFramePacing(enable);
+}
+
+void SwappyGL_enableBlockingWait(bool enable)
+{
+	fpSwappyGL_enableBlockingWait(enable);
+}
+
