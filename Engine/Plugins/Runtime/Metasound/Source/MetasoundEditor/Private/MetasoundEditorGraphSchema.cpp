@@ -426,17 +426,47 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 			ParentMetasound.Modify();
 			MetasoundGraph->Modify();
 
+			// Default literal must ALWAYS have value for default pageID, so even though this may get called
+			// from a page "higher" in the page stack, always add the literal value for the default page ID.
+			auto InitDefaultLiterals = [](FMetasoundFrontendLiteral NewLiteral)
+			{
+				TArray<FMetasoundFrontendClassInputDefault> InitValues;
+				InitValues.Add_GetRef(Metasound::Frontend::DefaultPageID).Literal = NewLiteral;
+				return InitValues;
+			};
+
 			TArray<FMetasoundFrontendClassInputDefault> DefaultLiterals;
 			if (const FMetasoundFrontendVertexLiteral* VertexLiteral = Builder.FindNodeInputDefault(InputVertexHandle.NodeID, InputVertexHandle.VertexID))
 			{
-				DefaultLiterals.Add_GetRef(Builder.GetBuildPageID()).Literal = VertexLiteral->Value;
+				// Since a default page ID requires an associated value and no other nodes on any page would be connected to this new input, use
+				// the default page ID. If the user wants different behavior, when they connect the newly created input on a lower-indexed graph,
+				// they will assign a proper page default value therein.  This in practice should cut down on duplicate page input default data.
+				DefaultLiterals = InitDefaultLiterals(VertexLiteral->Value);
 			}
-			if (DefaultLiterals.IsEmpty())
+			else if (const TArray<FMetasoundFrontendClassInputDefault>* ClassDefaults = Builder.FindNodeClassInputDefaults(InputVertexHandle.NodeID, InputVertex->Name))
 			{
-				if (const TArray<FMetasoundFrontendClassInputDefault>* ClassDefaults = Builder.FindNodeClassInputDefaults(InputVertexHandle.NodeID, InputVertex->Name))
+				if (!ensure(!ClassDefaults->IsEmpty()))
 				{
-					DefaultLiterals = *ClassDefaults;
+					return nullptr;
 				}
+
+				DefaultLiterals = *ClassDefaults;
+				const FMetasoundFrontendClassInputDefault* DefaultPageValueLiteral = DefaultLiterals.FindByPredicate([](const FMetasoundFrontendClassInputDefault& InputDefault)
+				{
+					return InputDefault.PageID == Metasound::Frontend::DefaultPageID;
+				});
+
+				// Code OR asset-defined classes should ALWAYS include input default value associated with default page ID by this point
+				if (!ensure(DefaultPageValueLiteral))
+				{
+					DefaultLiterals.Add_GetRef(Metasound::Frontend::DefaultPageID).Literal = ClassDefaults->Last().Literal;
+				}
+			}
+			else
+			{
+				FMetasoundFrontendLiteral DefaultValue;
+				DefaultValue.SetFromLiteral(IDataTypeRegistry::Get().CreateDefaultLiteral(InputVertex->TypeName));
+				DefaultLiterals = InitDefaultLiterals(MoveTemp(DefaultValue));
 			}
 
 			const FCreateNodeVertexParams VertexParams =
