@@ -115,7 +115,7 @@ namespace UnrealToolbox
 
 		public SingleInstanceMutex(string name)
 		{
-			_mutex = new Mutex(true, name);
+			_mutex = new Mutex(false, name);
 		}
 
 		public void Release()
