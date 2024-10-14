@@ -57,7 +57,7 @@ bool UPropertyAnimatorCoreRotatorHandler::AddValue(const FPropertyAnimatorCoreDa
 	FRotator Value;
 	InPropertyData.GetPropertyValuePtr(&Value);
 
-	FRotator NewValue = Value + *ValueResult.GetValue();
+	FRotator NewValue = FRotator(Value.Quaternion() * ValueResult.GetValue()->Quaternion());
 	InPropertyData.SetPropertyValuePtr(&NewValue);
 
 	return true;
@@ -75,7 +75,7 @@ bool UPropertyAnimatorCoreRotatorHandler::SubtractValue(const FPropertyAnimatorC
 	FRotator Value;
 	InPropertyData.GetPropertyValuePtr(&Value);
 
-	FRotator NewValue = Value - *ValueResult.GetValue();
+	FRotator NewValue = FRotator(Value.Quaternion() * ValueResult.GetValue()->Quaternion().Inverse());
 	InPropertyData.SetPropertyValuePtr(&NewValue);
 
 	return true;
