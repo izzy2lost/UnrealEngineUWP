@@ -79,6 +79,11 @@ static FAutoConsoleVariableRef CVarCheckGameViewportClientValid(
 	bCheckGameViewportClientValid,
 	TEXT("Log error when CommonUI is used without the current game viewport deriving from CommonGameViewportClient."));
 
+TAutoConsoleVariable<bool> CvarEarlyOutRefreshActionDomainLeafNodeConfig(
+	TEXT("CommonUI.Debug.EarlyOutRefreshActionDomainLeafNodeConfig"),
+	true,
+	TEXT("When true early out in RefreshActionDomainLeafNodeConfig if there is an active root node."));
+
 //////////////////////////////////////////////////////////////////////////
 
 FGlobalUITags FGlobalUITags::GUITags;
@@ -772,26 +777,44 @@ void UCommonUIActionRouterBase::HandleRootNodeDeactivated(TWeakPtr<FActivatableT
 		SetActiveRoot(nullptr);
 	}
 
-	bool bActivatedRootNodeExists = false;
-	for (const FActivatableTreeRootRef& Root : RootNodes)
+	
+	if (!CvarEarlyOutRefreshActionDomainLeafNodeConfig->GetBool())
 	{
-		if (Root->IsWidgetActivated())
+		bool bActivatedRootNodeExists = false;
+		for (const FActivatableTreeRootRef& Root : RootNodes)
 		{
-			bActivatedRootNodeExists = true;
-			break;
+			if (Root->IsWidgetActivated())
+			{
+				bActivatedRootNodeExists = true;
+				break;
+			}
+		}
+
+		// In the case that all root nodes are not activated we need to re-establish input for the highest paint layer node in action domain nodes.
+		if (!bActivatedRootNodeExists && bIsActivatableTreeEnabled)
+		{
+			if (bWarnAllWidgetsDeactivated)
+			{
+				UE_LOG(LogUIActionRouter, Warning, TEXT("All widgets deactivated. Existing input config set: %s"),
+					   ActiveInputConfig.IsSet() ? TEXT("Yes - the current input config is lingering from a deactivated widget.") : TEXT("No."));
+			}
+
+			RefreshActionDomainLeafNodeConfig();
 		}
 	}
-
-	// In the case that all root nodes are not activated we need to re-establish input for the highest paint layer node in action domain nodes.
-	if (!bActivatedRootNodeExists && bIsActivatableTreeEnabled)
+	else
 	{
-		if (bWarnAllWidgetsDeactivated)
+		// In the case that all root nodes are not activated we need to re-establish input for the highest paint layer node in action domain nodes.
+		if (bIsActivatableTreeEnabled)
 		{
-			UE_LOG(LogUIActionRouter, Warning, TEXT("All widgets deactivated. Existing input config set: %s"), 
-				ActiveInputConfig.IsSet() ? TEXT("Yes - the current input config is lingering from a deactivated widget.") : TEXT("No."));
-		}
+			if (bWarnAllWidgetsDeactivated)
+			{
+				UE_LOG(LogUIActionRouter, Warning, TEXT("All widgets deactivated. Existing input config set: %s"),
+					   ActiveInputConfig.IsSet() ? TEXT("Yes - the current input config is lingering from a deactivated widget.") : TEXT("No."));
+			}
 
-		RefreshActionDomainLeafNodeConfig();
+			RefreshActionDomainLeafNodeConfig();
+		}
 	}
 }
 
@@ -1452,10 +1475,30 @@ void UCommonUIActionRouterBase::SetActiveUIInputConfig(const FUIInputConfig& New
 
 void UCommonUIActionRouterBase::RefreshActionDomainLeafNodeConfig()
 {
-	// We don't want to refresh if the activatable tree is not enabled as we don't want input mode changes when dormant
-	if (!bIsActivatableTreeEnabled)
+	if (CvarEarlyOutRefreshActionDomainLeafNodeConfig->GetBool())
 	{
-		return;
+		// We don't want to refresh if the activatable tree is not enabled as we don't want input mode changes when dormant
+		bool bActivatedRootNodeExists = false;
+		for (const FActivatableTreeRootRef& Root : RootNodes)
+		{
+			if (Root->IsWidgetActivated())
+			{
+				bActivatedRootNodeExists = true;
+				break;
+			}
+		}
+
+		if (bActivatedRootNodeExists)
+		{
+			return;
+		}
+	}
+	else
+	{
+		if (!bIsActivatableTreeEnabled)
+		{
+			return;
+		}
 	}
 
 	if (const UCommonInputActionDomainTable* ActionDomainTable = GetActionDomainTable())
