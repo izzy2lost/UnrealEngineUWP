@@ -32,6 +32,8 @@ namespace UnrealToolbox
 			_serviceProvider = serviceProvider;
 			_navView.SelectionChanged += NavView_SelectionChanged;
 
+			Activated += OnActivated;
+
 			Refresh();
 		}
 
@@ -68,15 +70,18 @@ namespace UnrealToolbox
 			}
 		}
 
-		protected override void OnGotFocus(GotFocusEventArgs e)
+		void OnActivated(object? sender, EventArgs e)
 		{
-			base.OnGotFocus(e);
-
 			if (_serviceProvider != null)
 			{
+				bool updated = false;
 				foreach (ITrayAppPlugin plugin in _serviceProvider.GetServices<ITrayAppPlugin>())
 				{
-					plugin.Refresh();
+					updated |= plugin.Refresh();
+				}
+				if (updated)
+				{
+					Refresh();
 				}
 			}
 		}
