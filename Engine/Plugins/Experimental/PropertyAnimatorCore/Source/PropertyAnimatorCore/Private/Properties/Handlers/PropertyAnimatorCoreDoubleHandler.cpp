@@ -4,6 +4,11 @@
 
 bool UPropertyAnimatorCoreDoubleHandler::IsPropertySupported(const FPropertyAnimatorCoreData& InPropertyData) const
 {
+	if (InPropertyData.GetMemberPropertyTypeName() == NAME_Rotator)
+	{
+		return false;	
+	}
+	
 	if (InPropertyData.IsA<FDoubleProperty>())
 	{
 		return true;
