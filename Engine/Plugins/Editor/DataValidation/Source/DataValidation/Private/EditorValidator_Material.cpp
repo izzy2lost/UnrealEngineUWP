@@ -369,10 +369,12 @@ private:
 };
 
 FName FMaterialEditorValidationShaderPlatform::MaxRHIShaderPlatformName = MaxRHIShaderPlatformNameView.GetData();
+FName FMaterialEditorValidationShaderPlatform::CustomPropertyTypeLayoutName;
 
 void FMaterialEditorValidationShaderPlatform::RegisterCustomPropertyTypeLayout()
 {
 	FPropertyEditorModule& PropertyModule = FModuleManager::LoadModuleChecked<FPropertyEditorModule>("PropertyEditor");
+	CustomPropertyTypeLayoutName = StaticStruct()->GetFName(); 
 	PropertyModule.RegisterCustomPropertyTypeLayout(
 		StaticStruct()->GetFName(),
 		FOnGetPropertyTypeCustomizationInstance::CreateLambda([](){return MakeShared<FMaterialEditorValidationPlatformCustomization>();})
@@ -381,6 +383,10 @@ void FMaterialEditorValidationShaderPlatform::RegisterCustomPropertyTypeLayout()
 
 void FMaterialEditorValidationShaderPlatform::UnregisterCustomPropertyTypeLayout()
 {
-	FPropertyEditorModule& PropertyModule = FModuleManager::LoadModuleChecked<FPropertyEditorModule>("PropertyEditor");
-	PropertyModule.UnregisterCustomPropertyTypeLayout(StaticStruct()->GetFName());
+	FPropertyEditorModule* PropertyModule = FModuleManager::GetModulePtr<FPropertyEditorModule>("PropertyEditor");
+	if (PropertyModule)
+	{
+		// StaticStruct()->GetFName() is not available during engine shutdown as UObjects were already destroyed
+		PropertyModule->UnregisterCustomPropertyTypeLayout(CustomPropertyTypeLayoutName);
+	}
 }
