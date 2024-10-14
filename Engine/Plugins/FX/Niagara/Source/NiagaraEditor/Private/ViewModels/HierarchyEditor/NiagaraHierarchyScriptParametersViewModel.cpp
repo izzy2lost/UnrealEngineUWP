@@ -141,7 +141,11 @@ void UNiagaraHierarchyScriptParametersViewModel::FinalizeInternal()
 {
 	if(ScriptViewModelWeak.IsValid())
 	{
-		Cast<UNiagaraScriptSource>(ScriptViewModelWeak.Pin()->GetStandaloneScript().GetScriptData()->GetSource())->NodeGraph->OnParametersChanged().RemoveAll(this);
+		// If this is called during Undo, it's possible the Graph does no longer exist
+		if(UNiagaraGraph* Graph = Cast<UNiagaraScriptSource>(ScriptViewModelWeak.Pin()->GetStandaloneScript().GetScriptData()->GetSource())->NodeGraph)
+		{
+			Graph->OnParametersChanged().RemoveAll(this);
+		}
 	}
 
 	Super::FinalizeInternal();
