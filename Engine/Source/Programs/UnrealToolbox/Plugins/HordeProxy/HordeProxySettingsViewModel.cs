@@ -1,9 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System.ComponentModel;
-using System.Diagnostics;
-using Avalonia.Platform.Storage;
-using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace UnrealToolbox.Plugins.HordeProxy

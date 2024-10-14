@@ -1,17 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using Avalonia;
-using Avalonia.Controls;
-using Avalonia.Controls.ApplicationLifetimes;
-using Avalonia.Platform;
-using DesktopNotifications;
-using DesktopNotifications.FreeDesktop;
-using DesktopNotifications.Windows;
-using Microsoft.Extensions.Logging;
-using System;
 using System.Reflection;
 using System.Runtime.InteropServices;
-using UnrealToolbox;
+using DesktopNotifications;
+using DesktopNotifications.Windows;
 
 namespace UnrealToolbox
 {
@@ -54,7 +46,7 @@ namespace UnrealToolbox
 			{
 				// WindowsApplicationContext.FromCurrentProcess() has side effects of creating start menu items, and changing the app user model id to the executing assembly, which can be dotnet.exe
 				// WindowsApplicationContext context = WindowsApplicationContext.FromCurrentProcess();
-				WindowsApplicationContext? context = Activator.CreateInstance(type: typeof(WindowsApplicationContext), bindingAttr: BindingFlags.Instance | BindingFlags.NonPublic, binder: null, args: new object[] { "Unreal Toolbox", "Unreal Toolbox" },culture: null) as WindowsApplicationContext;
+				WindowsApplicationContext? context = Activator.CreateInstance(type: typeof(WindowsApplicationContext), bindingAttr: BindingFlags.Instance | BindingFlags.NonPublic, binder: null, args: new object[] { "Unreal Toolbox", "Unreal Toolbox" }, culture: null) as WindowsApplicationContext;
 				SetCurrentProcessExplicitAppUserModelID("Unreal Toolbox");
 
 				_platformManager = new WindowsNotificationManager(context);

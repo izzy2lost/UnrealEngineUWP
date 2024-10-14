@@ -1,8 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System.Net;
-using System.Text.Json;
-using System.Text.Json.Serialization;
 using Avalonia.Controls;
 using EpicGames.Core;
 using EpicGames.Horde;

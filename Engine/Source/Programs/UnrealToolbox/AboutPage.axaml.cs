@@ -1,9 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using Avalonia;
 using Avalonia.Controls;
-using Avalonia.Markup.Xaml;
-using Microsoft.Extensions.DependencyInjection;
 
 namespace UnrealToolbox
 {

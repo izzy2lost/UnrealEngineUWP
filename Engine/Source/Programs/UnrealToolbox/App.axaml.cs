@@ -1,18 +1,16 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
-using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
 using Avalonia.Threading;
 using EpicGames.Core;
+using Microsoft.Extensions.DependencyInjection;
 using UnrealToolbox.Plugins.HordeAgent;
 using UnrealToolbox.Plugins.HordeProxy;
-using Microsoft.Extensions.DependencyInjection;
-using DesktopNotifications;
-using System.Runtime.InteropServices;
 
 namespace UnrealToolbox
 {
@@ -104,7 +102,7 @@ namespace UnrealToolbox
 			using EventWaitHandle closeEvent = new EventWaitHandle(false, EventResetMode.AutoReset, Program.CloseEventName);
 			using EventWaitHandle refreshEvent = new EventWaitHandle(false, EventResetMode.AutoReset, Program.RefreshEventName);
 			using EventWaitHandle settingsEvent = new EventWaitHandle(false, EventResetMode.AutoReset, Program.SettingsEventName);
-			for (; ;)
+			for (; ; )
 			{
 				int index = WaitHandle.WaitAny(new[] { closeEvent, refreshEvent, settingsEvent, _settingsThreadStop! });
 				if (index == 0)
@@ -317,7 +315,7 @@ namespace UnrealToolbox
 			TrayAppPluginState state = TrayAppPluginState.Undefined;
 			List<string> messages = new List<string>();
 			string? pluginName = null;
-			string? errorMessage = null; 
+			string? errorMessage = null;
 
 			foreach (ITrayAppPlugin plugin in _serviceProvider.GetServices<ITrayAppPlugin>())
 			{
