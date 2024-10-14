@@ -19,6 +19,8 @@
 #include "StateTreeEditorStyle.h"
 #include "Framework/Docking/LayoutExtender.h"
 #include "Toolkits/AssetEditorModeUILayer.h"
+#include "ToolMenus.h"
+#include "Framework/MultiBox/ToolMenuBase.h"
 
 #define LOCTEXT_NAMESPACE "AnimNextStateTreeEditorModule"
 
@@ -43,6 +45,17 @@ void FAnimNextStateTreeEditorModule::StartupModule()
 		FTabManager::FTab DebuggerTab(FTabId(UAssetEditorUISubsystem::TopRightTabID), ETabState::ClosedTab);
 		InLayoutExtender.ExtendLayout(FTabId(Workspace::WorkspaceTabs::BottomMiddleDocumentArea), ELayoutExtensionPosition::After, DebuggerTab);		
 	});
+
+	WorkspaceEditorModule.OnExtendToolMenuContext().AddLambda([](const TWeakPtr<Workspace::IWorkspaceEditor>& InWorkspaceEditor, FToolMenuContext& InContext)
+	{
+		if(!InWorkspaceEditor.Pin()->GetEditorModeManager().IsModeActive(UStateTreeEditorMode::EM_StateTree))
+		{
+			UToolMenuProfileContext* ProfileContext = NewObject<UToolMenuProfileContext>();
+			ProfileContext->ActiveProfiles.Add( TEXT("StateTreeEditModeDisabledProfile") );
+			InContext.AddObject(ProfileContext);
+		}
+	});
+
 	
 	// --- AnimNextStateTree ---
 	Workspace::FObjectDocumentArgs StateTreeDocumentArgs(

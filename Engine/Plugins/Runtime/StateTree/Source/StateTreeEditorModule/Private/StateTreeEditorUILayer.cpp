@@ -24,9 +24,8 @@ void FStateTreeEditorModeUILayer::OnToolkitHostingStarted(const TSharedRef<ITool
 		OnToolkitHostReadyForUI.Execute();
 
 		// Set up an owner for the current scope so that we can cleanly clean up the toolbar extension on hosting finish
-		FToolMenuOwnerScoped Owner(&(*Toolkit));
 		UToolMenu* SecondaryModeToolbar = UToolMenus::Get()->ExtendMenu(GetSecondaryModeToolbarName());
-		OnRegisterSecondaryModeToolbarExtension.ExecuteIfBound(SecondaryModeToolbar);		
+		OnRegisterSecondaryModeToolbarExtension.ExecuteIfBound(SecondaryModeToolbar);
 	}
 }
 

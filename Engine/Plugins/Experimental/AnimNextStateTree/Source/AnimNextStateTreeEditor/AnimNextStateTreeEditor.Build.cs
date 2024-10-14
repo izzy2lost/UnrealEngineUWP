@@ -18,7 +18,8 @@ namespace UnrealBuildTool.Rules
 				    "UnrealEd",
 				    "AssetDefinition",
 				    "AnimNextAnimGraph",
-				    "RigVM"
+				    "RigVM",
+					"ToolMenus"
 			    });
 
 			PublicDependencyModuleNames.AddRange(

@@ -13,6 +13,7 @@
 
 #include "ClassViewerFilter.h"
 #include "ContentBrowserModule.h"
+#include "EditorModeManager.h"
 #include "IContentBrowserSingleton.h"
 #include "SStateTreeOutliner.h"
 #include "StateTreeEditingSubsystem.h"
@@ -26,6 +27,8 @@
 #include "ToolMenus.h"
 #include "Subsystems/AssetEditorSubsystem.h"
 #include "Framework/Application/SlateApplication.h"
+#include "Toolkits/AssetEditorToolkit.h"
+#include "Toolkits/AssetEditorToolkitMenuContext.h"
 
 #define LOCTEXT_NAMESPACE "StateTreeModeToolkit"
 
@@ -209,7 +212,6 @@ static void GenerateCompileOptionsMenu(UToolMenu* InMenu)
 }
 }
 
-//
 void FStateTreeEditorModeToolkit::ExtendSecondaryModeToolbar(UToolMenu* ToolBar)
 {
 	ToolBar->Context.AppendCommandList(ToolkitCommands);
@@ -221,90 +223,125 @@ void FStateTreeEditorModeToolkit::ExtendSecondaryModeToolbar(UToolMenu* ToolBar)
 
 	FToolMenuSection& CompileSection = ToolBar->AddSection("Compile", FText(), InsertLast);
 
-
-	TWeakPtr<FStateTreeEditorModeToolkit> WeakToolkit = StaticCastSharedRef<FStateTreeEditorModeToolkit>(AsShared());
-	CompileSection.AddDynamicEntry("CompileCommands", FNewToolMenuSectionDelegate::CreateLambda([WeakToolkit, WeakMode = WeakEditorMode](FToolMenuSection& InSection)
+	auto GetToolkitFromAssetEditorContext = [](const UAssetEditorToolkitMenuContext* InContext) -> TSharedPtr<FStateTreeEditorModeToolkit>
 	{
-		if (UStateTreeEditorMode* Mode = WeakMode.Get())
+		if (InContext)
 		{
-			UInteractiveToolManager* ToolManager = Mode->GetToolManager();
-			if (const UContextObjectStore* ContextObjectStore = ToolManager ? ToolManager->GetContextObjectStore() : nullptr)
+			if (TSharedPtr<FAssetEditorToolkit> SharedToolkit = InContext->Toolkit.Pin())
 			{
-				if (ContextObjectStore->FindContext<UStateTreeEditorContext>())
+				if(UStateTreeEditorMode* Mode = Cast<UStateTreeEditorMode>(SharedToolkit->GetEditorModeManager().GetActiveScriptableMode(UStateTreeEditorMode::EM_StateTree)))
 				{
-					const FStateTreeEditorCommands& Commands = FStateTreeEditorCommands::Get();
-
-					FToolMenuEntry& CompileButton = InSection.AddEntry(FToolMenuEntry::InitToolBarButton(
-						Commands.Compile,
-						TAttribute<FText>(),
-						TAttribute<FText>(),
-						TAttribute<FSlateIcon>::CreateLambda([WeakToolkit]() -> FSlateIcon
-						{
-							if (TSharedPtr<FStateTreeEditorModeToolkit> SharedThis = WeakToolkit.Pin())
-							{
-								return SharedThis->GetCompileStatusImage();
-							}
-
-							return FSlateIcon();
-						}))
-					);
-					CompileButton.StyleNameOverride = "CalloutToolbar";
-
-					FToolMenuEntry& CompileOptions = InSection.AddEntry(FToolMenuEntry::InitComboButton(
-						"CompileComboButton",
-						FUIAction(),
-						FNewToolMenuDelegate::CreateStatic(&UE::StateTree::Editor::Internal::GenerateCompileOptionsMenu),
-						LOCTEXT("CompileOptions_ToolbarTooltip", "Options to customize how State Trees compile")
-					));
-					CompileOptions.StyleNameOverride = "CalloutToolbar";
-					CompileOptions.ToolBarData.bSimpleComboBox = true;
+					if (TSharedPtr<FModeToolkit> Toolkit = Mode->GetToolkit().Pin())
+					{
+						return StaticCastSharedPtr<FStateTreeEditorModeToolkit>(Toolkit);
+					}
 				}
 			}
+		}
+
+		return nullptr;
+	};
+	
+	CompileSection.AddDynamicEntry("CompileCommands", FNewToolMenuSectionDelegate::CreateLambda([GetToolkitFromAssetEditorContext](FToolMenuSection& InSection)
+	{
+		if (UAssetEditorToolkitMenuContext* ToolkitContextObject = InSection.FindContext<UAssetEditorToolkitMenuContext>())
+		{
+			const FStateTreeEditorCommands& Commands = FStateTreeEditorCommands::Get();
+			FToolMenuEntry& CompileButton = InSection.AddEntry(FToolMenuEntry::InitToolBarButton(
+				Commands.Compile,
+				TAttribute<FText>(),
+				TAttribute<FText>(),
+				TAttribute<FSlateIcon>::CreateLambda([GetToolkitFromAssetEditorContext, ToolkitContextObject]() -> FSlateIcon
+				{
+					if(TSharedPtr<FStateTreeEditorModeToolkit> SharedToolkit = GetToolkitFromAssetEditorContext(ToolkitContextObject))
+					{
+						return SharedToolkit->GetCompileStatusImage();
+					}
+				
+					return FSlateIcon();
+				}))
+			);
+			CompileButton.StyleNameOverride = "CalloutToolbar";
+
+			FToolMenuEntry& CompileOptions = InSection.AddEntry(FToolMenuEntry::InitComboButton(
+				"CompileComboButton",
+				FUIAction(),
+				FNewToolMenuDelegate::CreateStatic(&UE::StateTree::Editor::Internal::GenerateCompileOptionsMenu),
+				LOCTEXT("CompileOptions_ToolbarTooltip", "Options to customize how State Trees compile")
+			));
+			CompileOptions.StyleNameOverride = "CalloutToolbar";
+			CompileOptions.ToolBarData.bSimpleComboBox = true;
 		}
 	}));
 
 	static const FToolMenuInsert InsertAfterCompileSection("Compile", EToolMenuInsertType::After);
 
 	FToolMenuSection& CreateNewNodeSection = ToolBar->AddSection("CreateNewNodes", TAttribute<FText>(), InsertAfterCompileSection);
-
-	CreateNewNodeSection.AddDynamicEntry("CreateNewNodes", FNewToolMenuSectionDelegate::CreateLambda([this, WeakMode = WeakEditorMode](FToolMenuSection& InSection)
+	CreateNewNodeSection.AddDynamicEntry("CreateNewNodes", FNewToolMenuSectionDelegate::CreateLambda([GetToolkitFromAssetEditorContext](FToolMenuSection& InSection)
 	{
-		if (UStateTreeEditorMode* Mode = WeakMode.Get())
+		if (UAssetEditorToolkitMenuContext* ToolkitContextObject = InSection.FindContext<UAssetEditorToolkitMenuContext>())
 		{
-			if (UContextObjectStore* ContextObjectStore = Mode->GetToolManager()->GetContextObjectStore())
-			{
-				if (ContextObjectStore->FindContext<UStateTreeEditorContext>())
+			InSection.AddEntry(FToolMenuEntry::InitComboButton(
+				 "CreateNewTaskComboButton",
+				 FUIAction(),
+				 FOnGetContent::CreateLambda([ToolkitContextObject, GetToolkitFromAssetEditorContext]() -> TSharedRef<SWidget>
+				 {
+				 	if(TSharedPtr<FStateTreeEditorModeToolkit> SharedToolkit = GetToolkitFromAssetEditorContext(ToolkitContextObject))
+					{
+						return SharedToolkit->GenerateTaskBPBaseClassesMenu();
+					}
+
+					return SNullWidget::NullWidget;
+				 }),
+				 LOCTEXT("CreateNewTask_Title", "New Task"),
+				 LOCTEXT("CreateNewTask_ToolbarTooltip", "Create a new Blueprint State Tree Task"),
+				 GetNewTaskButtonImage()
+			 ));
+				
+			InSection.AddEntry(FToolMenuEntry::InitComboButton(
+				 "CreateNewConditionComboButton",
+				 FUIAction(),
+				FOnGetContent::CreateLambda([ToolkitContextObject, GetToolkitFromAssetEditorContext]() -> TSharedRef<SWidget>
 				{
-					InSection.AddEntry(FToolMenuEntry::InitComboButton(
-						 "CreateNewTaskComboButton",
-						 FUIAction(),
-						 FOnGetContent::CreateSP(this, &FStateTreeEditorModeToolkit::GenerateTaskBPBaseClassesMenu),
-						 LOCTEXT("CreateNewTask_Title", "New Task"),
-						 LOCTEXT("CreateNewTask_ToolbarTooltip", "Create a new Blueprint State Tree Task"),
-						 GetNewTaskButtonImage()
-					 ));
-						
-					InSection.AddEntry(FToolMenuEntry::InitComboButton(
-						 "CreateNewConditionComboButton",
-						 FUIAction(),
-						 FOnGetContent::CreateSP(this, &FStateTreeEditorModeToolkit::GenerateConditionBPBaseClassesMenu),
-						 LOCTEXT("CreateNewCondition_Title", "New Condition"),
-						 LOCTEXT("CreateNewCondition_ToolbarTooltip", "Create a new Blueprint State Tree Condition"),
-						 GetNewConditionButtonImage()
-					 ));
-						
-					 InSection.AddEntry(FToolMenuEntry::InitComboButton(
-						 "CreateNewConsiderationComboButton",
-						 FUIAction(),
-						 FOnGetContent::CreateSP(this, &FStateTreeEditorModeToolkit::GenerateConsiderationBPBaseClassesMenu),
-						 LOCTEXT("CreateNewConsideration_Title", "New Consideration"),
-						 LOCTEXT("CreateNewConsideration_ToolbarTooltip", "Create a new Blueprint State Tree Utility Consideration"),
-						 GetNewConsiderationButtonImage()
-					 ));
-				}
-			}
+					if(TSharedPtr<FStateTreeEditorModeToolkit> SharedToolkit = GetToolkitFromAssetEditorContext(ToolkitContextObject))
+					{
+					   return SharedToolkit->GenerateConditionBPBaseClassesMenu();
+					}
+
+					return SNullWidget::NullWidget;
+				}),
+				 LOCTEXT("CreateNewCondition_Title", "New Condition"),
+				 LOCTEXT("CreateNewCondition_ToolbarTooltip", "Create a new Blueprint State Tree Condition"),
+				 GetNewConditionButtonImage()
+			 ));
+				
+			 InSection.AddEntry(FToolMenuEntry::InitComboButton(
+				 "CreateNewConsiderationComboButton",
+				 FUIAction(),
+				 FOnGetContent::CreateLambda([ToolkitContextObject, GetToolkitFromAssetEditorContext]() -> TSharedRef<SWidget>
+				{
+				 	if(TSharedPtr<FStateTreeEditorModeToolkit> SharedToolkit = GetToolkitFromAssetEditorContext(ToolkitContextObject))
+				 	{
+						return SharedToolkit->GenerateConsiderationBPBaseClassesMenu();
+					}
+
+					return SNullWidget::NullWidget;
+				}),
+				 LOCTEXT("CreateNewConsideration_Title", "New Consideration"),
+				 LOCTEXT("CreateNewConsideration_ToolbarTooltip", "Create a new Blueprint State Tree Utility Consideration"),
+				 GetNewConsiderationButtonImage()
+			 ));
 		}
 	}));
+
+	const FName StateTreeEditModeProfile = TEXT("StateTreeEditModeDisabledProfile");
+	FToolMenuProfile* ToolbarProfile = UToolMenus::Get()->AddRuntimeMenuProfile(ToolBar->GetMenuName(), StateTreeEditModeProfile);
+	{
+		ToolbarProfile->MenuPermissions.AddDenyListItem("CompileCommands", Commands.Compile->GetCommandName());
+		ToolbarProfile->MenuPermissions.AddDenyListItem("CreateNewNodes", "CreateNewTaskComboButton");
+		ToolbarProfile->MenuPermissions.AddDenyListItem("CreateNewNodes", "CreateNewConditionComboButton");
+		ToolbarProfile->MenuPermissions.AddDenyListItem("CreateNewNodes", "CreateNewConsiderationComboButton");
+	}
 }
 
 void FStateTreeEditorModeToolkit::OnStateTreeChanged()
@@ -341,7 +378,7 @@ using FStateTreeConditionBPClassFilter = FEditorNodeClassFilter<UStateTreeCondit
 using FStateTreeConsiderationBPClassFilter = FEditorNodeClassFilter<UStateTreeConsiderationBlueprintBase>;
 }; // UE::StateTree::Editor
 
-FSlateIcon FStateTreeEditorModeToolkit::GetNewTaskButtonImage() const
+FSlateIcon FStateTreeEditorModeToolkit::GetNewTaskButtonImage()
 {
 	return FSlateIcon("StateTreeEditorStyle", "StateTreeEditor.Tasks.Large");
 }
@@ -357,7 +394,7 @@ TSharedRef<SWidget> FStateTreeEditorModeToolkit::GenerateTaskBPBaseClassesMenu()
 	return FModuleManager::LoadModuleChecked<FClassViewerModule>("ClassViewer").CreateClassViewer(Options, OnPicked);
 }
 
-FSlateIcon FStateTreeEditorModeToolkit::GetNewConditionButtonImage() const
+FSlateIcon FStateTreeEditorModeToolkit::GetNewConditionButtonImage()
 {
 	return FSlateIcon("StateTreeEditorStyle", "StateTreeEditor.Conditions.Large");
 }
@@ -373,7 +410,7 @@ TSharedRef<SWidget> FStateTreeEditorModeToolkit::GenerateConditionBPBaseClassesM
 	return FModuleManager::LoadModuleChecked<FClassViewerModule>("ClassViewer").CreateClassViewer(Options, OnPicked);
 }
 
-FSlateIcon FStateTreeEditorModeToolkit::GetNewConsiderationButtonImage() const
+FSlateIcon FStateTreeEditorModeToolkit::GetNewConsiderationButtonImage()
 {
     return FSlateIcon("StateTreeEditorStyle", "StateTreeEditor.Utility.Large");
 }

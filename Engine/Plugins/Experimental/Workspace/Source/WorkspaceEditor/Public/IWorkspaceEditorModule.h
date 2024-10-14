@@ -216,6 +216,10 @@ public:
 	// Event to allow extending the layout
 	DECLARE_EVENT_TwoParams(IWorkspaceEditorModule, FOnExtendTabs, FLayoutExtender&, TSharedPtr<IWorkspaceEditor>);
 	virtual FOnExtendTabs& OnExtendTabs() = 0;
+
+	// Event to allow extending the FToolMenuContext
+	DECLARE_EVENT_TwoParams(IWorkspaceEditorModule, FOnExtendToolMenuContext, const TWeakPtr<IWorkspaceEditor>&, FToolMenuContext&);
+	virtual FOnExtendToolMenuContext& OnExtendToolMenuContext() = 0;
 };
 
 }
