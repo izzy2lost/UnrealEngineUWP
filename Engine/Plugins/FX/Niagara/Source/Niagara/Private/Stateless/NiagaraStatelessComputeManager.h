@@ -21,6 +21,8 @@ class FNiagaraStatelessComputeManager final : public FNiagaraGpuComputeDataManag
 public:
 	struct FStatelessDataCache
 	{
+		~FStatelessDataCache();
+
 		uint32										DataSetLayoutHash = 0;
 		TSharedPtr<FNiagaraDataSetCompiledData>		DataSetCompiledData;
 		FNiagaraDataSet								DataSet;
