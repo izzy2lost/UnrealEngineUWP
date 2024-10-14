@@ -96,6 +96,10 @@ void URemoteControlDMXUserData::SetDMXLibrary(UDMXLibrary* NewDMXLibrary)
 {
 	if (ensureMsgf(NewDMXLibrary, TEXT("URemoteControlDMXUserData::SetDMXLibrary should not be called with null DMX Libraries. Ignoring call")))
 	{
+#if WITH_EDITOR
+		Modify();
+#endif
+
 		DMXLibrary = NewDMXLibrary;
 
 		check(DMXLibraryProxy);
