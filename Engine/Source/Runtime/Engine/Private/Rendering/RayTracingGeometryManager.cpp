@@ -915,8 +915,6 @@ bool FRayTracingGeometryManager::RequestRayTracingGeometryStreamIn(FRHICommandLi
 		checkf(StreamableData->CanLoadFromDisk(), TEXT("Bulk data is not loaded and cannot be loaded from disk!"));
 		check(!StreamableData->IsStoredCompressedOnDisk()); // We do not support compressed Bulkdata for this system. Limitation of the streaming request/bulk data
 
-		check(StreamableData->IsUsingIODispatcher());
-
 		if (NumStreamingRequests >= GRayTracingStreamingMaxPendingRequests)
 		{
 			return false;
