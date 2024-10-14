@@ -84,6 +84,15 @@ public:
 		return OverrideMaterial;
 	}
 
+	UFUNCTION(BlueprintCallable, Category="Cloner")
+	CLONEREFFECTOR_API void SetSortTranslucentParticles(bool bInSort);
+
+	UFUNCTION(BlueprintPure, Category="Cloner")
+	bool GetSortTranslucentParticles() const
+	{
+		return bSortTranslucentParticles;
+	}
+
 protected:
 	//~ Begin UObject
 #if WITH_EDITOR
@@ -131,6 +140,10 @@ protected:
 	/** The override materials that will be set instead of meshes materials, bVisualizeEffectors must be disabled */
 	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Renderer", meta=(EditCondition="bUseOverrideMaterial", EditConditionHides))
 	TObjectPtr<UMaterialInterface> OverrideMaterial;
+
+	/** Sort particles by depth when it has a translucent material, this will avoid flickering artifacts from appearing */
+	UPROPERTY(EditInstanceOnly, Setter="SetSortTranslucentParticles", Getter="GetSortTranslucentParticles", Category="Renderer")
+	bool bSortTranslucentParticles = true;
 
 private:
 #if WITH_EDITOR
