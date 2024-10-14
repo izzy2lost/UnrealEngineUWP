@@ -655,6 +655,7 @@ bool FVulkanAndroidPlatform::FramePace(FVulkanDevice& Device, void* WindowHandle
 		{
 			CachedFramePace = CurrentFramePace;
 			FramePacer->SupportsFramePaceInternal(CurrentFramePace, CachedRefreshRate, CachedSyncInterval);
+			SwappyVk_resetFramePacing(Swapchain);
 
 			if (CachedSyncInterval != 0)
 			{
