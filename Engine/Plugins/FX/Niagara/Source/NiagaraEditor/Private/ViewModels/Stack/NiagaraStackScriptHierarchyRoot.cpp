@@ -413,7 +413,7 @@ void UNiagaraStackScriptHierarchyRoot::SetValuesFromClipboardFunctionInputs(cons
 				}
 				else
 				{
-					StackFunctionInput->SetValueFromClipboardFunctionInput(*ClipboardFunctionInput);
+					StackFunctionInput->PasteFunctionInput(ClipboardFunctionInput);
 				}
 
 				bInputSetAsSwitch = true;
@@ -444,7 +444,7 @@ void UNiagaraStackScriptHierarchyRoot::SetValuesFromClipboardFunctionInputs(cons
 				}
 				else
 				{
-					StackFunctionInput->SetValueFromClipboardFunctionInput(*ClipboardFunctionInput);
+					StackFunctionInput->PasteFunctionInput(ClipboardFunctionInput);
 				}
 			}
 		}
