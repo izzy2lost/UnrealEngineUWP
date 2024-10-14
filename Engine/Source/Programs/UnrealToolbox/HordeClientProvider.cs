@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System.Diagnostics;
+using EpicGames.Core;
 using EpicGames.Horde;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -16,25 +17,35 @@ namespace UnrealToolbox
 		{
 			readonly TaskCompletionSource _refZeroTcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
-			readonly Task<IHordeClient?> _clientTask;
 			int _refCount;
-			bool _disposed;
+			ServiceProvider _serviceProvider;
+			IHordeClient _hordeClient;
 
-			public Task<IHordeClient?> ClientTask => _clientTask;
+			public IHordeClient Client => _hordeClient;
 
-			public HordeClientLifetime(Task<IHordeClient?> clientTask)
+			public HordeClientLifetime(ILoggerFactory loggerFactory)
 			{
-				_clientTask = clientTask;
 				_refCount = 1;
+
+				ServiceCollection serviceCollection = new ServiceCollection();
+				serviceCollection.AddHorde(options => options.AllowAuthPrompt = false);
+				serviceCollection.AddSingleton<ILoggerFactory>(loggerFactory);
+				serviceCollection.AddSingleton(typeof(ILogger<>), typeof(Logger<>));
+				_serviceProvider = serviceCollection.BuildServiceProvider();
+
+				_hordeClient = _serviceProvider.GetRequiredService<IHordeClient>();
 			}
 
 			public async ValueTask DisposeAsync()
 			{
-				if (!_disposed)
+				if (_serviceProvider != null)
 				{
 					Release();
 					await _refZeroTcs.Task;
-					_disposed = true;
+
+					await _serviceProvider.DisposeAsync();
+					_serviceProvider = null!;
+					_hordeClient = null!;
 				}
 			}
 
@@ -55,32 +66,29 @@ namespace UnrealToolbox
 
 		class HordeClientRef : IHordeClientRef
 		{
-			IHordeClient _client;
 			HordeClientLifetime? _lifetime;
 
 			public IHordeClient Client
-				=> _client ?? throw new ObjectDisposedException(null);
+				=> _lifetime?.Client ?? throw new ObjectDisposedException(null);
 
-			public HordeClientRef(IHordeClient client, HordeClientLifetime lifetime)
+			public HordeClientRef(HordeClientLifetime lifetime)
 			{
-				_client = client;
 				_lifetime = lifetime;
+				_lifetime.AddRef();
 			}
 
 			public void Dispose()
 			{
 				_lifetime?.Release();
 				_lifetime = null;
-				_client = null!;
 			}
 		}
 
 		readonly object _lockObject = new object();
 		readonly ILoggerFactory _loggerFactory;
-		ServiceProvider? _serviceProvider;
-		IHordeClient? _hordeClient;
-		HordeClientLifetime _lifetime;
-		readonly ILogger _logger;
+		readonly List<Task> _disposeTasks = new List<Task>();
+
+		HordeClientLifetime? _lifetime;
 
 		/// <summary>
 		/// Event signalled whenever the connection state changes
@@ -95,67 +103,41 @@ namespace UnrealToolbox
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public HordeClientProvider(ILoggerFactory loggerFactory, ILogger<HordeClientProvider> logger)
+		public HordeClientProvider(ILoggerFactory loggerFactory)
 		{
 			_loggerFactory = loggerFactory;
-			_logger = logger;
-
-			CreateServices();
-
-			_lifetime = new HordeClientLifetime(Task.FromResult(_hordeClient));
+			_lifetime = new HordeClientLifetime(_loggerFactory);
 		}
 
 		/// <inheritdoc/>
 		public async ValueTask DisposeAsync()
 		{
-			await _lifetime.DisposeAsync();
-			await DestroyServicesAsync();
+			if (_lifetime != null)
+			{
+				DestroyLifetime();
+			}
+			await Task.WhenAll(_disposeTasks);
 		}
 
 		/// <inheritdoc/>
-		public async Task<IHordeClientRef?> GetClientRefAsync()
-		{
-			HordeClientLifetime? lifetime = null;
-			try
-			{
-				lock (_lockObject)
-				{
-					lifetime = _lifetime;
-					lifetime.AddRef();
-				}
-
-				IHordeClient? client = await lifetime.ClientTask;
-				if (client == null)
-				{
-					lifetime.Release();
-					return null;
-				}
-
-				return new HordeClientRef(client, lifetime);
-			}
-			catch
-			{
-				lifetime?.Release();
-				throw;
-			}
-		}
-
-		/// <inheritdoc/>
-		public async Task RecreateAsync()
+		public IHordeClientRef GetClientRef()
 		{
 			lock (_lockObject)
 			{
-				HordeClientLifetime prevLifetime = _lifetime;
-				Task<IHordeClient?> clientTask = Task.Run(async () =>
-				{
-					await prevLifetime.DisposeAsync();
-					await DestroyServicesAsync();
-					CreateServices();
-					return _hordeClient;
-				});
-				_lifetime = new HordeClientLifetime(clientTask);
+				return new HordeClientRef(_lifetime ?? throw new ObjectDisposedException("HordeClientProvider"));
 			}
-			await _lifetime.ClientTask;
+		}
+
+		/// <inheritdoc/>
+		public void Reset()
+		{
+			lock (_lockObject)
+			{
+				DestroyLifetime();
+				CreateLifetime();
+			}
+
+			OnStateChanged?.Invoke();
 		}
 
 		void OnAccessTokenStateChangedInternal()
@@ -163,42 +145,24 @@ namespace UnrealToolbox
 			OnAccessTokenStateChanged?.Invoke();
 		}
 
-		void CreateServices()
+		void CreateLifetime()
 		{
-			Debug.Assert(_serviceProvider == null);
-			Debug.Assert(_hordeClient == null);
+			Debug.Assert(_lifetime == null);
 
-			ServiceCollection serviceCollection = new ServiceCollection();
-			serviceCollection.AddHorde(options => options.AllowAuthPrompt = false);
-			serviceCollection.AddSingleton<ILoggerFactory>(_loggerFactory);
-			serviceCollection.AddSingleton(typeof(ILogger<>), typeof(Logger<>));
-			_serviceProvider = serviceCollection.BuildServiceProvider();
-
-			try
-			{
-				_hordeClient = _serviceProvider.GetRequiredService<IHordeClient>();
-				_hordeClient.OnAccessTokenStateChanged += OnAccessTokenStateChangedInternal;
-			}
-			catch (Exception ex)
-			{
-				_logger.LogWarning(ex, "Horde client could not be created: {Message}", ex.Message);
-			}
-
-			OnStateChanged?.Invoke();
+			_lifetime = new HordeClientLifetime(_loggerFactory);
+			_lifetime.Client.OnAccessTokenStateChanged += OnAccessTokenStateChangedInternal;
 		}
 
-		async ValueTask DestroyServicesAsync()
+		void DestroyLifetime()
 		{
-			if (_hordeClient != null)
+			if (_lifetime != null)
 			{
-				_hordeClient.OnAccessTokenStateChanged -= OnAccessTokenStateChangedInternal;
-				_hordeClient = null;
+				_lifetime.Client.OnAccessTokenStateChanged -= OnAccessTokenStateChangedInternal;
+				_disposeTasks.Add(_lifetime.DisposeAsync().AsTask());
+				_lifetime = null;
 			}
-			if (_serviceProvider != null)
-			{
-				await _serviceProvider.DisposeAsync();
-				_serviceProvider = null;
-			}
+
+			AsyncUtils.RemoveCompleteTasks(_disposeTasks);
 		}
 	}
 }

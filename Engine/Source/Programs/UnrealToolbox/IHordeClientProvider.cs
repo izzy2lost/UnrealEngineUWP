@@ -31,13 +31,13 @@ namespace UnrealToolbox
 		event Action? OnAccessTokenStateChanged;
 
 		/// <summary>
-		/// Gets a reference to the current client instance. These references should be kept as short as possible.
+		/// Resets the current client and creates a new one with the latest settings.
 		/// </summary>
-		Task<IHordeClientRef?> GetClientRefAsync();
+		void Reset();
 
 		/// <summary>
-		/// Recreates the client instance.
+		/// Gets a reference to the current client instance. These references should be kept as short as possible.
 		/// </summary>
-		Task RecreateAsync();
+		IHordeClientRef GetClientRef();
 	}
 }

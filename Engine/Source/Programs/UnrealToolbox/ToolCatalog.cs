@@ -884,40 +884,55 @@ namespace UnrealToolbox
 			while (!cancellationToken.IsCancellationRequested)
 			{
 				Task updateTask = _updateEvent.Task;
-				try
+
+				using (CancellationTokenSource cancellationSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
 				{
-					await PollForUpdatesOnceAsync(cancellationToken);
+					bool complete = false;
+					_ = updateTask.ContinueWith(_ =>
+					{
+						lock (cancellationSource)
+						{
+							if (!complete)
+							{
+								cancellationSource.Cancel();
+							}
+						}
+					}, TaskScheduler.Default);
+
+					try
+					{
+						await PollForUpdatesOnceAsync(cancellationSource.Token);
+					}
+					catch (OperationCanceledException)
+					{
+					}
+					catch (Exception ex)
+					{
+						_logger.LogError(ex, "Exception while checking for tool updates: {Message}", ex.Message);
+					}
+
+					lock (cancellationSource)
+					{
+						complete = true;
+					}
 				}
-				catch (OperationCanceledException)
-				{
-					break;
-				}
-				catch (Exception ex)
-				{
-					_logger.LogError(ex, "Exception while checking for tool updates: {Message}", ex.Message);
-				}
+
 				await Task.WhenAny(updateTask, Task.Delay(TimeSpan.FromMinutes(5.0), cancellationToken));
 			}
 		}
 
 		async Task PollForUpdatesOnceAsync(CancellationToken cancellationToken)
 		{
-			using IHordeClientRef? hordeClientRef = await _hordeClientProvider.GetClientRefAsync();
-			if (hordeClientRef == null)
+			using IHordeClientRef hordeClientRef = _hordeClientProvider.GetClientRef();
+
+			if (_serverUri != hordeClientRef.Client.ServerUrl)
 			{
 				SetTools(Enumerable.Empty<ITool>());
+				_serverUri = hordeClientRef.Client.ServerUrl;
 			}
-			else
-			{
-				if (_serverUri != hordeClientRef.Client.ServerUrl)
-				{
-					SetTools(Enumerable.Empty<ITool>());
-					_serverUri = hordeClientRef.Client.ServerUrl;
-				}
 
-				IEnumerable<ITool> tools = await hordeClientRef.Client.Tools.GetAllAsync(cancellationToken);
-				SetTools(tools);
-			}
+			IEnumerable<ITool> tools = await hordeClientRef.Client.Tools.GetAllAsync(cancellationToken);
+			SetTools(tools);
 		}
 
 		void SetTools(IEnumerable<ITool> tools)

@@ -2,7 +2,9 @@
 
 using System.Diagnostics;
 using Avalonia.Controls;
+using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
+using EpicGames.Core;
 using EpicGames.Horde;
 using FluentAvalonia.UI.Controls;
 using Microsoft.Extensions.DependencyInjection;
@@ -11,7 +13,10 @@ namespace UnrealToolbox
 {
 	partial class GeneralSettingsViewModel : ObservableObject, IDisposable
 	{
-		record StateRecord(Uri ServerUrl, bool Connected);
+		record class ConnectionState(string ServerUrl, string ServerStatus)
+		{
+			public static ConnectionState NoServerConfigured { get; } = new ConnectionState("No client configured", "Status unavailable");
+		}
 
 		readonly SettingsContext _context;
 		readonly IHordeClientProvider _hordeClientProvider;
@@ -23,7 +28,10 @@ namespace UnrealToolbox
 		string _serverStatus = String.Empty;
 
 		[ObservableProperty]
-		bool? _isLoginEnabled;
+		bool _isConnecting;
+
+		bool _requestRefresh;
+		BackgroundTask<ConnectionState>? _connectTask;
 
 		public ToolCatalogViewModel ToolCatalog { get; }
 
@@ -37,110 +45,175 @@ namespace UnrealToolbox
 			_context = context;
 
 			_hordeClientProvider = context.ServiceProvider.GetRequiredService<IHordeClientProvider>();
-			_hordeClientProvider.OnStateChanged += OnStateChangedAsync;
-			_hordeClientProvider.OnAccessTokenStateChanged += OnStateChangedAsync;
+			_hordeClientProvider.OnStateChanged += StartRefresh;
+//			_hordeClientProvider.OnAccessTokenStateChanged += StartRefresh;
 
 			ToolCatalog = new ToolCatalogViewModel(context.ServiceProvider.GetService<IToolCatalog>());
 
-			OnStateChangedAsync();
+			ServerUrl = HordeOptions.GetDefaultServerUrl()?.ToString() ?? "Unknown";
+			ServerStatus = "Unknown";
+
+			StartRefresh();
 		}
 
-		public void Dispose()
+		public async void Dispose()
 		{
-			_hordeClientProvider.OnStateChanged -= OnStateChangedAsync;
-			_hordeClientProvider.OnAccessTokenStateChanged -= OnStateChangedAsync;
-		}
+			_hordeClientProvider.OnStateChanged -= StartRefresh;
+			//			_hordeClientProvider.OnAccessTokenStateChanged -= StartRefresh;
 
-		async void OnStateChangedAsync()
-		{
-			using IHordeClientRef? hordeClient = await _hordeClientProvider.GetClientRefAsync();
-			if (hordeClient == null)
+			if (_connectTask != null)
 			{
-				ServerUrl = "No server configured";
-				ServerStatus = "Status unavailable";
-				IsLoginEnabled = false;
+				await _connectTask.DisposeAsync();
+				_connectTask = null;
 			}
-			else
+		}
+
+		void RunConnectionTask(Func<CancellationToken, Task<ConnectionState>> innerTask)
+		{
+			BackgroundTask<ConnectionState>? prevConnectTask = _connectTask;
+
+			_connectTask = BackgroundTask.StartNew<ConnectionState>(async cancellationToken =>
 			{
-				ServerUrl = hordeClient.Client.ServerUrl.ToString();
-				ServerStatus = hordeClient.Client.HasValidAccessToken() ? "Authenticated" : "Session Expired";
-				IsLoginEnabled = !hordeClient.Client.HasValidAccessToken();
+				if (prevConnectTask != null)
+				{
+					try
+					{
+						await prevConnectTask.DisposeAsync();
+					}
+					catch (OperationCanceledException)
+					{
+						// Ignore
+					}
+				}
+
+				return await innerTask(cancellationToken);
+			});
+			_connectTask.Task?.ContinueWith(_ => Dispatcher.UIThread.Post(() => UpdateConnectionState()), TaskScheduler.Default);
+
+			ServerStatus = "Connecting...";
+			IsConnecting = true;
+		}
+
+		void UpdateConnectionState()
+		{
+			if (_connectTask != null && (_connectTask.Task?.IsCompleted ?? true))
+			{
+				ConnectionState? connectionState = null;
+				if (_connectTask.Task != null)
+				{
+					try
+					{
+						_connectTask.Task.TryGetResult(out connectionState);
+					}
+					catch (Exception ex)
+					{
+						connectionState = new ConnectionState(ServerUrl, $"Unable to connect: {ex.Message}");
+					}
+				}
+
+				if(connectionState != null)
+				{
+					ServerUrl = connectionState.ServerUrl;
+					ServerStatus = connectionState.ServerStatus;
+				}
+
+				IsConnecting = false;
+
+				_ = _connectTask.DisposeAsync().AsTask();
+				_connectTask = null;
 			}
 		}
 
 		public void OpenServer()
-		{
-			OpenBrowser(ServerUrl);
-		}
+			=> OpenBrowser(ServerUrl);
 
-		public async Task LoginAsync()
+		public void StartRefresh()
 		{
-			using IHordeClientRef? hordeClientRef = await _hordeClientProvider.GetClientRefAsync();
-			if (hordeClientRef != null)
+			if (!_requestRefresh)
 			{
-				await hordeClientRef.Client.LoginAsync(true, CancellationToken.None);
+				_requestRefresh = true;
+				Dispatcher.UIThread.Post(() => UpdateRefresh());
 			}
 		}
 
+		public void CancelRefresh()
+			=> RunConnectionTask(_ => Task.FromResult<ConnectionState>(new ConnectionState(ServerUrl, "Cancelled")));
+
+		void UpdateRefresh()
+		{
+			if (_requestRefresh)
+			{
+				_requestRefresh = false;
+				RunConnectionTask(HandleRefreshAsync);
+			}
+		}
+
+		async Task<ConnectionState> HandleRefreshAsync(CancellationToken cancellationToken)
+		{
+			using IHordeClientRef hordeClientRef = _hordeClientProvider.GetClientRef();
+
+			IHordeClient client = hordeClientRef.Client;
+			try
+			{
+				bool result = await client.LoginAsync(true, cancellationToken);
+				if (!result)
+				{
+					return new ConnectionState(client.ServerUrl.ToString(), "Login failed");
+				}
+				else if (!client.HasValidAccessToken())
+				{
+					return new ConnectionState(client.ServerUrl.ToString(), "Session expired");
+				}
+				else
+				{
+					return new ConnectionState(client.ServerUrl.ToString(), "Authenticated");
+				}
+			}
+			catch (Exception ex)
+			{
+				return new ConnectionState(hordeClientRef.Client.ServerUrl.ToString(), $"Connection failed: {ex.Message}");
+			}
+		}
+		
 		public async Task ConfigureServerAsync()
 		{
 			string serverUrl = ServerUrl;
 
-			string? errorMessage = null;
-			for (; ; )
+			TextBox serverUrlTextBox = new TextBox();
+			serverUrlTextBox.Text = serverUrl;
+			serverUrlTextBox.SelectionStart = serverUrl.Length;
+			serverUrlTextBox.SelectionEnd = serverUrl.Length;
+
+			ContentDialog dialog = new ContentDialog()
 			{
-				TextBox serverUrlTextBox = new TextBox();
-				serverUrlTextBox.Text = serverUrl;
-				serverUrlTextBox.SelectionStart = serverUrl.Length;
-				serverUrlTextBox.SelectionEnd = serverUrl.Length;
+				Title = "Connect to Server",
+				Content = serverUrlTextBox,
+				PrimaryButtonText = "Connect",
+				CloseButtonText = "Cancel"
+			};
 
-				Control content = serverUrlTextBox;
-				if (!String.IsNullOrEmpty(errorMessage))
-				{
-					TextBlock errorBlock = new TextBlock();
-					errorBlock.Text = errorMessage;
+			ContentDialogResult result = await dialog.ShowAsync(_context.SettingsWindow);
+			if (result == ContentDialogResult.None)
+			{
+				return;
+			}
 
-					StackPanel stackPanel = new StackPanel() { Spacing = 10 };
-					stackPanel.Children.Add(serverUrlTextBox);
-					stackPanel.Children.Add(errorBlock);
+			serverUrl = serverUrlTextBox.Text;
 
-					content = stackPanel;
-				}
+			try
+			{
+				Uri normalizedServerUrl = new Uri(serverUrl.Trim());
+				HordeOptions.SetDefaultServerUrl(normalizedServerUrl);
 
-				ContentDialog dialog = new ContentDialog()
-				{
-					Title = "Connect to Server",
-					Content = content,
-					PrimaryButtonText = "Connect",
-					CloseButtonText = "Cancel"
-				};
+				ServerUrl = normalizedServerUrl.ToString();
+				ServerStatus = "Connecting...";
 
-				ContentDialogResult result = await dialog.ShowAsync(_context.SettingsWindow);
-				if (result == ContentDialogResult.None)
-				{
-					return;
-				}
-
-				serverUrl = serverUrlTextBox.Text;
-
-				try
-				{
-					HordeOptions.SetDefaultServerUrl(new Uri(serverUrl));
-
-					await _hordeClientProvider.RecreateAsync();
-
-					using IHordeClientRef? clientRef = await _hordeClientProvider.GetClientRefAsync();
-					if (clientRef != null)
-					{
-						await clientRef.Client.LoginAsync(true, CancellationToken.None);
-					}
-
-					return;
-				}
-				catch (Exception ex)
-				{
-					errorMessage = ex.ToString();
-				}
+				_hordeClientProvider.Reset(); // Will trigger a call to StartRefresh()
+			}
+			catch (Exception ex)
+			{
+				ServerStatus = $"Error: {ex.Message}";
+				RunConnectionTask(_ => Task.FromResult<ConnectionState>(new ConnectionState(ServerUrl, ServerStatus)));
 			}
 		}
 
