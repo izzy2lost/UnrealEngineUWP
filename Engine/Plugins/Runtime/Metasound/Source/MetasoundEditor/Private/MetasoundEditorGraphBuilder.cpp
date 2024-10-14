@@ -2643,7 +2643,12 @@ namespace Metasound
 			const TArray<FMetasoundFrontendClassInputDefault>* ClassDefaults = InBuilder.FindNodeClassInputDefaults(InputHandle.NodeID, InputVertex->Name);
 			if (ClassDefaults)
 			{
-				const FGuid PageID = Engine::FDocumentBuilderRegistry::GetChecked().ResolveTargetPageID(*ClassDefaults);
+				const UMetasoundEditorSettings* EditorSettings = GetDefault<UMetasoundEditorSettings>();
+				check(EditorSettings);
+
+				TArray<FGuid> PageIDs;
+				Algo::Transform(*ClassDefaults, PageIDs, [](const FMetasoundFrontendClassInputDefault& InputDefault) { return InputDefault.PageID; });
+				const FGuid PageID = EditorSettings->ResolveAuditionPage(PageIDs, InBuilder.GetBuildPageID());
 				auto MatchesPageID = [&PageID](const FMetasoundFrontendClassInputDefault& InputDefault) { return InputDefault.PageID == PageID; };
 				if (const FMetasoundFrontendClassInputDefault* ClassDefault = ClassDefaults->FindByPredicate(MatchesPageID))
 				{
