@@ -1826,6 +1826,8 @@ void FSceneViewport::EnqueueBeginRenderFrame(const bool bShouldPresent)
 			// We need to acquire a buffered texture from either the new RT or the existing one
 			int32 TextureIndex = StereoRenderTargetManager->AcquireColorTexture();
 			CurrentBufferedTargetIndex = TextureIndex < 0 ? CurrentBufferedTargetIndex : TextureIndex;
+			
+			StereoRenderTargetManager->AcquireDepthTexture();
 		}
 	}
 
