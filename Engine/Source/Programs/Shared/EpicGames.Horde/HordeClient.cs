@@ -108,7 +108,7 @@ namespace EpicGames.Horde
 		}
 
 		/// <inheritdoc/>
-		public abstract Task<bool> LoginAsync(bool allowLogin, CancellationToken cancellationToken);
+		public abstract Task<bool> LoginAsync(bool interactive, CancellationToken cancellationToken);
 
 		/// <inheritdoc/>
 		public abstract bool HasValidAccessToken();
@@ -291,8 +291,15 @@ namespace EpicGames.Horde
 		}
 
 		/// <inheritdoc/>
-		public override Task<bool> LoginAsync(bool allowLogin, CancellationToken cancellationToken)
-			=> Task.FromResult(true);
+		public override async Task<bool> LoginAsync(bool allowLogin, CancellationToken cancellationToken)
+		{
+			using (HttpClient httpClient = CreateAuthenticatedHttpClient())
+			{
+				using HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, "api/v1/dashboard/challenge");
+				using HttpResponseMessage response = await httpClient.SendAsync(request, cancellationToken);
+				return response.IsSuccessStatusCode;
+			}
+		}
 
 		/// <inheritdoc/>
 		public override bool HasValidAccessToken()
@@ -359,7 +366,18 @@ namespace EpicGames.Horde
 		/// <inheritdoc/>
 		public override async Task<bool> LoginAsync(bool allowLogin, CancellationToken cancellationToken)
 		{
-			return await _authHandlerState.LoginAsync(allowLogin, cancellationToken);
+			// Reset any cached state in the auth handler
+			_authHandlerState.Reset();
+
+			// Send a request to the server to log in automatically
+			using (HttpClient httpClient = CreateAuthenticatedHttpClient())
+			{
+				using HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, "api/v1/dashboard/challenge");
+				request.Options.Set(HordeHttpAuthHandler.AllowInteractiveLogin, true);
+
+				using HttpResponseMessage response = await httpClient.SendAsync(request, cancellationToken);
+				return response.IsSuccessStatusCode;
+			}
 		}
 
 		/// <inheritdoc/>

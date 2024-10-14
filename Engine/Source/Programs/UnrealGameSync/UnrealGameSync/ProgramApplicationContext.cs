@@ -260,7 +260,7 @@ namespace UnrealGameSync
 
 			if (hordeAuthState != null)
 			{
-				await hordeAuthState.LoginAsync(false, CancellationToken.None);
+				await hordeAuthState.GetAccessTokenAsync(false, CancellationToken.None);
 			}
 		}
 

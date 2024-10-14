@@ -58,10 +58,10 @@ namespace EpicGames.Horde
 		/// <summary>
 		/// Connect to the Horde server
 		/// </summary>
-		/// <param name="allowPrompt">Whether to allow prompting for credentials</param>
+		/// <param name="interactive">Whether to allow prompting for credentials</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>True if the connection succeded</returns>
-		Task<bool> LoginAsync(bool allowPrompt, CancellationToken cancellationToken);
+		Task<bool> LoginAsync(bool interactive, CancellationToken cancellationToken);
 
 		/// <summary>
 		/// Gets the current connection state
