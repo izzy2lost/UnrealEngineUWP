@@ -262,10 +262,7 @@ void UCEEffectorComponent::RequestClonerUpdate(bool bInImmediate)
 		{
 			if (UCEClonerEffectorExtension* ClonerExtension = ClonerExtensionWeak.Get())
 			{
-				if (UCEClonerComponent* ClonerComponent = ClonerExtension->GetClonerComponent())
-				{
-					ClonerComponent->RequestClonerUpdate(bInImmediate);
-				}
+				ClonerExtension->MarkExtensionDirty(bInImmediate);
 			}
 		}
 	}
