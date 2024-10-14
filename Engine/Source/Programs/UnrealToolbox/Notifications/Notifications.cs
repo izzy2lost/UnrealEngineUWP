@@ -34,9 +34,7 @@ namespace UnrealToolbox
 	/// </summary>
 	class ToolboxNotificationManager : IToolboxNotificationManager, IDisposable
 	{
-
 		private INotificationManager? _platformManager;
-		readonly ILogger _logger;
 
 		// spam prevention
 		DateTime? _lastNotificationTime;
@@ -46,9 +44,8 @@ namespace UnrealToolbox
 		[DllImport("shell32.dll", SetLastError = true)]
 		private static extern void SetCurrentProcessExplicitAppUserModelID([MarshalAs(UnmanagedType.LPWStr)] string appId);
 
-		public ToolboxNotificationManager(ILogger<ToolboxNotificationManager> logger)
+		public ToolboxNotificationManager()
 		{
-			_logger = logger;
 		}
 
 		public void Start()

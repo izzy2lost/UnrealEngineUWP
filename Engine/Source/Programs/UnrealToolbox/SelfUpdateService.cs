@@ -264,7 +264,7 @@ namespace UnrealToolbox
 			{
 				try
 				{
-					await CheckForUpdate(cancellationToken);
+					await CheckForUpdateAsync(cancellationToken);
 				}
 				catch (OperationCanceledException)
 				{
@@ -278,7 +278,7 @@ namespace UnrealToolbox
 			}
 		}
 
-		async Task CheckForUpdate(CancellationToken cancellationToken)
+		async Task CheckForUpdateAsync(CancellationToken cancellationToken)
 		{
 			SelfUpdateState? selfUpdate = Program.Update;
 			if (selfUpdate == null)

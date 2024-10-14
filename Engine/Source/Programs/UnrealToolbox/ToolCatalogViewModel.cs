@@ -177,7 +177,7 @@ namespace UnrealToolbox
 			ShowRemove = _item.Current != null;
 		}
 
-		public void ShowLog()
+		public static void ShowLog()
 		{
 			if (OperatingSystem.IsWindows() && Program.LogFile != null)
 			{
