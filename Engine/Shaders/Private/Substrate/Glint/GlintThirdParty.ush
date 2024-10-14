@@ -44,11 +44,14 @@ FGlintLutParams GetGlintParams()
 	return GlintLutParams;
 }
 
+#ifndef FORCE_DISABLE_GLINTS_AA
+#define FORCE_DISABLE_GLINTS_AA 0
+#endif
+
 // GLINT AA must be skipped for some shaders who do not support ddx/ddy, such as ray tracing shaders.
 // It is also skiped for Compute shader (MegaLights). (available on SM6.6 but not on the Metal API yet).
 // The good news is that the visual difference is minimal.
-#define USE_GLINT_AA (!RAYCALLABLESHADER && !RAYHITGROUPSHADER && !RAYGENSHADER && !RAYMISSSHADER)
-//&& !COMPUTESHADER)
+#define USE_GLINT_AA (!RAYCALLABLESHADER && !RAYHITGROUPSHADER && !RAYGENSHADER && !RAYMISSSHADER && !FORCE_DISABLE_GLINTS_AA)
 
 // Geometric Glint Anti-Aliasing parameters
 #define GGAAKernelSize						0.5
