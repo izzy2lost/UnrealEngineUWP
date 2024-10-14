@@ -63,6 +63,7 @@ struct FMaterialEditorValidationShaderPlatform
 	static constexpr FStringView MaxRHIShaderPlatformNameView = TEXTVIEW("GMaxRHIShaderPlatform");
 	static FName MaxRHIShaderPlatformName;
 
+	static FName CustomPropertyTypeLayoutName;
 	static void RegisterCustomPropertyTypeLayout();
 	static void UnregisterCustomPropertyTypeLayout();
 };
