@@ -114,6 +114,17 @@ void UCEClonerMeshRendererExtension::SetOverrideMaterial(UMaterialInterface* InM
 	OnOverrideMaterialOptionsChanged();
 }
 
+void UCEClonerMeshRendererExtension::SetSortTranslucentParticles(bool bInSort)
+{
+	if (bSortTranslucentParticles == bInSort)
+	{
+		return;
+	}
+
+	bSortTranslucentParticles = bInSort;
+	OnOverrideMaterialOptionsChanged();	
+}
+
 void UCEClonerMeshRendererExtension::OnExtensionParametersChanged(UCEClonerComponent* InComponent)
 {
 	Super::OnExtensionParametersChanged(InComponent);
@@ -227,6 +238,7 @@ void UCEClonerMeshRendererExtension::OnClonerMeshesUpdated()
 
 	MeshRenderer->FacingMode = MeshFacingMode;
 	MeshRenderer->bCastShadows = bMeshCastShadows;
+	MeshRenderer->SortMode = bSortTranslucentParticles ? ENiagaraSortMode::ViewDepth : ENiagaraSortMode::None;
 
 	// Use default meshes if nothing is attached
 	if (ClonerComponent->GetAttachmentCount() == 0)
@@ -258,6 +270,7 @@ const TCEPropertyChangeDispatcher<UCEClonerMeshRendererExtension> UCEClonerMeshR
 	{ GET_MEMBER_NAME_CHECKED(UCEClonerMeshRendererExtension, bUseOverrideMaterial), &UCEClonerMeshRendererExtension::OnOverrideMaterialOptionsChanged },
 	{ GET_MEMBER_NAME_CHECKED(UCEClonerMeshRendererExtension, OverrideMaterial), &UCEClonerMeshRendererExtension::OnOverrideMaterialOptionsChanged },
 	{ GET_MEMBER_NAME_CHECKED(UCEClonerMeshRendererExtension, bVisualizeEffectors), &UCEClonerMeshRendererExtension::OnOverrideMaterialOptionsChanged },
+	{ GET_MEMBER_NAME_CHECKED(UCEClonerMeshRendererExtension, bSortTranslucentParticles), &UCEClonerMeshRendererExtension::OnOverrideMaterialOptionsChanged },
 };
 
 void UCEClonerMeshRendererExtension::PostEditChangeProperty(FPropertyChangedEvent& InPropertyChangedEvent)
