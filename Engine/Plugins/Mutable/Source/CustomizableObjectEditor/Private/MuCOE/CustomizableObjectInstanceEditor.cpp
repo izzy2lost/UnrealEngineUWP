@@ -615,6 +615,11 @@ void FCustomizableObjectInstanceEditor::OnInstancePropertySelectionChanged(FProp
 
 void FCustomizableObjectInstanceEditor::OnUpdatePreviewInstance(UCustomizableObjectInstance* Instance)
 {
+	if (!Actor)
+	{
+		return;
+	}
+
 	check(CustomizableObjectInstance)
 	
 	if (Instance->GetPrivate()->SkeletalMeshStatus != ESkeletalMeshStatus::Success)
