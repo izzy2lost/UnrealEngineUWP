@@ -284,7 +284,9 @@ namespace UnrealToolbox
 				nint? handle = _settingsWindow.TryGetPlatformHandle()?.Handle;
 				if (handle.HasValue)
 				{
+#pragma warning disable CA1806
 					SetForegroundWindow(handle.Value);
+#pragma warning restore CA1806
 				}
 			}
 		}
