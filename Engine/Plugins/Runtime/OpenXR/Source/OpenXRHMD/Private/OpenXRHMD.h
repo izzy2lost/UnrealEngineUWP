@@ -432,7 +432,6 @@ public:
 
 	/** IXRTrackingSystem */
 	virtual void OnBeginPlay(FWorldContext& InWorldContext) override;
-	virtual void OnEndPlay(FWorldContext& InWorldContext) override;
 
 	/** IStereoLayers */
 	virtual bool ShouldCopyDebugLayersToSpectatorScreen() const override { return true; }

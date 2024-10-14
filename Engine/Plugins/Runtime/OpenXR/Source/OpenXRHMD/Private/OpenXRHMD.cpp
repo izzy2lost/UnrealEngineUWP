@@ -1689,6 +1689,11 @@ FOpenXRHMD::FOpenXRHMD(const FAutoRegister& AutoRegister, XrInstance InInstance,
 
 FOpenXRHMD::~FOpenXRHMD()
 {
+	if (bRuntimeFoveationSupported)
+	{
+		GVRSImageManager.UnregisterExternalImageGenerator(FBFoveationImageGenerator.Get());
+		FBFoveationImageGenerator.Reset();
+	}
 	DestroySession();
 }
 
@@ -2548,19 +2553,10 @@ void FOpenXRHMD::OnBeginPlay(FWorldContext& InWorldContext)
 
 	const UOpenXRHMDSettings* Settings = GetDefault<UOpenXRHMDSettings>();
 	bRuntimeFoveationSupported = bFoveationExtensionSupported && (Settings != nullptr ? Settings->bIsFBFoveationEnabled : false);
-	if (bRuntimeFoveationSupported)
+	if (bRuntimeFoveationSupported && !FBFoveationImageGenerator.IsValid())
 	{
 		FBFoveationImageGenerator = MakeUnique<FFBFoveationImageGenerator>(bRuntimeFoveationSupported, Instance, this, bIsMobileMultiViewEnabled);
 		GVRSImageManager.RegisterExternalImageGenerator(FBFoveationImageGenerator.Get());
-	}
-}
-
-void FOpenXRHMD::OnEndPlay(FWorldContext& InWorldContext)
-{
-	if (bRuntimeFoveationSupported)
-	{
-		GVRSImageManager.UnregisterExternalImageGenerator(FBFoveationImageGenerator.Get());
-		FBFoveationImageGenerator.Reset();
 	}
 }
 
