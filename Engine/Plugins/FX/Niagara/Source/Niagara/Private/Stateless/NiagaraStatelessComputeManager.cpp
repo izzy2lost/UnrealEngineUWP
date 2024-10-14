@@ -150,6 +150,15 @@ namespace NiagaraStatelessComputeManagerPrivate
 	}
 }
 
+FNiagaraStatelessComputeManager::FStatelessDataCache::~FStatelessDataCache()
+{
+	if (DataBuffer)
+	{
+		DataBuffer->Destroy();
+		DataBuffer = nullptr;
+	}
+}
+
 FNiagaraStatelessComputeManager::FNiagaraStatelessComputeManager(FNiagaraGpuComputeDispatchInterface* InOwnerInterface)
 	: FNiagaraGpuComputeDataManager(InOwnerInterface)
 {
