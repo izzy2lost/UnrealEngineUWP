@@ -95,6 +95,13 @@ public:
 	 * @return				the index of the texture in the array returned by AllocateRenderTargetTexture.
 	 */
 	virtual int32 AcquireColorTexture() { return -1; }
+	
+	/**
+	 * Acquires the next available depth texture.
+	 * 
+	 * @return				the index of the texture in the array returned by AllocateRenderTargetTexture.
+	 */
+	virtual int32 AcquireDepthTexture() { return -1; }
 
 	/**
 	 * Allocates a depth texture.

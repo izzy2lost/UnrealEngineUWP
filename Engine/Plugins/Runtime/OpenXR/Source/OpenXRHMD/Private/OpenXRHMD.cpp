@@ -2583,6 +2583,24 @@ int32 FOpenXRHMD::AcquireColorTexture()
 	return 0;
 }
 
+int32 FOpenXRHMD::AcquireDepthTexture()
+{
+	check(IsInGameThread());
+	if (Session)
+	{
+		const FXRSwapChainPtr& DepthSwapchain = PipelinedLayerStateRendering.DepthSwapchain;
+		if (DepthSwapchain)
+		{
+			if (bIsAcquireOnAnyThreadSupported)
+			{
+				DepthSwapchain->IncrementSwapChainIndex_RHIThread();
+			}
+			return DepthSwapchain->GetSwapChainIndex_RHIThread();
+		}
+	}
+	return 0;
+}
+
 bool FOpenXRHMD::AllocateRenderTargetTextures(uint32 SizeX, uint32 SizeY, uint8 Format, uint32 NumMips, ETextureCreateFlags Flags, ETextureCreateFlags TargetableTextureFlags, TArray<FTextureRHIRef>& OutTargetableTextures, TArray<FTextureRHIRef>& OutShaderResourceTextures, uint32 NumSamples)
 {
 	check(IsInRenderingThread());
@@ -2762,11 +2780,6 @@ bool FOpenXRHMD::AllocateDepthTexture(uint32 Index, uint32 SizeX, uint32 SizeY, 
 
 	const ETextureCreateFlags UnifiedCreateFlags = Flags | TargetableTextureFlags;
 	ensure(EnumHasAllFlags(UnifiedCreateFlags, TexCreate_DepthStencilTargetable)); // We can't use the depth swapchain w/o this flag
-	if (bIsAcquireOnAnyThreadSupported)
-	{
-		DepthSwapchain->IncrementSwapChainIndex_RHIThread();
-	}
-
 	const FRHITexture* const DepthSwapchainTexture = DepthSwapchain->GetTexture2DArray() ? DepthSwapchain->GetTexture2DArray() : DepthSwapchain->GetTexture2D();
 	const FRHITextureDesc& DepthSwapchainDesc = DepthSwapchainTexture->GetDesc();
 
