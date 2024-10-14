@@ -358,6 +358,11 @@ void SNiagaraSystemResolvedScalabilitySettings::RebuildWidget()
 		
 		for(const TSharedRef<FNiagaraEmitterHandleViewModel>& EmitterHandleViewModel : SystemViewModel->GetEmitterHandleViewModels())
 		{
+			if(EmitterHandleViewModel->IsValid() == false)
+			{
+				continue;
+			}
+			
 			FVersionedNiagaraEmitter VersionedEmitter = EmitterHandleViewModel->GetEmitterHandle()->GetInstance();
 			VersionedEmitter.Emitter->OnPropertiesChanged().RemoveAll(this);
 			VersionedEmitter.Emitter->OnPropertiesChanged().AddSP(this, &SNiagaraSystemResolvedScalabilitySettings::RebuildWidget);
