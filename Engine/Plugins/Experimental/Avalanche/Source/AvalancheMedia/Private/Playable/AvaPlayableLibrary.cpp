@@ -88,7 +88,10 @@ bool UAvaPlayableLibrary::UpdatePlayableRemoteControlValues(const UObject* InWor
 	{
 		if (UAvaPlayableTransition* Transition = GetPlayableTransition(Playable))
 		{
-			if (const TSharedPtr<FAvaPlayableRemoteControlValues> RemoteControlValues = Transition->GetValuesForPlayable(Playable))
+			// Assume that if the RC Values need to be updated, it's because of an Enter Playable not yet having its Update RC called
+			constexpr bool bIsEnterPlayable = true;
+
+			if (const TSharedPtr<FAvaPlayableRemoteControlValues> RemoteControlValues = Transition->GetValuesForPlayable(Playable, bIsEnterPlayable))
 			{
 				if (Playable->UpdateRemoteControlCommand(RemoteControlValues.ToSharedRef()) == EAvaPlayableCommandResult::Executed)
 				{

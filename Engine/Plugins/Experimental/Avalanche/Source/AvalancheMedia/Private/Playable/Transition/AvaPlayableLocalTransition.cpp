@@ -277,6 +277,20 @@ bool UAvaPlayableLocalTransition::Start()
 		return false;
 	}
 
+	// Store the Latest Remote Control Values for Playables that are not Enter Playables
+	// as the Enter Playable ones are stored in EnterPlayableValues
+	OtherPlayableValues.Empty(PlayingPlayables.Num() + ExitPlayables.Num());
+
+	for (UAvaPlayable* Playable : PlayingPlayables)
+	{
+		OtherPlayableValues.Add(Playable, Playable->GetLatestRemoteControlValues());
+	}
+
+	for (UAvaPlayable* Playable : ExitPlayables)
+	{
+		OtherPlayableValues.Add(Playable, Playable->GetLatestRemoteControlValues());
+	}
+
 	int32 ArrayIndex = 0;
 	for (UAvaPlayable* Playable : EnterPlayables)
 	{
