@@ -46,7 +46,7 @@ namespace UE::RHICore::Nvidia::Aftermath
 
 	static TAutoConsoleVariable<int32> CVarAftermath_Callstack(
 		TEXT("r.GPUCrashDebugging.Aftermath.Callstack"),
-		1,
+		0,
 		TEXT("Enable callstack capture in Aftermath dumps"),
 		ECVF_ReadOnly
 	);

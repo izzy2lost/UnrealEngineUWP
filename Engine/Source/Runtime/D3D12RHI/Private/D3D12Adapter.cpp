@@ -89,14 +89,14 @@ enum class ED3D12DredMode
 
 static TAutoConsoleVariable<int32> CVarD3D12EnableDRED(
 	TEXT("r.D3D12.DRED"),
-	(UE_BUILD_SHIPPING || UE_BUILD_TEST) ? 0 : 1,
+	0,
 	TEXT("Enable DRED GPU Crash debugging mode to track the current GPU state and logs information what operations the GPU executed last.")
 	TEXT("Has GPU overhead but gives the most information on the current GPU state when it crashes or hangs.\n"),
 	ECVF_RenderThreadSafe | ECVF_ReadOnly);
 
 static TAutoConsoleVariable<int32> CVarD3D12EnableLightweightDRED(
 	TEXT("r.D3D12.LightweightDRED"),
-	1,
+	0,
 	TEXT("Enable Lightweight DRED GPU Crash debugging mode to track the current GPU state and logs information what operations the GPU executed last.")
 	TEXT("Gives the basic information on the current GPU state when it crashes or hangs on all PC hardware.\n"),
 	ECVF_RenderThreadSafe | ECVF_ReadOnly);

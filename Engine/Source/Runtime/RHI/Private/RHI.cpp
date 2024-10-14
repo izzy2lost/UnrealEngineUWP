@@ -2269,7 +2269,7 @@ namespace UE::RHI
 
 	static TAutoConsoleVariable<int32> CVarGPUCrashDebuggingBreadcrumbs(
 		TEXT("r.GPUCrashDebugging.Breadcrumbs"),
-		0,
+		1,
 		TEXT("Enable RHI breadcrumbs, a vendor-agnostic method for determining which passes were active when a GPU crash occurs"),
 		ECVF_ReadOnly
 	);
