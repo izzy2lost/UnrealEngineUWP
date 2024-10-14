@@ -36,6 +36,7 @@ private:
 	virtual void UnregisterWorkspaceItemDetails(const FOutlinerItemDetailsId& InItemDetails) override;
 	virtual FOnRegisterTabs& OnRegisterTabsForEditor() override { return RegisterTabsForEditor; }
 	virtual FOnExtendTabs& OnExtendTabs() override { return ExtendTabsForEditor; }
+	virtual FOnExtendToolMenuContext& OnExtendToolMenuContext() override { return ExtendToolMenuContext; }
 
 	// Find an existing registered object document type. Note this redirects based on FObjectDocumentArgs::OnRedirectWorkspaceContext
 	const FObjectDocumentArgs* FindObjectDocumentType(const UObject* InObject) const;
@@ -64,6 +65,9 @@ private:
 	
 	/** Event called to allow external clients to extend the tab layout for the specified editor */
 	FOnExtendTabs ExtendTabsForEditor;
+
+	/** Event called to allow external clients to add details to the ToolMenuContext used for the toolbar and context menus */
+	FOnExtendToolMenuContext ExtendToolMenuContext;
 
 	friend struct FAssetDocumentSummoner;
 	friend struct FWorkspaceOutlinerTreeItem;

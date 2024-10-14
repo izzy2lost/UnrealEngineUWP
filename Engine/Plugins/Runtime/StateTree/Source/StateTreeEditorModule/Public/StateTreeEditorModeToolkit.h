@@ -28,13 +28,13 @@ public:
 protected:	
 	FSlateIcon GetCompileStatusImage() const;
 
-	FSlateIcon GetNewTaskButtonImage() const;
+	static FSlateIcon GetNewTaskButtonImage();
 	TSharedRef<SWidget> GenerateTaskBPBaseClassesMenu() const;
 
-	FSlateIcon GetNewConditionButtonImage() const;
+	static FSlateIcon GetNewConditionButtonImage();
 	TSharedRef<SWidget> GenerateConditionBPBaseClassesMenu() const;
     
-	FSlateIcon GetNewConsiderationButtonImage() const;
+	static FSlateIcon GetNewConsiderationButtonImage();
 	TSharedRef<SWidget> GenerateConsiderationBPBaseClassesMenu() const;
 
 	void OnNodeBPBaseClassPicked(UClass* NodeClass) const;
@@ -44,9 +44,6 @@ protected:
 	void UpdateStateTreeOutliner();
 protected:
 	TWeakObjectPtr<UStateTreeEditorMode> WeakEditorMode;
-	bool bLastCompileSucceeded = true;
-	uint32 EditorDataHash = 0;
-
 	TSharedPtr<IStateTreeEditorHost> EditorHost;
 
 	/** Tree Outliner */

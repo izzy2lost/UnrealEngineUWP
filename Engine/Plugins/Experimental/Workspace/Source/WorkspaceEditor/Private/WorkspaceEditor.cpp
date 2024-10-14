@@ -218,6 +218,8 @@ void FWorkspaceEditor::OnToolkitHostingFinished(const TSharedRef<IToolkit>& Tool
 		
 	UToolMenus::UnregisterOwner(&(*Toolkit));	
 	HostedToolkits.Remove( Toolkit );
+		
+	RegenerateMenusAndToolbars();
 }
 
 void FWorkspaceEditor::OnToolkitHostingStarted(const TSharedRef<IToolkit>& Toolkit)
@@ -235,6 +237,8 @@ void FWorkspaceEditor::OnToolkitHostingStarted(const TSharedRef<IToolkit>& Toolk
 
 	ModeUILayers.Add(Toolkit->GetToolkitFName(), ModeUILayer);	
 	HostedToolkits.Add(Toolkit);
+
+	RegenerateMenusAndToolbars();
 }
 
 void FWorkspaceEditor::RestoreEditedObjectState()
@@ -551,6 +555,9 @@ void FWorkspaceEditor::InitToolMenuContext(FToolMenuContext& InMenuContext)
 	InMenuContext.AddObject(ToolkitMenuContext);
 	
 	IWorkspaceEditor::InitToolMenuContext(InMenuContext);
+
+	Workspace::IWorkspaceEditorModule& WorkspaceEditorModule = FModuleManager::Get().LoadModuleChecked<Workspace::IWorkspaceEditorModule>("WorkspaceEditor");
+	WorkspaceEditorModule.OnExtendToolMenuContext().Broadcast(StaticCastSharedRef<UE::Workspace::IWorkspaceEditor>(AsShared()), InMenuContext);
 }
 
 void FWorkspaceEditor::SaveAsset_Execute()

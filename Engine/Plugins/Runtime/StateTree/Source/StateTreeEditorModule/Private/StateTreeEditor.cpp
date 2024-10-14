@@ -191,6 +191,8 @@ void FStateTreeEditor::InitEditor( const EToolkitMode::Type Mode, const TSharedP
 	StateTreeEditorModule.OnRegisterLayoutExtensions().Broadcast(LayoutExtender);
 	StandaloneDefaultLayout->ProcessExtensions(LayoutExtender);
 
+	CreateEditorModeManager();
+	
 	constexpr bool bCreateDefaultStandaloneMenu = true;
 	constexpr bool bCreateDefaultToolbar = true;
 	FAssetEditorToolkit::InitAssetEditor(Mode, InitToolkitHost, StateTreeEditorAppName, StandaloneDefaultLayout, bCreateDefaultStandaloneMenu, bCreateDefaultToolbar, StateTree);
