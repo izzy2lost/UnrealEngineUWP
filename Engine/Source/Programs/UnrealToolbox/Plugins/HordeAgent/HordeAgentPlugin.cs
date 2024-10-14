@@ -29,6 +29,7 @@ namespace UnrealToolbox.Plugins.HordeAgent
 
 		byte[] _settingsData = Array.Empty<byte>();
 		HordeAgentSettings _settings = new HordeAgentSettings();
+		bool _pipeConnected;
 
 		public HordeAgentSettings Settings => _settings;
 
@@ -93,7 +94,7 @@ namespace UnrealToolbox.Plugins.HordeAgent
 		{
 			if (OperatingSystem.IsWindows())
 			{
-				bool enabled = ((Registry.GetValue("HKEY_LOCAL_MACHINE\\SOFTWARE\\Epic Games\\Horde\\Agent", "Installed", null) as int?) ?? 0) != 0;
+				bool enabled = _pipeConnected || ((Registry.GetValue("HKEY_LOCAL_MACHINE\\SOFTWARE\\Epic Games\\Horde\\Agent", "Installed", null) as int?) ?? 0) != 0;
 				if (enabled != IsEnabled)
 				{
 					IsEnabled = enabled;
@@ -267,7 +268,14 @@ namespace UnrealToolbox.Plugins.HordeAgent
 			{
 				try
 				{
-					await PollForStatusUpdatesAsync(cancellationToken);
+					try
+					{
+						await PollForStatusUpdatesAsync(cancellationToken);
+					}
+					finally
+					{
+						_pipeConnected = false;
+					}
 				}
 				catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
 				{
@@ -492,6 +500,8 @@ namespace UnrealToolbox.Plugins.HordeAgent
 			{
 				SetStatus(new AgentStatusMessage(true, 0, "Connecting to agent..."));
 				await pipeClient.ConnectAsync(cancellationToken);
+
+				_pipeConnected = true;
 
 				SetStatus(new AgentStatusMessage(true, 0, "Waiting for status update."));
 				for (; ; )
