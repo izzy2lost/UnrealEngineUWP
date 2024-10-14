@@ -310,10 +310,12 @@ namespace UnrealToolbox
 				await deployment.Content.ExtractAsync(updateDir.ToDirectoryInfo(), _logger, cancellationToken);
 
 				selfUpdate.UpdateVersion = updateVersion;
+				_logger.LogInformation("Extracted {UpdateVersion} to {UpdateDir}", updateVersion, updateDir);
 			}
 
-			if (!String.IsNullOrEmpty(selfUpdate.UpdateVersion))
+			if (selfUpdate.IsUpdatePending())
 			{
+				_logger.LogInformation("Triggering update to {UpdateVersion}", selfUpdate.UpdateVersion);
 				OnUpdateReady?.Invoke();
 			}
 		}
