@@ -18,6 +18,9 @@ struct FPCGSpawnerPrimitives
 	UPROPERTY()
 	TArray<TObjectPtr<UPrimitiveComponent>> Primitives;
 
+	UPROPERTY()
+	TArray<FBox> PrimitiveMeshBounds;
+
 	/** Cumulative distribution function values (one per primitive) to enable choosing a primitive based on a random draw value. */
 	UPROPERTY()
 	TArray<float> SelectionCDF;
