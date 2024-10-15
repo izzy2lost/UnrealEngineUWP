@@ -219,8 +219,9 @@ namespace Metasound
 				if (const UEdGraphPin* ReroutePin = FGraphBuilder::FindReroutedOutputPin(OutputPin))
 				{
 					OutputVertex = FGraphBuilder::GetPinVertex(*Builder, ReroutePin, &OutputNode);
+					check(OutputNode);
+					EdgeStyle = Builder->FindConstEdgeStyle(OutputNode->GetID(), OutputVertex->Name);
 				}
-				EdgeStyle = Builder->FindConstEdgeStyle(OutputNode->GetID(), OutputVertex->Name);
 			}
 		}
 
@@ -367,6 +368,7 @@ namespace Metasound
 						const FMetasoundFrontendNode* OutputNode = nullptr;
 						if (const FMetasoundFrontendVertex* OutputVertex = FGraphBuilder::GetPinVertex(*Builder, ReroutePin, &OutputNode))
 						{
+							check(OutputNode);
 							const bool bIsPlaying = EditorPtr->IsPlaying();
 							const FGuid& NodeID = OutputNode->GetID();
 							if (AnyPin->PinType.PinCategory == FGraphBuilder::PinCategoryTrigger)
