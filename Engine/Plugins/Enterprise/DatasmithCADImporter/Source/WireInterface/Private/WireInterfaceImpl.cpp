@@ -667,44 +667,6 @@ namespace UE_DATASMITHWIRETRANSLATOR_NAMESPACE
 
 		GeomNode.SetActorTransform(*ActorElement);
 
-		TAlObjectPtr<AlShell> Shell;
-		if (GeomNode.GetShell(Shell))
-		{
-			TAlObjectPtr<AlShader> Shader(Shell->firstShader());
-			int32 SlotIndex = 0;
-			while (Shader)
-			{
-				TSharedPtr<IDatasmithMaterialIDElement> MaterialIDElement = FindOrAddMaterial(Shader);
-				MaterialIDElement->SetId(SlotIndex++);
-				ActorElement->AddMaterialOverride(MaterialIDElement);
-				Shader = Shell->nextShader(Shader.Get());
-			}
-		}
-		else
-		{
-			TSharedPtr<IDatasmithMaterialIDElement> MaterialIDElement;
-
-			TAlObjectPtr<AlSurface> Surface;
-			if (GeomNode.GetSurface(Surface))
-			{
-				MaterialIDElement = FindOrAddMaterial(Surface->firstShader());
-			}
-			else
-			{
-				TAlObjectPtr<AlMesh> Mesh;
-				if (GeomNode.GetMesh(Mesh))
-				{
-					MaterialIDElement = FindOrAddMaterial(Mesh->firstShader());
-				}
-			}
-
-			if (MaterialIDElement)
-			{
-				MaterialIDElement->SetId(0);
-				ActorElement->AddMaterialOverride(MaterialIDElement);
-			}
-		}
-
 		if (WireSettings.bUseLayerAsActor && Layer != ParentLayer)
 		{
 			if (TSharedPtr<IDatasmithActorElement> LayerActor = FindOrAddLayerActor(Layer))
@@ -857,10 +819,9 @@ namespace UE_DATASMITHWIRETRANSLATOR_NAMESPACE
 #endif
 		auto ApplyMaterial = [this, &MeshElement](const TAlObjectPtr<AlShader>& Shader, int32 SlotIndex)
 			{
-				if (TSharedPtr<IDatasmithMaterialIDElement> MaterialIDElement = this->FindOrAddMaterial(Shader))
+				if (TSharedPtr<IDatasmithBaseMaterialElement> MaterialElement = this->FindOrAddMaterial(Shader))
 				{
-					MaterialIDElement->SetId(SlotIndex);
-					MeshElement->SetMaterial(MaterialIDElement->GetName(), SlotIndex);
+					MeshElement->SetMaterial(MaterialElement->GetName(), SlotIndex);
 				}
 			};
 
@@ -938,10 +899,9 @@ namespace UE_DATASMITHWIRETRANSLATOR_NAMESPACE
 
 		auto ApplyMaterial = [this, &MeshElement](int32 SlotIndex, const TAlObjectPtr<AlShader>& Shader)
 			{
-				if (TSharedPtr<IDatasmithMaterialIDElement> MaterialIDElement = this->FindOrAddMaterial(Shader))
+				if (TSharedPtr<IDatasmithBaseMaterialElement> MaterialElement = this->FindOrAddMaterial(Shader))
 				{
-					MaterialIDElement->SetId(SlotIndex);
-					MeshElement->SetMaterial(MaterialIDElement->GetName(), SlotIndex);
+					MeshElement->SetMaterial(MaterialElement->GetName(), SlotIndex);
 				}
 			};
 
@@ -973,13 +933,20 @@ namespace UE_DATASMITHWIRETRANSLATOR_NAMESPACE
 
 		MeshElement->SetLabel(*PatchMesh->GetName());
 		MeshElement->SetLightmapSourceUV(-1);
+#if TRACK_MESHELEMENT
+		{
+			if (!ToTrack.Equals(MeshElement->GetLabel()))
+			{
+				return TSharedPtr<IDatasmithMeshElement>();
+			}
+		}
+#endif
 
 		auto ApplyMaterial = [this, &MeshElement](const TAlObjectPtr<AlShader>& Shader, int32 SlotIndex)
 			{
-				if (TSharedPtr<IDatasmithMaterialIDElement> MaterialIDElement = this->FindOrAddMaterial(Shader))
+				if (TSharedPtr<IDatasmithBaseMaterialElement> MaterialElement = this->FindOrAddMaterial(Shader))
 				{
-					MaterialIDElement->SetId(SlotIndex);
-					MeshElement->SetMaterial(MaterialIDElement->GetName(), SlotIndex);
+					MeshElement->SetMaterial(MaterialElement->GetName(), SlotIndex);
 				}
 			};
 
@@ -1195,6 +1162,7 @@ namespace UE_DATASMITHWIRETRANSLATOR_NAMESPACE
 		MeshDescription.Empty();
 
 		constexpr bool bMerge = true;
+		int32 SlotIndex = 0;
 		PatchMesh->IterateOnMeshNodes([&](const FAlDagNodePtr& MeshNode)
 			{
 				TAlObjectPtr<AlMesh> Mesh;
@@ -1212,8 +1180,7 @@ namespace UE_DATASMITHWIRETRANSLATOR_NAMESPACE
 
 					Mesh->transform(AlMatrix);
 
-					TSharedPtr<IDatasmithMaterialIDElement> MaterialIDElement = MeshElement->GetMaterialSlotAt(0);
-					const FString SlotMaterialName = MaterialIDElement ? MaterialIDElement->GetName() : FString();
+					const FString SlotMaterialName = DatasmithMeshHelper::DefaultSlotName(SlotIndex).ToString();
 
 					OpenModelUtils::TransferAlMeshToMeshDescription(*Mesh, *SlotMaterialName, MeshDescription, OutMeshParameters, bMerge);
 				}
@@ -1298,11 +1265,8 @@ namespace UE_DATASMITHWIRETRANSLATOR_NAMESPACE
 		FMeshDescription MeshDescription;
 		DatasmithMeshHelper::PrepareAttributeForStaticMesh(MeshDescription);
 
-		TSharedPtr<IDatasmithMaterialIDElement> MaterialIDElement = MeshElement->GetMaterialSlotAt(0);
-		const FString SlotMaterialName = MaterialIDElement ? MaterialIDElement->GetName() : FString();
-
 		const bool bMerge = false;
-		OpenModelUtils::TransferAlMeshToMeshDescription(*Mesh, *SlotMaterialName, MeshDescription, OutMeshParameters, bMerge);
+		OpenModelUtils::TransferAlMeshToMeshDescription(*Mesh, TEXT("0"), MeshDescription, OutMeshParameters, bMerge);
 
 		// Build edge meta data
 		FStaticMeshOperations::DetermineEdgeHardnessesFromVertexInstanceNormals(MeshDescription);
@@ -1334,19 +1298,16 @@ namespace UE_DATASMITHWIRETRANSLATOR_NAMESPACE
 
 	// Material creation
 
-	TSharedPtr<IDatasmithMaterialIDElement> FWireTranslatorImpl::FindOrAddMaterial(const TAlObjectPtr<AlShader>& Shader)
+	TSharedPtr<IDatasmithBaseMaterialElement> FWireTranslatorImpl::FindOrAddMaterial(const TAlObjectPtr<AlShader>& Shader)
 	{
 		const FString ShaderName = Shader.GetName();
 
 		if (TSharedPtr<IDatasmithBaseMaterialElement>* MaterialElementPtr = ShaderNameToMaterial.Find(ShaderName))
 		{
-			return FDatasmithSceneFactory::CreateMaterialId((*MaterialElementPtr)->GetName());
+			return *MaterialElementPtr;
 		}
 
 		const FString ShaderModelName = Shader->shadingModel();
-
-		//const FColor Color = CreateShaderColorFromShaderName(ShaderName);
-		//ShaderNameToColor.Add(ShaderName, Color);
 
 		TSharedPtr<IDatasmithUEPbrMaterialElement> MaterialElement = FDatasmithSceneFactory::CreateUEPbrMaterial(*Shader.GetUniqueID(SHADER_TYPE));
 		MaterialElement->SetLabel(*ShaderName);
@@ -1371,7 +1332,7 @@ namespace UE_DATASMITHWIRETRANSLATOR_NAMESPACE
 		DatasmithScene->AddMaterial(MaterialElement);
 		ShaderNameToMaterial.Add(*ShaderName, MaterialElement);
 
-		return FDatasmithSceneFactory::CreateMaterialId(MaterialElement->GetName());
+		return MaterialElement;
 	}
 
 	bool FWireTranslatorImpl::GetCommonParameters(int32 Field, double Value, FColor& Color, FColor& TransparencyColor, FColor& IncandescenceColor, double GlowIntensity)

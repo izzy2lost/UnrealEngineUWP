@@ -81,7 +81,7 @@ namespace UE_DATASMITHWIRETRANSLATOR_NAMESPACE
 		void AddAlLightSourceParameters(const TAlObjectPtr<AlShader>& Shader, TSharedPtr<IDatasmithUEPbrMaterialElement> MaterialElement);
 		void AddAlPhongParameters(const TAlObjectPtr<AlShader>& Shader, TSharedPtr<IDatasmithUEPbrMaterialElement> MaterialElement);
 		
-		TSharedPtr<IDatasmithMaterialIDElement> FindOrAddMaterial(const TAlObjectPtr<AlShader>& Shader);
+		TSharedPtr<IDatasmithBaseMaterialElement> FindOrAddMaterial(const TAlObjectPtr<AlShader>& Shader);
 
 		/** Geometry retrieval */
 		TOptional<FMeshDescription> GetMeshDescription(TSharedPtr<IDatasmithMeshElement> MeshElement, CADLibrary::FMeshParameters& OutMeshParameters);
@@ -138,6 +138,9 @@ namespace UE_DATASMITHWIRETRANSLATOR_NAMESPACE
 		TMap<AlDagNode*, FAlDagNodePtr> EncounteredNodes;
 
 		TMap<uint32, TSharedPtr<IDatasmithActorElement>> LayerToActor;
+
+		// #cad_debug
+		bool bTrackMesh = false;
 	};
 } // namespace
 #endif

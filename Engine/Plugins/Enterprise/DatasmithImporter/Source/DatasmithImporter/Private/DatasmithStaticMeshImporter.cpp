@@ -483,7 +483,8 @@ void FDatasmithStaticMeshImporter::PreBuildStaticMeshes( FDatasmithImportContext
 
 class FMeshMaterialSlotBuilder
 {
-	struct SectionInfo
+public:
+	struct FSectionInfo
 	{
 		enum { InvalidIndex = -1 };
 
@@ -495,7 +496,6 @@ class FMeshMaterialSlotBuilder
 		int32 StaticMaterialsIndex = InvalidIndex; // index in the FStaticMesh::StaticMaterials
 	};
 
-public:
 	FMeshMaterialSlotBuilder(UStaticMesh& StaticMesh, int32 MeshElementLODCount)
 	{
 		// Populate section LODs declared in IDatasmithMeshElement
@@ -509,7 +509,7 @@ public:
 				RawSections.Reserve(MeshDescription->PolygonGroups().Num());
 				for (FPolygonGroupID PolygonGroupID : MeshDescription->PolygonGroups().GetElementIDs())
 				{
-					SectionInfo& ThisSection = RawSections.Add_GetRef({});
+					FSectionInfo& ThisSection = RawSections.Add_GetRef({});
 					ThisSection.LodIndex = LodIndex;
 					ThisSection.SectionIndex = SectionIndex++;
 					ThisSection.SectionId = PolygonGroupID;
@@ -520,19 +520,19 @@ public:
 		}
 
 		// Prepares StaticMaterials Slot informations from sections found in the mesh
-		for (SectionInfo& Section : RawSections)
+		for (FSectionInfo& Section : RawSections)
 		{
 			// get associated slot (but skip empty polygon groups)
-			Section.StaticMaterialsIndex = Section.PolyCount <= 0 ? SectionInfo::InvalidIndex : SlotNames.Add(Section.MaterialSlotName).AsInteger();
+			Section.StaticMaterialsIndex = Section.PolyCount <= 0 ? FSectionInfo::InvalidIndex : SlotNames.Add(Section.MaterialSlotName).AsInteger();
 		}
 	}
 
 	FMeshSectionInfoMap GenerateSectionInfoMap() const
 	{
 		FMeshSectionInfoMap InfoMap;
-		for (const SectionInfo& Section : RawSections)
+		for (const FSectionInfo& Section : RawSections)
 		{
-			if (Section.StaticMaterialsIndex != SectionInfo::InvalidIndex)
+			if (Section.StaticMaterialsIndex != FSectionInfo::InvalidIndex)
 			{
 				InfoMap.Set(Section.LodIndex, Section.SectionIndex, FMeshSectionInfo(Section.StaticMaterialsIndex));
 			}
@@ -540,7 +540,7 @@ public:
 		return InfoMap;
 	}
 
-	const TArray<SectionInfo>& GetSectionsInfos() const
+	const TArray<FSectionInfo>& GetSectionsInfos() const
 	{
 		return RawSections;
 	}
@@ -552,7 +552,7 @@ public:
 
 
 private:
-	TArray<SectionInfo> RawSections;
+	TArray<FSectionInfo> RawSections;
 	TSet<FName> SlotNames;
 };
 
@@ -691,11 +691,11 @@ void FDatasmithStaticMeshImporter::SetupStaticMesh( FDatasmithAssetsImportContex
 	FMeshSectionInfoMap MeshSectionInfoMap = Sections.GenerateSectionInfoMap();
 	StaticMeshTemplate->SectionInfoMap.Load( MeshSectionInfoMap );
 
-	// Create one StaticMaterial per material index. Actual materials will be assigned later. This is just so that we create all the slots.
-	for (const FName& SlotName : Sections.GetSlotNames())
+	// Create one StaticMaterial per section. Actual materials will be assigned later. This is just so that we create all the slots.
+	for (const FMeshMaterialSlotBuilder::FSectionInfo& SectionInfo : Sections.GetSectionsInfos())
 	{
 		FDatasmithStaticMaterialTemplate StaticMaterial;
-		StaticMaterial.MaterialSlotName = SlotName;
+		StaticMaterial.MaterialSlotName = SectionInfo.MaterialSlotName;
 
 		StaticMeshTemplate->StaticMaterials.Add(MoveTemp(StaticMaterial));
 	}

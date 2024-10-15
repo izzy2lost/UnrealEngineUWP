@@ -413,7 +413,7 @@ namespace UE_DATASMITHWIRETRANSLATOR_NAMESPACE
 
 		void AddMeshNode(FAlDagNodePtr& MeshNode)
 		{
-			ensure(Layer == MeshNode.GetLayer());
+			ensureWire(Layer == MeshNode.GetLayer());
 			MeshNodes.Add(MeshNode);
 		}
 
