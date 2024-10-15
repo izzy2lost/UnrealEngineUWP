@@ -196,7 +196,7 @@ static uint32 GetShadingRateTileSizeBits()
 
 	// Temporarily disable this on Intel until the shader is fixed to
 	// correctly handle a wave size of 16.
-	if (GNaniteSoftwareVRS != 0 && !IsRHIDeviceIntel() && GVRSImageManager.IsVRSEnabledForFrame() /* HW or SW VRS enabled? */)
+	if (GNaniteSoftwareVRS != 0 && !IsRHIDeviceIntel() && GVRSImageManager.IsVRSEnabledForFrame() /* HW or SW VRS enabled? */ && !Substrate::IsSubstrateEnabled())
 	{
 		bool bUseSoftwareImage = GVRSImageManager.IsSoftwareVRSEnabledForFrame();
 		if (!bUseSoftwareImage)
