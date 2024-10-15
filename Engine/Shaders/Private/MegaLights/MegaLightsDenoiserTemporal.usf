@@ -351,7 +351,7 @@ void DenoiserTemporalCS(
 							ClampedHistoryDiffuseLighting = clamp(HistoryDiffuseLighting, DiffuseNeighborhood.Center - DiffuseNeighborhood.Extent, DiffuseNeighborhood.Center + DiffuseNeighborhood.Extent);
 
 							// Speedup accumulation if history is far away from the current neighborhood
-							float NormalizedDistanceToNeighborhood = length(abs(ClampedHistoryDiffuseLighting - HistoryDiffuseLighting) / DiffuseNeighborhood.Extent);
+							float NormalizedDistanceToNeighborhood = length(abs(ClampedHistoryDiffuseLighting - HistoryDiffuseLighting) / max(DiffuseNeighborhood.Extent, 0.1f));
 							DiffuseConfidence = saturate(1.0f - NormalizedDistanceToNeighborhood);
 
 							ClampedHistoryDiffuseLighting = LumenYCoCgToRGB(ClampedHistoryDiffuseLighting);
@@ -365,7 +365,7 @@ void DenoiserTemporalCS(
 							ClampedHistorySpecularLighting = clamp(HistorySpecularLighting, SpecularNeighborhood.Center - SpecularNeighborhood.Extent, SpecularNeighborhood.Center + SpecularNeighborhood.Extent);
 
 							// Speedup accumulation if history is far away from the current neighborhood
-							float NormalizedDistanceToNeighborhood = length(abs(ClampedHistorySpecularLighting - HistorySpecularLighting) / SpecularNeighborhood.Extent);
+							float NormalizedDistanceToNeighborhood = length(abs(ClampedHistorySpecularLighting - HistorySpecularLighting) / max(SpecularNeighborhood.Extent, 0.1f));
 							SpecularConfidence = saturate(1.0f - NormalizedDistanceToNeighborhood);
 
 							ClampedHistorySpecularLighting = LumenYCoCgToRGB(ClampedHistorySpecularLighting);
@@ -382,7 +382,7 @@ void DenoiserTemporalCS(
 						// Reproject and rescale normalized NumFramesAccumulated
 						float NumFramesAccumulatedHistory = 0.0f;
 						NumFramesAccumulatedHistory = UnpackNumFramesAccumulated(dot(NumFramesAccumulatedHistoryTexture.GatherRed(GlobalPointClampedSampler, HistoryGatherUV).wzxy, HistoryWeights) / dot(HistoryWeights, 1.0f));
-
+						
 						// Advance the frame counter
 						float MaxFrames = ShadingConfidenceWeight(ShadingConfidence) * (TemporalMaxFramesAccumulated - 1.0f) + 1.0f;
 						float DiffuseNumFramesAccumulated = min(NumFramesAccumulatedHistory * DiffuseConfidence + 1.0f, MaxFrames);
@@ -426,6 +426,10 @@ void DenoiserTemporalCS(
 							Print(Debug.Context, TEXT("Luminance           : "));
 							Print(Debug.Context, Luminance(DiffuseLighting), FontValue);
 							Print(Debug.Context, Luminance(SpecularLighting), FontValue);
+							Newline(Debug.Context);
+							Print(Debug.Context, TEXT("Confidence          : "));
+							Print(Debug.Context, DiffuseConfidence, FontValue);
+							Print(Debug.Context, SpecularConfidence, FontValue);
 						}
 						#endif
 					}
