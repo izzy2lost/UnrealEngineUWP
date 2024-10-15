@@ -983,6 +983,13 @@ int32 FFractureEngineFracturing::MeshCutter(TArray<FTransform>& MeshTransforms,
 	const bool InSplitIslands,
 	const float InCollisionSampleSpacing)
 {
+
+	if (InOutCollection.NumElements(FTransformCollection::TransformGroup) == 0)
+	{
+		// empty collection, early exit
+		return -1;
+	}
+
 	if (TUniquePtr<FGeometryCollection> GeomCollection = TUniquePtr<FGeometryCollection>(InOutCollection.NewCopy<FGeometryCollection>()))
 	{
 		// Note: Noise not currently supported

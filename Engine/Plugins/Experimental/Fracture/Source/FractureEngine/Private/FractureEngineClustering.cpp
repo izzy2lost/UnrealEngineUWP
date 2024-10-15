@@ -1113,6 +1113,12 @@ bool FFractureEngineClustering::MergeSelectedClusters(FGeometryCollection& Geome
 {
 	Chaos::Facades::FCollectionHierarchyFacade HierarchyFacade(GeometryCollection);
 
+	const int32 NumTransforms = GeometryCollection.NumElements(FGeometryCollection::TransformGroup);
+	if (Selection.Num() > NumTransforms)
+	{
+		return false;
+	}
+
 	GeometryCollection::Facades::FCollectionTransformSelectionFacade SelectionFacade(GeometryCollection);
 	SelectionFacade.ConvertEmbeddedSelectionToParents(Selection); // embedded geo must stay attached to parent
 
