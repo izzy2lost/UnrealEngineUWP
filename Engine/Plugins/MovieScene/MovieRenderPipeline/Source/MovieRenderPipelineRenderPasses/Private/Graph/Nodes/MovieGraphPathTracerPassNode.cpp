@@ -222,11 +222,11 @@ bool UMovieGraphPathTracerRenderPassNode::GetAllowDenoiser() const
 
 FEngineShowFlags UMovieGraphPathTracerRenderPassNode::GetShowFlags() const
 {
-	FEngineShowFlags OutShowFlag = FEngineShowFlags(EShowFlagInitMode::ESFIM_Game);
-	OutShowFlag.SetPathTracing(true);
-	OutShowFlag.SetMotionBlur(!bEnableReferenceMotionBlur);
+	FEngineShowFlags OutShowFlags = Super::GetShowFlags();
+	OutShowFlags.SetPathTracing(true);
+	OutShowFlags.SetMotionBlur(!bEnableReferenceMotionBlur);
 
-	return OutShowFlag;
+	return OutShowFlags;
 }
 
 void UMovieGraphPathTracerRenderPassNode::UpdateTelemetry(FMoviePipelineShotRenderTelemetry* InTelemetry) const
