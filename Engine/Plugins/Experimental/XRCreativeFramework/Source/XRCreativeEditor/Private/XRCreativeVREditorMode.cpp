@@ -211,12 +211,13 @@ void UXRCreativeVREditorMode::SetHeadTransform(const FTransform& HeadToWorld)
 }
 
 
+// Does not call the base class implementation, because we call UOpenXRInputFunctionLibrary::BeginXRSession
+// instead of GEngine->StereoRenderingDevice->EnableStereo(true).
 void UXRCreativeVREditorMode::EnableStereo()
 {
-	if (TSharedPtr<SLevelViewport> Viewport = GetVrLevelViewport())
+	if (TSharedPtr<SLevelViewport> Viewport = GetVrLevelViewport(); ensure(Viewport))
 	{
-		Viewport->EnableStereoRendering(true);
-		Viewport->SetRenderDirectlyToWindow(true);
+		StereoViewportSetup(Viewport.ToSharedRef());
 	}
 	
 	TSet<UInputMappingContext*> Contexts;
@@ -255,14 +256,15 @@ void UXRCreativeVREditorMode::EnableStereo()
 }
 
 
+// Does not call the base class implementation, because we call UOpenXRInputFunctionLibrary::EndXRSession
+// instead of GEngine->StereoRenderingDevice->EnableStereo(false).
 void UXRCreativeVREditorMode::DisableStereo()
 {
 	UOpenXRInputFunctionLibrary::EndXRSession();
 
-	if (TSharedPtr<SLevelViewport> VREditorLevelViewport = GetVrLevelViewport())
+	if (TSharedPtr<SLevelViewport> Viewport = GetVrLevelViewport(); ensure(Viewport))
 	{
-		VREditorLevelViewport->EnableStereoRendering(false);
-		VREditorLevelViewport->SetRenderDirectlyToWindow(false);
+		StereoViewportShutdown(Viewport.ToSharedRef());
 	}
 }
 

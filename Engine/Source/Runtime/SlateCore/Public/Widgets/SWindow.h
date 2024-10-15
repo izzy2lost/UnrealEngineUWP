@@ -1057,6 +1057,14 @@ public:
 		Viewport = ViewportRef;
 	}
 
+	void UnsetViewport(TSharedRef<ISlateViewport> ViewportRef)
+	{
+		if (ensure(Viewport == ViewportRef))
+		{
+			Viewport.Reset();
+		}
+	}
+
 	TSharedPtr<ISlateViewport> GetViewport()
 	{
 		return Viewport.Pin();
