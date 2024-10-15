@@ -132,6 +132,13 @@ void FOpenGLRenderQuery::AcquireGlQuery()
 
 void FOpenGLRenderQuery::ReleaseGlQuery()
 {
+	if (Resource == 0)
+	{
+		// Already released
+		check(!IsLinked());
+		return;
+	}
+
 	CheckContext();
 
 	if (bSharedContext)
@@ -720,7 +727,7 @@ void FOpenGLDisjointTimeStampQuery::StartTracking()
 	VERIFY_GL_SCOPE();
 	if (IsSupported())
 	{
-		DisjointQuery.Begin();
+		DisjointQuery->Begin();
 	}
 }
 
@@ -730,7 +737,7 @@ void FOpenGLDisjointTimeStampQuery::EndTracking()
 
 	if (IsSupported())
 	{
-		DisjointQuery.End();
+		DisjointQuery->End();
 	}
 }
 
@@ -746,9 +753,9 @@ bool FOpenGLDisjointTimeStampQuery::GetResult(uint64* OutResult)
 
 	if (IsSupported())
 	{
-		DisjointQuery.CacheResult(true);
+		DisjointQuery->CacheResult(true);
 
-		uint64 Result = DisjointQuery.GetResult();
+		uint64 Result = DisjointQuery->GetResult();
 		bIsResultValid = (Result & FOpenGLRenderQuery::InvalidDisjointMask) == 0;
 
 		*OutResult = Result & (~FOpenGLRenderQuery::InvalidDisjointMask);

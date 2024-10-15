@@ -453,7 +453,13 @@ void FOpenGLGPUProfiler::EndFrame()
 void FOpenGLGPUProfiler::Cleanup()
 {
 	FrameTiming.ReleaseResources();
+	GPUHitchEventNodeFrames.Empty();
 	NestedFrameCount = 0;
+
+	for (FOpenGLDisjointTimeStampQuery& DisjointQuery : DisjointGPUFrameTimeQuery)
+	{
+		DisjointQuery.Cleanup();
+	}
 }
 
 /** Start this frame of per tracking */

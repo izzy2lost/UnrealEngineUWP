@@ -620,6 +620,8 @@ static void StartRenderingThread()
 	// will run on GT after RT is enabled
 	FlushRenderingCommands();
 
+	GDynamicRHI->RHIReleaseThreadOwnership();
+
 	switch (GRHISupportsRHIThread ? FRHIThread::TargetMode : ERHIThreadMode::None)
 	{
 	case ERHIThreadMode::DedicatedThread:
@@ -781,6 +783,8 @@ static void StopRenderingThread()
 	delete GRenderingThread;
 	GRenderingThread = nullptr;
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
+	GDynamicRHI->RHIAcquireThreadOwnership();
 
 	GRHICommandList.LatchBypass();
 

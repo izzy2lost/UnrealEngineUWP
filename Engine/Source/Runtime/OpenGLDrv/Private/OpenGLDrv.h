@@ -102,7 +102,9 @@ private:
 class FOpenGLDisjointTimeStampQuery
 {
 public:
-	FOpenGLDisjointTimeStampQuery() = default;
+	FOpenGLDisjointTimeStampQuery()
+		: DisjointQuery(new FOpenGLRenderQuery { FOpenGLRenderQuery::EType::Disjoint })
+	{}
 
 	void StartTracking();
 	void EndTracking();
@@ -124,9 +126,15 @@ public:
 #endif
 	}
 
+	void Cleanup()
+	{
+		delete DisjointQuery;
+		DisjointQuery = nullptr;
+	}
+
 private:
 	bool	bIsResultValid = false;
-	FOpenGLRenderQuery DisjointQuery { FOpenGLRenderQuery::EType::Disjoint };
+	FOpenGLRenderQuery* DisjointQuery;
 };
 
 /** A single perf event node, which tracks information about a appBeginDrawEvent/appEndDrawEvent range. */
