@@ -368,6 +368,14 @@ struct FGameFeatureProtocolOptions : public TUnion<FInstallBundlePluginProtocolO
 	GAMEFEATURES_API explicit FGameFeatureProtocolOptions(const FInstallBundlePluginProtocolOptions& InOptions);
 	GAMEFEATURES_API explicit FGameFeatureProtocolOptions(FNull InOptions);
 
+	bool operator==(const FGameFeatureProtocolOptions& Other) const
+	{
+		return TUnion<FInstallBundlePluginProtocolOptions, FNull>::operator==(Other) &&
+			bForceSyncLoading == Other.bForceSyncLoading &&
+			bLogWarningOnForcedDependencyCreation == Other.bLogWarningOnForcedDependencyCreation &&
+			bLogErrorOnForcedDependencyCreation == Other.bLogErrorOnForcedDependencyCreation;
+	}
+
 	/** Force this GFP to load synchronously even if async loading is allowed */
 	bool bForceSyncLoading : 1;
 
