@@ -6,7 +6,7 @@ import { observer } from "mobx-react-lite";
 import React, { useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import backend from "../../backend";
-import { EventData, EventSeverity } from '../../backend/Api';
+import { EventData, EventSeverity, JobStepState } from '../../backend/Api';
 import { ISideRailLink } from "../../base/components/SideRail";
 import { getHordeStyling } from "../../styles/Styles";
 import { getHordeTheme } from "../../styles/theme";
@@ -226,7 +226,7 @@ const ErrorPane: React.FC<{ jobDetails: JobDetailsV2; view: StepSummaryErrorsVie
       return (<Stack className={styles.itemCell} styles={{ root: { padding: 8, marginRight: 8 } }}><Stack className={item.severity === EventSeverity.Warning ? styles.gutterWarning : styles.gutter} styles={{ root: { padding: 0, margin: 0 } }}>
          <Stack styles={{ root: { paddingLeft: 14 } }}>
             {!!lines.length && lines}
-            {!lines.length && <Text>Missing Log Data</Text>}
+            {!lines.length && <Text>{step.state === JobStepState.Running ? "Generating Log Data" : "Missing Log Data"}</Text>}
          </Stack>
       </Stack>
       </Stack>
