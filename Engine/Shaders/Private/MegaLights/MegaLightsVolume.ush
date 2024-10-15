@@ -63,7 +63,7 @@ float3 ComputeCellTranslatedWorldPosition(uint3 GridCoordinate, float3 CellOffse
 	float2 VolumeUV = (GridCoordinate.xy + CellOffset.xy) / float2(VolumeViewSize.xy);
 	float2 VolumeNDC = (VolumeUV * 2 - 1) * float2(1, -1);
 
-	SceneDepth = ComputeDepthFromZSlice(GridCoordinate.z + CellOffset.z);
+	SceneDepth = ComputeDepthFromZSlice(max(GridCoordinate.z + CellOffset.z, 0));
 
 	float TileDeviceZ = ConvertToDeviceZ(SceneDepth);
 	float4 CenterPosition = mul(float4(VolumeNDC, TileDeviceZ, 1), UnjitteredClipToTranslatedWorld);
