@@ -954,6 +954,34 @@ TArray<FName> FMergeRenderContext::ConvertTargetLayerBitIndicesToNamesChecked(co
 	return Names;
 }
 
+bool FMergeRenderContext::IsValid() const
+{
+	return !RenderBatches.IsEmpty();
+}
+
+int32 FMergeRenderContext::GetTargetLayerIndexForName(const FName& InName) const
+{
+	return AllTargetLayerNames.Find(InName);
+}
+
+int32 FMergeRenderContext::GetTargetLayerIndexForNameChecked(const FName& InName) const
+{
+	int32 Index = AllTargetLayerNames.Find(InName); 
+	check(Index != INDEX_NONE); 
+	return Index;
+}
+
+FName FMergeRenderContext::GetTargetLayerNameForIndex(int32 InIndex) const
+{
+	return AllTargetLayerNames.IsValidIndex(InIndex) ? AllTargetLayerNames[InIndex] : NAME_None;
+}
+
+FName FMergeRenderContext::GetTargetLayerNameForIndexChecked(int32 InIndex) const
+{
+	check(AllTargetLayerNames.IsValidIndex(InIndex)); 
+	return AllTargetLayerNames[InIndex];
+}
+
 TArray<ULandscapeLayerInfoObject*> FMergeRenderContext::ConvertTargetLayerBitIndicesToLayerInfos(const TBitArray<>& InTargetLayerBitIndices) const
 {
 	const int32 NumTargetLayerInfos = AllTargetLayerNames.Num();

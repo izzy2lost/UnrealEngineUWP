@@ -7,6 +7,12 @@
 
 #include "LandscapeEditTypes.generated.h"
 
+// APIs marked with LANDSCAPE_EDIT_LAYERS_BATCHED_MERGE_EXPERIMENTAL are experimental and therefore purposefully marked as UE_INTERNAL : 
+//  These APIs are part of a large refactor of the landscape edit layers system (batched merge) that will eventually replace the previous global 
+//  and local merge code paths but is still optional and therefore considered experimental for the time being. Since the API will likely evolve 
+//  until then, use at your own risk.
+#define LANDSCAPE_EDIT_LAYERS_BATCHED_MERGE_EXPERIMENTAL UE_INTERNAL
+
 UENUM()
 enum class ELandscapeToolTargetType : uint8
 {

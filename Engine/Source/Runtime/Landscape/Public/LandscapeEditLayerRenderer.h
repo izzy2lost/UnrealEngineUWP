@@ -64,11 +64,14 @@ struct FWeightmapPaintLayerInfo
  *  whether the renderer's heightmaps and/or visibility and/or weightmaps are enabled (and if so, which weightmap is enabled exactly)  
  *  It is meant to be provided by the edit layer renderer's GetRendererStateInfo implementation.
  */
-struct FEditLayerTargetTypeState
+class FEditLayerTargetTypeState
 {
 	friend class ILandscapeEditLayerRenderer;
 
+public:
+	LANDSCAPE_EDIT_LAYERS_BATCHED_MERGE_EXPERIMENTAL
 	LANDSCAPE_API FEditLayerTargetTypeState() = default;
+	LANDSCAPE_EDIT_LAYERS_BATCHED_MERGE_EXPERIMENTAL
 	LANDSCAPE_API FEditLayerTargetTypeState(ELandscapeToolTargetTypeFlags InTargetTypeMask, const TArrayView<const FName>& InSupportedWeightmaps = TArrayView<const FName>());
 	
 	/**
@@ -76,33 +79,43 @@ struct FEditLayerTargetTypeState
 	 * @param InTargetType the requested target type (heightmap/weightmap/visibility)
 	 * @param InWeightmapLayerName (optional) is the requested weightmap, only relevant for the ELandscapeToolTargetType::Weightmap case
 	 */
+	LANDSCAPE_EDIT_LAYERS_BATCHED_MERGE_EXPERIMENTAL
 	LANDSCAPE_API bool IsActive(ELandscapeToolTargetType InTargetType, FName InWeightmapLayerName = NAME_None) const;
 
 	/** Returns the currently active weightmaps, if Weightmap is amongst the supported target types */
+	LANDSCAPE_EDIT_LAYERS_BATCHED_MERGE_EXPERIMENTAL
 	LANDSCAPE_API const TArray<FName>& GetActiveWeightmaps() const;
 	
 	/** Returns the target type mask (i.e. same as ELandscapeToolTargetType, but as bit flags) */
+	LANDSCAPE_EDIT_LAYERS_BATCHED_MERGE_EXPERIMENTAL
 	LANDSCAPE_API ELandscapeToolTargetTypeFlags GetTargetTypeMask() const { return TargetTypeMask; }
 
 	/** Sets the target type mask (i.e. same as ELandscapeToolTargetType, but as bit flags) */
+	LANDSCAPE_EDIT_LAYERS_BATCHED_MERGE_EXPERIMENTAL
 	LANDSCAPE_API void SetTargetTypeMask(ELandscapeToolTargetTypeFlags InTargetTypeMask);
 
 	/** Adds the target type in parameter to the mask of active target types */
+	LANDSCAPE_EDIT_LAYERS_BATCHED_MERGE_EXPERIMENTAL
 	LANDSCAPE_API void AddTargetType(ELandscapeToolTargetType InTargetType);
 
 	/** Appends the target type mask in parameter to the mask of active target types */
+	LANDSCAPE_EDIT_LAYERS_BATCHED_MERGE_EXPERIMENTAL
 	LANDSCAPE_API void AddTargetTypeMask(ELandscapeToolTargetTypeFlags InTargetTypeMask);
 
 	/** Removes a single target type from the mask of active target types */
+	LANDSCAPE_EDIT_LAYERS_BATCHED_MERGE_EXPERIMENTAL
 	LANDSCAPE_API void RemoveTargetType(ELandscapeToolTargetType InTargetType);
 
 	/** Removes the target type mask in parameter from the mask of active target types */
+	LANDSCAPE_EDIT_LAYERS_BATCHED_MERGE_EXPERIMENTAL
 	LANDSCAPE_API void RemoveTargetTypeMask(ELandscapeToolTargetTypeFlags InTargetTypeMask);
 
 	/** Adds a weightmap to the list of active weightmaps (make sure ELandscapeToolTargetType::Weightmap is amongst the supported target types) */
+	LANDSCAPE_EDIT_LAYERS_BATCHED_MERGE_EXPERIMENTAL
 	LANDSCAPE_API void AddWeightmap(FName InWeightmapLayerName);
 
 	/** Removes a weightmap from the list of active weightmaps */
+	LANDSCAPE_EDIT_LAYERS_BATCHED_MERGE_EXPERIMENTAL
 	LANDSCAPE_API void RemoveWeightmap(FName InWeightmapLayerName);
 
 	/**
@@ -135,12 +148,16 @@ private:
  *  A target type must be both supported and enabled on a given edit layer renderer in order for this renderer to render anything. 
  *  It also describes the render groups this renderer needs when rendering its weightmap (i.e. which weightmap needs to be rendered with which weightmaps : e.g. for weight blending)
  */
-struct FEditLayerRendererState
+class FEditLayerRendererState
 {
+public:
+	LANDSCAPE_EDIT_LAYERS_BATCHED_MERGE_EXPERIMENTAL
 	LANDSCAPE_API FEditLayerRendererState() = default;
+	LANDSCAPE_EDIT_LAYERS_BATCHED_MERGE_EXPERIMENTAL
 	LANDSCAPE_API explicit FEditLayerRendererState(ILandscapeEditLayerRenderer* InRenderer, const ULandscapeInfo* InLandscapeInfo);
 
 	/** Returns the edit layer renderer which this state relates to */
+	LANDSCAPE_EDIT_LAYERS_BATCHED_MERGE_EXPERIMENTAL
 	LANDSCAPE_API ILandscapeEditLayerRenderer* GetRenderer() const { return Renderer; }
 
 	/**
@@ -148,27 +165,35 @@ struct FEditLayerRendererState
 	 * @param InTargetType the requested target type (heightmap/weightmap/visibility)
 	 * @param InWeightmapLayerName (optional) is the requested weightmap, only relevant for the ELandscapeToolTargetType::Weightmap case
 	 */
+	LANDSCAPE_EDIT_LAYERS_BATCHED_MERGE_EXPERIMENTAL
 	LANDSCAPE_API bool IsTargetSupported(ELandscapeToolTargetType InTargetType, FName InWeightmapLayerName = NAME_None) const;
 
 	/** Returns a mask of all target types supported by this renderer */
+	LANDSCAPE_EDIT_LAYERS_BATCHED_MERGE_EXPERIMENTAL
 	LANDSCAPE_API const FEditLayerTargetTypeState& GetSupportedTargetTypeState() const { return SupportedTargetTypeState; }
 
 	/** Returns a mask of all target types supported by this renderer */
+	LANDSCAPE_EDIT_LAYERS_BATCHED_MERGE_EXPERIMENTAL
 	LANDSCAPE_API const FEditLayerTargetTypeState& GetEnabledTargetTypeState() const { return EnabledTargetTypeState; }
 
 	/** Returns a list of all weightmaps supported by this renderer (only relevant for ELandscapeToolTargetType::Weightmap (and ELandscapeToolTargetType::Visibility))*/
+	LANDSCAPE_EDIT_LAYERS_BATCHED_MERGE_EXPERIMENTAL
 	LANDSCAPE_API const TArray<FName>& GetSupportedTargetWeightmaps() const;
 
 	/** Mutates the EnabledTargetTypeState by adding the target type in parameter to the mask of active target types */
+	LANDSCAPE_EDIT_LAYERS_BATCHED_MERGE_EXPERIMENTAL
 	LANDSCAPE_API void EnableTargetType(ELandscapeToolTargetType InTargetType);
 	
 	/** Mutates the EnabledTargetTypeState by adding the target type mask in parameter to the mask of active target types */
+	LANDSCAPE_EDIT_LAYERS_BATCHED_MERGE_EXPERIMENTAL
 	LANDSCAPE_API void EnableTargetTypeMask(ELandscapeToolTargetTypeFlags InTargetTypeMask);
 
 	/** Mutates the EnabledTargetTypeState by removing the target type in parameter from the mask of active target types */
+	LANDSCAPE_EDIT_LAYERS_BATCHED_MERGE_EXPERIMENTAL
 	LANDSCAPE_API void DisableTargetType(ELandscapeToolTargetType InTargetType);
 
 	/** Mutates the EnabledTargetTypeState by removing the target type mask in parameter from the mask of active target types */
+	LANDSCAPE_EDIT_LAYERS_BATCHED_MERGE_EXPERIMENTAL
 	LANDSCAPE_API void DisableTargetTypeMask(ELandscapeToolTargetTypeFlags InTargetTypeMask);
 
 	/**
@@ -176,19 +201,24 @@ struct FEditLayerRendererState
 	 * @param InTargetType the requested target type (heightmap/weightmap/visibility)
 	 * @param InWeightmapLayerName (optional) is the requested weightmap, only relevant for the ELandscapeToolTargetType::Weightmap case
 	 */
+	LANDSCAPE_EDIT_LAYERS_BATCHED_MERGE_EXPERIMENTAL
 	LANDSCAPE_API bool IsTargetEnabled(ELandscapeToolTargetType InTargetType, FName InWeightmapLayerName = NAME_None) const;
 
 	/** Mutates the EnabledTargetTypeState by adding the weightmap in parameter to the list of enabled weightmaps */
+	LANDSCAPE_EDIT_LAYERS_BATCHED_MERGE_EXPERIMENTAL
 	LANDSCAPE_API bool EnableTarget(ELandscapeToolTargetType InTargetType, FName InWeightmapLayerName = NAME_None);
 
 	/** Mutates the EnabledTargetTypeState by removing the weightmap in parameter from the list of enabled weightmaps */
+	LANDSCAPE_EDIT_LAYERS_BATCHED_MERGE_EXPERIMENTAL
 	LANDSCAPE_API void DisableTarget(FName InWeightmapLayerName);
 
 	/** Returns the list of all weightmaps currently enabled */
+	LANDSCAPE_EDIT_LAYERS_BATCHED_MERGE_EXPERIMENTAL
 	LANDSCAPE_API TArray<FName> GetEnabledTargetWeightmaps() const;
 
 	/** Returns the render groups associated with this renderer. A render group is a set of target layers (weightmaps) that depend on one another in order to produce the output target layers.
 	 This allows to implement "horizontal blending", where weightmaps can be blended with one another at each step of the landscape edit layers merge algorithm */
+	LANDSCAPE_EDIT_LAYERS_BATCHED_MERGE_EXPERIMENTAL
 	LANDSCAPE_API TArray<TSet<FName>> GetWeightmapRenderGroups() const { return RenderGroups; }
 
 private:
@@ -375,10 +405,7 @@ public:
 	FMergeRenderContext& operator=(const FMergeRenderContext& Other) = default;
 	FMergeRenderContext& operator=(FMergeRenderContext&& Other) = default;
 
-	bool IsValid() const
-	{ 
-		return !RenderBatches.IsEmpty(); 
-	}
+	bool IsValid() const;
 
 	/**
 	 * Cycle between the 3 render targets used for blending:
@@ -389,11 +416,16 @@ public:
 	 * 
 	 * @param InDesiredWriteAccess RHI state of the write RT after the operation, if specified
 	 */
+	LANDSCAPE_EDIT_LAYERS_BATCHED_MERGE_EXPERIMENTAL
 	LANDSCAPE_API void CycleBlendRenderTargets(ERHIAccess InDesiredWriteAccess = ERHIAccess::None);
 
+	LANDSCAPE_EDIT_LAYERS_BATCHED_MERGE_EXPERIMENTAL
 	LANDSCAPE_API ULandscapeScratchRenderTarget* GetBlendRenderTargetWrite() const;
+	LANDSCAPE_EDIT_LAYERS_BATCHED_MERGE_EXPERIMENTAL
 	LANDSCAPE_API ULandscapeScratchRenderTarget* GetBlendRenderTargetRead() const;
+	LANDSCAPE_EDIT_LAYERS_BATCHED_MERGE_EXPERIMENTAL
 	LANDSCAPE_API ULandscapeScratchRenderTarget* GetBlendRenderTargetReadPrevious() const;
+	LANDSCAPE_EDIT_LAYERS_BATCHED_MERGE_EXPERIMENTAL
 	LANDSCAPE_API ULandscapeScratchRenderTarget* GetValidityRenderTarget(const FName& InTargetLayerName) const;
 	
 	struct FOnRenderBatchTargetGroupDoneParams
@@ -427,19 +459,29 @@ public:
 	};
 	void Render(TFunction<void(const FOnRenderBatchTargetGroupDoneParams&)> OnRenderBatchTargetGroupDone);
 
+	LANDSCAPE_EDIT_LAYERS_BATCHED_MERGE_EXPERIMENTAL
 	inline ALandscape* GetLandscape() const { return Landscape; }
+	LANDSCAPE_EDIT_LAYERS_BATCHED_MERGE_EXPERIMENTAL
 	inline bool IsHeightmapMerge() const { return bIsHeightmapMerge; }
 
+	LANDSCAPE_EDIT_LAYERS_BATCHED_MERGE_EXPERIMENTAL
 	inline FIntPoint GetMaxNeededResolution() const { return MaxNeededResolution; }
+	LANDSCAPE_EDIT_LAYERS_BATCHED_MERGE_EXPERIMENTAL
 	inline const TArray<FMergeRenderBatch>& GetRenderBatches() const { return RenderBatches; }
+	LANDSCAPE_EDIT_LAYERS_BATCHED_MERGE_EXPERIMENTAL
 	LANDSCAPE_API const FMergeRenderBatch* GetCurrentRenderBatch() const;
 
+	LANDSCAPE_EDIT_LAYERS_BATCHED_MERGE_EXPERIMENTAL
 	LANDSCAPE_API FTransform ComputeVisualLogTransform(const FTransform& InTransform) const;
+	LANDSCAPE_EDIT_LAYERS_BATCHED_MERGE_EXPERIMENTAL
 	LANDSCAPE_API void IncrementVisualLogOffset();
+	LANDSCAPE_EDIT_LAYERS_BATCHED_MERGE_EXPERIMENTAL
 	LANDSCAPE_API void ResetVisualLogOffset();
 
 #if ENABLE_VISUAL_LOG
+	LANDSCAPE_EDIT_LAYERS_BATCHED_MERGE_EXPERIMENTAL
 	LANDSCAPE_API static int32 GetVisualLogAlpha();
+	LANDSCAPE_EDIT_LAYERS_BATCHED_MERGE_EXPERIMENTAL
 	LANDSCAPE_API bool IsVisualLogEnabled() const;
 #endif // ENABLE_VISUAL_LOG
 
@@ -450,15 +492,19 @@ public:
 	void RenderExpandedRenderTarget(const FMergeRenderBatch& InRenderBatch);
 
 	const TArray<FName>& GetAllTargetLayerNames() const { return AllTargetLayerNames; }
-	inline int32 GetTargetLayerIndexForName(const FName& InName) const { return AllTargetLayerNames.Find(InName); }
-	inline int32 GetTargetLayerIndexForNameChecked(const FName& InName) const { int32 Index = AllTargetLayerNames.Find(InName); check(Index); return Index; }
-	inline FName GetTargetLayerNameForIndex(int32 InIndex) const { return AllTargetLayerNames.IsValidIndex(InIndex) ? AllTargetLayerNames[InIndex] : NAME_None; }
-	inline FName GetTargetLayerNameForIndexChecked(int32 InIndex) const { check(AllTargetLayerNames.IsValidIndex(InIndex)); return AllTargetLayerNames[InIndex]; }
+	int32 GetTargetLayerIndexForName(const FName& InName) const;
+	int32 GetTargetLayerIndexForNameChecked(const FName& InName) const;
+	FName GetTargetLayerNameForIndex(int32 InIndex) const;
+	FName GetTargetLayerNameForIndexChecked(int32 InIndex) const;
 	TBitArray<> ConvertTargetLayerNamesToBitIndices(TConstArrayView<FName> InTargetLayerNames) const;
 	TBitArray<> ConvertTargetLayerNamesToBitIndicesChecked(TConstArrayView<FName> InTargetLayerNames) const;
+	LANDSCAPE_EDIT_LAYERS_BATCHED_MERGE_EXPERIMENTAL
 	LANDSCAPE_API TArray<FName> ConvertTargetLayerBitIndicesToNames(const TBitArray<>& InTargetLayerBitIndices) const;
+	LANDSCAPE_EDIT_LAYERS_BATCHED_MERGE_EXPERIMENTAL
 	LANDSCAPE_API TArray<FName> ConvertTargetLayerBitIndicesToNamesChecked(const TBitArray<>& InTargetLayerBitIndices) const;
+	LANDSCAPE_EDIT_LAYERS_BATCHED_MERGE_EXPERIMENTAL
 	LANDSCAPE_API TArray<ULandscapeLayerInfoObject*> ConvertTargetLayerBitIndicesToLayerInfos(const TBitArray<>& InTargetLayerBitIndices) const;
+	LANDSCAPE_EDIT_LAYERS_BATCHED_MERGE_EXPERIMENTAL
 	LANDSCAPE_API TArray<ULandscapeLayerInfoObject*> ConvertTargetLayerBitIndicesToLayerInfosChecked(const TBitArray<>& InTargetLayerBitIndices) const;
 
 	/**
@@ -469,10 +515,15 @@ public:
 	 *     return continueLoop ? true : false;
 	 * });
 	 */
+	LANDSCAPE_EDIT_LAYERS_BATCHED_MERGE_EXPERIMENTAL
 	LANDSCAPE_API void ForEachTargetLayer(const TBitArray<>& InTargetLayerBitIndices, TFunctionRef<bool(int32 /*InTargetLayerIndex*/, FName /*InTargetLayerName*/)> Fn) const;
+	LANDSCAPE_EDIT_LAYERS_BATCHED_MERGE_EXPERIMENTAL
 	LANDSCAPE_API void ForEachTargetLayerChecked(const TBitArray<>& InTargetLayerBitIndices, TFunctionRef<bool(int32 /*InTargetLayerIndex*/, FName /*InTargetLayerName*/)> Fn) const;
 
-	const TBitArray<>& GetFinalTargetLayerBitIndices() const { return FinalTargetLayerBitIndices; }
+	const TBitArray<>& GetFinalTargetLayerBitIndices() const 
+	{ 
+		return FinalTargetLayerBitIndices; 
+	}
 
 private:
 	/** Allocate all needed render targets for this merge */
@@ -609,6 +660,7 @@ private:
 	/** Area around the component that is needed in the EType::LocalComponent / EType::SpecificComponent case (in component coordinates (see ULandscapeComponent::GetComponentKey()), 
 	 e.g. use (-1, -1, 1, 1) for the component and its immediate neighbors all around) */
 	FIntRect LocalArea; 
+
 	/** World space object-oriented box in the EType::OOBBox case */
 	FOOBox2D OOBox2D;
 };
@@ -730,6 +782,7 @@ public:
 	 *
 	 * @return a list of renderer states (i.e. a ILandscapeEditLayerRenderer and its current state) to be processed in that order by the merge operation
 	 */
+	LANDSCAPE_EDIT_LAYERS_BATCHED_MERGE_EXPERIMENTAL
 	LANDSCAPE_API virtual TArray<FEditLayerRendererState> GetEditLayerRendererStates(const ULandscapeInfo* InLandscapeInfo, bool bInSkipBrush) PURE_VIRTUAL(IEditLayerRendererProvider::GetEditLayerRendererStates, return {}; );
 };
 #endif // WITH_EDITOR
@@ -822,6 +875,7 @@ public:
 	 *  Depending on the other renderer's needs, the final render groups might contain more layers than was requested by a given renderer. This only means that more layers will be processed together
 	 *  and if this renderer doesn't act on one of these layers, it will simply do nothing with it in its RenderLayer function
 	 */
+	LANDSCAPE_EDIT_LAYERS_BATCHED_MERGE_EXPERIMENTAL
 	LANDSCAPE_API virtual void GetRendererStateInfo(const ULandscapeInfo* InLandscapeInfo,
 		UE::Landscape::EditLayers::FEditLayerTargetTypeState& OutSupportedTargetTypeState, UE::Landscape::EditLayers::FEditLayerTargetTypeState& OutEnabledTargetTypeState, TArray<TSet<FName>>& OutRenderGroups) const
 		PURE_VIRTUAL(ILandscapeEditLayerRenderer::GetRendererStateInfo, );
@@ -829,6 +883,7 @@ public:
 	/**
 	* @return the a debug name for this renderer
 	*/
+	LANDSCAPE_EDIT_LAYERS_BATCHED_MERGE_EXPERIMENTAL
 	LANDSCAPE_API virtual FString GetEditLayerRendererDebugName() const 
 		PURE_VIRTUAL(ILandscapeEditLayerRenderer::GetEditLayerRendererDebugName, return TEXT(""); );
 
@@ -839,12 +894,14 @@ public:
 	 *
 	 * @return list of all render items that affect this renderer
 	*/
+	LANDSCAPE_EDIT_LAYERS_BATCHED_MERGE_EXPERIMENTAL
 	LANDSCAPE_API virtual TArray<UE::Landscape::EditLayers::FEditLayerRenderItem> GetRenderItems(const ULandscapeInfo* InLandscapeInfo) const 
 		PURE_VIRTUAL(ILandscapeEditLayerRenderer::GetRenderItems, return { }; );
 
 	/**
 	 * Indicates whether the renderer actually does anything in the render phase
 	*/
+	LANDSCAPE_EDIT_LAYERS_BATCHED_MERGE_EXPERIMENTAL
 	LANDSCAPE_API virtual bool CanRender() const { return true; }
 
 	/**
@@ -852,6 +909,7 @@ public:
 	 * It operates on a limited set of components (depending on the size of the render batches) and on a set of target layers (e.g. multiple weightmaps).
 	 * It guarantees access to merged result from preceding layers of each target layer
 	*/
+	LANDSCAPE_EDIT_LAYERS_BATCHED_MERGE_EXPERIMENTAL
 	LANDSCAPE_API virtual void RenderLayer(ILandscapeEditLayerRenderer::FRenderParams& InRenderParams) {}
 
 #endif // WITH_EDITOR
