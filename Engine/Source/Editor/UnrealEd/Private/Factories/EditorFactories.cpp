@@ -5420,8 +5420,10 @@ void FCustomizableTextObjectFactory::ProcessBuffer(UObject* InParent, EObjectFla
 		const FString& PropText = PropMap.FindChecked(CreatedObject);
 
 		// Import the properties and give the derived factory a shot at it
-		ImportObjectProperties((uint8*)CreatedObject, *PropText, CreatedObject->GetClass(), CreatedObject, CreatedObject, WarningContext, 0, 0, &InstanceGraph);
-		ProcessConstructedObject(CreatedObject);
+		if (ImportObjectProperties((uint8*)CreatedObject, *PropText, CreatedObject->GetClass(), CreatedObject, CreatedObject, WarningContext, 0, 0, &InstanceGraph))
+		{
+			ProcessConstructedObject(CreatedObject);
+		}
 	}
 	PostProcessConstructedObjects();
 }
@@ -8035,4 +8037,3 @@ UTexture2D* UUDIMTextureFunctionLibrary::MakeUDIMVirtualTextureFromTexture2Ds(FS
 }
 
 #undef LOCTEXT_NAMESPACE
-
