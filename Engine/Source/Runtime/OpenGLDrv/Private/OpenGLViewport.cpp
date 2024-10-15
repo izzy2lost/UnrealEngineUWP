@@ -277,7 +277,7 @@ FOpenGLViewport::FOpenGLViewport(FOpenGLDynamicRHI* InOpenGLRHI,void* InWindowHa
 
 FOpenGLViewport::~FOpenGLViewport()
 {
-	check(IsInRenderingThread() || IsInRHIThread());
+	VERIFY_GL_SCOPE();
 
 	if (bIsFullscreen)
 	{
@@ -288,14 +288,8 @@ FOpenGLViewport::~FOpenGLViewport()
 	BackBuffer.SafeRelease();
 	check(!IsValidRef(BackBuffer));
 
-	FRHICommandListImmediate& RHICmdList = FRHICommandListImmediate::Get();
-	RHICmdList.EnqueueLambda([&](FRHICommandListImmediate&)
-	{
-		FrameSyncEvent = nullptr;
-		PlatformDestroyOpenGLContext(OpenGLRHI->PlatformDevice, OpenGLContext);
-	});
-	RHITHREAD_GLTRACE_BLOCKING;
-	RHICmdList.ImmediateFlush(EImmediateFlushType::FlushRHIThread);
+	FrameSyncEvent = nullptr;
+	PlatformDestroyOpenGLContext(OpenGLRHI->PlatformDevice, OpenGLContext);
 
 	OpenGLContext = NULL;
 	OpenGLRHI->Viewports.Remove(this);

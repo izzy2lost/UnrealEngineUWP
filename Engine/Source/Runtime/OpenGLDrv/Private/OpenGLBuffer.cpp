@@ -276,14 +276,8 @@ void FOpenGLStagingBuffer::Initialize()
 
 FOpenGLStagingBuffer::~FOpenGLStagingBuffer()
 {
-	FRHICommandListImmediate& RHICmdList = FRHICommandListImmediate::Get();
-	RHICmdList.EnqueueLambda([&](FRHICommandListImmediate&)
-	{
-		VERIFY_GL_SCOPE();
-		glDeleteBuffers(1, &ShadowBuffer);
-	});
-	RHITHREAD_GLTRACE_BLOCKING;
-	RHICmdList.ImmediateFlush(EImmediateFlushType::FlushRHIThread);
+	VERIFY_GL_SCOPE();
+	glDeleteBuffers(1, &ShadowBuffer);
 }
 
 // If we do not support the BufferStorage extension or if PersistentMapping is set to false, this will send the command to the RHI and flush it
