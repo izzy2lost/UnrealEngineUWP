@@ -98,7 +98,8 @@ void VolumeGenerateLightSamplesCS(
 		#endif
 
 		const uint3 VolumeCoord = DownsampledVolumeCoordToVolumeCoord(DownsampledVolumeCoord);
-		if (IsFroxelVisible(VolumeCoord))
+		const float FroxelFootprintMargin = 3.0f; // Sampling is done at half res, so we need a 3 froxel margin to cover all neighbors during the shading pass
+		if (IsFroxelVisible(VolumeCoord, FroxelFootprintMargin))
 		{
 			float SceneDepth;
 			const float3 TranslatedWorldPosition = ComputeCellTranslatedWorldPosition(VolumeCoord, VolumeFrameJitterOffset, SceneDepth);
