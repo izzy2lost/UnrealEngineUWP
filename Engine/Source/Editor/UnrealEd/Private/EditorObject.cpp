@@ -506,6 +506,13 @@ static const TCHAR* ImportProperties(
 				// since we're redefining an object in the same text block, only need to import properties again
 				SourceText = ImportObjectProperties( (uint8*)BaseTemplate, SourceText, TemplateClass, SubobjectRoot, BaseTemplate,
 													Warn, Depth + 1, ContextSupplier ? ContextSupplier->CurrentLine : 0, &InstanceGraph, ObjectRemapper );
+
+				// If the object import fails, early out and stop parsing.
+				if (SourceText == nullptr)
+				{
+					Warn->Logf(ELogVerbosity::Error, TEXT("BEGIN OBJECT: Could not import properties from sub-object %s."), *SubobjectRoot->GetName());
+					return nullptr;
+				}
 			}
 			else 
 			{
@@ -703,6 +710,13 @@ static const TCHAR* ImportProperties(
 					&InstanceGraph,
 					ObjectRemapper
 					);
+
+				// If the object import fails, early out and stop parsing.
+				if (SourceText == nullptr)
+				{
+					Warn->Logf(ELogVerbosity::Error, TEXT("BEGIN OBJECT: Could not import properties from sub-object %s."), *SubobjectRoot->GetName());
+					return nullptr;
+				}
 			}
 		}
 		else if( FParse::Command(&Str,TEXT("CustomProperties")))
@@ -1688,4 +1702,3 @@ const TCHAR* ImportObjectsPropertiesStep(FMultiStepsImportObjectParams& InParams
 }
 
 }	// End namespace EditorUtilities
-
