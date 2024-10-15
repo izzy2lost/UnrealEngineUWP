@@ -74,6 +74,9 @@ protected:
 	/** Close the current viewport */
 	virtual void CloseViewport(bool bShouldDisableStereo);
 
+	virtual void StereoViewportSetup(TSharedRef<SLevelViewport> Viewport);
+	virtual void StereoViewportShutdown(TSharedRef<SLevelViewport> Viewport);
+
 	virtual void EnableStereo();
 	virtual void DisableStereo();
 
