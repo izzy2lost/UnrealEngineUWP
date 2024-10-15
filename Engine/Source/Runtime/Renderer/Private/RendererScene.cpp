@@ -6566,6 +6566,7 @@ void FScene::Update(FRDGBuilder& GraphBuilder, const FUpdateParameters& Paramete
 		FPrimitiveSceneProxy* PrimitiveSceneProxy = Item.SceneInfo->Proxy;
 		FScopeCycleCounter Context(PrimitiveSceneProxy->GetStatId());
 		PrimitiveSceneProxy->CustomPrimitiveData = Item.Payload.Value;
+		PrimitivesNeedingUniformBufferUpdate[Item.SceneInfo->PackedIndex] = true;
 	}
 
 	if (auto NaniteMaterialsUpdater = SceneExtensionsUpdaters.GetUpdaterPtr<Nanite::FMaterialsSceneExtension::FUpdater>())
