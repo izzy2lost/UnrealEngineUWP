@@ -4,6 +4,8 @@
 LightGridInjection.cpp
 =============================================================================*/
 
+#include "LightGrid.h"
+
 #include "CoreMinimal.h"
 #include "Stats/Stats.h"
 #include "HAL/IConsoleManager.h"
@@ -34,6 +36,7 @@ LightGridInjection.cpp
 #include "ShaderPrintParameters.h"
 #include "RenderUtils.h"
 #include "MegaLights/MegaLights.h"
+#include "LightGridDefinitions.h"
 
 int32 GLightGridPixelSize = 64;
 FAutoConsoleVariableRef CVarLightGridPixelSize(
@@ -559,6 +562,7 @@ FLightGrid LightGridInjection(
 	FRDGBufferSRVRef LightViewSpacePositionAndRadiusSRV,
 	FRDGBufferSRVRef LightViewSpaceDirAndPreprocAngleSRV,
 	FRDGBufferSRVRef LightViewSpaceRectPlanesSRV,
+	FLightGridViewState* LightGridViewState,
 	bool bThreadGroupPerCell,
 	bool bThreadGroupSize32,
 	// parent params
@@ -566,14 +570,16 @@ FLightGrid LightGridInjection(
 	FRDGBufferSRVRef ParentCulledLightDataGridSRV,
 	uint32 ParentGridSizeFactor)
 {
-	const uint32 NumCulledLightLinks = MaxNumCells * GMaxCulledLightsPerCell * NumCulledGridPrimitiveTypes;
+	const uint32 NumCulledLightEntries = MaxNumCells * GMaxCulledLightsPerCell;
+
+	uint32 NumCulledLightLinks = MaxNumCells * GMaxCulledLightsPerCell;
 	
 	if (bThreadGroupPerCell)
 	{
-		checkf(NumLocalLights < 0xFFFFFF, TEXT("NumLocalLights limited to 16M by FCellWriter."));
-		checkf(NumReflectionCaptures < 0xFFFFFF, TEXT("NumReflectionCaptures limited to 16M by FCellWriter."));
+		ensureMsgf(NumLocalLights <= LIGHT_GRID_CELL_WRITER_MAX_NUM_PRIMITIVES, TEXT("NumLocalLights limited to 16M by FCellWriter."));
+		ensureMsgf(NumReflectionCaptures <= LIGHT_GRID_CELL_WRITER_MAX_NUM_PRIMITIVES, TEXT("NumLocalLights limited to 16M by FCellWriter."));
 
-		checkf(NumCulledLightLinks < 0xFFFFFF, TEXT("NumCulledLightLinks limited to 16M by FCellWriter."));
+		NumCulledLightLinks = FMath::Min(NumCulledLightLinks, (uint32)LIGHT_GRID_CELL_WRITER_MAX_NUM_LINKS); // limited to 16M by FCellWriter (will cause warning if exceeded, see FLightGridViewState::Update())
 	}
 
 	const FIntVector ParentGridSize = FIntVector::DivideAndRoundUp(GridSize, ParentGridSizeFactor);
@@ -591,7 +597,7 @@ FLightGrid LightGridInjection(
 	{
 		const SIZE_T LightIndexTypeSize = sizeof(FLightIndexType);
 		const EPixelFormat CulledLightDataGridFormat = PF_R16_UINT;
-		FRDGBufferRef CulledLightDataGrid = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateBufferDesc(LightIndexTypeSize, MaxNumCells * GMaxCulledLightsPerCell), TEXT("CulledLightDataGrid"));
+		FRDGBufferRef CulledLightDataGrid = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateBufferDesc(LightIndexTypeSize, NumCulledLightEntries), TEXT("CulledLightDataGrid"));
 		CulledLightDataGridSRV = GraphBuilder.CreateSRV(CulledLightDataGrid, CulledLightDataGridFormat);
 		CulledLightDataGridUAV = GraphBuilder.CreateUAV(CulledLightDataGrid, CulledLightDataGridFormat);
 	}
@@ -599,7 +605,7 @@ FLightGrid LightGridInjection(
 	{
 		const SIZE_T LightIndexTypeSize = sizeof(FLightIndexType32);
 		const EPixelFormat CulledLightDataGridFormat = PF_R32_UINT;
-		FRDGBufferRef CulledLightDataGrid = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateStructuredDesc(LightIndexTypeSize, MaxNumCells * GMaxCulledLightsPerCell), TEXT("CulledLightDataGrid"));
+		FRDGBufferRef CulledLightDataGrid = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateStructuredDesc(LightIndexTypeSize, NumCulledLightEntries), TEXT("CulledLightDataGrid"));
 		CulledLightDataGridSRV = GraphBuilder.CreateSRV(CulledLightDataGrid);
 		CulledLightDataGridUAV = GraphBuilder.CreateUAV(CulledLightDataGrid);
 	}
@@ -688,6 +694,11 @@ FLightGrid LightGridInjection(
 	FLightGrid Output;
 	Output.CulledLightDataGridSRV = CulledLightDataGridSRV;
 	Output.NumCulledLightsGridSRV = GraphBuilder.CreateSRV(FRDGBufferSRVDesc(NumCulledLightsGrid));
+
+	if (LightGridViewState != nullptr)
+	{
+		LightGridViewState->FeedbackStatus(GraphBuilder, View, NextCulledLightDataBuffer, NumCulledLightEntries, NextCulledLightLinkBuffer, NumCulledLightLinks);
+	}
 
 	return Output;
 }
@@ -1132,8 +1143,9 @@ FComputeLightGridOutput FSceneRenderer::ComputeLightGrid(FRDGBuilder& GraphBuild
 				LightViewSpacePositionAndRadiusSRV,
 				LightViewSpaceDirAndPreprocAngleSRV,
 				LightViewSpaceRectPlanesSRV,
-				true,
-				false,
+				View.ViewState != nullptr ? &View.ViewState->LightGrid : nullptr,
+				/*bThreadGroupPerCell*/ true,
+				/*bThreadGroupSize32*/ false,
 				nullptr,
 				nullptr,
 				1);
@@ -1168,6 +1180,7 @@ FComputeLightGridOutput FSceneRenderer::ComputeLightGrid(FRDGBuilder& GraphBuild
 			LightViewSpacePositionAndRadiusSRV,
 			LightViewSpaceDirAndPreprocAngleSRV,
 			LightViewSpaceRectPlanesSRV,
+			View.ViewState != nullptr ? &View.ViewState->LightGrid : nullptr,
 			NumThreadsPerCell > 1,
 			NumThreadsPerCell == 32,
 			ParentLightGrid.NumCulledLightsGridSRV,
@@ -1414,4 +1427,87 @@ FScreenPassTexture AddVisualizeLightGridPass(FRDGBuilder& GraphBuilder, const FV
 	}
 
 	return MoveTemp(ScreenPassSceneColor);
+}
+
+class FLightGridFeedbackStatusCS : public FGlobalShader
+{
+	DECLARE_GLOBAL_SHADER(FLightGridFeedbackStatusCS);
+	SHADER_USE_PARAMETER_STRUCT(FLightGridFeedbackStatusCS, FGlobalShader);
+
+	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
+		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, NextCulledLightDataBuffer)
+		SHADER_PARAMETER(uint32, NumCulledLightDataEntries)
+
+		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, NextCulledLightLinkBuffer)
+		SHADER_PARAMETER(uint32, NumAvailableLinks)
+
+		SHADER_PARAMETER_STRUCT_INCLUDE(GPUMessage::FParameters, GPUMessageParams)
+		SHADER_PARAMETER(uint32, StatusMessageId)
+	END_SHADER_PARAMETER_STRUCT()
+};
+IMPLEMENT_GLOBAL_SHADER(FLightGridFeedbackStatusCS, "/Engine/Private/LightGridInjection.usf", "FeedbackStatusCS", SF_Compute);
+
+FLightGridViewState::FLightGridViewState()
+{
+#if !UE_BUILD_SHIPPING
+	StatusFeedbackSocket = GPUMessage::RegisterHandler(TEXT("LightGrid.StatusFeedback"),
+		[this](GPUMessage::FReader Message)
+		{
+			const uint32 AllocatedEntries = Message.Read<uint32>(0);
+			const uint32 MaxEntries = Message.Read<uint32>(0);
+
+			const uint32 AllocatedLinks = Message.Read<uint32>(0);
+			const uint32 MaxLinks = Message.Read<uint32>(0);
+
+			if (AllocatedEntries > MaxEntries)
+			{
+				bool bWarn = MaxEntries > MaxEntriesHighWaterMark;
+
+				if (bWarn)
+				{
+					UE_LOG(LogRenderer, Warning, TEXT(	"Building light grid exceeded number of available entries (%u / %u). "
+														"Increase r.Forward.MaxCulledLightsPerCell to prevent potential visual artifacts."), AllocatedEntries, MaxEntries);
+				}
+
+				MaxEntriesHighWaterMark = FMath::Max(MaxEntriesHighWaterMark, MaxEntries);
+			}
+
+			if (AllocatedLinks > MaxLinks)
+			{
+				static bool bWarn = true;
+
+				if (bWarn)
+				{
+					UE_LOG(LogRenderer, Warning, TEXT("Building light grid exceeded number of available links, glitches will be visible (%u / %u)."), AllocatedLinks, MaxLinks);
+					bWarn = false;
+				}
+			}
+		});
+#endif
+}
+
+void FLightGridViewState::FeedbackStatus(FRDGBuilder& GraphBuilder, FViewInfo& View, FRDGBufferRef NextCulledLightDataBuffer, uint32 NumCulledLightDataEntries, FRDGBufferRef NextCulledLightLinkBuffer, uint32 NumCulledLightLinks)
+{
+#if !UE_BUILD_SHIPPING
+	FLightGridFeedbackStatusCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FLightGridFeedbackStatusCS::FParameters>();
+
+	PassParameters->NextCulledLightDataBuffer = GraphBuilder.CreateSRV(NextCulledLightDataBuffer);
+	PassParameters->NumCulledLightDataEntries = NumCulledLightDataEntries;
+
+	PassParameters->NextCulledLightLinkBuffer = GraphBuilder.CreateSRV(NextCulledLightLinkBuffer);
+	PassParameters->NumAvailableLinks = NumCulledLightLinks;
+
+	PassParameters->GPUMessageParams = GPUMessage::GetShaderParameters(GraphBuilder);
+	PassParameters->StatusMessageId = GetStatusMessageId();
+
+	auto ComputeShader = View.ShaderMap->GetShader<FLightGridFeedbackStatusCS>();
+
+	FComputeShaderUtils::AddPass(
+		GraphBuilder,
+		RDG_EVENT_NAME("LightGridFeedbackStatus"),
+		ComputeShader,
+		PassParameters,
+		FIntVector(1, 1, 1)
+	);
+#endif // !UE_BUILD_SHIPPING
 }

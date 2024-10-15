@@ -10,10 +10,13 @@
 #include "ReflectionEnvironmentShared.ush"
 #include "LightGridCommon.ush"
 #include "WaveOpUtil.ush"
+#include "GPUMessaging.ush"
 
 #if USE_HZB_CULL
 	#include "Nanite/NaniteHZBCull.ush"
 #endif
+
+#include "/Engine/Shared/LightGridDefinitions.h"
 
 RWStructuredBuffer<uint> RWNumCulledLightsGrid;
 
@@ -508,7 +511,7 @@ struct FCellWriter
 FCellWriter InitCellWriter()
 {
 	FCellWriter CellWriter;
-	CellWriter.LinkOffset = 0xFFFFF;
+	CellWriter.LinkOffset = LIGHT_GRID_CELL_WRITER_MAX_LINK_OFFSET;
 	
 	return CellWriter;
 }
@@ -530,15 +533,15 @@ bool AddToCell(inout FCellWriter CellWriter, uint PrimitiveIndex, uint IndexInCe
 
 	if (NextLink < NumAvailableLinks)
 	{
-		checkSlow(PrimitiveIndex <= 0xFFFFFF);
+		checkSlow(PrimitiveIndex <= LIGHT_GRID_CELL_WRITER_MAX_LINK_OFFSET);
 		checkSlow(IndexInCell <= 0xFFFF);
-		checkSlow(CellWriter.LinkOffset <= 0xFFFFFF);
+		checkSlow(CellWriter.LinkOffset <= LIGHT_GRID_CELL_WRITER_MAX_LINK_OFFSET);
 
 		uint IndexInCellL8 = (IndexInCell & 0xFF);
 		uint IndexInCellH8 = ((IndexInCell >> 8) & 0xFF);
 
-		RWCulledLightLinks[NextLink * LIGHT_LINK_STRIDE + 0] = (IndexInCellL8 << 24) | (PrimitiveIndex & 0xFFFFFF);
-		RWCulledLightLinks[NextLink * LIGHT_LINK_STRIDE + 1] = (IndexInCellH8 << 24) | (CellWriter.LinkOffset & 0xFFFFFF);
+		RWCulledLightLinks[NextLink * LIGHT_LINK_STRIDE + 0] = (IndexInCellL8 << 24) | (PrimitiveIndex & LIGHT_GRID_CELL_WRITER_MAX_LINK_OFFSET);
+		RWCulledLightLinks[NextLink * LIGHT_LINK_STRIDE + 1] = (IndexInCellH8 << 24) | (CellWriter.LinkOffset & LIGHT_GRID_CELL_WRITER_MAX_LINK_OFFSET);
 
 		CellWriter.LinkOffset = NextLink;
 
@@ -930,3 +933,30 @@ void DebugLightGridPS(
 
 #endif // SHADER_DEBUG_LIGHT_GRID_PS
 
+#ifdef FeedbackStatusCS
+
+StructuredBuffer<uint> NextCulledLightDataBuffer;
+uint NumCulledLightDataEntries;
+
+StructuredBuffer<uint> NextCulledLightLinkBuffer;
+
+uint StatusMessageId;
+
+[numthreads(1, 1, 1)]
+void FeedbackStatusCS()
+{												
+	uint NumAllocatedEntries = NextCulledLightDataBuffer[0];
+	uint NumAllocatedLinks = NextCulledLightLinkBuffer[0];
+
+	FGPUMessageWriter Mw = GPUMessageBegin(StatusMessageId, 4U);
+
+	// max of allocated entries or links because when link allocation fail entries are not allocated
+	// however every link allocation would result in an entry allocation
+	GPUMessageWriteItem(Mw, max(NumAllocatedEntries, NumAllocatedLinks));
+	GPUMessageWriteItem(Mw, NumCulledLightDataEntries);
+
+	GPUMessageWriteItem(Mw, NumAllocatedLinks);
+	GPUMessageWriteItem(Mw, NumAvailableLinks);
+}
+
+#endif
