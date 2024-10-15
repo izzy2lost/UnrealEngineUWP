@@ -1,6 +1,7 @@
 {
 	"name": "UE5",
 	"logo": "ue5.project.png",
+	"logoDarkTheme": "ue5.project-darktheme.png",
 	"streams": [
 		{
 		  "id": "ue5-release-5.5",
