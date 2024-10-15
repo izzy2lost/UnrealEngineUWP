@@ -130,6 +130,7 @@ struct FLandscapeLayerBrush
 	void SetOwner(ALandscape* InOwner);
 
 	//~ Begin UE::Landscape::EditLayers::IEditLayerRendererProvider implementation
+	LANDSCAPE_EDIT_LAYERS_BATCHED_MERGE_EXPERIMENTAL
 	LANDSCAPE_API virtual TArray<UE::Landscape::EditLayers::FEditLayerRendererState> GetEditLayerRendererStates(const ULandscapeInfo* InLandscapeInfo, bool bInSkipBrush) override;
 	//~ End UE::Landscape::EditLayers::IEditLayerRendererProvider implementation
 #endif // WITH_EDITOR
@@ -172,6 +173,7 @@ struct FLandscapeLayer
 
 #if WITH_EDITOR
 	//~ Begin UE::Landscape::EditLayers::IEditLayerRendererProvider implementation
+	LANDSCAPE_EDIT_LAYERS_BATCHED_MERGE_EXPERIMENTAL
 	LANDSCAPE_API virtual TArray<UE::Landscape::EditLayers::FEditLayerRendererState> GetEditLayerRendererStates(const ULandscapeInfo* InLandscapeInfo, bool bInSkipBrush) override;
 	//~ End UE::Landscape::EditLayers::IEditLayerRendererProvider implementation
 #endif // WITH_EDITOR
