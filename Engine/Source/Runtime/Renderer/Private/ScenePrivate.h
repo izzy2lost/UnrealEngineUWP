@@ -43,6 +43,7 @@
 #include "RayTracing/RayTracingShaderBindingTable.h"
 #endif
 #include "Nanite/Nanite.h"
+#include "LightGrid.h"
 #include "Lumen/LumenViewState.h"
 #include "MegaLights/MegaLightsViewState.h"
 #include "StochasticLighting/StochasticLightingViewState.h"
@@ -994,6 +995,8 @@ public:
 
 	// Burley Subsurface scattering variance texture from the last frame.
 	TRefCountPtr<IPooledRenderTarget> SubsurfaceScatteringQualityHistoryRT;
+
+	FLightGridViewState LightGrid;
 
 	FLumenViewState Lumen;
 	FMegaLightsViewState MegaLights;
