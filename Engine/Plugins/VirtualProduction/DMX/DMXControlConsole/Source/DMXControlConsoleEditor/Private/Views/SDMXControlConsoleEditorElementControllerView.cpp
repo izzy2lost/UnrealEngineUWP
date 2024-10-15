@@ -88,6 +88,7 @@ namespace UE::DMX::Private
 							[
 								SNew(STextBlock)
 								.Text(this, &SDMXControlConsoleEditorElementControllerView::GetElementControllerNameText)
+								.ToolTipText(this, &SDMXControlConsoleEditorElementControllerView::GetElementControllerNameText)
 								.Font(FAppStyle::GetFontStyle(TEXT("PropertyWindow.NormalFont")))
 							]
 						]
