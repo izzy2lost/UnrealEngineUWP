@@ -341,6 +341,7 @@ TSharedRef<SBox> SInterchangePipelineConfigurationDialog::SpawnPipelineConfigura
 	{
 		CurrentStackName = FirstStackName;
 	}
+	PreviousStackName = CurrentStackName;
 
 	for(FInterchangeStackInfo& Stack : PipelineStacks)
 	{
@@ -1301,7 +1302,7 @@ void SInterchangePipelineConfigurationDialog::SaveAllPipelineSettings() const
 	{
 		if (PipelineElement->Pipeline)
 		{
-			PipelineElement->Pipeline->SaveSettings(CurrentStackName);
+			PipelineElement->Pipeline->SaveSettings(PreviousStackName);
 		}
 	}
 }
@@ -1333,6 +1334,7 @@ void SInterchangePipelineConfigurationDialog::ClosePipelineConfiguration(const E
 	//Save the settings only if its not a re-import
 	if (!bReimport)
 	{
+		PreviousStackName = CurrentStackName;
 		SaveAllPipelineSettings();
 	}
 
@@ -1467,6 +1469,7 @@ void SInterchangePipelineConfigurationDialog::OnStackSelectionChanged(TSharedPtr
 	}
 
 	//Use the stack select by interchange manager
+	PreviousStackName = CurrentStackName;
 	CurrentStackName = NewStackName;
 
 	constexpr bool bStackSelectionChange = true;
