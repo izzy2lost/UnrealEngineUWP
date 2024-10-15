@@ -1657,6 +1657,8 @@ void UEditorEngine::FinishDestroy()
 		}
 	}
 
+	ShutdownDerivedDataBuildWorkers();
+
 	Super::FinishDestroy();
 }
 
