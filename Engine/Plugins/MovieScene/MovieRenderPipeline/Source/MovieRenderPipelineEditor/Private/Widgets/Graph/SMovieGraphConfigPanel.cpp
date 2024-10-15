@@ -94,9 +94,6 @@ void SMoviePipelineGraphPanel::Construct(const FArguments& InArgs)
 		PipelineQueueEditorWidget->SetSelectedJobs(Jobs);
 	}
 
-	FGraphAppearanceInfo AppearanceInfo;
-	AppearanceInfo.CornerText = LOCTEXT("EditorCornerText", "Movie Graph Config");
-
 	SGraphEditor::FGraphEditorEvents InEvents;
 	InEvents.OnSelectionChanged = SGraphEditor::FOnSelectionChanged::CreateSP(this, &SMoviePipelineGraphPanel::OnSelectedNodesChanged);
 	InEvents.OnNodeDoubleClicked = FSingleNodeEvent::CreateSP(this, &SMoviePipelineGraphPanel::OnNodeDoubleClicked);
@@ -138,7 +135,7 @@ void SMoviePipelineGraphPanel::Construct(const FArguments& InArgs)
 		.GraphToEdit(EdGraph)
 		.AdditionalCommands(GraphEditorCommands)
 		.GraphEvents(InEvents)
-		.Appearance(AppearanceInfo)
+		.Appearance(this, &SMoviePipelineGraphPanel::GetGraphAppearanceInfo)
 	];
 }
 
@@ -724,6 +721,15 @@ void SMoviePipelineGraphPanel::OnNodeTitleCommitted(const FText& NewText, ETextC
 		NodeBeingChanged->Modify();
 		NodeBeingChanged->OnRenameNode(NewText.ToString());
 	}
+}
+
+FGraphAppearanceInfo SMoviePipelineGraphPanel::GetGraphAppearanceInfo() const
+{
+	FGraphAppearanceInfo AppearanceInfo;
+	AppearanceInfo.CornerText = LOCTEXT("EditorCornerText", "Movie Graph Config");
+	AppearanceInfo.PIENotifyText = LOCTEXT("PIENotifyText", "RENDERING");
+
+	return AppearanceInfo;
 }
 
 FReply SMoviePipelineGraphPanel::OnRenderLocalRequested()
