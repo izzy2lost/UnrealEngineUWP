@@ -396,9 +396,13 @@ void GenerateLightSamplesCS(
 					Newline(Debug.Context);
 					Print(Debug.Context, TEXT("NumLocalLights     : "));
 					Print(Debug.Context, NumLocalLights, Select(NumLocalLights < MAX_LOCAL_LIGHT_INDEX + 1, FontLightGreen, FontRed));
-					AddCrossTWS(Debug.Context, TranslatedWorldPosition, 5.0f, float4(1, 1, 0, 1));
+					Newline(Debug.Context);
+					Print(Debug.Context, TEXT("ValidGuideHistory  : "));
+					Print(Debug.Context, bHasValidHistory, FontValue);
 					Newline(Debug.Context);
 					Print(Debug.Context, TEXT("LightId | LocalLightId | Weight  | LFAtlas   | IESAtlas  | History"), FontSilver);
+
+					AddCrossTWS(Debug.Context, TranslatedWorldPosition, 5.0f, float4(1, 1, 0, 1));
 				}
 				#endif
 
