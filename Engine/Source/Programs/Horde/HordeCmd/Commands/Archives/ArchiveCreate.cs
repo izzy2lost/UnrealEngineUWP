@@ -8,17 +8,17 @@ using EpicGames.Horde.Storage.Bundles;
 using EpicGames.Horde.Storage.Nodes;
 using Microsoft.Extensions.Logging;
 
-namespace Horde.Commands.Bundles
+namespace Horde.Commands.Archives
 {
-	[Command("bundle", "create", "Creates a bundle from a folder on the local hard drive")]
-	class BundleCreate : StorageCommandBase
+	[Command("archive", "create", "Creates a storage archive from a folder on the local hard drive")]
+	class ArchiveCreate : StorageCommandBase
 	{
 		[CommandLine("-File=")]
-		[Description("Output file for the bundle ref. Either -File=.. or -Ref=.. must be set.")]
+		[Description("Output file for the ref. Either -File=.. or -Ref=.. must be set.")]
 		public FileReference? File { get; set; }
 
 		[CommandLine("-Ref=")]
-		[Description("Output ref for the bundled data. Either -File=.. or -Ref=.. must be set.")]
+		[Description("Output ref for the data. Either -File=.. or -Ref=.. must be set.")]
 		public string? Ref { get; set; }
 
 		[CommandLine("-Input=", Required = true)]
@@ -33,7 +33,7 @@ namespace Horde.Commands.Bundles
 		[Description("Clean the output folder before writing any data")]
 		public bool CleanOutput { get; set; }
 
-		public BundleCreate(HttpStorageClient storageClient, BundleCache bundleCache)
+		public ArchiveCreate(HttpStorageClient storageClient, BundleCache bundleCache)
 			: base(storageClient, bundleCache)
 		{
 		}

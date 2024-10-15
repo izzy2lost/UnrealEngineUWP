@@ -9,10 +9,10 @@ using EpicGames.Horde.Storage.Bundles;
 using EpicGames.Horde.Storage.Nodes;
 using Microsoft.Extensions.Logging;
 
-namespace Horde.Commands.Bundles
+namespace Horde.Commands.Archives
 {
-	[Command("bundle", "extract", "Extracts data from a bundle to the local hard drive")]
-	internal class BundleExtract : StorageCommandBase
+	[Command("archive", "extract", "Extracts data from a bundle to the local hard drive")]
+	internal class ArchiveExtract : StorageCommandBase
 	{
 		[CommandLine("-File=")]
 		[Description("Path to a text file containing the root ref to read. -File=..., -Ref=..., or -Node=... must be specified.")]
@@ -38,7 +38,7 @@ namespace Horde.Commands.Bundles
 		[Description("If set, deletes the contents of the output directory before extraction.")]
 		public bool CleanOutput { get; set; }
 
-		public BundleExtract(HttpStorageClient storageClient, BundleCache bundleCache)
+		public ArchiveExtract(HttpStorageClient storageClient, BundleCache bundleCache)
 			: base(storageClient, bundleCache)
 		{
 		}
