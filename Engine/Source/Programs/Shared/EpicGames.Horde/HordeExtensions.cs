@@ -31,6 +31,7 @@ namespace EpicGames.Horde
 
 			serviceCollection.AddLogging();
 
+			serviceCollection.AddHttpClient();
 			serviceCollection.AddSingleton<BundleCache>(sp => new BundleCache(sp.GetRequiredService<IOptions<HordeOptions>>().Value.BundleCache));
 			serviceCollection.AddSingleton<StorageBackendCache>(CreateBackendCache);
 			serviceCollection.AddSingleton<HttpStorageBackendFactory>();
