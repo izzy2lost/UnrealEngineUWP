@@ -396,6 +396,7 @@ namespace UE::DMX::Private
 			return;
 		}
 
+		const TArray<TSharedPtr<FDMXReadOnlyFixturePatchListItem>>& AllListItems = GetListItems();
 		const TArray<UDMXControlConsoleFaderGroupController*> FaderGroupControllers = ActiveLayout->GetAllFaderGroupControllers();
 		for (const UDMXControlConsoleFaderGroupController* FaderGroupController : FaderGroupControllers)
 		{
@@ -413,10 +414,10 @@ namespace UE::DMX::Private
 				}
 
 				const UDMXEntityFixturePatch* FixturePatch = FaderGroup->GetFixturePatch();
-				const TSharedPtr<FDMXReadOnlyFixturePatchListItem>* ItemPtr = Algo::FindByPredicate(GetListItems(), 
+				const TSharedPtr<FDMXReadOnlyFixturePatchListItem>* ItemPtr = Algo::FindByPredicate(AllListItems,
 					[FixturePatch](const TSharedPtr<FDMXReadOnlyFixturePatchListItem>& Item)
 					{
-						return FixturePatch == Item->GetFixturePatch();
+						return Item.IsValid() && FixturePatch == Item->GetFixturePatch();
 					});
 
 				if (ItemPtr)
