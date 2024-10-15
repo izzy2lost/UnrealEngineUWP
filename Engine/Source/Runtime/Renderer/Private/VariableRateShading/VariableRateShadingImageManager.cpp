@@ -530,6 +530,7 @@ void FVariableRateShadingImageManager::PrepareImageBasedVRS(FRDGBuilder& GraphBu
 	bSoftwareVRSEnabledForFrame = 
 		CVarEnableVRSSoftwareImage.GetValueOnRenderThread() > 0 &&
 		CVarLocalNaniteSoftwareVRS->GetInt() > 0 &&
+		!Substrate::IsSubstrateEnabled() &&
 		IsFeatureLevelSupported(ShaderPlatform, ERHIFeatureLevel::SM6);
 
 	if (!IsVRSEnabledForFrame())
