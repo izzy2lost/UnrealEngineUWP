@@ -205,10 +205,7 @@ namespace Metasound
 
 			static FName GetPinDataType(const UEdGraphPin* InPin);
 			static FMetasoundFrontendVertexHandle GetPinVertexHandle(const FMetaSoundFrontendDocumentBuilder& InBuilder, const UEdGraphPin* InPin);
-			static const FMetasoundFrontendVertex* GetPinVertex(const FMetaSoundFrontendDocumentBuilder& InBuilder, const UEdGraphPin* InPin);
-
-			static const FMetasoundFrontendEdgeStyle* GetOutputEdgeStyle(Frontend::FConstOutputHandle InOutputHandle);
-			static const FMetasoundFrontendEdgeStyle* GetOutputEdgeStyle(const UEdGraphPin* InPin);
+			static const FMetasoundFrontendVertex* GetPinVertex(const FMetaSoundFrontendDocumentBuilder& InBuilder, const UEdGraphPin* InPin, const FMetasoundFrontendNode** Node = nullptr);
 
 			// Get the output handle from an output pin.  Ensures pin is an output pin.
 			// TODO: use IDs to connect rather than names. Likely need an UMetasoundEditorGraphPin

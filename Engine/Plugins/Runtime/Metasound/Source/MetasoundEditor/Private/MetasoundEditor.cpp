@@ -1690,11 +1690,11 @@ namespace Metasound
 				PagesDetails->SetObjects(PagesViewObj);
 				PagesDetails->HideFilterArea(true);
 
-				TAttribute<bool> EnabledAttr = TAttribute<bool>::Create([this]()
+				TAttribute<bool> EnabledAttr = TAttribute<bool>::CreateSPLambda(AsShared(), [this]()
 				{
 					return ShowPageGraphDetails();
 				});
-				TAttribute<EVisibility> VisibilityAttr = TAttribute<EVisibility>::Create([this]()
+				TAttribute<EVisibility> VisibilityAttr = TAttribute<EVisibility>::CreateSPLambda(AsShared(), [this]()
 				{
 					return ShowPageGraphDetails() ? EVisibility::Visible : EVisibility::Hidden;
 				});
@@ -3607,6 +3607,16 @@ namespace Metasound
 			if (IsPlaying())
 			{
 				return GEditor->GetPreviewAudioComponent();
+			}
+
+			return nullptr;
+		}
+
+		FMetaSoundFrontendDocumentBuilder* FEditor::GetFrontendBuilder() const
+		{
+			if (Builder.IsValid())
+			{
+				return &Builder->GetBuilder();
 			}
 
 			return nullptr;

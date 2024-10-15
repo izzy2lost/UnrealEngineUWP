@@ -42,6 +42,9 @@ namespace Metasound
 
 			TSharedPtr<FMetasoundPinAudioInspector> PinAudioInspector;
 
+			// Cached builder pointer for fast access
+			mutable TWeakObjectPtr<UMetaSoundBuilderBase> BuilderPtr;
+
 		protected:
 			virtual bool CanInspectPin(const UEdGraphPin* InPin)
 			{
@@ -195,15 +198,17 @@ namespace Metasound
 						}
 						else if (const UMetasoundEditorGraphExternalNode* ExternalNode = Cast<UMetasoundEditorGraphExternalNode>(Node))
 						{
-							if (Pin->Direction == EGPD_Input)
+							if (UMetaSoundBuilderBase* Builder = GetBuilder())
 							{
-								Frontend::FConstInputHandle InputHandle = FGraphBuilder::GetConstInputHandleFromPin(Pin);
-								AccessType = InputHandle->GetVertexAccessType();
-							}
-							else if (Pin->Direction == EGPD_Output)
-							{
-								Frontend::FConstOutputHandle OutputHandle = FGraphBuilder::GetConstOutputHandleFromPin(Pin);
-								AccessType = OutputHandle->GetVertexAccessType();
+								const FMetasoundFrontendVertexHandle VertexHandle = FGraphBuilder::GetPinVertexHandle(Builder->GetConstBuilder(), Pin);
+								if (Pin->Direction == EGPD_Input)
+								{
+									AccessType = Builder->GetConstBuilder().GetNodeInputAccessType(VertexHandle.NodeID, VertexHandle.VertexID);
+								}
+								else if (Pin->Direction == EGPD_Output)
+								{
+									AccessType = Builder->GetConstBuilder().GetNodeOutputAccessType(VertexHandle.NodeID, VertexHandle.VertexID);
+								}
 							}
 						}
 					}
@@ -280,13 +285,26 @@ namespace Metasound
 
 			UMetaSoundBuilderBase& GetBuilderChecked() const
 			{
+				UMetaSoundBuilderBase* Builder = GetBuilder();
+				check(Builder);
+				return *Builder;
+			}
+
+			UMetaSoundBuilderBase* GetBuilder() const
+			{
 				using namespace Metasound::Engine;
+
+				if (UMetaSoundBuilderBase* Builder = BuilderPtr.Get())
+				{
+					return Builder;
+				}
 
 				const UMetasoundEditorGraphNode* Node = GetOwningMetaSoundNode();
 				check(Node);
 				UObject* Outermost = Node->GetOutermostObject();
 				check(Outermost);
-				return FDocumentBuilderRegistry::GetChecked().FindOrBeginBuilding(*Outermost);
+				BuilderPtr = &FDocumentBuilderRegistry::GetChecked().FindOrBeginBuilding(*Outermost);
+				return BuilderPtr.Get();
 			}
 
 			const FMetasoundFrontendNode* GetFrontendNode() const
@@ -297,9 +315,26 @@ namespace Metasound
 				{
 					if (UObject* MetaSound = Node->GetMetasound())
 					{
-						const FGuid NodeID = Node->GetNodeID();
-						const UMetaSoundBuilderBase& Builder = FDocumentBuilderRegistry::GetChecked().FindOrBeginBuilding(*MetaSound);
-						return Builder.GetConstBuilder().FindNode(NodeID);
+						if (UMetaSoundBuilderBase* Builder = GetBuilder())
+						{
+							const FGuid NodeID = Node->GetNodeID();
+							return Builder.GetConstBuilder().FindNode(NodeID);
+						}
+					}
+				}
+
+				return nullptr;
+			}
+
+			const FMetasoundFrontendVertex* GetFrontendVertex() const
+			{
+				using namespace Metasound::Engine;
+
+				if (UEdGraphPin* Pin = ParentPinType::GetPinObj())
+				{
+					if (UMetaSoundBuilderBase* Builder = GetBuilder())
+					{
+						return FGraphBuilder::GetPinVertex(*Builder, *Pin);
 					}
 				}
 
@@ -489,32 +524,34 @@ namespace Metasound
 				if (UEdGraphPin* GraphPin = ParentPinType::GetPinObj())
 				{
 					const bool bIsHoveringPin = ParentPinType::IsHovered();
-					UpdatePinInspector(*GraphPin, bIsHoveringPin, PinInspector, ParentPinType::ValueInspectorTooltip,
+
+					// General Value Inspector update
+					if (bIsHoveringPin || PinInspector.IsValid())
+					{
+						UpdatePinInspector(*GraphPin, bIsHoveringPin, PinInspector, ParentPinType::ValueInspectorTooltip,
 						[this](FVector2D& OutTooltipLocation)
 						{
 							ParentPinType::GetInteractiveTooltipLocation(OutTooltipLocation);
 						});
+					}
 
 					// Audio Pin Inspector update
-					FName DataType;
-					if (GraphPin->Direction == EGPD_Input)
+					if (bIsHoveringPin || PinAudioInspector.IsValid())
 					{
-						const Metasound::Frontend::FConstInputHandle InputHandle = FGraphBuilder::GetConstInputHandleFromPin(GraphPin);
-						DataType = InputHandle->GetDataType();
-					}
-					else
-					{
-						const Metasound::Frontend::FConstOutputHandle OutputHandle = FGraphBuilder::GetConstOutputHandleFromPin(GraphPin);
-						DataType = OutputHandle->GetDataType();
-					}
-
-					if (DataType == GetMetasoundDataTypeName<FAudioBuffer>())
-					{
-						UpdatePinAudioInspector(*GraphPin, bIsHoveringPin, PinAudioInspector, ParentPinType::ValueInspectorTooltip,
-							[this](FVector2D& OutTooltipLocation)
+						if (UMetaSoundBuilderBase* Builder = GetBuilder())
+						{
+							if (const FMetasoundFrontendVertex* Vertex = FGraphBuilder::GetPinVertex(Builder->GetConstBuilder(), GraphPin))
 							{
-								ParentPinType::GetInteractiveTooltipLocation(OutTooltipLocation);
-							});
+								if (Vertex->TypeName == GetMetasoundDataTypeName<FAudioBuffer>())
+								{
+									UpdatePinAudioInspector(*GraphPin, bIsHoveringPin, PinAudioInspector, ParentPinType::ValueInspectorTooltip,
+									[this](FVector2D& OutTooltipLocation)
+									{
+										ParentPinType::GetInteractiveTooltipLocation(OutTooltipLocation);
+									});
+								}
+							}
+						}
 					}
 				}
 			}

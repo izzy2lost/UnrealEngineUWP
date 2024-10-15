@@ -933,9 +933,14 @@ namespace Metasound
 			return VertexHandle;
 		}
 
-		const FMetasoundFrontendVertex* FGraphBuilder::GetPinVertex(const FMetaSoundFrontendDocumentBuilder& InBuilder, const UEdGraphPin* InPin)
+		const FMetasoundFrontendVertex* FGraphBuilder::GetPinVertex(const FMetaSoundFrontendDocumentBuilder& InBuilder, const UEdGraphPin* InPin, const FMetasoundFrontendNode** Node)
 		{
 			using namespace VariableNames;
+
+			if (Node)
+			{
+				*Node = nullptr;
+			}
 
 			if (!InPin)
 			{
@@ -945,13 +950,18 @@ namespace Metasound
 			const UMetasoundEditorGraphNode* OwningNode = CastChecked<UMetasoundEditorGraphNode>(InPin->GetOwningNode());
 
 			const FGuid NodeID = OwningNode->GetNodeID();
-			const FMetasoundFrontendNode* Node = InBuilder.FindNode(NodeID);
-			if (!Node)
+			const FMetasoundFrontendNode* FoundNode = InBuilder.FindNode(NodeID);
+			if (!FoundNode)
 			{
 				return nullptr;
 			}
 
-			const FMetasoundFrontendClass* Class = InBuilder.FindDependency(Node->ClassID);
+			if (Node)
+			{
+				*Node = FoundNode;
+			}
+
+			const FMetasoundFrontendClass* Class = InBuilder.FindDependency(FoundNode->ClassID);
 			if (!Class)
 			{
 				return nullptr;
@@ -974,11 +984,11 @@ namespace Metasound
 				}
 				case EMetasoundFrontendClassType::Input:
 				{
-					return &Node->Interface.Inputs.Last();
+					return &FoundNode->Interface.Inputs.Last();
 				}
 				case EMetasoundFrontendClassType::Output:
 				{
-					return &Node->Interface.Outputs.Last();
+					return &FoundNode->Interface.Outputs.Last();
 				}
 
 				default:
@@ -1012,33 +1022,6 @@ namespace Metasound
 			}
 
 			return IOutputController::GetInvalidHandle();
-		}
-
-		const FMetasoundFrontendEdgeStyle* FGraphBuilder::GetOutputEdgeStyle(Frontend::FConstOutputHandle InOutputHandle)
-		{
-			using namespace Frontend;
-
-			if (InOutputHandle->IsValid())
-			{
-				FConstNodeHandle NodeHandle = InOutputHandle->GetOwningNode();
-				FConstGraphHandle GraphHandle = NodeHandle->GetOwningGraph();
-
-				const TArray<FMetasoundFrontendEdgeStyle>& EdgeStyles = GraphHandle->GetGraphStyle().EdgeStyles;
-				return EdgeStyles.FindByPredicate([&InOutputHandle](const FMetasoundFrontendEdgeStyle& InCandidate)
-				{
-					return InCandidate.NodeID == InOutputHandle->GetOwningNodeID() && InCandidate.OutputName == InOutputHandle->GetName();
-				});
-			}
-
-			return nullptr;
-		}
-
-		const FMetasoundFrontendEdgeStyle* FGraphBuilder::GetOutputEdgeStyle(const UEdGraphPin* InGraphPin)
-		{
-			using namespace Frontend;
-
-			FConstOutputHandle OutputHandle = FindReroutedConstOutputHandleFromPin(InGraphPin);
-			return GetOutputEdgeStyle(OutputHandle);
 		}
 
 		Frontend::FConstOutputHandle FGraphBuilder::GetConstOutputHandleFromPin(const UEdGraphPin* InPin)

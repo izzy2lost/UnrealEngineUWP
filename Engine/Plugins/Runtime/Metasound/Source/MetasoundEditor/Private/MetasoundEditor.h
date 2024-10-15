@@ -142,6 +142,8 @@ namespace Metasound::Editor
 
 		UAudioComponent* GetAudioComponent() const;
 
+		FMetaSoundFrontendDocumentBuilder* GetFrontendBuilder() const;
+
 		/** IMetasoundEditor interface */
 		virtual UObject* GetMetasoundObject() const override;
 		virtual void SetSelection(const TArray<UObject*>& SelectedObjects) override;
