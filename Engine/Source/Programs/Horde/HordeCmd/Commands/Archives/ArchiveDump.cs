@@ -5,10 +5,10 @@ using EpicGames.Core;
 using EpicGames.Horde.Storage.Bundles.V1;
 using Microsoft.Extensions.Logging;
 
-namespace Horde.Commands.Bundles
+namespace Horde.Commands.Archives
 {
-	[Command("bundle", "dump", "Dumps the contents of a bundle")]
-	internal class BundleDump : Command
+	[Command("archive", "dump", "Dumps the contents of a bundle")]
+	internal class ArchiveDump : Command
 	{
 		[CommandLine("-Input=", Required = true)]
 		[Description("Path to the bundle to display information for.")]
