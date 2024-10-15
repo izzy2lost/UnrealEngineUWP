@@ -315,10 +315,10 @@ namespace Metasound
 				{
 					if (UObject* MetaSound = Node->GetMetasound())
 					{
-						if (UMetaSoundBuilderBase* Builder = GetBuilder())
+						if (const UMetaSoundBuilderBase* Builder = GetBuilder())
 						{
 							const FGuid NodeID = Node->GetNodeID();
-							return Builder.GetConstBuilder().FindNode(NodeID);
+							return Builder->GetConstBuilder().FindNode(NodeID);
 						}
 					}
 				}
