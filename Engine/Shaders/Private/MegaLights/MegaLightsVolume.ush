@@ -3,6 +3,7 @@
 #pragma once
 
 #include "../LightFunctionAtlas/LightFunctionAtlasCommon.usf"
+#include "../Nanite/NaniteHZBCull.ush"
 
 /** 
  * Returns sample jitter offset in the range [0, DOWNSAMPLE_FACTOR - 1]
@@ -132,25 +133,44 @@ float3 GetMegaLightsVolumeLighting(
 	return LightScattering;
 }
 
-Texture2D FurthestHZBTexture;
-float HZBMipLevel;
-float2 ViewportUVToHZBBufferUV;
 uint UseHZBOcclusionTest;
 
-float GetMaxVisibleDepth(uint2 GridCoordinate)
+FScreenRect ComputeFroxelCullRect(uint3 GridCoordinate, float MinTileZ, float MaxTileZ, float FootprintMargin)
 {
-	float2 HZBScreenUV = (GridCoordinate.xy + 0.5f) * (1U << MegaLightsVolumePixelSizeShift) * View.ViewSizeAndInvSize.zw * ViewportUVToHZBBufferUV;
-	return ConvertFromDeviceZ(FurthestHZBTexture.SampleLevel(GlobalPointClampedSampler, HZBScreenUV, HZBMipLevel).x);
+	// Compute extent of tiles in clip-space. Note that the last tile may extend a bit outside of view if view size is not evenly divisible tile size.
+	const float2 InvCulledGridSizeF = (1u << MegaLightsVolumePixelSizeShift) * View.ViewSizeAndInvSize.zw;
+	const float2 TileSize = float2(2.0f, -2.0f) * InvCulledGridSizeF.xy;
+	const float2 UnitPlaneMin = float2(-1.0f, 1.0f);
+
+	float2 UnitPlaneTileMin = (GridCoordinate.xy - FootprintMargin) * TileSize + UnitPlaneMin;
+	float2 UnitPlaneTileMax = (GridCoordinate.xy + 1 + FootprintMargin) * TileSize + UnitPlaneMin;
+
+	float MinTileDeviceZ = ConvertToDeviceZ(MinTileZ);
+	float MaxTileDeviceZ = ConvertToDeviceZ(MaxTileZ);
+
+	float3 CullRectMin;
+	CullRectMin.x = min(UnitPlaneTileMin.x, UnitPlaneTileMax.x);
+	CullRectMin.y = min(UnitPlaneTileMin.y, UnitPlaneTileMax.y);
+	CullRectMin.z = min(MinTileDeviceZ, MaxTileDeviceZ);
+
+	float3 CullRectMax;
+	CullRectMax.x = max(UnitPlaneTileMin.x, UnitPlaneTileMax.x);
+	CullRectMax.y = max(UnitPlaneTileMin.y, UnitPlaneTileMax.y);
+	CullRectMax.z = max(MinTileDeviceZ, MaxTileDeviceZ);
+
+	return GetScreenRect(int4(0, 0, HZBViewSize), CullRectMin, CullRectMax, 4);
 }
 
-bool IsFroxelVisible(uint3 GridCoordinate)
+bool IsFroxelVisible(uint3 GridCoordinate, float FootprintMargin)
 {
 	if (UseHZBOcclusionTest != 0)
 	{
-		float MaxVisibleDepth = GetMaxVisibleDepth(GridCoordinate.xy);
-		float TrilinearFootprintBias = -1.0f;
-		float FroxelMinSceneDepth = ComputeDepthFromZSlice(max((float)GridCoordinate.z + TrilinearFootprintBias, 0.0f));
-		return FroxelMinSceneDepth < MaxVisibleDepth;
+		float MinTileZ = ComputeDepthFromZSlice(GridCoordinate.z + 0 - FootprintMargin);
+		float MaxTileZ = ComputeDepthFromZSlice(GridCoordinate.z + 1 + FootprintMargin);
+
+		FScreenRect Rect = ComputeFroxelCullRect(GridCoordinate, MinTileZ, MaxTileZ, FootprintMargin);
+
+		return IsVisibleHZB(Rect, true /*bSample4x4*/);
 	}
 
 	return true;

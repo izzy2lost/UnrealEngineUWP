@@ -185,7 +185,8 @@ void VolumeShadeLightSamplesCS(
 
 		float3 LightScattering = 0.0f;
 
-		if (IsFroxelVisible(VolumeCoord))
+		const float FroxelFootprintMargin = 0.5f; // trilinear interpolation
+		if (IsFroxelVisible(VolumeCoord, FroxelFootprintMargin))
 		{
 			// Stochastic sample interpolation. Need to use at least samples 2 for good quality.
 			const float RandomScalar = BlueNoiseScalar(VolumeCoordToNoiseCoord(VolumeCoord), MegaLightsStateFrameIndex);
