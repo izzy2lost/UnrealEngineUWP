@@ -3,3 +3,5 @@
 #pragma once
 
 void InitDerivedDataBuildWorkers();
+
+void ShutdownDerivedDataBuildWorkers();

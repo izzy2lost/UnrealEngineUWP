@@ -16,7 +16,7 @@ DEFINE_LOG_CATEGORY_STATIC(LogChaosVisualDebugger, Log, All);
 // We only support this on x64 Windows Desktop platforms. Other platforms or non-redist-aware 
 // versions of Windows will transparently load default OS-provided D3D12 library.
 #if USE_D3D12_REDIST
-extern "C" { _declspec(dllexport) extern const UINT D3D12SDKVersion = 611; } // D3D12_SDK_VERSION
+extern "C" { _declspec(dllexport) extern const UINT D3D12SDKVersion = 614; } // D3D12_SDK_VERSION
 extern "C" { _declspec(dllexport) extern const char* D3D12SDKPath = ".\\D3D12\\"; }
 #endif // USE_D3D12_REDIST
 
@@ -74,7 +74,10 @@ int32 RunChaosVisualDebugger(const TCHAR* CommandLine)
 			GEngineLoop.Tick();
 		}
 	}
-	
+
+	// Make sure all rendering thread work is done before we attempt to exit the program
+	FFrameEndSync::Sync(true);
+
 	GEngineLoop.Exit();
 
 	return Result;
