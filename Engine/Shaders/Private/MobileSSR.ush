@@ -53,5 +53,6 @@ bool MobileSSR(FGBufferData GBuffer, float4 SvPosition, float3 TranslatedWorldPo
 			return true;
 		}
 	}
+	SSR = 0;
 	return false;
 }
