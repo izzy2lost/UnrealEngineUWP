@@ -373,6 +373,7 @@ public:
 	USDSTAGE_API virtual void PostActorCreated() override;
 	USDSTAGE_API virtual void PostRename(UObject* OldOuter, const FName OldName) override;
 	USDSTAGE_API virtual void BeginDestroy() override;
+	USDSTAGE_API virtual void PostInitProperties() override;
 #if WITH_EDITOR
 	USDSTAGE_API virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 	USDSTAGE_API virtual void PostTransacted(const FTransactionObjectEvent& TransactionEvent) override;
