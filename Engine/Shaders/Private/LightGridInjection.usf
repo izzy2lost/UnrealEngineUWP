@@ -25,6 +25,7 @@ RWStructuredBuffer<uint> RWNumCulledLightsGrid;
 	#define RWCulledLightDataGrid	RWCulledLightDataGrid32Bit
 #endif
 
+RWStructuredBuffer<uint> RWNextCulledLightData;
 RWStructuredBuffer<uint> RWNextCulledLightLink;
 RWStructuredBuffer<uint> RWCulledLightLinks;
 
@@ -32,8 +33,10 @@ uint NumReflectionCaptures;
 uint NumLocalLights;
 uint NumGridCells;
 uint MaxCulledLightsPerCell;
+uint NumAvailableLinks;
 uint3 CulledGridSize;
 float3 LightGridZParams;
+uint LightGridZSliceScale;
 uint LightGridPixelSizeShift;
 
 uint MegaLightsSupportedStartIndex;
@@ -41,6 +44,20 @@ uint MegaLightsSupportedStartIndex;
 StructuredBuffer<float4> LightViewSpacePositionAndRadius;
 StructuredBuffer<float4> LightViewSpaceDirAndPreprocAngle;
 StructuredBuffer<float4> LightViewSpaceRectPlanes;
+
+#if USE_PARENT_LIGHT_GRID
+	StructuredBuffer<uint> ParentNumCulledLightsGrid;
+#	if LIGHT_GRID_USES_16BIT_BUFFERS
+		Buffer<uint>						ParentCulledLightDataGrid16Bit;
+#		define ParentCulledLightDataGrid	ParentCulledLightDataGrid16Bit
+#	else
+		StructuredBuffer<uint>				ParentCulledLightDataGrid32Bit;
+#		define ParentCulledLightDataGrid	ParentCulledLightDataGrid32Bit
+#	endif
+	uint3 ParentGridSize;
+	uint NumParentGridCells;
+	uint ParentGridSizeFactor;
+#endif // USE_PARENT_LIGHT_GRID
 
 #define NUM_PLANES_PER_RECT_LIGHT 4
 
@@ -50,13 +67,11 @@ StructuredBuffer<float4> LightViewSpaceRectPlanes;
 #define REFINE_RECTLIGHT_BOUNDS 1
 #endif
 
-#ifndef USE_LOCALSTORE_FOR_ATOMICS
-#define USE_LOCALSTORE_FOR_ATOMICS 0
-#endif
+#ifdef LightGridInjectionCS
 
-float ComputeCellNearViewDepthFromZSlice(uint ZSlice)
+float ComputeCellNearViewDepthFromZSlice(uint ZSlice, uint ZSliceScale)
 {
-	float SliceDepth = (exp2(ZSlice / LightGridZParams.z) - LightGridZParams.y) / LightGridZParams.x;
+	float SliceDepth = (exp2(ZSlice * ZSliceScale / LightGridZParams.z) - LightGridZParams.y) / LightGridZParams.x;
 
 	if (ZSlice == (uint)CulledGridSize.z)
 	{
@@ -215,6 +230,8 @@ bool IsAabbOutsideInfiniteAcuteConeApprox(float3 ConeVertex, float3 ConeAxis, fl
 
 bool OverlapsLight(uint LocalLightIndex, FCellBounds CellBounds, out bool bIsRectLight, out bool bIsTexturedLight)
 {
+	checkSlow(LocalLightIndex < NumLocalLights);
+
 	float4 LightPositionAndRadius = LightViewSpacePositionAndRadius[LocalLightIndex];
 	float3 ViewSpaceLightPosition = LightPositionAndRadius.xyz;
 	float LightRadius = LightPositionAndRadius.w;
@@ -273,6 +290,8 @@ bool OverlapsLight(uint LocalLightIndex, FCellBounds CellBounds, out bool bIsRec
 
 bool OverlapsReflectionCapture(uint ReflectionCaptureIndex, FCellBounds CellBounds)
 {
+	checkSlow(ReflectionCaptureIndex < NumReflectionCaptures);
+
 	FDFVector3 CaptureWorldPosition = MakeDFVector3(GetReflectionPositionAndRadius(ReflectionCaptureIndex).xyz, GetReflectionPositionLow(ReflectionCaptureIndex).xyz);
 	float3 CaptureTranslatedWorldPosition = DFFastAddDemote(CaptureWorldPosition, PrimaryView.PreViewTranslation);
 	float3 ViewSpaceCapturePosition = mul(float4(CaptureTranslatedWorldPosition, 1), View.TranslatedWorldToView).xyz;
@@ -283,7 +302,7 @@ bool OverlapsReflectionCapture(uint ReflectionCaptureIndex, FCellBounds CellBoun
 	return (BoxDistanceSq < CaptureRadius * CaptureRadius);
 }
 
-void WriteReversedLinkedList(uint LinkOffset, uint NumPrimitives, uint CulledLightDataStart)
+void OutputReversedLinkedList(uint LinkOffset, uint NumPrimitives, uint CulledLightDataStart)
 {
 	uint CurrentIndex = 0;
 
@@ -297,36 +316,463 @@ void WriteReversedLinkedList(uint LinkOffset, uint NumPrimitives, uint CulledLig
 	}
 }
 
-#if SHADER_LIGHT_GRID_INJECTION_CS
-
-RWStructuredBuffer<uint> RWNextCulledLightData;
-
-[numthreads(THREADGROUP_SIZE, THREADGROUP_SIZE, THREADGROUP_SIZE)]
-void LightGridInjectionCS(
-	uint3 GroupId : SV_GroupID,
-	uint3 DispatchThreadId : SV_DispatchThreadID,
-	uint3 GroupThreadId : SV_GroupThreadID)
+struct FArrayView
 {
-	uint3 GridCoordinate = DispatchThreadId;
+	uint Num;
+	uint Offset;
+};
+
+uint GetPrimitiveIndex(FArrayView ArrayView, uint Index)
+{
+	checkSlow(Index < ArrayView.Num);
+#if USE_PARENT_LIGHT_GRID
+	return ParentCulledLightDataGrid[ArrayView.Offset + Index];
+#else
+	return ArrayView.Offset + Index;
+#endif
+}
+
+FArrayView InitLocalLightArrayView(uint ParentGridIndex)
+{
+	FArrayView ArrayView;
+
+#if USE_PARENT_LIGHT_GRID
+	uint Unused_NumVisibleMegaLights;
+	UnpackCulledLightsGridHeader0(ParentNumCulledLightsGrid[ParentGridIndex * 2 + 0], ArrayView.Num, Unused_NumVisibleMegaLights);
+
+	bool bHasRectLights_Unused;
+	bool bHasTexturedLights_Unused;
+	UnpackCulledLightsGridHeader1(ParentNumCulledLightsGrid[ParentGridIndex * 2 + 1], ArrayView.Offset, bHasRectLights_Unused, bHasTexturedLights_Unused);
+#else
+	ArrayView.Num = NumLocalLights;
+	ArrayView.Offset = 0;
+#endif
+
+	return ArrayView;
+}
+
+FArrayView InitReflectionCaptureArrayView(uint ParentGridIndex)
+{
+	FArrayView ArrayView;
+
+#if USE_PARENT_LIGHT_GRID
+	ArrayView.Num = ParentNumCulledLightsGrid[(NumParentGridCells + ParentGridIndex) * NUM_CULLED_LIGHTS_GRID_STRIDE + 0];
+	ArrayView.Offset = ParentNumCulledLightsGrid[(NumParentGridCells + ParentGridIndex) * NUM_CULLED_LIGHTS_GRID_STRIDE + 1];
+#else
+	ArrayView.Num = NumReflectionCaptures;
+	ArrayView.Offset = 0;
+#endif
+
+	return ArrayView;
+}
+
+void CullLights_SingleThread(uint GridIndex, FCellBounds CellBounds, uint ParentGridIndex)
+{
+	uint NumVisibleLights = 0;
+	uint NumVisibleMegaLights = 0;
+	uint bHasRectLights = false;
+	uint bHasTexturedLights = false;
+
+	uint LinkOffset = 0xFFFFFFFF;
+
+	FArrayView LocalLightArrayView = InitLocalLightArrayView(ParentGridIndex);
+
+	LOOP
+	for (uint Index = 0; Index < LocalLightArrayView.Num; ++Index)
+	{
+		uint LocalLightIndex = GetPrimitiveIndex(LocalLightArrayView, Index);
+
+		bool bIsRectLight;
+		bool bIsTexturedLight;
+		bool bOverlapsLight = OverlapsLight(LocalLightIndex, CellBounds, bIsRectLight, bIsTexturedLight);
+
+		if (bOverlapsLight)
+		{
+			bHasRectLights |= bIsRectLight;
+			bHasTexturedLights |= bIsTexturedLight;
+
+#if USE_LINKED_CULL_LIST
+			uint NextLink;
+			WaveInterlockedAddScalar_(RWNextCulledLightLink[0], 1U, NextLink);
+
+			if (NextLink < NumAvailableLinks)
+			{
+				RWCulledLightLinks[NextLink * LIGHT_LINK_STRIDE + 0] = LocalLightIndex;
+				RWCulledLightLinks[NextLink * LIGHT_LINK_STRIDE + 1] = LinkOffset;
+
+				LinkOffset = NextLink;
+
+				++NumVisibleLights;
+				if (LocalLightIndex >= MegaLightsSupportedStartIndex)
+				{
+					++NumVisibleMegaLights;
+				}
+			}
+#else // !USE_LINKED_CULL_LIST
+			if (NumVisibleLights < MaxCulledLightsPerCell)
+			{
+				RWCulledLightDataGrid[GridIndex * MaxCulledLightsPerCell + NumVisibleLights] = LocalLightIndex;
+
+				++NumVisibleLights;
+				if (LocalLightIndex >= MegaLightsSupportedStartIndex)
+				{
+					++NumVisibleMegaLights;
+				}
+			}
+#endif // !USE_LINKED_CULL_LIST
+		}
+	}
+
+#if USE_LINKED_CULL_LIST
+	uint CulledLightDataStart;
+	WaveInterlockedAdd_(RWNextCulledLightData[0], NumVisibleLights, CulledLightDataStart);
+
+	// Mega Lights are order dependent
+	OutputReversedLinkedList(LinkOffset, NumVisibleLights, CulledLightDataStart);
+#else
+	uint CulledLightDataStart = GridIndex * MaxCulledLightsPerCell;
+#endif
+
+	RWNumCulledLightsGrid[GridIndex * NUM_CULLED_LIGHTS_GRID_STRIDE + 0] = PackCulledLightsGridHeader0(NumVisibleLights, NumVisibleMegaLights);
+	RWNumCulledLightsGrid[GridIndex * NUM_CULLED_LIGHTS_GRID_STRIDE + 1] = PackCulledLightsGridHeader1(CulledLightDataStart, bHasRectLights, bHasTexturedLights);
+}
+void CullReflectionCaptures_SingleThread(uint GridIndex, FCellBounds CellBounds, uint ParentGridIndex)
+{
+	uint NumVisibleCaptures = 0;
+
+	uint LinkOffset = 0xFFFFFFFF;
+
+	FArrayView ReflectionCaptureArrayView = InitReflectionCaptureArrayView(ParentGridIndex);
+
+	LOOP
+	for (uint Index = 0; Index < ReflectionCaptureArrayView.Num; ++Index)
+	{
+		uint ReflectionCaptureIndex = GetPrimitiveIndex(ReflectionCaptureArrayView, Index);
+
+		bool bOverlapsReflectionCapture = OverlapsReflectionCapture(ReflectionCaptureIndex, CellBounds);
+
+		if (bOverlapsReflectionCapture)
+		{
+#if USE_LINKED_CULL_LIST
+			uint NextLink;
+			WaveInterlockedAddScalar_(RWNextCulledLightLink[0], 1U, NextLink);
+
+			if (NextLink < NumAvailableLinks)
+			{
+				RWCulledLightLinks[NextLink * LIGHT_LINK_STRIDE + 0] = ReflectionCaptureIndex;
+				RWCulledLightLinks[NextLink * LIGHT_LINK_STRIDE + 1] = LinkOffset;
+
+				LinkOffset = NextLink;
+
+				++NumVisibleCaptures;
+			}
+#else // !USE_LINKED_CULL_LIST
+			if (NumVisibleCaptures < MaxCulledLightsPerCell)
+			{
+				RWCulledLightDataGrid[(NumGridCells + GridIndex) * MaxCulledLightsPerCell + NumVisibleCaptures] = ReflectionCaptureIndex;
+
+				++NumVisibleCaptures;
+			}
+#endif // !USE_LINKED_CULL_LIST
+		}
+	}
+
+#if USE_LINKED_CULL_LIST
+	uint CulledReflectionCaptureDataStart;
+	WaveInterlockedAdd_(RWNextCulledLightData[0], NumVisibleCaptures, CulledReflectionCaptureDataStart);
+
+	// Reflection captures are order dependent
+	OutputReversedLinkedList(LinkOffset, NumVisibleCaptures, CulledReflectionCaptureDataStart);
+#else
+	uint CulledReflectionCaptureDataStart = (NumGridCells + GridIndex) * MaxCulledLightsPerCell;
+#endif
+
+	RWNumCulledLightsGrid[(NumGridCells + GridIndex) * NUM_CULLED_LIGHTS_GRID_STRIDE + 0] = NumVisibleCaptures;
+	RWNumCulledLightsGrid[(NumGridCells + GridIndex) * NUM_CULLED_LIGHTS_GRID_STRIDE + 1] = CulledReflectionCaptureDataStart;
+}
+
+#define NUM_THREADS_PER_GROUP THREADGROUP_SIZE
+#include "ThreadGroupPrefixSum.ush"
+
+// When using one thread group per cell, store up to MAX_LDS_ITEMS in LDS before falling back to linked list
+#define USE_LDS (1)
+#define MAX_LDS_ITEMS 256
+
+groupshared uint CellLDSItems[MAX_LDS_ITEMS];
+
+struct FCellWriter
+{
+	uint LinkOffset;
+};
+
+FCellWriter InitCellWriter()
+{
+	FCellWriter CellWriter;
+	CellWriter.LinkOffset = 0xFFFFF;
+	
+	return CellWriter;
+}
+
+bool AddToCell(inout FCellWriter CellWriter, uint PrimitiveIndex, uint IndexInCell)
+{
+#if USE_LDS
+	// use LDS if there's still space
+	if (IndexInCell < MAX_LDS_ITEMS)
+	{
+		CellLDSItems[IndexInCell] = PrimitiveIndex;
+		return true;
+	}
+#endif
+
+	// otherwise store in linked list
+	uint NextLink;
+	WaveInterlockedAddScalar_(RWNextCulledLightLink[0], 1U, NextLink);
+
+	if (NextLink < NumAvailableLinks)
+	{
+		checkSlow(PrimitiveIndex <= 0xFFFFFF);
+		checkSlow(IndexInCell <= 0xFFFF);
+		checkSlow(CellWriter.LinkOffset <= 0xFFFFFF);
+
+		uint IndexInCellL8 = (IndexInCell & 0xFF);
+		uint IndexInCellH8 = ((IndexInCell >> 8) & 0xFF);
+
+		RWCulledLightLinks[NextLink * LIGHT_LINK_STRIDE + 0] = (IndexInCellL8 << 24) | (PrimitiveIndex & 0xFFFFFF);
+		RWCulledLightLinks[NextLink * LIGHT_LINK_STRIDE + 1] = (IndexInCellH8 << 24) | (CellWriter.LinkOffset & 0xFFFFFF);
+
+		CellWriter.LinkOffset = NextLink;
+
+		return true;
+	}
+
+	return false;
+}
+
+void OutputCell(FCellWriter CellWriter, uint NumPrimitives, uint CulledLightDataStart, uint ThreadIndex)
+{
+#if USE_LDS
+	// output entries in LDS to RWCulledLightDataGrid
+	LOOP
+	for (uint OutIndex = ThreadIndex; OutIndex < NumPrimitives; OutIndex += THREADGROUP_SIZE)
+	{
+		RWCulledLightDataGrid[CulledLightDataStart + OutIndex] = CellLDSItems[OutIndex];
+	}
+#endif
+
+	// output entries in linked list to RWCulledLightDataGrid
+
+	while (CellWriter.LinkOffset != 0xFFFFF)
+	{
+		const uint PackedData0 = RWCulledLightLinks[CellWriter.LinkOffset * LIGHT_LINK_STRIDE + 0];
+		const uint PackedData1 = RWCulledLightLinks[CellWriter.LinkOffset * LIGHT_LINK_STRIDE + 1];
+		const uint PrimitiveIndex = (PackedData0 & 0xFFFFFF);
+		const uint LinkOffset = (PackedData1 & 0xFFFFFF);
+		const uint IndexInCellL8 = (PackedData0 >> 24) & 0xFF;
+		const uint IndexInCellH8 = (PackedData1 >> 24) & 0xFF;
+		const uint IndexInCell = (IndexInCellH8 << 8) | IndexInCellL8;
+
+		RWCulledLightDataGrid[CulledLightDataStart + IndexInCell] = PrimitiveIndex;
+		CellWriter.LinkOffset = LinkOffset;
+	}
+}
+
+groupshared uint OutOffset;
+groupshared uint bCellHasRectLights;
+groupshared uint bCellHasTexturedLights;
+groupshared uint CellNumVisibleLights;
+groupshared uint CellNumVisibleMegaLights;
+groupshared uint CellNumVisibleReflectionCaptures;
+
+groupshared uint CulledLightDataStart;
+
+void CullLights_ThreadGroup(uint ThreadIndex, uint GridIndex, FCellBounds CellBounds, uint ParentGridIndex)
+{
+	if (ThreadIndex == 0)
+	{
+		OutOffset = 0;
+		bCellHasRectLights = 0;
+		bCellHasTexturedLights = 0;
+		CellNumVisibleLights = 0;
+		CellNumVisibleMegaLights = 0;
+	}
+	
+	GroupMemoryBarrierWithGroupSync();
+
+	uint NumVisibleLights = 0;
+	uint NumVisibleMegaLights = 0;
+	uint bHasRectLights = false;
+	uint bHasTexturedLights = false;
+
+	FCellWriter CellWriter = InitCellWriter();
+
+	FArrayView LocalLightArrayView = InitLocalLightArrayView(ParentGridIndex);
+
+	LOOP
+	for (uint GroupBaseIndex = 0; GroupBaseIndex < LocalLightArrayView.Num; GroupBaseIndex += THREADGROUP_SIZE)
+	{
+		const uint Index = GroupBaseIndex + ThreadIndex;
+		const uint LocalLightIndex = Index < LocalLightArrayView.Num ? GetPrimitiveIndex(LocalLightArrayView, Index) : 0xFFFFFFFF;
+
+		bool bIsRectLight;
+		bool bIsTexturedLight;
+		bool bOverlapsLight = LocalLightIndex < NumLocalLights && OverlapsLight(LocalLightIndex, CellBounds, bIsRectLight, bIsTexturedLight);
+		
+		// NOTE: Cannot be under any divergent branching!
+		uint GroupCount;
+		uint Offset = ThreadGroupPrefixSum(bOverlapsLight ? 1u : 0u, ThreadIndex, GroupCount);
+
+		uint IndexInCell = OutOffset + Offset;
+
+		// Wait until all threads are done with 'OutOffset'
+		GroupMemoryBarrierWithGroupSync();
+		
+		if (ThreadIndex == 0)
+		{
+			OutOffset += GroupCount;
+		}
+
+		if (bOverlapsLight)
+		{
+			bHasRectLights |= bIsRectLight;
+			bHasTexturedLights |= bIsTexturedLight;
+
+			if (AddToCell(CellWriter, LocalLightIndex, IndexInCell))
+			{
+				++NumVisibleLights;
+				if (LocalLightIndex >= MegaLightsSupportedStartIndex)
+				{
+					++NumVisibleMegaLights;
+				}
+			}
+		}
+	}
+
+	InterlockedOr(bCellHasRectLights, bHasRectLights ? 1 : 0);
+	InterlockedOr(bCellHasTexturedLights, bHasTexturedLights ? 1 : 0);
+	InterlockedAdd(CellNumVisibleLights, NumVisibleLights);
+	InterlockedAdd(CellNumVisibleMegaLights, NumVisibleMegaLights);
+
+	GroupMemoryBarrierWithGroupSync();
+
+	if (ThreadIndex == 0)
+	{
+		InterlockedAdd(RWNextCulledLightData[0], CellNumVisibleLights, CulledLightDataStart);
+	}
+
+	GroupMemoryBarrierWithGroupSync();
+
+	OutputCell(CellWriter, CellNumVisibleLights, CulledLightDataStart, ThreadIndex);
+
+	if (ThreadIndex == 0)
+	{
+		RWNumCulledLightsGrid[GridIndex * NUM_CULLED_LIGHTS_GRID_STRIDE + 0] = PackCulledLightsGridHeader0(CellNumVisibleLights, CellNumVisibleMegaLights);
+		RWNumCulledLightsGrid[GridIndex * NUM_CULLED_LIGHTS_GRID_STRIDE + 1] = PackCulledLightsGridHeader1(CulledLightDataStart, bCellHasRectLights, bCellHasTexturedLights);
+	}
+}
+
+void CullReflectionCaptures_ThreadGroup(uint ThreadIndex, uint GridIndex, FCellBounds CellBounds, uint ParentGridIndex)
+{
+	if (ThreadIndex == 0)
+	{
+		OutOffset = 0;
+		CellNumVisibleReflectionCaptures = 0;
+	}
+	
+	GroupMemoryBarrierWithGroupSync();
+
+	uint NumVisibleCaptures = 0;
+
+	FCellWriter CellWriter = InitCellWriter();
+
+	FArrayView ReflectionCaptureArrayView = InitReflectionCaptureArrayView(ParentGridIndex);
+
+	LOOP
+	for (uint GroupBaseIndex = 0; GroupBaseIndex < ReflectionCaptureArrayView.Num; GroupBaseIndex += THREADGROUP_SIZE)
+	{
+		const uint Index = GroupBaseIndex + ThreadIndex;
+		const uint ReflectionCaptureIndex = Index < ReflectionCaptureArrayView.Num ? GetPrimitiveIndex(ReflectionCaptureArrayView, Index) : 0xFFFFFFFF;
+
+		bool bOverlapsReflectionCapture = ReflectionCaptureIndex < NumReflectionCaptures && OverlapsReflectionCapture(ReflectionCaptureIndex, CellBounds);
+		
+		// NOTE: Cannot be under any divergent branching!
+		uint GroupCount;
+		uint Offset = ThreadGroupPrefixSum(bOverlapsReflectionCapture ? 1u : 0u, ThreadIndex, GroupCount);
+		
+		uint IndexInCell = OutOffset + Offset;
+
+		// Wait until all threads are done with 'OutOffset'
+		GroupMemoryBarrierWithGroupSync();
+		
+		if (ThreadIndex == 0)
+		{
+			OutOffset += GroupCount;
+		}
+
+		if (bOverlapsReflectionCapture)
+		{
+			if (AddToCell(CellWriter, ReflectionCaptureIndex, IndexInCell))
+			{
+				++NumVisibleCaptures;
+			}
+		}
+	}
+
+	InterlockedAdd(CellNumVisibleReflectionCaptures, NumVisibleCaptures);
+
+	GroupMemoryBarrierWithGroupSync();
+
+	if (ThreadIndex == 0)
+	{
+		InterlockedAdd(RWNextCulledLightData[0], CellNumVisibleReflectionCaptures, CulledLightDataStart);
+	}
+
+	GroupMemoryBarrierWithGroupSync();
+
+	OutputCell(CellWriter, CellNumVisibleReflectionCaptures, CulledLightDataStart, ThreadIndex);
+
+	if (ThreadIndex == 0)
+	{
+		RWNumCulledLightsGrid[(NumGridCells + GridIndex) * NUM_CULLED_LIGHTS_GRID_STRIDE + 0] = CellNumVisibleReflectionCaptures;
+		RWNumCulledLightsGrid[(NumGridCells + GridIndex) * NUM_CULLED_LIGHTS_GRID_STRIDE + 1] = CulledLightDataStart;
+	}
+}
+
+[numthreads(THREADGROUP_SIZE_X, THREADGROUP_SIZE_Y, THREADGROUP_SIZE_Z)]
+void LightGridInjectionCS(
+	uint3 DispatchThreadId : SV_DispatchThreadID,
+	uint3 GroupId : SV_GroupID,
+	uint GroupIndex : SV_GroupIndex)
+{
+#if USE_THREAD_GROUP_PER_CELL
+	const uint3 GridCoordinate = GroupId;
+	const uint ThreadIndex = GroupIndex;
+#else
+	const uint3 GridCoordinate = DispatchThreadId;
+#endif
 
 	if (all(GridCoordinate < (uint3)CulledGridSize))
 	{
-		uint GridIndex = (GridCoordinate.z * CulledGridSize.y + GridCoordinate.y) * CulledGridSize.x + GridCoordinate.x;
+		const uint GridIndex = (GridCoordinate.z * CulledGridSize.y + GridCoordinate.y) * CulledGridSize.x + GridCoordinate.x;
 
 // Disable to pass all lights through for debugging, will hit limits quickly though
 #define CULL_LIGHTS 1
 #if CULL_LIGHTS
 
-		float MinTileZ = ComputeCellNearViewDepthFromZSlice(GridCoordinate.z);
-		float MaxTileZ = ComputeCellNearViewDepthFromZSlice(GridCoordinate.z + 1);
+		float MinTileZ = ComputeCellNearViewDepthFromZSlice(GridCoordinate.z + 0, LightGridZSliceScale);
+		float MaxTileZ = ComputeCellNearViewDepthFromZSlice(GridCoordinate.z + 1, LightGridZSliceScale);
 
 #if USE_HZB_CULL
 		FScreenRect Rect = ComputeCellCullRect(GridCoordinate, MinTileZ, MaxTileZ);
 
  		if (!IsVisibleHZB(Rect, true /*bSample4x4*/))
  		{
- 			RWNumCulledLightsGrid[GridIndex * NUM_CULLED_LIGHTS_GRID_STRIDE + 0] = PackCulledLightsGridHeader0(0, 0);
- 			RWNumCulledLightsGrid[GridIndex * NUM_CULLED_LIGHTS_GRID_STRIDE + 1] = PackCulledLightsGridHeader1(GridIndex * MaxCulledLightsPerCell, false, false);
+#if USE_THREAD_GROUP_PER_CELL
+			if (ThreadIndex == 0)
+#endif
+			{
+ 				RWNumCulledLightsGrid[GridIndex * NUM_CULLED_LIGHTS_GRID_STRIDE + 0] = PackCulledLightsGridHeader0(0, 0);
+ 				RWNumCulledLightsGrid[GridIndex * NUM_CULLED_LIGHTS_GRID_STRIDE + 1] = PackCulledLightsGridHeader1(0, false, false);
+			}
  			return;
  		}
 		
@@ -340,116 +786,21 @@ void LightGridInjectionCS(
 #endif // USE_HZB_CULL
 		
 		FCellBounds CellBounds = ComputeCellBounds(GridCoordinate, MinTileZ, MaxTileZ);
-		
-		uint NumAvailableLinks = NumGridCells * MaxCulledLightsPerCell * NUM_CULLED_GRID_PRIMITIVE_TYPES;
 
-		uint NumVisibleLights = 0;
-		uint NumVisibleMegaLights = 0;
-		uint bHasRectLights = false;
-		uint bHasTexturedLights = false;
-
-		uint LinkOffset = 0xFFFFFFFF;
-
-		LOOP
-		for (uint LocalLightIndex = 0; LocalLightIndex < NumLocalLights; LocalLightIndex++)
-		{
-			bool bIsRectLight;
-			bool bIsTexturedLight;
-			if (OverlapsLight(LocalLightIndex, CellBounds, bIsRectLight, bIsTexturedLight))
-			{
-				bHasRectLights |= bIsRectLight;
-				bHasTexturedLights |= bIsTexturedLight;
-
-#if USE_LINKED_CULL_LIST
-				uint NextLink;
-				InterlockedAdd(RWNextCulledLightLink[0], 1U, NextLink);
-
-				if (NextLink < NumAvailableLinks)
-				{
-					RWCulledLightLinks[NextLink * LIGHT_LINK_STRIDE + 0] = LocalLightIndex;
-					RWCulledLightLinks[NextLink * LIGHT_LINK_STRIDE + 1] = LinkOffset;
-
-					LinkOffset = NextLink;
-
-					++NumVisibleLights;
-					if (LocalLightIndex >= MegaLightsSupportedStartIndex)
-					{
-						++NumVisibleMegaLights;
-					}
-				}
-#else // !USE_LINKED_CULL_LIST
-				if (NumVisibleLights < MaxCulledLightsPerCell)
-				{
-					RWCulledLightDataGrid[GridIndex * MaxCulledLightsPerCell + NumVisibleLights] = LocalLightIndex;
-
-					++NumVisibleLights;
-					if (LocalLightIndex >= MegaLightsSupportedStartIndex)
-					{
-						++NumVisibleMegaLights;
-					}
-				}
-#endif // !USE_LINKED_CULL_LIST
-			}
-		}
-
-#if USE_LINKED_CULL_LIST
-		uint CulledLightDataStart;
-		WaveInterlockedAdd_(RWNextCulledLightData[0], NumVisibleLights, CulledLightDataStart);
-
-		// Mega Lights are order dependent
-		WriteReversedLinkedList(LinkOffset, NumVisibleLights, CulledLightDataStart);
+#if USE_PARENT_LIGHT_GRID
+		const uint3 ParentGridCoordinate = GridCoordinate / ParentGridSizeFactor;
+		const uint ParentGridIndex = (ParentGridCoordinate.z * ParentGridSize.y + ParentGridCoordinate.y) * ParentGridSize.x + ParentGridCoordinate.x;
 #else
-		uint CulledLightDataStart = GridIndex * MaxCulledLightsPerCell;
+		const uint ParentGridIndex = 0xFFFFFFFF;
 #endif
 
-		RWNumCulledLightsGrid[GridIndex * NUM_CULLED_LIGHTS_GRID_STRIDE + 0] = PackCulledLightsGridHeader0(NumVisibleLights, NumVisibleMegaLights);
-		RWNumCulledLightsGrid[GridIndex * NUM_CULLED_LIGHTS_GRID_STRIDE + 1] = PackCulledLightsGridHeader1(CulledLightDataStart, bHasRectLights, bHasTexturedLights);
-		
-		uint NumVisibleCaptures = 0;
-		uint CaptureLinkOffset = 0xFFFFFFFF;
-
-		LOOP
-		for (uint ReflectionCaptureIndex = 0; ReflectionCaptureIndex < NumReflectionCaptures; ReflectionCaptureIndex++)
-		{
-			if (OverlapsReflectionCapture(ReflectionCaptureIndex, CellBounds))
-			{			
-				#if USE_LINKED_CULL_LIST
-					uint NextLink;
-					InterlockedAdd(RWNextCulledLightLink[0], 1U, NextLink);
-
-					if (NextLink < NumAvailableLinks)
-					{
-						RWCulledLightLinks[NextLink * LIGHT_LINK_STRIDE + 0] = ReflectionCaptureIndex;
-						RWCulledLightLinks[NextLink * LIGHT_LINK_STRIDE + 1] = CaptureLinkOffset;
-
-						CaptureLinkOffset = NextLink;
-
-						++NumVisibleCaptures;
-					}
-
-				#else // !USE_LINKED_CULL_LIST
-					if (NumVisibleCaptures < MaxCulledLightsPerCell)
-					{
-						RWCulledLightDataGrid[(NumGridCells + GridIndex) * MaxCulledLightsPerCell + NumVisibleCaptures] = ReflectionCaptureIndex;
-
-						++NumVisibleCaptures;
-					}
-				#endif // !USE_LINKED_CULL_LIST
-			}
-		}
-
-#if USE_LINKED_CULL_LIST
-		uint CulledReflectionCaptureDataStart;
-		WaveInterlockedAdd_(RWNextCulledLightData[0], NumVisibleCaptures, CulledReflectionCaptureDataStart);
-
-		// Reflection captures are order dependent
-		WriteReversedLinkedList(CaptureLinkOffset, NumVisibleCaptures, CulledReflectionCaptureDataStart);
+#if USE_THREAD_GROUP_PER_CELL
+		CullLights_ThreadGroup(ThreadIndex, GridIndex, CellBounds, ParentGridIndex);
+		CullReflectionCaptures_ThreadGroup(ThreadIndex, GridIndex, CellBounds, ParentGridIndex);
 #else
-		uint CulledReflectionCaptureDataStart = (NumGridCells + GridIndex) * MaxCulledLightsPerCell;
+		CullLights_SingleThread(GridIndex, CellBounds, ParentGridIndex);
+		CullReflectionCaptures_SingleThread(GridIndex, CellBounds, ParentGridIndex);
 #endif
-
-		RWNumCulledLightsGrid[(NumGridCells + GridIndex) * NUM_CULLED_LIGHTS_GRID_STRIDE + 0] = NumVisibleCaptures;
-		RWNumCulledLightsGrid[(NumGridCells + GridIndex) * NUM_CULLED_LIGHTS_GRID_STRIDE + 1] = CulledReflectionCaptureDataStart;
 
 #else // !CULL_LIGHTS
 		LOOP
@@ -461,7 +812,9 @@ void LightGridInjectionCS(
 			}
 		}
 
-		RWNumCulledLightsGrid[GridIndex * NUM_CULLED_LIGHTS_GRID_STRIDE + 0] = PackCulledLightsGridHeader0(NumLocalLights, NumLocalLights - MegaLightsSupportedStartIndex);
+		const uint NumVisibleLights = min(NumLocalLights, MaxCulledLightsPerCell);
+		const uint NumVisibleMegaLights = max(NumVisibleLights - MegaLightsSupportedStartIndex, 0);
+		RWNumCulledLightsGrid[GridIndex * NUM_CULLED_LIGHTS_GRID_STRIDE + 0] = PackCulledLightsGridHeader0(NumVisibleLights, NumVisibleMegaLights);
 		RWNumCulledLightsGrid[GridIndex * NUM_CULLED_LIGHTS_GRID_STRIDE + 1] = PackCulledLightsGridHeader1(GridIndex * MaxCulledLightsPerCell, true, true); // TODO
 		
 		LOOP
@@ -473,13 +826,14 @@ void LightGridInjectionCS(
 			}
 		}
 
-		RWNumCulledLightsGrid[(NumGridCells + GridIndex) * NUM_CULLED_LIGHTS_GRID_STRIDE + 0] = NumReflectionCaptures;
+		const uint NumVisibleReflectionCaptures = min(NumReflectionCaptures, MaxCulledLightsPerCell);
+		RWNumCulledLightsGrid[(NumGridCells + GridIndex) * NUM_CULLED_LIGHTS_GRID_STRIDE + 0] = NumVisibleReflectionCaptures;
 		RWNumCulledLightsGrid[(NumGridCells + GridIndex) * NUM_CULLED_LIGHTS_GRID_STRIDE + 1] = (NumGridCells + GridIndex) * MaxCulledLightsPerCell;
 #endif // !CULL_LIGHTS
 	}
 }
 
-#endif // SHADER_LIGHT_GRID_INJECTION_CS
+#endif // LightGridInjectionCS
 
 
 #ifdef SHADER_DEBUG_LIGHT_GRID_PS
