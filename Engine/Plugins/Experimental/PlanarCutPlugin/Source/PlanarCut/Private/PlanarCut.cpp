@@ -1700,6 +1700,12 @@ void MergeClusters(
 	bool bOnlySameParent
 )
 {
+	if (Collection.NumElements(FGeometryCollection::TransformGroup) == 0)
+	{
+		// nothing to do, early exit
+		return;
+	}
+
 	FGeometryCollectionProximityUtility ProximityUtility(&Collection);
 	ProximityUtility.RequireProximity();
 	const TManagedArray<TSet<int32>>& Proximity = Collection.GetAttribute<TSet<int32>>("Proximity", FGeometryCollection::GeometryGroup);
