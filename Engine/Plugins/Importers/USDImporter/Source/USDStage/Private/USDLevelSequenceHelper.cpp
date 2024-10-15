@@ -3907,6 +3907,12 @@ void FUsdLevelSequenceHelperImpl::OnObjectTransacted(UObject* Object, const clas
 		return;
 	}
 
+	// Never write back to the stage if we don't have authority
+	if (StageActor.IsValid() && !StageActor->HasAuthorityOverStage())
+	{
+		return;
+	}
+
 	if (UMovieScene* MovieScene = Cast<UMovieScene>(Object))
 	{
 		HandleMovieSceneChange(*MovieScene);
