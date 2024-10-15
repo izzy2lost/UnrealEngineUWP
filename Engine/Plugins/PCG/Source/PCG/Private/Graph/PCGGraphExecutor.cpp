@@ -82,7 +82,7 @@ namespace PCGGraphExecutor
 
 	TAutoConsoleVariable<bool> CVarExecuteV2(
 		TEXT("pcg.Graph.ExecuteV2"),
-		false,
+		true,
 		TEXT("Enables the new execute allowing tasks to run out of tick"));
 
 	TAutoConsoleVariable<int32> CVarMaxWorkerTasks(
