@@ -63,7 +63,7 @@ public:
 	 * Exports the provided level alongside the layer that represents the exported Level Sequence
 	 */
 	UPROPERTY(EditAnywhere, config, BlueprintReadWrite, Category = "Level Sequence")
-	bool bExportLevel = false;
+	bool bExportLevel = true;
 
 	/**
 	 * If checked this will also add the exported level as a sublayer to the USD files emitted for all exported level sequences

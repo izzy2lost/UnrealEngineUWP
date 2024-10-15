@@ -1800,6 +1800,12 @@ bool ULevelSequenceExporterUsd::ExportBinary(
 	{
 		Options = GetMutableDefault<ULevelSequenceExporterUsdOptions>();
 
+		// Prefill the level to export with the current level
+		if (!Options->Level.Get())
+		{
+			Options->Level = IUsdClassesModule::GetCurrentWorld();
+		}
+
 		// Prompt with an options dialog if we can
 		if (Options && (!ExportTask || !ExportTask->bAutomated))
 		{
