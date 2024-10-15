@@ -28,8 +28,10 @@ static_assert(sizeof(ispc::TArrayInt) == sizeof(TArray<int32>), "sizeof(ispc::TA
 #define CHAOS_TRIANGLE_MESH_ISPC_ENABLED_DEFAULT 1
 #endif
 
+// Temporarily enabling setting this cvar in shipping builds for live testing since we're seeing crashes in this kernel.
 // Support run-time toggling on supported platforms in non-shipping configurations
-#if !INTEL_ISPC || UE_BUILD_SHIPPING
+//#if !INTEL_ISPC || UE_BUILD_SHIPPING
+#if !INTEL_ISPC
 static constexpr bool bChaos_TriangleMesh_ISPC_Enabled = INTEL_ISPC && CHAOS_TRIANGLE_MESH_ISPC_ENABLED_DEFAULT;
 #else
 static bool bChaos_TriangleMesh_ISPC_Enabled = CHAOS_TRIANGLE_MESH_ISPC_ENABLED_DEFAULT;
