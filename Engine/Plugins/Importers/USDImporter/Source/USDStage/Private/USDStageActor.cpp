@@ -2061,7 +2061,7 @@ UUsdPrimTwin* AUsdStageActor::ExpandPrim(
 	{
 		// For the repopulate, let's only visit the prim twins that already have children and so may actually have
 		// components. We don't want to create brand new components here
-		bExpandChildren = bResync && UsdPrimTwin->GetChildren().Num() > 0;
+		bExpandChildren = UsdPrimTwin->GetChildren().Num() > 0;
 	}
 	else if (!TranslationContext.bIsJustRepopulatingLevelSequence)
 	{
@@ -3489,12 +3489,6 @@ void AUsdStageActor::UnloadUsdStage()
 					if (ULevelSequence* ValidSequence = LevelSequencePtr.Get())
 					{
 						GEditor->GetEditorSubsystem<UAssetEditorSubsystem>()->CloseAllEditorsForAsset(ValidSequence);
-
-						// It's important to mark as garbage so that DeleteUnreferencedAssets can delete assets
-						// that are referenced by LevelSequence tracks, like AnimSequences and geometry caches.
-						// DeleteUnreferencedAssets will run on the *next* tick, so doing this on the AsyncTask is still
-						// going to take place before it
-						ValidSequence->MarkAsGarbage();
 					}
 				}
 			);
@@ -4017,6 +4011,12 @@ void AUsdStageActor::PostDuplicate(bool bDuplicateForPIE)
 	if (bDuplicateForPIE)
 	{
 		OpenUsdStage();
+
+		// We always want our own LevelSequence though, otherwise we could end up with some strange behavior, like:
+		// PIE -> Change LevelSequence -> PIE actor is inside of a FScopedBlockNoticeListening from HandleTrackChange,
+		// but the actor back in the editor is not -> Editor actor writes changes back to the stage anyway
+		RegenerateLevelSequence();
+		RepopulateLevelSequence();
 	}
 	else
 	{
