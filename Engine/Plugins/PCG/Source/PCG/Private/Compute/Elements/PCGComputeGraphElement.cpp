@@ -361,6 +361,7 @@ bool FPCGComputeGraphElement::SetupProceduralISMComponents(FPCGContext* InContex
 		TArray<float> PrimitiveSelectionCDF;
 		int32 SelectorAttributeId = -1;
 		TArray<int32> PrimitiveStringKeys;
+		TArray<FBox> PrimitiveMeshBounds;
 		TArray<FPCGProceduralISMComponentDescriptor> ComponentsToCreate;
 
 		if (const UPCGMeshSelectorByAttribute* SelectorByAttribute = Cast<UPCGMeshSelectorByAttribute>(SpawnerSettings->MeshSelectorParameters))
@@ -418,6 +419,11 @@ bool FPCGComputeGraphElement::SetupProceduralISMComponents(FPCGContext* InContex
 
 				PrimitiveStringKeys.Emplace(StringKey);
 				ComponentsToCreate.Add(MoveTemp(Descriptor));
+
+				if (SpawnerSettings->bApplyMeshBoundsToPoints)
+				{
+					PrimitiveMeshBounds.Add(Descriptor.StaticMesh->GetBoundingBox());
+				}
 			}
 
 			PrimitiveSelectionCDF.SetNumZeroed(ComponentsToCreate.Num());
@@ -461,6 +467,11 @@ bool FPCGComputeGraphElement::SetupProceduralISMComponents(FPCGContext* InContex
 					Descriptor.NumCustomFloats = CustomFloatCount;
 					Descriptor.StaticMesh = StaticMesh;
 					ComponentsToCreate.Add(MoveTemp(Descriptor));
+
+					if (SpawnerSettings->bApplyMeshBoundsToPoints)
+					{
+						PrimitiveMeshBounds.Add(Descriptor.StaticMesh->GetBoundingBox());
+					}
 				}
 				else
 				{
@@ -490,6 +501,7 @@ bool FPCGComputeGraphElement::SetupProceduralISMComponents(FPCGContext* InContex
 		Primitives.SelectorAttributeId = SelectorAttributeId;
 		Primitives.SelectionCDF = MoveTemp(PrimitiveSelectionCDF);
 		Primitives.PrimitiveStringKeys = MoveTemp(PrimitiveStringKeys);
+		Primitives.PrimitiveMeshBounds = MoveTemp(PrimitiveMeshBounds);
 
 		for (const FPCGProceduralISMComponentDescriptor& Desc : ComponentsToCreate)
 		{
