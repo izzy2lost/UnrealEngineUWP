@@ -1149,7 +1149,6 @@ bool FUsdLevelSequenceHelperImpl::HasData() const
 
 void FUsdLevelSequenceHelperImpl::Clear()
 {
-	// Mark old sequences as garbage so that the track references' to the assets can be immediately ignored
 	for (const TPair<FString, TObjectPtr<ULevelSequence>>& IdentifierAndSeq : LevelSequencesByIdentifier)
 	{
 		if (ULevelSequence* Seq = IdentifierAndSeq.Value.Get())
@@ -1160,8 +1159,6 @@ void FUsdLevelSequenceHelperImpl::Clear()
 				GEditor->GetEditorSubsystem<UAssetEditorSubsystem>()->CloseAllEditorsForAsset(Seq);
 			}
 #endif	  // WITH_EDITOR
-
-			Seq->MarkAsGarbage();
 		}
 	}
 
