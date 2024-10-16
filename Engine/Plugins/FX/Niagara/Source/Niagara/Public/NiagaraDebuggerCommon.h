@@ -475,18 +475,18 @@ struct FNiagaraDebugHUDSettingsData
 	UPROPERTY()
 	bool bOverviewEnabled = false;
 
-	UPROPERTY(EditAnywhere, Category = "Debug Overview", meta = (DisplayName = "Debug Overview Mode", EditCondition = "bOverviewEnabled"))
+	UPROPERTY(EditAnywhere, Category = "Debug Overview", meta = (DisplayName = "Debug Overview Mode"))
 	ENiagaraDebugHUDOverviewMode OverviewMode = ENiagaraDebugHUDOverviewMode::Overview;
 
 	// How to sort the displayed list of systems
-	UPROPERTY(EditAnywhere, Category = "Debug Overview", meta = (DisplayName = "Debug Overview Sort Mode", EditCondition = "bOverviewEnabled"))
+	UPROPERTY(EditAnywhere, Category = "Debug Overview", meta = (DisplayName = "Debug Overview Sort Mode"))
 	ENiagaraDebugHUDDOverviewSort OverviewSortMode = ENiagaraDebugHUDDOverviewSort::Name;
 
 	/** When enabled the overview display will include cascade FX. */
-	UPROPERTY(EditAnywhere, Category = "Debug Overview", AdvancedDisplay, meta = (EditCondition = "bOverviewEnabled"))
+	UPROPERTY(EditAnywhere, Category = "Debug Overview", AdvancedDisplay)
 	bool bIncludeCascade = true;
 
-	UPROPERTY(EditAnywhere, Category = "Debug Overview", meta = (EditCondition = "bOverviewEnabled && OverviewMode == ENiagaraDebugHUDOverviewMode::Overview"))
+	UPROPERTY(EditAnywhere, Category = "Debug Overview")
 	bool bShowRegisteredComponents = false;
 	
 	/** When enabled the overview will only show the filter system information. */

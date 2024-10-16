@@ -243,6 +243,28 @@ FNiagaraDebugHUDSettingsDetailsCustomization::FNiagaraDebugHUDSettingsDetailsCus
 
 void FNiagaraDebugHUDSettingsDetailsCustomization::CustomizeDetails(IDetailLayoutBuilder& DetailBuilder)
 {
+	{
+		IDetailCategoryBuilder& OverviewCategory = DetailBuilder.EditCategory("Debug Overview");
+
+		TArray<TSharedRef<IPropertyHandle>> PropertyHandles;
+		OverviewCategory.GetDefaultProperties(PropertyHandles);
+		for (const TSharedRef<IPropertyHandle>& PropertyHandle : PropertyHandles)
+		{
+			if (PropertyHandle->GetProperty()->GetFName() == GET_MEMBER_NAME_CHECKED(FNiagaraDebugHUDSettingsData, bShowRegisteredComponents))
+			{
+				OverviewCategory.AddProperty(PropertyHandle).IsEnabled(
+					TAttribute<bool>::CreateLambda([&]() -> bool { const UNiagaraDebugHUDSettings* Settings = WeakSettings.Get(); return Settings->Data.bOverviewEnabled && Settings->Data.OverviewMode == ENiagaraDebugHUDOverviewMode::Overview; })
+				);
+			}
+			else
+			{
+				OverviewCategory.AddProperty(PropertyHandle).IsEnabled(
+					TAttribute<bool>::CreateLambda([&]() -> bool { return WeakSettings.Get()->Data.bOverviewEnabled; })
+				);
+			}
+		}
+	}
+
 	// Customize Filters
 	{
 		IDetailCategoryBuilder& FilterCategory = DetailBuilder.EditCategory("Debug Filter");
