@@ -335,7 +335,7 @@ namespace EpicGames.Horde
 					{
 						if (_currentAuthTaskId == authTaskId)
 						{
-							_logger.LogInformation("Auth task complete (interactive: {Interactive}, authorized: {Authorized})", authState.Interactive, authState.IsAuthorized());
+							_logger.LogDebug("Auth task complete (interactive: {Interactive}, authorized: {Authorized})", authState.Interactive, authState.IsAuthorized());
 							stateHasChanged = _currentAuthResult?.TrySetResult(authState) ?? false;
 						}
 					}
@@ -346,7 +346,7 @@ namespace EpicGames.Horde
 					{
 						if (_currentAuthTaskId == authTaskId)
 						{
-							_logger.LogError(ex, "Exception while attempting auth: {Message}", ex.Message);
+							_logger.LogDebug(ex, "Exception while attempting auth: {Message}", ex.Message);
 							stateHasChanged = _currentAuthResult?.TrySetException(ex) ?? false;
 						}
 					}
