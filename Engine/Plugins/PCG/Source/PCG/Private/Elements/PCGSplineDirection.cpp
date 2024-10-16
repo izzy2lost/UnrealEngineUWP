@@ -1,13 +1,13 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "Elements/PCGReverseSpline.h"
+#include "Elements/PCGSplineDirection.h"
 
 #include "PCGContext.h"
 #include "Data/PCGSplineData.h"
 
-#define LOCTEXT_NAMESPACE "PCGReverseSplineElement"
+#define LOCTEXT_NAMESPACE "PCGSplineDirectionElement"
 
-namespace PCGReverseSpline
+namespace PCGSplineDirection
 {
 	bool IsClockwiseXY(const UPCGSplineData* InputSplineData)
 	{
@@ -75,18 +75,39 @@ namespace PCGReverseSpline
 #if WITH_EDITOR
 FName UPCGReverseSplineSettings::GetDefaultNodeName() const
 {
-	return FName(TEXT("ReverseSpline"));
+	return FName(TEXT("SplineDirection"));
 }
 
 FText UPCGReverseSplineSettings::GetDefaultNodeTitle() const
 {
-	return LOCTEXT("NodeTitle", "Reverse Spline");
+	return LOCTEXT("NodeTitle", "Spline Direction");
+}
+
+EPCGChangeType UPCGReverseSplineSettings::GetChangeTypeForProperty(const FName& InPropertyName) const
+{
+	EPCGChangeType ChangeType = Super::GetChangeTypeForProperty(InPropertyName);
+	if (InPropertyName == GET_MEMBER_NAME_CHECKED(UPCGReverseSplineSettings, Operation))
+	{
+		ChangeType |= EPCGChangeType::Cosmetic;
+	}
+
+	return ChangeType;
 }
 #endif // WITH_EDITOR
 
 FPCGElementPtr UPCGReverseSplineSettings::CreateElement() const
 {
-	return MakeShared<FPCGReverseSplineElement>();
+	return MakeShared<FPCGSplineDirectionElement>();
+}
+
+FString UPCGReverseSplineSettings::GetAdditionalTitleInformation() const
+{
+	if (const UEnum* EnumPtr = StaticEnum<EPCGReverseSplineOperation>())
+	{
+		return EnumPtr->GetDisplayNameTextByValue(static_cast<int64>(Operation)).ToString();
+	}
+
+	return {};
 }
 
 TArray<FPCGPinProperties> UPCGReverseSplineSettings::InputPinProperties() const
@@ -103,9 +124,9 @@ TArray<FPCGPinProperties> UPCGReverseSplineSettings::OutputPinProperties() const
 	return Properties;
 }
 
-bool FPCGReverseSplineElement::ExecuteInternal(FPCGContext* InContext) const
+bool FPCGSplineDirectionElement::ExecuteInternal(FPCGContext* InContext) const
 {
-	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGReverseSplineElement::Execute);
+	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGSplineDirectionElement::Execute);
 
 	check(InContext);
 
@@ -126,10 +147,10 @@ bool FPCGReverseSplineElement::ExecuteInternal(FPCGContext* InContext) const
 		switch (Settings->Operation)
 		{
 		case EPCGReverseSplineOperation::ForceClockwise:
-			bShouldReverse = !PCGReverseSpline::IsClockwiseXY(InputSplineData);
+			bShouldReverse = !PCGSplineDirection::IsClockwiseXY(InputSplineData);
 			break;
 		case EPCGReverseSplineOperation::ForceCounterClockwise:
-			bShouldReverse = PCGReverseSpline::IsClockwiseXY(InputSplineData);
+			bShouldReverse = PCGSplineDirection::IsClockwiseXY(InputSplineData);
 			break;
 		case EPCGReverseSplineOperation::Reverse:
 			bShouldReverse = true;
@@ -141,7 +162,7 @@ bool FPCGReverseSplineElement::ExecuteInternal(FPCGContext* InContext) const
 
 		if (bShouldReverse)
 		{
-			Output.Data = PCGReverseSpline::Reverse(InputSplineData, InContext);
+			Output.Data = PCGSplineDirection::Reverse(InputSplineData, InContext);
 		}
 	}
 

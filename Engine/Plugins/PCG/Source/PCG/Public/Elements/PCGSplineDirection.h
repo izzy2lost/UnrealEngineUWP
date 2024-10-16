@@ -4,11 +4,11 @@
 
 #include "PCGSettings.h"
 
-#include "PCGReverseSpline.generated.h"
+#include "PCGSplineDirection.generated.h"
 
 class UPCGSplineData;
 
-namespace PCGReverseSpline
+namespace PCGSplineDirection
 {
 	/** Test spline controls points to know if they are clockwise on the XY plane (clockwise around the Z axis). */
 	PCG_API bool IsClockwiseXY(const UPCGSplineData* InputSplineData);
@@ -31,7 +31,7 @@ enum class EPCGReverseSplineOperation
 };
 
 /**
-* Reverse the order of a spline's control points.
+* Direct the order of a spline's control points.
 * This can be conditional to force a given orientation (clockwise or counter clockwise).
 */
 UCLASS(MinimalAPI, BlueprintType, ClassGroup = (Procedural))
@@ -45,7 +45,10 @@ public:
 	virtual FName GetDefaultNodeName() const override;
 	virtual FText GetDefaultNodeTitle() const override;
 	virtual EPCGSettingsType GetType() const override { return EPCGSettingsType::Spatial; }
+	virtual EPCGChangeType GetChangeTypeForProperty(const FName& InPropertyName) const override;
 #endif
+
+	virtual FString GetAdditionalTitleInformation() const override;
 
 protected:
 	virtual TArray<FPCGPinProperties> InputPinProperties() const override;
@@ -58,10 +61,9 @@ public:
 	EPCGReverseSplineOperation Operation = EPCGReverseSplineOperation::Reverse;
 };
 
-class FPCGReverseSplineElement : public IPCGElement
+class FPCGSplineDirectionElement : public IPCGElement
 {
 protected:
 	virtual bool ExecuteInternal(FPCGContext* InContext) const override;
 	virtual EPCGElementExecutionLoopMode ExecutionLoopMode(const UPCGSettings* Settings) const override { return EPCGElementExecutionLoopMode::SinglePrimaryPin; }
 };
-
