@@ -1,4 +1,4 @@
-[Horde](../../README.md) > [Internals](../Internals.md) > Build Health
+[Horde](../../README.md) > [Configuration](../Config.md) > [Build Automation](BuildAutomation.md) > Build Health
 
 # Build Health
 
@@ -40,6 +40,14 @@ as possible - while also avoiding a long tail of spurious notifications that occ
 Finally, because we develop across multiple branches and merge frequently between them,
 we want to collate errors in different streams and trace back to the original commit that
 is deemed responsible.
+
+## Marking Issues as Fixed
+
+Issues will be marked as fixed automatically after a successful build, but users
+can indicate that an issue has been addressed via Slack, the Horde Dashboard, or
+by including a `#horde 1234` tag in a separate line in a commit description.
+
+The tag name can be customized using the `IssueFixedTag` setting in the [globals.json](../Config/Schema/Globals.md#buildconfig) file.
 
 ## Issues, Spans, and Fingerprints
 

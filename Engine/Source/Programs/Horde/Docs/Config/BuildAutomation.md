@@ -245,6 +245,10 @@ See [BoolParameterData](Schema/Streams.md#boolparameterdata) for valid propertie
 
 See [Configuration > Artifacts](Artifacts.md).
 
+## Build Health
+
+See [Configuration > Build Health](BuildHealth.md).
+
 ## Schedules
 
 Templates may also specify a schedule and policy on which to trigger automatically; running for every submitted change,
