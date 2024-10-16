@@ -7,8 +7,10 @@
 
 #include "Engine/AssetUserData.h"
 #include "Engine/Blueprint.h"
+#include "Engine/Level.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
+#include "LevelInstance/LevelInstanceActor.h"
 #include "UObject/AssetRegistryTagsContext.h"
 #include "UObject/Package.h"
 
@@ -177,6 +179,23 @@ const TArray<UAssetUserData*>* UInterchangeSceneImportAsset::GetAssetUserDataArr
 #endif // #if WITH_EDITORONLY_DATA
 }
 
+ULevel* UInterchangeSceneImportAsset::GetOriginalLevel() const
+{
+	TArray<FSoftObjectPath> SceneSoftObjectPaths;
+	GetSceneSoftObjectPaths(SceneSoftObjectPaths);
+	for (const FSoftObjectPath& SoftObjectPath : SceneSoftObjectPaths)
+	{
+		if (AActor* Actor = Cast<AActor>(SoftObjectPath.TryLoad()))
+		{
+			if (!Actor->IsA<ALevelInstance>())
+			{
+				return Actor->GetLevel();
+			}
+		}
+	}
+	return nullptr;
+}
+
 void UInterchangeSceneImportAsset::UpdateSceneObjects()
 {
 #if WITH_EDITORONLY_DATA
@@ -288,12 +307,12 @@ const UInterchangeFactoryBaseNode* UInterchangeSceneImportAsset::GetFactoryNode(
 	return nullptr;
 }
 
-void UInterchangeSceneImportAsset::GetSceneSoftObjectPaths(TArray<FSoftObjectPath>& SoftObjectPaths)
+void UInterchangeSceneImportAsset::GetSceneSoftObjectPaths(TArray<FSoftObjectPath>& SoftObjectPaths) const
 {
 #if WITH_EDITORONLY_DATA
 	SoftObjectPaths.Reserve(SceneObjects.Num());
 
-	for (TPair< FSoftObjectPath, FString >& Entry : SceneObjects)
+	for (const TPair< FSoftObjectPath, FString >& Entry : SceneObjects)
 	{
 		SoftObjectPaths.Add(Entry.Key);
 	}

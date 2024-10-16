@@ -10,6 +10,7 @@
 
 class UInterchangeAssetImportData;
 class UInterchangeFactoryBaseNode;
+class ULevel;
 
 /*
  * Class to hold all the data required to properly re-import a level
@@ -50,6 +51,9 @@ public:
 	INTERCHANGEENGINE_API void RegisterWorldRenameCallbacks();
 #endif
 
+	/** Return the original level we import actor into. Return nullptr if no level was found */
+	INTERCHANGEENGINE_API ULevel* GetOriginalLevel() const;
+
 	/** Updates the SceneObjects cache based on the node container stored in AssetImportData */
 	INTERCHANGEENGINE_API void UpdateSceneObjects();
 
@@ -73,7 +77,7 @@ public:
 	 */
 	INTERCHANGEENGINE_API const UInterchangeFactoryBaseNode* GetFactoryNode(const FString& PackageName, const FString& AssetName, const FString& SubPathString = FString()) const;
 
-	INTERCHANGEENGINE_API void GetSceneSoftObjectPaths(TArray<FSoftObjectPath>& SoftObjectPaths);
+	INTERCHANGEENGINE_API void GetSceneSoftObjectPaths(TArray<FSoftObjectPath>& SoftObjectPaths) const;
 
 private:
 
