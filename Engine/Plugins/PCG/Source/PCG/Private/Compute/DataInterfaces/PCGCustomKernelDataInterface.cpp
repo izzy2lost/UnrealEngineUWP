@@ -5,6 +5,7 @@
 #include "PCGComponent.h"
 #include "PCGModule.h"
 #include "PCGSettings.h"
+#include "Compute/Elements/PCGCustomHLSL.h"
 
 #include "RenderGraphBuilder.h"
 #include "RenderGraphResources.h"
@@ -20,6 +21,10 @@ void UPCGCustomKernelDataInterface::GetSupportedInputs(TArray<FShaderFunctionDef
 	OutFunctions.AddDefaulted_GetRef()
 		.SetName(TEXT("GetNumThreads"))
 		.AddReturnType(FShaderValueType::Get(EShaderFundamentalType::Int, 3));
+
+	OutFunctions.AddDefaulted_GetRef()
+		.SetName(TEXT("GetThreadCountMultiplier"))
+		.AddReturnType(FShaderValueType::Get(EShaderFundamentalType::Uint));
 
 	OutFunctions.AddDefaulted_GetRef()
 		.SetName(TEXT("GetSeed"))
@@ -45,6 +50,7 @@ void UPCGCustomKernelDataInterface::GetSupportedInputs(TArray<FShaderFunctionDef
 
 BEGIN_SHADER_PARAMETER_STRUCT(FPCGCustomKernelDataInterfaceParameters, )
 	SHADER_PARAMETER(FIntVector3, NumThreads)
+	SHADER_PARAMETER(uint32, ThreadCountMultiplier)
 	SHADER_PARAMETER(uint32, Seed)
 	SHADER_PARAMETER(uint32, SeedSettings)
 	SHADER_PARAMETER(uint32, SeedComponent)
@@ -66,6 +72,7 @@ void UPCGCustomKernelDataInterface::GetHLSL(FString& OutHLSL, FString const& InD
 
 	OutHLSL += FString::Format(TEXT(
 		"int3 {DataInterfaceName}_NumThreads;\n"
+		"uint {DataInterfaceName}_ThreadCountMultiplier;\n"
 		"uint {DataInterfaceName}_Seed;\n"
 		"uint {DataInterfaceName}_SeedSettings;\n"
 		"uint {DataInterfaceName}_SeedComponent;\n"
@@ -73,6 +80,7 @@ void UPCGCustomKernelDataInterface::GetHLSL(FString& OutHLSL, FString const& InD
 		"float3 {DataInterfaceName}_ComponentBoundsMax;\n"
 		"\n"
 		"int3 GetNumThreads_{DataInterfaceName}()\n{\n\treturn {DataInterfaceName}_NumThreads;\n}\n\n"
+		"uint GetThreadCountMultiplier_{DataInterfaceName}()\n{\n\treturn {DataInterfaceName}_ThreadCountMultiplier;\n}\n\n"
 		"uint GetSeed_{DataInterfaceName}()\n{\n\treturn {DataInterfaceName}_Seed;\n}\n\n"
 		"uint GetSettingsSeed_{DataInterfaceName}()\n{\n\treturn {DataInterfaceName}_SeedSettings;\n}\n\n"
 		"uint GetComponentSeed_{DataInterfaceName}()\n{\n\treturn {DataInterfaceName}_SeedComponent;\n}\n\n"
@@ -91,7 +99,16 @@ UComputeDataProvider* UPCGCustomKernelDataInterface::CreateDataProvider(TObjectP
 
 	UPCGCustomComputeKernelDataProvider* Provider = NewObject<UPCGCustomComputeKernelDataProvider>();
 	Provider->ThreadCount = Settings->ComputeKernelThreadCount(Binding);
-	
+
+	if (const UPCGCustomHLSLSettings* CustomHLSLSettings = Cast<UPCGCustomHLSLSettings>(Settings))
+	{
+		Provider->ThreadCountMultiplier = CustomHLSLSettings->GetThreadCountMultiplier();
+	}
+	else
+	{
+		Provider->ThreadCountMultiplier = 1;
+	}
+
 	Provider->Seed = static_cast<uint32>(Settings->GetSeed(Binding->SourceComponent.Get()));
 	Provider->SeedSettings = static_cast<uint32>(Settings->Seed);
 	Provider->SeedComponent = static_cast<uint32>(Binding->SourceComponent->Seed);
@@ -103,7 +120,7 @@ UComputeDataProvider* UPCGCustomKernelDataInterface::CreateDataProvider(TObjectP
 
 FComputeDataProviderRenderProxy* UPCGCustomComputeKernelDataProvider::GetRenderProxy()
 {
-	return new FPCGCustomComputeKernelDataProviderProxy(ThreadCount, Seed, SeedSettings, SeedComponent, SourceComponentBounds);
+	return new FPCGCustomComputeKernelDataProviderProxy(ThreadCount, ThreadCountMultiplier, Seed, SeedSettings, SeedComponent, SourceComponentBounds);
 }
 
 bool FPCGCustomComputeKernelDataProviderProxy::IsValid(FValidationData const& InValidationData) const
@@ -136,6 +153,7 @@ void FPCGCustomComputeKernelDataProviderProxy::GatherDispatchData(FDispatchData 
 		ensure(InDispatchData.bUnifiedDispatch || InDispatchData.NumInvocations == 1);
 		Parameters.NumThreads.X = ThreadCount;
 		Parameters.NumThreads.Y = Parameters.NumThreads.Z = 1;
+		Parameters.ThreadCountMultiplier = ThreadCountMultiplier;
 
 		// Seed for the node
 		Parameters.Seed = Seed;
