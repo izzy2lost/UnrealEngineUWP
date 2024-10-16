@@ -16,8 +16,8 @@ Horde is configured to support local development by default. You can launch it b
 By default, you can access the server at `http://localhost:5000/account`.
 
 When debugging a local Horde server against a live deployment, setting the `DatabaseReadOnlyMode` property in
-[`Server.json`](Deployment/ServerSettings.md) prevents the server from attempting any operation that modifies the server state. 
-Using a read-only DB account in addition is recommended for safety.
+[`Server.json`](../Deployment/ServerSettings.md) prevents the server from attempting any operation that modifies the
+server state. Using a read-only DB account in addition is recommended for safety.
 
 ## Dashboard
 

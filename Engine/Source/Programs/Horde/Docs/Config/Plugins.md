@@ -9,9 +9,6 @@ others. The [Storage](../Config.md#storage) and
 [Compute](../Config.md#compute) plugins are notable foundational components
 of Horde that other systems rely on.
 
-For information about how plugins operate and how to add new plugins, see
-[Internals > Plugin Architecture](Internals/PluginArchitecture.md).
-
 ## Configuration
 
 Like the server itself, plugins can have a static boot-time configuration
