@@ -159,6 +159,7 @@ void FMovieSceneBindingPropertyInfoListCustomization::CustomizeDetails(IDetailLa
 							bShowConvert = false;
 						}
 					}
+					bool bHasBoundObject = MovieSceneHelpers::GetSingleBoundObject(Sequence, BindingGuid, Sequencer->GetSharedPlaybackState(), 0) != nullptr;
 
 					FDetailWidgetRow& BindingTypeRow = SectionCategory.AddCustomRow(FText::GetEmpty());
 					BindingTypeRow.NameContent()
@@ -191,10 +192,11 @@ void FMovieSceneBindingPropertyInfoListCustomization::CustomizeDetails(IDetailLa
 									.Text(this, &FMovieSceneBindingPropertyInfoListCustomization::GetBindingTypeValueAsString)
 								]
 							]
+							.IsEnabled(!bHasBoundObject)
 						];
 
 					// Only show certain menus if we have a currently bound object
-					if (bShowConvert && MovieSceneHelpers::GetSingleBoundObject(Sequence, BindingGuid, Sequencer->GetSharedPlaybackState(), 0) != nullptr)
+					if (bShowConvert && bHasBoundObject)
 					{
 						FDetailWidgetRow& ConvertToRow = SectionCategory.AddCustomRow(LOCTEXT("ConvertBindingTo", "Convert Binding(s) To..."));
 						ConvertToRow.WholeRowContent()
