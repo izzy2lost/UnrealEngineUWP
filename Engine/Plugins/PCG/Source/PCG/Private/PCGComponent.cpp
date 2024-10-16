@@ -31,6 +31,7 @@
 #include "Algo/AnyOf.h"
 #include "Algo/Transform.h"
 #include "Components/InstancedStaticMeshComponent.h"
+#include "Engine/BlueprintGeneratedClass.h"
 #include "Engine/Engine.h"
 #include "Engine/Level.h"
 #include "Kismet/GameplayStatics.h"
@@ -3737,6 +3738,15 @@ void FPCGComponentInstanceData::ApplyToComponent(UActorComponent* Component, con
 			PCGComponent->OnPCGGraphCancelledExternal = ConstructionSourceComponent->OnPCGGraphCancelledExternal;
 			PCGComponent->OnPCGGraphGeneratedExternal = ConstructionSourceComponent->OnPCGGraphGeneratedExternal;
 			PCGComponent->OnPCGGraphCleanedExternal = ConstructionSourceComponent->OnPCGGraphCleanedExternal;
+
+			// But if the owner has changed and BP had dynamic delegates, we need to restore them.
+			if (AActor* Owner = PCGComponent->GetOwner())
+			{
+				if (Owner != ConstructionSourceComponent->GetOwner())
+				{
+					UBlueprintGeneratedClass::BindDynamicDelegates(Owner->GetClass(), Owner);
+				}
+			}
 
 			PCGComponent->bWasGeneratedThisSession = ConstructionSourceComponent->bWasGeneratedThisSession;
 			PCGComponent->InspectionCounter = ConstructionSourceComponent->InspectionCounter;
