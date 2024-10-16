@@ -79,6 +79,12 @@ public:
 	{
 		return ensure(ClothAssetEditorToolkit) ? ClothAssetEditorToolkit->GetDataflowContext() : TSharedPtr<UE::Dataflow::FContext>();
 	}
+
+	virtual bool NodesHaveToggleWidget() const override
+	{
+		return false;
+	}
+
 	//~ End FDataflowSNodeInterface interface
 
 private:
