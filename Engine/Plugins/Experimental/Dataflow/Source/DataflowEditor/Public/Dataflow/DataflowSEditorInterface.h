@@ -19,6 +19,8 @@ public:
 	/** Dataflow editor content accessors */
 	virtual TSharedPtr<UE::Dataflow::FContext> GetDataflowContext() const = 0;
 
+	virtual bool NodesHaveToggleWidget() const { return true; }
+
 protected:
 	FDataflowSEditorInterface() = default;
 };
