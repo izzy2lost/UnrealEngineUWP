@@ -288,7 +288,6 @@ struct FNDIDataChannelReadInstanceData
 	*/
 	TMap<FNiagaraEmitterInstance*,FNDIDataChannelRead_EmitterInstanceData> EmitterInstanceData;
 
-	uint32 CachedLayoutHash = INDEX_NONE;
 	FNiagaraSystemInstance* Owner = nullptr;
 
 	virtual ~FNDIDataChannelReadInstanceData();

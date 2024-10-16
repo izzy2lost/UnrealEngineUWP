@@ -72,6 +72,10 @@ void UNiagaraDataChannelHandler_Global::Tick(float DeltaSeconds, ETickingGroup T
 
 FNiagaraDataChannelDataPtr UNiagaraDataChannelHandler_Global::FindData(FNiagaraDataChannelSearchParameters SearchParams, ENiagaraResourceAccess AccessType)
 {
+	if(!Data)
+	{
+		Data = CreateData();
+	}
 	return Data;
 	//For more complicated channels we could check the location + bounds of the system instance etc to return some spatially localized data.
 }

@@ -33,7 +33,8 @@ int {ParameterName}_CPUInt32Stride;
 //Helper struct with various info needed for writing that can be passed around more easily in generated code.
 struct FNDCAccessContext_{ParameterName}
 {
-	bool bValid;
+	bool bValidWriteIndex;
+	bool bValidParameter;
 
 	//Indices we'll be writing to each buffer.
 	int WriteIndex;
@@ -72,10 +73,9 @@ struct FNDCAccessContext_{ParameterName}
 	RWBuffer<float> GetCurrBuffer_Float() { return bReadGPUOrCPU ? GetGPUBuffer_Float() : GetCPUBuffer_Float(); }
 	RWBuffer<int> GetCurrBuffer_Int32() { return bReadGPUOrCPU ? GetGPUBuffer_Int32() : GetCPUBuffer_Int32(); }
 	//TODO: Half Support | RWBuffer<half> GetCurrBuffer_Half() { return bReadGPUOrCPU ? GetGPUBuffer_Half() : GetCPUBuffer_Half(); }
-
-	bool IsValid() { return bValid; }
-	bool ShouldWriteGPUData() { return bValid && GetGPUInstanceCountOffset() != -1; }
-	bool ShouldWriteCPUData() { return bValid && GetCPUInstanceCountOffset() != -1; }
+	
+	bool ShouldWriteGPUData() { return bValidParameter && bValidWriteIndex && GetGPUInstanceCountOffset() != -1; }
+	bool ShouldWriteCPUData() { return bValidParameter && bValidWriteIndex && GetCPUInstanceCountOffset() != -1; }
 
 	int GetAppendIndex(int InstanceCountOffset, int BufferSize)
 	{
@@ -87,33 +87,39 @@ struct FNDCAccessContext_{ParameterName}
 		{
 			//Note: This allows the index to temporarily exceed the max limits so is unsafe if we access this concurrently anywhere else without checking the limits.
 			//Note: However it does avoid a more expensive looping compare exchange.
-			InterlockedAdd(RWInstanceCounts[InstanceCountOffset], 1, OutIndex);
-			if(OutIndex >= 0 && OutIndex < BufferSize)
-			{
-				return OutIndex;
+			uint OrigVal = 0;
+			InterlockedAdd(RWInstanceCounts[InstanceCountOffset], 1U, OrigVal);
+			if(OrigVal >= 0 && OrigVal < (uint)BufferSize)
+			{ 
+				OutIndex = (int)OrigVal;
 			}
-		
-			OutIndex = -1;
-			InterlockedMin(RWInstanceCounts[InstanceCountOffset], BufferSize);
+			else
+			{
+				OutIndex = -1;
+				InterlockedMin(RWInstanceCounts[InstanceCountOffset], (uint)BufferSize);
+			}
 		}
 
 		return OutIndex;
 	}
 	
 	//Initialize our append indices. Called at the start of the append funciton.
-	void InitAppend()
+	bool InitAppend()
 	{
 		WriteIndexGPU = GetAppendIndex(GetGPUInstanceCountOffset(), GetGPUBufferSize());
 		WriteIndexCPU = GetAppendIndex(GetCPUInstanceCountOffset(), GetCPUBufferSize());
 	
-		bValid = (WriteIndexGPU >= 0 && WriteIndexGPU < GetGPUBufferSize()) ||
+		bValidWriteIndex = (WriteIndexGPU >= 0 && WriteIndexGPU < GetGPUBufferSize()) ||
 				(WriteIndexCPU  >= 0 && WriteIndexCPU < GetCPUBufferSize());
+	
+		return bValidWriteIndex;
 	}
 
 	//Initialize for the given parameter index.
-	void InitForParameter(int ParameterIndex)
+	bool InitForParameter(int ParameterIndex)
 	{
-		bValid = bValid && GetParameterLayoutInfo_{ParameterName}(ParameterIndex, ParameterComponentStart_Float, ParameterComponentStart_Int32);//TODO: Half Support | , ParameterComponentStart_Half);				
+		bValidParameter = GetParameterLayoutInfo_{ParameterName}(ParameterIndex, ParameterComponentStart_Float, ParameterComponentStart_Int32);//TODO: Half Support | , ParameterComponentStart_Half);
+		return bValidParameter;
 	}
 	
 	//Initialize for wrting the current parameter to the GPU buffers

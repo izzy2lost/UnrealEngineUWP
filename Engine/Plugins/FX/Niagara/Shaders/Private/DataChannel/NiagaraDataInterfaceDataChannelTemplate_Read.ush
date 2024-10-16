@@ -15,8 +15,7 @@ void {FunctionSymbol}(int ElementIndex, out bool bOutSuccess, {FunctionOutputPar
 	bOutSuccess = false;
 
 	FNDCAccessContext_{ParameterName} Context;
-	Context.InitDirect(ElementIndex);
-	if(Context.IsValid())
+	if(Context.InitDirect(ElementIndex))
 	{
 		bOutSuccess = true;
 

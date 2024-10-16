@@ -26,7 +26,8 @@ Buffer<int> {ParameterName}_NDCSpawnDataBuffer;
 //Helper struct with various info needed for reading that can be passed around more easily in generated code.
 struct FNDCAccessContext_{ParameterName}
 {
-	bool bValid;
+	bool bValidParameter;
+	bool bValidReadIndex;
 
 	//Index at which to read data.
 	int ReadIndex;
@@ -61,8 +62,6 @@ struct FNDCAccessContext_{ParameterName}
 	//Actual number of NDC items in the buffers. Must come from an indirect instance count instead of a uniform as the GPU could have written to this buffer.
 	int Num() { return RWInstanceCounts[ GetInstanceCountOffset() ]; }
 
-	bool IsValid() { return bValid; }
-
 	int GetConsumeIndex()
 	{
 		//TODO: Add GS and Wave op path to reduce atomic contention.
@@ -71,32 +70,46 @@ struct FNDCAccessContext_{ParameterName}
 		int OutIndex = -1;
 		if(GetConsumeInstanceCountOffset() != -1)
 		{
-			InterlockedAdd(RWInstanceCounts[GetConsumeInstanceCountOffset()], 1, OutIndex);
-			return OutIndex >= 0 && OutIndex < Num() && OutIndex < GetBufferSize() ? OutIndex : -1;
+			uint OrigVal = 0;
+			InterlockedAdd(RWInstanceCounts[GetConsumeInstanceCountOffset()], 1U, OrigVal);
+			int MaxSize = min(Num(), GetBufferSize());
+			if(OrigVal >= 0 && OrigVal < (uint)MaxSize)
+			{
+				OutIndex = (int)OrigVal;
+			}
+			else
+			{
+				OutIndex = -1;
+				InterlockedMin(RWInstanceCounts[GetConsumeInstanceCountOffset()], (uint)MaxSize);
+			}
 		}
 
-		return -1;
+		return OutIndex;
 	}
 	
-	void InitDirect(int InReadIndex)
+	bool InitDirect(int InReadIndex)
 	{
 		ReadIndex = InReadIndex;
-		bValid = ReadIndex >= 0 && ReadIndex < Num() && ReadIndex < GetBufferSize();
+		bValidReadIndex = ReadIndex >= 0 && ReadIndex < Num() && ReadIndex < GetBufferSize();
+		return bValidReadIndex;
 	}
 
-	void InitConsume()
+	bool InitConsume()
 	{
 		ReadIndex = GetConsumeIndex();
-		bValid = ReadIndex >= 0 && ReadIndex < Num() && ReadIndex < GetBufferSize();
+		bValidReadIndex = ReadIndex >= 0 && ReadIndex < Num() && ReadIndex < GetBufferSize();
+		return bValidReadIndex;
 	}
 
-	void InitForParameter(int ParameterIndex)
+	bool InitForParameter(int ParameterIndex)
 	{
-		bValid = bValid && GetParameterLayoutInfo_{ParameterName}(ParameterIndex, ParameterComponentStart_Float, ParameterComponentStart_Int32);//TODO: Half Support | ParameterComponentStart_Half);
+		bValidParameter = GetParameterLayoutInfo_{ParameterName}(ParameterIndex, ParameterComponentStart_Float, ParameterComponentStart_Int32);//TODO: Half Support | ParameterComponentStart_Half);
 		
 		Register_Float = ParameterComponentStart_Float;
 		Register_Int32 = ParameterComponentStart_Int32;
 		//TODO: Half Support | Register_Half = ParameterComponentStart_Half;
+	
+		return bValidParameter;
 	}
 
 	void Read_Float(out float Value){ NiagaraDataChannelRead_Float(GetBuffer_Float(), GetFloatStride(), Register_Float, ReadIndex, Value); }

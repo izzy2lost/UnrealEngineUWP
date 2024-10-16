@@ -61,18 +61,24 @@ uint32 GetTypeHash(const FNDIDataChannelFunctionInfo& FuncInfo);
 struct FNDIDataChannelRegisterBinding
 {
 	static const uint32 RegisterBits = 30;
-	static const uint32 DataTypeBitst = 2;
+	static const uint32 DataTypeBits = 2;
 	FNDIDataChannelRegisterBinding(uint32 InFunctionRegisterIndex, uint32 InDataSetRegisterIndex, ENiagaraBaseTypes InDataType)
-	: FunctionRegisterIndex(InFunctionRegisterIndex)
-	, DataSetRegisterIndex(InDataSetRegisterIndex)
+	: DataSetRegisterIndex(InDataSetRegisterIndex)
+	, FunctionRegisterIndex(InFunctionRegisterIndex) 
 	, DataType((uint32)InDataType)
 	{
-		check(InDataSetRegisterIndex <= (1u << RegisterBits) - 1);
-		check((uint32)InDataType <= (1u << DataTypeBitst) - 1);
+		check(FunctionRegisterIndex <= (1u << RegisterBits) - 1);
+		check((uint32)InDataType <= (1u << DataTypeBits) - 1);
 	}
-	uint32 FunctionRegisterIndex;
-	uint32 DataSetRegisterIndex : RegisterBits;
-	uint32 DataType : DataTypeBitst;
+
+	uint32 GetDataSetRegisterIndex()const { return DataSetRegisterIndex; }
+	uint32 GetFunctionRegisterIndex()const { return FunctionRegisterIndex; }
+	ENiagaraBaseTypes GetDataType()const { return (ENiagaraBaseTypes)DataType; }
+
+private:
+	uint32 DataSetRegisterIndex;
+	uint32 FunctionRegisterIndex : RegisterBits;
+	uint32 DataType : DataTypeBits;
 };
 
 
@@ -266,12 +272,12 @@ struct FNDIVariadicInputHandler
 			HalfInputs.Reserve(BindingPtr->NumHalfComponents);
 			for (const FNDIDataChannelRegisterBinding& VMBinding : BindingPtr->VMRegisterBindings)
 			{
-				switch (VMBinding.DataType)
+				switch (VMBinding.GetDataType())
 				{
-				case (int32)ENiagaraBaseTypes::Float: FloatInputs.Emplace(Context); break;
-				case (int32)ENiagaraBaseTypes::Int32: IntInputs.Emplace(Context); break;
-				case (int32)ENiagaraBaseTypes::Bool: IntInputs.Emplace(Context); break;
-				case (int32)ENiagaraBaseTypes::Half: HalfInputs.Emplace(Context); break;
+				case ENiagaraBaseTypes::Float: FloatInputs.Emplace(Context); break;
+				case ENiagaraBaseTypes::Int32: IntInputs.Emplace(Context); break;
+				case ENiagaraBaseTypes::Bool: IntInputs.Emplace(Context); break;
+				case ENiagaraBaseTypes::Half: HalfInputs.Emplace(Context); break;
 				default: check(0);
 				};
 			}
@@ -300,12 +306,12 @@ struct FNDIVariadicInputHandler
 			//TODO: Optimize for long runs of writes to reduce binding/lookup overhead.
 			for (const FNDIDataChannelRegisterBinding& VMBinding : BindingInfo->VMRegisterBindings)
 			{
-				switch(VMBinding.DataType)
+				switch(VMBinding.GetDataType())
 				{
-					case (int32)ENiagaraBaseTypes::Float: FloatFunc(VMBinding, FloatInputs[VMBinding.FunctionRegisterIndex]); break;
-					case (int32)ENiagaraBaseTypes::Int32: IntFunc(VMBinding, IntInputs[VMBinding.FunctionRegisterIndex]); break;
-					case (int32)ENiagaraBaseTypes::Bool: IntFunc(VMBinding, IntInputs[VMBinding.FunctionRegisterIndex]); break;
-					case (int32)ENiagaraBaseTypes::Half: HalfFunc(VMBinding, HalfInputs[VMBinding.FunctionRegisterIndex]); break;
+					case ENiagaraBaseTypes::Float: FloatFunc(VMBinding, FloatInputs[VMBinding.GetFunctionRegisterIndex()]); break;
+					case ENiagaraBaseTypes::Int32: IntFunc(VMBinding, IntInputs[VMBinding.GetFunctionRegisterIndex()]); break;
+					case ENiagaraBaseTypes::Bool: IntFunc(VMBinding, IntInputs[VMBinding.GetFunctionRegisterIndex()]); break;
+					case ENiagaraBaseTypes::Half: HalfFunc(VMBinding, HalfInputs[VMBinding.GetFunctionRegisterIndex()]); break;
 					default: check(0);
 				};
 			}
@@ -335,12 +341,12 @@ struct FNDIVariadicOutputHandler
 			HalfOutputs.Reserve(BindingPtr->NumHalfComponents);
 			for (const FNDIDataChannelRegisterBinding& VMBinding : BindingPtr->VMRegisterBindings)
 			{
-				switch (VMBinding.DataType)
+				switch (VMBinding.GetDataType())
 				{
-				case (int32)ENiagaraBaseTypes::Float: FloatOutputs.Emplace(Context); break;
-				case (int32)ENiagaraBaseTypes::Int32: IntOutputs.Emplace(Context); break;
-				case (int32)ENiagaraBaseTypes::Bool: IntOutputs.Emplace(Context); break;
-				case (int32)ENiagaraBaseTypes::Half: HalfOutputs.Emplace(Context); break;
+				case ENiagaraBaseTypes::Float: FloatOutputs.Emplace(Context); break;
+				case ENiagaraBaseTypes::Int32: IntOutputs.Emplace(Context); break;
+				case ENiagaraBaseTypes::Bool: IntOutputs.Emplace(Context); break;
+				case ENiagaraBaseTypes::Half: HalfOutputs.Emplace(Context); break;
 				default: check(0);
 				};
 			}
@@ -355,12 +361,12 @@ struct FNDIVariadicOutputHandler
 			//TODO: Optimize for long runs of writes to reduce binding/lookup overhead.
 			for (const FNDIDataChannelRegisterBinding& VMBinding : BindingInfo->VMRegisterBindings)
 			{
-				switch (VMBinding.DataType)
+				switch (VMBinding.GetDataType())
 				{
-				case (int32)ENiagaraBaseTypes::Float: FloatFunc(VMBinding, FloatOutputs[VMBinding.FunctionRegisterIndex]); break;
-				case (int32)ENiagaraBaseTypes::Int32: IntFunc(VMBinding, IntOutputs[VMBinding.FunctionRegisterIndex]); break;
-				case (int32)ENiagaraBaseTypes::Bool: IntFunc(VMBinding, IntOutputs[VMBinding.FunctionRegisterIndex]); break;
-				case (int32)ENiagaraBaseTypes::Half: HalfFunc(VMBinding, HalfOutputs[VMBinding.FunctionRegisterIndex]); break;
+				case ENiagaraBaseTypes::Float: FloatFunc(VMBinding, FloatOutputs[VMBinding.GetFunctionRegisterIndex()]); break;
+				case ENiagaraBaseTypes::Int32: IntFunc(VMBinding, IntOutputs[VMBinding.GetFunctionRegisterIndex()]); break;
+				case ENiagaraBaseTypes::Bool: IntFunc(VMBinding, IntOutputs[VMBinding.GetFunctionRegisterIndex()]); break;
+				case ENiagaraBaseTypes::Half: HalfFunc(VMBinding, HalfOutputs[VMBinding.GetFunctionRegisterIndex()]); break;
 				default: check(0);
 				};
 			}

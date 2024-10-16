@@ -36,24 +36,23 @@ FNDIDataChannel_FunctionToDataSetBinding::FNDIDataChannel_FunctionToDataSetBindi
 		for (int32 ParamIdx = 0; ParamIdx < Parameters.Num(); ++ParamIdx)
 		{
 			const FNiagaraVariableBase& Param = Parameters[ParamIdx];
+			uint32 DataSetFloatRegister = INDEX_NONE;
+			uint32 DataSetIntRegister = INDEX_NONE;
+			uint32 DataSetHalfRegister = INDEX_NONE;
 			if (const FNiagaraVariableLayoutInfo* DataSetVariableLayout = DataSetLayout.FindVariableLayoutInfo(Param))
 			{
-				uint32 DataSetFloatRegister = DataSetVariableLayout->GetFloatComponentStart();
-				uint32 DataSetIntRegister = DataSetVariableLayout->GetInt32ComponentStart();
-				uint32 DataSetHalfRegister = DataSetVariableLayout->GetHalfComponentStart();
-
-				GenVMBindings(Param, Param.GetType().GetStruct(), NumFloatComponents, NumInt32Components, NumHalfComponents, DataSetFloatRegister, DataSetIntRegister, DataSetHalfRegister);
+				DataSetFloatRegister = DataSetVariableLayout->GetFloatComponentStart();
+				DataSetIntRegister = DataSetVariableLayout->GetInt32ComponentStart();
+				DataSetHalfRegister = DataSetVariableLayout->GetHalfComponentStart();
 			}
 			else
 			{
-				DataSetLayoutHash = 0;
-
 #if !UE_BUILD_SHIPPING && !UE_BUILD_TEST
 				OutMissingParams.Emplace(Param);
-#else
-				return;
 #endif
 			}
+
+			GenVMBindings(Param, Param.GetType().GetStruct(), NumFloatComponents, NumInt32Components, NumHalfComponents, DataSetFloatRegister, DataSetIntRegister, DataSetHalfRegister);
 		}
 	};
 
@@ -403,26 +402,24 @@ namespace NDIDataChannelUtilities
 		//Template code for writing handling code for each of the function parameters.
 		//Some preamble and an replacement arg into which we write all the actual I/O with the DataChannel buffers.
 		FString PerParameterReadTemplate = TEXT("\n\
-void Read_{FunctionParameterName}_{ParameterName}(FNDCAccessContext_{ParameterName} Context, out {FunctionParameterType} {FunctionParameterName})\n\
+void Read_{FunctionParameterName}_{ParameterName}(FNDCAccessContext_{ParameterName} Context, inout bool bSuccess, inout {FunctionParameterType} {FunctionParameterName})\n\
 {\n\
-	Context.InitForParameter({FunctionParameterIndex});\n\
-	if(Context.IsValid())\n\
+	if(Context.InitForParameter({FunctionParameterIndex}))\n\
 	{\n\
 		{FuncParamShaderCode}\
 	}\n\
 	else\n\
 	{\n\
-		{FunctionParameterName} = 0;\n\
+		bSuccess = false;\n\
 	}\n\
 }\n");
 
-		FString PerParameterReadCallTemplate = TEXT("Read_{FunctionParameterName}_{ParameterName}(Context, {FunctionParameterName});\n");
+		FString PerParameterReadCallTemplate = TEXT("Read_{FunctionParameterName}_{ParameterName}(Context, bOutSuccess, {FunctionParameterName});\n");
 
 		FString PerParameterWriteTemplate = TEXT("\n\
-void Write_{FunctionParameterName}_{ParameterName}(FNDCAccessContext_{ParameterName} Context, {FunctionParameterType} {FunctionParameterName})\n\
+void Write_{FunctionParameterName}_{ParameterName}(FNDCAccessContext_{ParameterName} Context, inout bool bSuccess, {FunctionParameterType} {FunctionParameterName})\n\
 {\n\
-	Context.InitForParameter({FunctionParameterIndex});\n\
-	if(Context.IsValid())\n\
+	if(Context.InitForParameter({FunctionParameterIndex}))\n\
 	{\n\
 		if(Context.InitForGPUWrite())\n\
 		{\n\
@@ -433,8 +430,12 @@ void Write_{FunctionParameterName}_{ParameterName}(FNDCAccessContext_{ParameterN
 			{FuncParamShaderCode}\n\
 		}\n\
 	}\n\
+	else\n\
+	{\n\
+		bSuccess = false;\n\
+	}\n\
 }\n");
-		FString PerParameterWriteCallTemplate = TEXT("Write_{FunctionParameterName}_{ParameterName}(Context, {FunctionParameterName});\n");
+		FString PerParameterWriteCallTemplate = TEXT("Write_{FunctionParameterName}_{ParameterName}(Context, bOutSuccess, {FunctionParameterName});\n");
 
 		//Template code for accessing data from the Data Channel's buffers.
 		static const FString ReadDataTemplate = TEXT("Context.Read_{FunctionParameterComponentBufferType}({FunctionParameterComponentName});\n");

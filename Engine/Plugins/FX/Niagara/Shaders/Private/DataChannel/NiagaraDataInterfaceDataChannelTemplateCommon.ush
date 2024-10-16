@@ -25,7 +25,7 @@ bool GetParameterLayoutInfo_{ParameterName}(uint ParameterIndex, out uint OutFlo
 		OutFloatRegister = {ParameterName}_ParamOffsetTable[ParamLayoutStart];
 		OutInt32Register = {ParameterName}_ParamOffsetTable[ParamLayoutStart + 1];
 		//TODO: Half Support | OutHalfRegister = {ParameterName}_ParamOffsetTable[ParamLayoutStart + 2];
-		return true;
+		return OutFloatRegister != -1 || OutInt32Register != -1;//If we have no valid mappings then this parameter is not valid.
 	}
 	else
 	{
