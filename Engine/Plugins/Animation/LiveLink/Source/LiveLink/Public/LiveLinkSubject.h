@@ -246,6 +246,9 @@ private:
 	// If true, static data has been sent for this rebroadcast
 	bool bRebroadcastStaticDataSent = false;
 
+	// If true, override static data may remap when caching settings.
+	bool bNeedsStaticRemap = false;
+
 	/** Flag set to clear the override static data for a subject. */
 	std::atomic<bool> bClearOverrideStaticData = false;
 	
