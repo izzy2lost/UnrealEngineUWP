@@ -125,6 +125,20 @@ namespace AutomationTool.Tests
 		}
 
 		[TestMethod]
+		public void ExitCodeEventMatcher4()
+		{
+			string[] lines =
+			{
+				@"/app/Source/Programs/Horde/Plugins/Build/HordeServer.Build.Tests/Agents/AgentServiceTest.cs(221,126): error CS1503: Argument 4: cannot convert from 'EpicGames.Horde.Agents.AgentStatus?' to 'EpicGames.Horde.Agents.AgentStatus' [/app/Source/Programs/Horde/Plugins/Build/HordeServer.Build.Tests/HordeServer.Build.Tests.csproj]",
+				@"ERROR: process ""/bin/sh -c bash Source/Programs/Horde/Scripts/test.sh"" did not complete successfully: exit code: 1"
+			};
+
+			List<LogEvent> logEvents = Parse(lines);
+			CheckEventGroup(logEvents.Slice(0, 1), 0, 1, LogLevel.Error, KnownLogEvents.Compiler);
+			CheckEventGroup(logEvents.Slice(1, 1), 1, 1, LogLevel.Error, KnownLogEvents.ExitCode);
+		}
+
+		[TestMethod]
 		public void CrashEventMatcher()
 		{
 			string[] lines =
