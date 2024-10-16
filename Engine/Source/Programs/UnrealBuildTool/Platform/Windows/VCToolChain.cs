@@ -2071,7 +2071,7 @@ namespace UnrealBuildTool
 				}
 
 				// Write cl errors and warnings to a file
-				if (Target.WindowsPlatform.Compiler.IsMSVC())
+				if (Target.WindowsPlatform.Compiler.IsMSVC() && Target.WindowsPlatform.bWriteSarif)
 				{
 					if (Target.StaticAnalyzer == StaticAnalyzer.Default && !CompileEnvironment.bDisableStaticAnalysis)
 					{
