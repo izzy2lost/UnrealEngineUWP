@@ -85,6 +85,9 @@ public:
 #endif // WITH_EDITOR
 
 private:
+	/** Tests if there is a DMX Library, creates a new one if it is null */
+	void EnsureValidDMXLibrary();
+
 #if WITH_EDITOR
 	/** Upgrades assets created before 5.5 that did not use a DMX library */
 	void TryUpgradeFromLegacy();

@@ -137,6 +137,27 @@ void URemoteControlDMXLibraryProxy::Reset()
 }
 
 #if WITH_EDITOR
+void URemoteControlDMXLibraryProxy::ClearFixturePatches()
+{
+	for (const TSharedRef<FRemoteControlDMXControlledPropertyPatch>& PropertyPatch : PropertyPatches)
+	{
+		for (const TSharedRef<FRemoteControlDMXControlledProperty>& DMXControlledProperty : PropertyPatch->GetDMXControlledProperties())
+		{
+			for (const TSharedRef<TStructOnScope<FRemoteControlProtocolEntity>>& Entity : DMXControlledProperty->GetEntities())
+			{
+				FRemoteControlDMXProtocolEntity* DMXEntity = Entity->IsValid() ? Entity->Cast<FRemoteControlDMXProtocolEntity>() : nullptr;
+				if (!DMXEntity)
+				{
+					continue;
+				}
+				DMXEntity->ExtraSetting.FixturePatchReference = nullptr;
+			}
+		}
+	}
+}
+#endif 
+
+#if WITH_EDITOR
 TArray<UDMXEntityFixturePatch*> URemoteControlDMXLibraryProxy::FindPatchesThatExceedUniverseSize() const
 {
 	const URemoteControlDMXUserData& DMXUserData = GetDMXUserDataChecked();
