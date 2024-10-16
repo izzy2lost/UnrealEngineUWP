@@ -31,7 +31,10 @@ void UPCGSplineInteriorSurfaceData::AddToCrc(FArchiveCrc32& Ar, bool bFullDataCr
 {
 	Super::AddToCrc(Ar, bFullDataCrc);
 
-	// Implementation note: no metadata in this data yet.
+	if (Metadata)
+	{
+		Metadata->AddToCrc(Ar, bFullDataCrc);
+	}
 
 	uint32 UniqueTypeID = StaticClass()->GetDefaultObject()->GetUniqueID();
 	Ar << UniqueTypeID;
