@@ -1327,28 +1327,38 @@ struct FD3DShaderParameterParserPlatformConfiguration : public FShaderParameterP
 
 	virtual FString GenerateBindlessAccess(EBindlessConversionType BindlessType, FStringView FullTypeString, FStringView ArrayNameOverride, FStringView IndexString) const final
 	{
-		if (bIsRayTracingShader && (BindlessType == EBindlessConversionType::SRV))
-		{
-			// Patch the HitGroupSystemIndexBuffer/HitGroupSystemVertexBuffer indices to use the ones contained in the shader record
-			if (IndexString == HitGroupSystemIndexBufferName)
-			{
-				IndexString = TEXTVIEW("D3DHitGroupSystemParameters.BindlessHitGroupSystemIndexBuffer");
-			}
-			else if (IndexString == HitGroupSystemVertexBufferName)
-			{
-				IndexString = TEXTVIEW("D3DHitGroupSystemParameters.BindlessHitGroupSystemVertexBuffer");
-			}
-		}
-
 		// GetResourceFromHeap(Type, Index) ResourceDescriptorHeap[Index]
 		// GetSamplerFromHeap(Type, Index)  SamplerDescriptorHeap[Index]
 
 		const TCHAR* HeapString = BindlessType == EBindlessConversionType::Sampler ? TEXT("SamplerDescriptorHeap") : TEXT("ResourceDescriptorHeap");
 
-		return FString::Printf(TEXT("%s[%.*s]"),
-			HeapString,
-			IndexString.Len(), IndexString.GetData()
-		);
+		if (bIsRayTracingShader)
+		{
+			if (BindlessType == EBindlessConversionType::SRV)
+			{
+				// Patch the HitGroupSystemIndexBuffer/HitGroupSystemVertexBuffer indices to use the ones contained in the shader record
+				if (IndexString == HitGroupSystemIndexBufferName)
+				{
+					IndexString = TEXTVIEW("D3DHitGroupSystemParameters.BindlessHitGroupSystemIndexBuffer");
+				}
+				else if (IndexString == HitGroupSystemVertexBufferName)
+				{
+					IndexString = TEXTVIEW("D3DHitGroupSystemParameters.BindlessHitGroupSystemVertexBuffer");
+				}
+			}
+
+			return FString::Printf(TEXT("%s[NonUniformResourceIndex(%.*s)]"),
+				HeapString,
+				IndexString.Len(), IndexString.GetData()
+			);
+		}
+		else
+		{
+			return FString::Printf(TEXT("%s[%.*s]"),
+				HeapString,
+				IndexString.Len(), IndexString.GetData()
+			);
+		}
 	}
 	
 	const bool bIsRayTracingShader;

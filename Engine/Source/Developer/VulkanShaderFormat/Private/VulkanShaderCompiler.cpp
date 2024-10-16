@@ -233,26 +233,33 @@ struct FVulkanShaderParameterParserPlatformConfiguration : public FShaderParamet
 			EnumAddFlags(Flags, EShaderParameterParserConfigurationFlags::ReplaceGlobals);
 		}
 	}
-
 	virtual FString GenerateBindlessAccess(EBindlessConversionType BindlessType, FStringView FullTypeString, FStringView ArrayNameOverride, FStringView IndexString) const final
 	{
-		if (bIsRayTracingShader && (BindlessType == EBindlessConversionType::SRV))
+		if (bIsRayTracingShader)
 		{
-			// Patch the HitGroupSystemIndexBuffer/HitGroupSystemVertexBuffer indices to use the ones contained in the shader record
-			if (IndexString == HitGroupSystemIndexBufferName)
+			if (BindlessType == EBindlessConversionType::SRV)
 			{
-				IndexString = TEXTVIEW("VulkanHitGroupSystemParameters.BindlessHitGroupSystemIndexBuffer");
+				// Patch the HitGroupSystemIndexBuffer/HitGroupSystemVertexBuffer indices to use the ones contained in the shader record
+				if (IndexString == HitGroupSystemIndexBufferName)
+				{
+					IndexString = TEXTVIEW("VulkanHitGroupSystemParameters.BindlessHitGroupSystemIndexBuffer");
+				}
+				else if (IndexString == HitGroupSystemVertexBufferName)
+				{
+					IndexString = TEXTVIEW("VulkanHitGroupSystemParameters.BindlessHitGroupSystemVertexBuffer");
+				}
 			}
-			else if (IndexString == HitGroupSystemVertexBufferName)
-			{
-				IndexString = TEXTVIEW("VulkanHitGroupSystemParameters.BindlessHitGroupSystemVertexBuffer");
-			}
-		}
 
-		// Heap[Index]
-		return FString::Printf(TEXT("%.*s[%.*s]"),
-			ArrayNameOverride.Len(), ArrayNameOverride.GetData(),
-			IndexString.Len(), IndexString.GetData());
+			return FString::Printf(TEXT("%.*s[NonUniformResourceIndex(%.*s)]"),
+				ArrayNameOverride.Len(), ArrayNameOverride.GetData(),
+				IndexString.Len(), IndexString.GetData());
+		}
+		else
+		{
+			return FString::Printf(TEXT("%.*s[%.*s]"),
+				ArrayNameOverride.Len(), ArrayNameOverride.GetData(),
+				IndexString.Len(), IndexString.GetData());
+		}
 	}
 
 	// Fill the global with the value stored in the shader record

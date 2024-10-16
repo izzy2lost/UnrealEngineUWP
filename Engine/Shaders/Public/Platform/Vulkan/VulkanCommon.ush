@@ -48,11 +48,17 @@ void ImageInterlockedAddUInt64(RWTexture2D<UlongType> Dest, uint2 Coord, UlongTy
 	#define VULKAN_SRV_HEAP(Type) VULKAN_HEAP_NAME(BINDLESS_SRV_ARRAY_PREFIX,Type)
 	#define VULKAN_UAV_HEAP(Type) VULKAN_HEAP_NAME(BINDLESS_UAV_ARRAY_PREFIX,Type)
 
+	#if (RAYCALLABLESHADER || RAYHITGROUPSHADER || RAYGENSHADER || RAYMISSSHADER)
+		#define VULKAN_HEAP_ACCESS(BindlessIndex) NonUniformResourceIndex(BindlessIndex)
+	#else
+		#define VULKAN_HEAP_ACCESS(BindlessIndex) BindlessIndex
+	#endif
+
 	#define UB_RESOURCE_MEMBER_SRV(Type, UBName, Name) \
 		typedef Type SafeType##UBName##_##Name; \
 		SafeType##UBName##_##Name VULKAN_SRV_HEAP(SafeType##UBName##_##Name)[]; \
 		Type GetBindlessResource##UBName##_##Name() { \
-			return VULKAN_SRV_HEAP(SafeType##UBName##_##Name)[UB_CB_PREFIXED_MEMBER_ACCESS(UBName, BindlessSRV_, Name)]; \
+			return VULKAN_SRV_HEAP(SafeType##UBName##_##Name)[VULKAN_HEAP_ACCESS(UB_CB_PREFIXED_MEMBER_ACCESS(UBName, BindlessSRV_, Name))]; \
 		} \
 		static const Type UBName##_##Name = GetBindlessResource##UBName##_##Name();
 
@@ -60,7 +66,7 @@ void ImageInterlockedAddUInt64(RWTexture2D<UlongType> Dest, uint2 Coord, UlongTy
 		typedef Type SafeType##UBName##_##Name; \
 		SafeType##UBName##_##Name VULKAN_UAV_HEAP(SafeType##UBName##_##Name)[]; \
 		Type GetBindlessResource##UBName##_##Name() { \
-			return VULKAN_UAV_HEAP(SafeType##UBName##_##Name)[UB_CB_PREFIXED_MEMBER_ACCESS(UBName, BindlessUAV_, Name)]; \
+			return VULKAN_UAV_HEAP(SafeType##UBName##_##Name)[VULKAN_HEAP_ACCESS(UB_CB_PREFIXED_MEMBER_ACCESS(UBName, BindlessUAV_, Name))]; \
 		} \
 		static const Type UBName##_##Name = GetBindlessResource##UBName##_##Name();
 
@@ -68,7 +74,7 @@ void ImageInterlockedAddUInt64(RWTexture2D<UlongType> Dest, uint2 Coord, UlongTy
 		typedef Type SafeType##UBName##_##Name; \
 		SafeType##UBName##_##Name VULKAN_SAMPLER_HEAP(SafeType##UBName##_##Name)[]; \
 		Type GetBindlessSampler##UBName##_##Name() { \
-			return VULKAN_SAMPLER_HEAP(SafeType##UBName##_##Name)[UB_CB_PREFIXED_MEMBER_ACCESS(UBName, BindlessSampler_, Name)]; \
+			return VULKAN_SAMPLER_HEAP(SafeType##UBName##_##Name)[VULKAN_HEAP_ACCESS(UB_CB_PREFIXED_MEMBER_ACCESS(UBName, BindlessSampler_, Name))]; \
 		} \
 		static const Type UBName##_##Name = GetBindlessSampler##UBName##_##Name();
 #endif

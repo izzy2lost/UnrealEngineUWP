@@ -145,8 +145,14 @@ void UEReportAssertWithPayload(uint AssertID, uint4 Payload)
 
 #if PLATFORM_SUPPORTS_BINDLESS
 	// SM6.6 path
+#if (RAYCALLABLESHADER || RAYHITGROUPSHADER || RAYGENSHADER || RAYMISSSHADER)
+	#define GetResourceFromHeap(Type, Index) ResourceDescriptorHeap[NonUniformResourceIndex(Index)]
+	#define GetSamplerFromHeap(Type, Index) SamplerDescriptorHeap[NonUniformResourceIndex(Index)]
+#else	
 	#define GetResourceFromHeap(Type, Index) ResourceDescriptorHeap[Index]
 	#define GetSamplerFromHeap(Type, Index) SamplerDescriptorHeap[Index]
+#endif
+
 #endif
 	
 
