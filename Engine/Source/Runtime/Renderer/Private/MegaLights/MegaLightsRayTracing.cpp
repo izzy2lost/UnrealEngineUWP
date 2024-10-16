@@ -49,6 +49,13 @@ static TAutoConsoleVariable<int32> CVarMegaLightsWorldSpaceTraces(
 	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 
+static TAutoConsoleVariable<int32> CVarMegaLightsSoftwareRayTracingAllow(
+	TEXT("r.MegaLights.SoftwareRayTracing.Allow"),
+	0,
+	TEXT("Whether to allow using software ray tracing when hardware ray tracing is not supported."),
+	ECVF_Scalability | ECVF_RenderThreadSafe
+);
+
 static TAutoConsoleVariable<int32> CVarMegaLightsHardwareRayTracing(
 	TEXT("r.MegaLights.HardwareRayTracing"),
 	1,
@@ -141,12 +148,17 @@ static TAutoConsoleVariable<int32> CVarMegaLightsVolumeWorldSpaceTraces(
 
 namespace MegaLights
 {
-	bool UseHardwareRayTracing(const FSceneViewFamily& ViewFamily)
+	bool IsSoftwareRayTracingSupported(const FSceneViewFamily& ViewFamily)
 	{
-		#if RHI_RAYTRACING
+		return DoesProjectSupportDistanceFields() && CVarMegaLightsSoftwareRayTracingAllow.GetValueOnRenderThread() != 0;
+	}
+
+	bool IsHardwareRayTracingSupported(const FSceneViewFamily& ViewFamily)
+	{
+#if RHI_RAYTRACING
 		{
-			if (MegaLights::IsEnabled(ViewFamily)
-				&& IsRayTracingEnabled()
+			// Update MegaLights::WriteWarnings(...) when conditions below are changed
+			if (IsRayTracingEnabled()
 				&& CVarMegaLightsHardwareRayTracing.GetValueOnRenderThread() != 0
 				// HWRT does not support multiple views yet due to TLAS, but stereo views can be allowed as they reuse TLAS for View[0]
 				&& (ViewFamily.Views.Num() == 1 || (ViewFamily.Views.Num() == 2 && IStereoRendering::IsStereoEyeView(*ViewFamily.Views[0])))
@@ -155,9 +167,14 @@ namespace MegaLights
 				return true;
 			}
 		}
-		#endif
+#endif
 
 		return false;
+	}
+
+	bool UseHardwareRayTracing(const FSceneViewFamily& ViewFamily)
+	{
+		return MegaLights::IsEnabled(ViewFamily) && IsHardwareRayTracingSupported(ViewFamily);
 	}
 
 	bool UseInlineHardwareRayTracing(const FSceneViewFamily& ViewFamily)
@@ -185,7 +202,8 @@ namespace MegaLights
 	bool IsUsingGlobalSDF(const FSceneViewFamily& ViewFamily)
 	{
 		return IsEnabled(ViewFamily)
-			&& CVarMegaLightsWorldSpaceTraces.GetValueOnRenderThread() != 0 
+			&& CVarMegaLightsWorldSpaceTraces.GetValueOnRenderThread() != 0
+			&& IsSoftwareRayTracingSupported(ViewFamily)
 			&& !UseHardwareRayTracing(ViewFamily);
 	}
 
