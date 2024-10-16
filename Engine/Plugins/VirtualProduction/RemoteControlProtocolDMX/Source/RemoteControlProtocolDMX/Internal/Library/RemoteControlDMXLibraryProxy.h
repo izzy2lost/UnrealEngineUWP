@@ -52,6 +52,13 @@ public:
 	void Reset();
 
 #if WITH_EDITOR
+	/**
+	 * Clears Fixture Patches. This should be called after a DMX Library asset in use was force deleted.
+	 * This is due to the fact that remote control protocol entities do not follow GC as expected, being left with stale
+	 * DMX Libraries in their Fixture Patch Ref objects otherwise.
+	 */
+	void ClearFixturePatches();
+
 	/** Finds fixture patches maintained by this proxy that exceed universe size */
 	TArray<UDMXEntityFixturePatch*> FindPatchesThatExceedUniverseSize() const;
 

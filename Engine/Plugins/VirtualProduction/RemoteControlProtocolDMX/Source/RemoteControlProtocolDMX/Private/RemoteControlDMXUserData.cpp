@@ -24,11 +24,8 @@ void URemoteControlDMXUserData::PostEditChangeProperty(FPropertyChangedEvent& Pr
 
 	if (PropertyChangedEvent.GetPropertyName() == GET_MEMBER_NAME_CHECKED(URemoteControlDMXUserData, DMXLibrary))
 	{
-		if (!DMXLibrary)
-		{
-			const FName UnqiueName = MakeUniqueObjectName(this, UDMXLibrary::StaticClass(), "Internal");
-			DMXLibrary = NewObject<UDMXLibrary>(this, UnqiueName, RF_Public | RF_Transactional);
-		}
+		// Ensure a valid DMX Lbirary exists in case it was cleared
+		EnsureValidDMXLibrary();
 
 		check(DMXLibraryProxy);
 		DMXLibraryProxy->RequestRefresh();
@@ -41,7 +38,11 @@ void URemoteControlDMXUserData::PostLoad()
 	Super::PostLoad();
 
 	if (!IsTemplate())
-	{
+	{		
+		// Handle cases where the DMX Library is no longer valid.
+		// This case can occur when force deleting the DMX Library and restarting the engine without saving the remote control preset. 
+		EnsureValidDMXLibrary();
+
 		check(DMXLibraryProxy);
 		DMXLibraryProxy->RequestRefresh();
 	}
@@ -146,6 +147,24 @@ void URemoteControlDMXUserData::SetPatchGroupMode(ERemoteControlDMXPatchGroupMod
 	
 	check(DMXLibraryProxy);
 	DMXLibraryProxy->RequestRefresh();
+}
+
+void URemoteControlDMXUserData::EnsureValidDMXLibrary()
+{
+	if (!DMXLibrary)
+	{
+		const FName UnqiueName = MakeUniqueObjectName(this, UDMXLibrary::StaticClass(), "Internal");
+		DMXLibrary = NewObject<UDMXLibrary>(this, UnqiueName, RF_Public | RF_Transactional);
+
+#if WITH_EDITOR
+		// It is important to clear the fixture patches for the DMX Library proxy when the DMX Library is reset,
+		// this is to handle cases where a DMX Library was force deleted. 
+		// As of 5.5 Remote Control Protocol Entities do not follow GC as expected, leaving their 
+		// fixture patch references with stale DMX Library object pointers if not explicitly cleared here.
+		check(DMXLibraryProxy);
+		DMXLibraryProxy->ClearFixturePatches();
+#endif // WITH_EDITOR
+	}
 }
 
 #if WITH_EDITOR
