@@ -93,6 +93,9 @@ class UPCGComputeGraphSettings : public UPCGSettings
 {
 	GENERATED_BODY()
 
+public:
+	UPCGComputeGraphSettings();
+
 protected:
 	virtual FPCGElementPtr CreateElement() const override;
 

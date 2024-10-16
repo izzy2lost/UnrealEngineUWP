@@ -646,6 +646,13 @@ void FPCGComputeGraphElement::LogCompilationMessages(FPCGComputeGraphContext* In
 }
 #endif
 
+UPCGComputeGraphSettings::UPCGComputeGraphSettings()
+{
+#if WITH_EDITOR
+	bExposeToLibrary = false;
+#endif
+}
+
 FPCGElementPtr UPCGComputeGraphSettings::CreateElement() const
 {
 	return MakeShared<FPCGComputeGraphElement>(ComputeGraphIndex);

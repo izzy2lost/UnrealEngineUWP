@@ -21,6 +21,7 @@ public:
 	virtual EPCGSettingsType GetType() const override { return EPCGSettingsType::Filter; }
 #endif // WITH_EDITOR
 	virtual FString GetAdditionalTitleInformation() const override;
+	virtual bool HasDynamicPins() const override { return true; }
 
 protected:
 	virtual TArray<FPCGPinProperties> InputPinProperties() const override;

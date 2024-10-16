@@ -101,9 +101,16 @@ FString UPCGFilterElementsByIndexSettings::GetAdditionalTitleInformation() const
 	}
 
 	FString NodeName = TEXT("Indices: ");
-	NodeName += SelectedIndices.Len() <= PCGFilterElementsByIndex::Constants::IndexExpressionTruncation
+	if (SelectedIndices == FString(TEXT(":")))
+	{
+		NodeName += TEXT("All");
+	}
+	else
+	{
+		NodeName += SelectedIndices.Len() <= PCGFilterElementsByIndex::Constants::IndexExpressionTruncation
 					? SelectedIndices
 					: SelectedIndices.Left(PCGFilterElementsByIndex::Constants::IndexExpressionTruncation - 3) + TEXT("...");
+	}
 
 	return NodeName;
 }
