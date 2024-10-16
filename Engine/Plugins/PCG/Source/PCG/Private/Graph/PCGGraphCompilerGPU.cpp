@@ -377,9 +377,13 @@ void FPCGGraphCompilerGPU::SetupVirtualPins(
 					}
 				}
 
-				if (ensure(OutputPin))
+				if (OutputPin)
 				{
 					OutOutputCPUPinToVirtualPin.Add(OutputPin, VirtualLabel);
+				}
+				else
+				{
+					UE_LOG(LogPCG, Warning, TEXT("Edge dropped during compilation due to missing upstream output pin."))
 				}
 			}
 		}
@@ -1224,6 +1228,10 @@ void FPCGGraphCompilerGPU::CreateGPUNodes(FPCGGraphCompiler& InOutCompiler, UPCG
 		return;
 	}
 
+	// For input pins at CPU -> GPU boundary, inject gather elements to pre-combine data on CPU side
+	// before passing to GPU.
+	CreateGatherTasksAtGPUInputs(InGraph, GPUCompatibleTaskIds, InOutCompiledTasks);
+
 	FTaskToSuccessors TaskSuccessors;
 	TaskSuccessors.Reserve(InOutCompiledTasks.Num());
 	for (FPCGTaskId TaskId = 0; TaskId < InOutCompiledTasks.Num(); ++TaskId)
@@ -1235,10 +1243,6 @@ void FPCGGraphCompilerGPU::CreateGPUNodes(FPCGGraphCompiler& InOutCompiler, UPCG
 			TaskSuccessors.FindOrAdd(InOutCompiledTasks[TaskId].Inputs[InputIndex].TaskId).AddUnique(TaskId);
 		}
 	}
-
-	// For input pins at CPU -> GPU boundary, inject gather elements to pre-combine data on CPU side
-	// before passing to GPU.
-	CreateGatherTasksAtGPUInputs(InGraph, GPUCompatibleTaskIds, InOutCompiledTasks);
 
 	TArray<TSet<FPCGTaskId>> NodeSubsetsToConvertToCFGraph;
 	CollectGPUNodeSubsets(InOutCompiledTasks, TaskSuccessors, GPUCompatibleTaskIds, NodeSubsetsToConvertToCFGraph);
