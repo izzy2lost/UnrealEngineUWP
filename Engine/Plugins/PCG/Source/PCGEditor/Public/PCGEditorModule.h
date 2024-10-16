@@ -46,6 +46,11 @@ protected:
 	void RegisterOnEditorModeChange();
 	void OnEditorModeIDChanged(const FEditorModeID& EditorModeID, bool bIsEntering);
 
+	/** [EXPERIMENTAL] Used to refresh procedural instances when materials are modified which can otherwise be lost.
+	* Note: This function subject to change/removal without deprecation.
+	*/
+	void OnSceneMaterialsModified();
+
 	bool ShouldDisableCPUThrottling();
 
 	TArray<TSharedRef<IAssetTypeActions>> RegisteredAssetTypeActions;

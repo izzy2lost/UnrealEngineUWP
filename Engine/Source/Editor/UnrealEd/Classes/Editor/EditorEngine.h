@@ -3112,6 +3112,10 @@ public:
 	/** This function should be called to notify the editor that new materials were added to our scene or some materials were modified */
 	UNREALED_API void OnSceneMaterialsModified();
 
+	/** Called when a scene material is added or modified. */
+	DECLARE_EVENT(UEditorEngine, FSceneMaterialsModifiedEvent);
+	FSceneMaterialsModifiedEvent& OnSceneMaterialsModifiedEvent() { return SceneMaterialsModifiedEvent; }
+
 	/** Call this function to change the feature level and to override the material quality platform of the editor and PIE worlds */
 	UNREALED_API void SetPreviewPlatform(const FPreviewPlatformInfo& NewPreviewPlatform, bool bSaveSettings);
 
@@ -3177,6 +3181,9 @@ private:
 
 	/** Minimized Windows during PIE */
 	TArray<TWeakPtr<SWindow>> MinimizedWindowsDuringPIE;
+
+	/** Delegate broadcast when a scene material is added or modified. */
+	FSceneMaterialsModifiedEvent SceneMaterialsModifiedEvent;
 
 public:
 	/**

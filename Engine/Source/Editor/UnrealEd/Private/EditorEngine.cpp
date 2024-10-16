@@ -6220,6 +6220,7 @@ bool UEditorEngine::IsOfflineShaderCompilerAvailable(UWorld* World)
 
 void UEditorEngine::OnSceneMaterialsModified()
 {
+	SceneMaterialsModifiedEvent.Broadcast();
 }
 
 void UEditorEngine::OnEffectivePreviewShaderPlatformChange()
