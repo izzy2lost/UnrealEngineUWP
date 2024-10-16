@@ -463,7 +463,8 @@ namespace UnrealBuildTool
 		/// <summary>
 		/// Whether .sarif files containing errors and warnings are written alongside each .obj, if supported
 		/// </summary>
-		[Obsolete("No longer necessary, .sarif files will always be written")]
+		[ConfigFile(ConfigHierarchyType.Engine, "/Script/WindowsTargetPlatform.WindowsTargetSettings", "bWriteSarif")]
+		[XmlConfigFile(Category = "WindowsPlatform")]
 		public bool bWriteSarif = true;
 
 		/// <summary>
@@ -908,6 +909,8 @@ namespace UnrealBuildTool
 		public bool bEnableAddressSanitizer => Inner.bEnableAddressSanitizer;
 
 		public bool bEnableLibFuzzer => Inner.bEnableLibFuzzer;
+
+		public bool bWriteSarif => Inner.bWriteSarif;
 
 		public string? ObjSrcMapFile => Inner.ObjSrcMapFile;
 
