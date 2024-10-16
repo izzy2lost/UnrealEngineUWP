@@ -912,6 +912,10 @@ void UPCGCustomHLSLSettings::UpdateOutputDeclarations()
 		}
 
 		OutputDeclarations += FString::Format(TEXT(
+			"void {0}_InitializePoint(uint DataIndex, uint ElementIndex);\n"
+			"void {0}_CopyElementFrom_<input pin>(uint TargetDataIndex, uint TargetElementIndex, uint SourceDataIndex, uint SourceElementIndex);\n"
+			"bool {0}_RemovePoint(uint DataIndex, uint ElementIndex);\n"
+			"\n"
 			"void {0}_SetPosition(uint DataIndex, uint ElementIndex, float3 Position);\n"
 			"void {0}_SetRotation(uint DataIndex, uint ElementIndex, float4 Rotation);\n"
 			"void {0}_SetScale(uint DataIndex, uint ElementIndex, float3 Scale);\n"
@@ -921,9 +925,7 @@ void UPCGCustomHLSLSettings::UpdateOutputDeclarations()
 			"void {0}_SetDensity(uint DataIndex, uint ElementIndex, float Density);\n"
 			"void {0}_SetSeed(uint DataIndex, uint ElementIndex, int Seed);\n"
 			"void {0}_SetSteepness(uint DataIndex, uint ElementIndex, float Steepness);\n"
-			"void {0}_SetPointTransform(uint DataIndex, uint ElementIndex, float4x4 Transform);\n"
-			"bool {0}_RemovePoint(uint DataIndex, uint ElementIndex);\n"
-			"void {0}_InitializePoint(uint DataIndex, uint ElementIndex);\n"),
+			"void {0}_SetPointTransform(uint DataIndex, uint ElementIndex, float4x4 Transform);\n"),
 			{ bMultiPin ? PCGHLSLElement::PinDeclTemplateStr : PointDataPins[0] });
 
 		OutputDeclarations += TEXT("\n");
@@ -954,14 +956,15 @@ void UPCGCustomHLSLSettings::UpdateHelperDeclarations()
 {
 	HelperDeclarations.Reset();
 
-	// Helper funcs category
+	// Helper functions category
 	{
 		HelperDeclarations += TEXT(
 			"/*** HELPER FUNCTIONS ***/\n"
 			"\n"
-			"int3 GetNumThreads();\n");
+			"int3 GetNumThreads();\n"
+			"uint GetThreadCountMultiplier();\n");
 
-		if (KernelType == EPCGKernelType::Custom)
+		// Get thread data - useful in all kernel types for secondary pins.
 		{
 			TArray<FString> PinNames;
 
@@ -1464,6 +1467,15 @@ bool UPCGCustomHLSLSettings::IsKernelValid(FPCGContext* InContext, bool bQuiet) 
 			}
 			return false;
 		}
+
+		if (!GetGeneratedFunctions(/*OutFunctions=*/nullptr, ErrorTextPtr))
+		{
+			if (ErrorTextPtr)
+			{
+				PCG_KERNEL_VALIDATION_ERR(InContext, this, bQuiet, *ErrorTextPtr);
+			}
+			return false;
+		}
 	}
 
 	return true;
@@ -1635,13 +1647,138 @@ bool UPCGCustomHLSLSettings::AreKernelAttributesValid(FPCGContext* InContext, FT
 	return true;
 }
 
+bool UPCGCustomHLSLSettings::GetGeneratedFunctions(FString* OutFunctions, FText* OutErrorText) const
+{
+	TSet<TPair<FString, FString>> PinsRequiringElementCopy;
+
+	// Point processor nodes always copy input to output at the beginning of the kernel.
+	if (KernelType == EPCGKernelType::PointProcessor && GetPointProcessingInputPin() && GetFirstPointOutputPin())
+	{
+		PinsRequiringElementCopy.Emplace({ GetPointProcessingInputPin()->Properties.Label.ToString(), GetFirstPointOutputPin()->Properties.Label.ToString() });
+	}
+
+	const FString Source = ShaderFunctions + TEXT("\n") + ShaderSource;
+
+	/** Regex for parsing usages of CopyElementFrom function. */
+	constexpr TCHAR CopyElementPattern[] = { TEXT(/*TargetPin*/"([a-zA-Z0-9]+)" "_CopyElementFrom_" /*SourcePin*/"([a-zA-Z0-9]+)\\s*\\(") };
+	constexpr int CopyElementTargetPinCaptureGroup = 1;
+	constexpr int CopyElementSourcePinCaptureGroup = 2;
+
+	FRegexMatcher ModuleMatcher(FRegexPattern(CopyElementPattern), Source);
+
+	while (ModuleMatcher.FindNext())
+	{
+		const FString SourcePinStr = ModuleMatcher.GetCaptureGroup(CopyElementSourcePinCaptureGroup);
+		const UPCGPin* SourcePin = GetInputPin(FName(*SourcePinStr));
+		if (!SourcePin)
+		{
+#if PCG_KERNEL_LOGGING_ENABLED
+			if (OutErrorText)
+			{
+				*OutErrorText = FText::Format(LOCTEXT("InvalidCopySourcePin", "Invalid input pin '{0}' used in copy element expression."), FText::FromString(SourcePinStr));
+			}
+#endif
+			return false;
+		}
+
+		const FString TargetPinStr = ModuleMatcher.GetCaptureGroup(CopyElementTargetPinCaptureGroup);
+		const UPCGPin* TargetPin = GetOutputPin(FName(*TargetPinStr));
+		if (!TargetPin)
+		{
+#if PCG_KERNEL_LOGGING_ENABLED
+			if (OutErrorText)
+			{
+				*OutErrorText = FText::Format(LOCTEXT("InvalidCopyTargetPin", "Invalid output pin '{0}' used in copy element expression."), FText::FromString(TargetPinStr));
+			}
+#endif
+			return false;
+		}
+
+		if (SourcePin->Properties.AllowedTypes != TargetPin->Properties.AllowedTypes)
+		{
+#if PCG_KERNEL_LOGGING_ENABLED
+			if (OutErrorText)
+			{
+				*OutErrorText = LOCTEXT("InvalidCopyTargetPin", "CopyFromElement only allowed across pins of matching type.");
+			}
+#endif
+			return false;
+		}
+
+		PinsRequiringElementCopy.Emplace({ SourcePinStr, TargetPinStr });
+	}
+
+	if (!OutFunctions)
+	{
+		return true;
+	}
+
+	FString Functions = TEXT("// Generated functions\n");
+
+	for (TPair<FString, FString>& Pair : PinsRequiringElementCopy)
+	{
+		Functions += FString::Format(TEXT(
+			"\n"
+			"// Copy element from pin {0} to pin {1}.\n"
+			"void {1}_CopyElementFrom_{0}(uint {1}_DataIndex, uint {1}_ElementIndex, uint {0}_DataIndex, uint {0}_ElementIndex)\n"
+			"{\n"
+			"    // Copy elements across pins. Loop over all attribute headers, if the address is non-zero, then copy it from pin {0} to pin {1}.\n"
+			"    int NumAttributesRemaining = (int){1}_GetDataNumAttributesInternal({1}_DataIndex);\n"
+			"\n"
+			"    for (int AttributeId = 0; AttributeId < {2}; ++AttributeId)\n"
+			"    {\n"
+			"        const uint {1}_Stride = {1}_GetAttributeStrideInternal({1}_DataIndex, AttributeId);\n"
+			"\n"
+			"        if ({1}_Stride == 0)\n"
+			"        {\n"
+			"            // No output attribute to write to.\n"
+			"            continue;\n"
+			"        }\n"
+			"\n"
+			"        const uint {0}_Stride = {0}_GetAttributeStrideInternal({0}_DataIndex, AttributeId);\n"
+			"        const uint {1}_ElementAddress = {1}_GetElementAddressInternal({1}_DataIndex, {1}_ElementIndex, AttributeId);\n"
+			"\n"
+			"        if ({0}_Stride == {1}_Stride)\n"
+			"        {\n"
+			"            const uint {0}_ElementAddress = {0}_GetElementAddressInternal({0}_DataIndex, {0}_ElementIndex, AttributeId);\n"
+			"\n"
+			"            for (uint Offset = 0; Offset < {1}_Stride; Offset += 4)\n"
+			"            {\n"
+			"                {1}_StoreBufferInternal({1}_ElementAddress + Offset, {0}_LoadBufferInternal({0}_ElementAddress + Offset));\n"
+			"            }\n"
+			"\n"
+			"        }\n"
+			"        else\n"
+			"        {\n"
+			"            for (uint Offset = 0; Offset < {1}_Stride; Offset += 4)\n"
+			"            {\n"
+			"                // Initialize output data (only header part of buffer will be initialized).\n"
+			"                {1}_StoreBufferInternal({1}_ElementAddress + Offset, 0u);\n"
+			"            }\n"
+			"        }\n"
+			"\n"
+			"        if (--NumAttributesRemaining <= 0)\n"
+			"        {\n"
+			"            break; // We can early-out when we've looked at all the possible attributes\n"
+			"        }\n"
+			"    }\n"
+			"}\n"),
+			{ Pair.Key, Pair.Value, PCGComputeConstants::MAX_NUM_ATTRS });
+	}
+
+	*OutFunctions = Functions;
+	return true;
+}
+
 FString UPCGCustomHLSLSettings::GetCookedKernelSource(const TMap<FName, FPCGKernelAttributeIDAndType>& GlobalAttributeLookupTable) const
 {
 	const FIntVector GroupSize(PCGComputeConstants::THREAD_GROUP_SIZE, 1, 1);
 
-	// FIXME: Create source range mappings so that we can go from error location to our source.
 	FString Source = ShaderSource;
-	FString Functions = (TEXT("// User kernel functions\n") + ShaderFunctions);
+
+	FString Functions;
+	GetGeneratedFunctions(&Functions);
+	Functions += (TEXT("\n\n// User kernel functions\n") + ShaderFunctions);
 
 #if PLATFORM_WINDOWS
 	// Remove old-school stuff.
@@ -1729,49 +1866,8 @@ FString UPCGCustomHLSLSettings::GetCookedKernelSource(const TMap<FName, FPCGKern
 			// TODO pass in IDs of attributes that are actually present.
 			KernelSpecificPreamble += FString::Format(TEXT(
 				"\n"
-				"    // Initialize output data elements. Loop over all attribute headers, if the address is non-zero, then copy it from pin {0} to pin {1}.\n"
-				"    {\n"
-				"        const uint NumAttributes = {1}_GetDataNumAttributesInternal({1}_DataIndex);\n"
-				"        uint NumAttributesProcessed = 0;\n"
-				"\n"
-				"        for (int AttributeId = 0; AttributeId < 128; ++AttributeId)\n"
-				"        {\n"
-				"            const uint {1}_Stride = {1}_GetAttributeStrideInternal({1}_DataIndex, AttributeId);\n"
-				"\n"
-				"            if ({1}_Stride == 0)\n"
-				"            {\n"
-				"                // No output attribute to write to.\n"
-				"                continue;\n"
-				"            }\n"
-				"\n"
-				"            const uint {0}_Stride = {0}_GetAttributeStrideInternal({0}_DataIndex, AttributeId);\n"
-				"            const uint {1}_ElementAddress = {1}_GetElementAddressInternal({1}_DataIndex, ElementIndex, AttributeId);\n"
-				"\n"
-				"            if ({0}_Stride == {1}_Stride)\n"
-				"            {\n"
-				"                const uint {0}_ElementAddress = {0}_GetElementAddressInternal({0}_DataIndex, ElementIndex, AttributeId);\n"
-				"\n"
-				"                for (uint Offset = 0; Offset < {1}_Stride; Offset += 4)\n"
-				"                {\n"
-				"                    {1}_StoreBufferInternal({1}_ElementAddress + Offset, {0}_LoadBufferInternal({0}_ElementAddress + Offset));\n"
-				"                }\n"
-				"\n"
-				"            }\n"
-				"            else\n"
-				"            {\n"
-				"                for (uint Offset = 0; Offset < {1}_Stride; Offset += 4)\n"
-				"                {\n"
-				"                    // Initialize output data (only header part of buffer will be initialized).\n"
-				"                    {1}_StoreBufferInternal({1}_ElementAddress + Offset, 0u);\n"
-				"                }\n"
-				"            }\n"
-				"\n"
-				"            if (++NumAttributesProcessed >= NumAttributes)\n"
-				"            {\n"
-				"                break; // We can early-out when we've looked at all the possible attributes\n"
-				"            }\n"
-				"        }\n"
-				"    }\n"),
+				"// Point processor always initializes outputs by copying input data elements.\n"
+				"{1}_CopyElementFrom_{0}({1}_DataIndex, ElementIndex, {0}_DataIndex, ElementIndex);\n"),
 				{ InputPin->Properties.Label.ToString(), OutputPin->Properties.Label.ToString() });
 		}
 	}

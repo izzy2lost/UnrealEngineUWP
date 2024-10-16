@@ -79,6 +79,7 @@ protected:
 	virtual FPCGElementPtr CreateElement() const override;
 	//~End UPCGSettings interface
 
+public:
 #if WITH_EDITOR
 	//~Begin IPCGNodeSourceTextProvider interface
 	FString GetShaderText() const override;
@@ -90,6 +91,10 @@ protected:
 	//~End IPCGNodeSourceTextProvider interface
 #endif
 
+	/** Get user multiplier value applied to the dispatch thread count. */
+	uint32 GetThreadCountMultiplier() const { return IsThreadCountMultiplierInUse() ? static_cast<uint32>(ThreadCountMultiplier) : 1u; }
+
+protected:
 	/** Gets the GPU pin properties for the output pin with the given label. */
 	const FPCGPinPropertiesGPU* GetOutputPinPropertiesGPU(const FName& InPinLabel) const;
 
@@ -125,6 +130,9 @@ protected:
 
 	/** Will the ThreadCountMultiplier value be applied when calculating the dispatch thread count. */
 	bool IsThreadCountMultiplierInUse() const { return KernelType == EPCGKernelType::Custom && DispatchThreadCount != EPCGDispatchThreadCount::Fixed; }
+
+	/** Generate any functions that require code-gen for the shader source. */
+	virtual bool GetGeneratedFunctions(FString* OutFunctions, FText* OutErrorText = nullptr) const;
 
 protected:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings")
