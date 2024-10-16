@@ -200,6 +200,7 @@ class FPCGAttributeFilterElementBase : public IPCGElement
 {
 protected:
 	virtual EPCGElementExecutionLoopMode ExecutionLoopMode(const UPCGSettings* Settings) const override { return EPCGElementExecutionLoopMode::SinglePrimaryPin; }
+	/** Performs the filter operation. Returns true when the operation is complete. */
 	bool DoFiltering(FPCGContext* Context, EPCGAttributeFilterOperator InOperation, const FPCGAttributePropertyInputSelector& TargetAttribute, bool bHasSpatialToPointDeprecation, bool bWarnOnDataMissingAttribute, const FPCGAttributeFilterThresholdSettings& FirstThreshold, const FPCGAttributeFilterThresholdSettings* SecondThreshold = nullptr) const;
 };
 
@@ -214,4 +215,3 @@ class FPCGAttributeFilterRangeElement : public FPCGAttributeFilterElementBase
 protected:
 	virtual bool ExecuteInternal(FPCGContext* Context) const override;
 };
-
