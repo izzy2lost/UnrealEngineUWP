@@ -52,6 +52,8 @@ void FRemoteControlProtocol::OnBeginFrame()
 {
 	using namespace UE::RemoteControl;
 	ProtocolEntityProcessor::ProcessEntities(EntityValuesToApply);
+
+	EntityValuesToApply.Reset();
 }
 
 #if WITH_EDITOR
