@@ -25,6 +25,7 @@
 #include "InterchangeHelper.h"
 #include "InterchangeProjectSettings.h"
 #include "InterchangePythonPipelineBase.h"
+#include "InterchangeSceneImportAsset.h"
 #include "InterchangeSourceData.h"
 #include "InterchangeTaskSystem.h"
 #include "InterchangeTranslatorBase.h"
@@ -1781,17 +1782,27 @@ UInterchangeManager::ImportInternal(const FString& ContentPath, const UInterchan
 	}
 
 	const bool bIsUnattended = FApp::IsUnattended() || FApp::IsGame() || GIsAutomationTesting || ImportAssetParameters.bIsAutomated;
-
 	//If we detect the import will do a re-import of an existing asset, the ReimportAsset parameter should be filled
 	//And we will also convert the import data. With this code this import will be considered a re-import.
-	if (ImportType == UE::Interchange::EImportType::ImportType_Asset && !ImportAssetParameters.ReimportAsset)
+	if (!ImportAssetParameters.ReimportAsset)
 	{
-		FString AssetpackageName = ImportAssetParameters.DestinationName.IsEmpty() ? FPaths::GetCleanFilename(SourceData->GetFilename()) : ImportAssetParameters.DestinationName;
+		auto GetAssetNameFromFilename = [&bImportScene, &SourceData]()
+			{
+				FString AssetpackageName = FPaths::GetBaseFilename(SourceData->GetFilename());
+				if (bImportScene)
+				{
+					AssetpackageName = TEXT("SceneImport_") + AssetpackageName;
+				}
+				return AssetpackageName;
+			};
+		FString AssetpackageName = ImportAssetParameters.DestinationName.IsEmpty() ? GetAssetNameFromFilename() : ImportAssetParameters.DestinationName;
+		
 		FString PackageBasePath = ContentPath;
 		SanitizeNameInline(AssetpackageName, ESanitizeNameTypeFlags::ObjectName | ESanitizeNameTypeFlags::ObjectPath | ESanitizeNameTypeFlags::LongPackage);
 		SanitizeNameInline(PackageBasePath, ESanitizeNameTypeFlags::ObjectPath | ESanitizeNameTypeFlags::LongPackage);
 		FString FullPackagePath = FPaths::Combine(*PackageBasePath, *AssetpackageName);
-		if (!UE::Interchange::FPackageUtils::IsMapPackageAsset(FullPackagePath))
+		const bool bCanConvertAsset = bImportScene || !UE::Interchange::FPackageUtils::IsMapPackageAsset(FullPackagePath);
+		if (bCanConvertAsset)
 		{
 			UPackage* Pkg = FindPackage(nullptr, *FullPackagePath);
 			if (!Pkg)
@@ -1806,14 +1817,19 @@ UInterchangeManager::ImportInternal(const FString& ContentPath, const UInterchan
 				//If we found an asset we can re-import, convert set the param to re-import instead of override
 				if (ExistingAsset && GetRegisteredFactoryClass(ExistingAsset->GetClass()))
 				{
-					bool bConvertToReimport = ImportAssetParameters.bReplaceExisting;
-					if (!bIsUnattended && !ImportAssetParameters.bReplaceExisting)
+					//Scene conversion only support UInterchangeSceneImportAsset
+					//Asset conversion support all registered factory class
+					UInterchangeSceneImportAsset* SceneImportAsset = Cast<UInterchangeSceneImportAsset>(ExistingAsset);
+					if (!bImportScene || SceneImportAsset)
 					{
-						FText OverrideDialogMessage = FText::Format(NSLOCTEXT("InterchangeManager", "OverrideAssetMessage", "This import will override asset '{0}', Do you want to convert this import to a re-import?")
-							, FText::FromString(ExistingAsset->GetFullName()));
-						EAppReturnType::Type DialogResult = FMessageDialog::Open(EAppMsgType::YesNoCancel, OverrideDialogMessage);
-						switch (DialogResult)
+						bool bConvertToReimport = ImportAssetParameters.bReplaceExisting;
+						if (!bIsUnattended && !ImportAssetParameters.bReplaceExisting)
 						{
+							FText OverrideDialogMessage = FText::Format(NSLOCTEXT("InterchangeManager", "OverrideAssetMessage", "This import will override asset '{0}', Do you want to convert this import to a re-import?")
+								, FText::FromString(ExistingAsset->GetFullName()));
+							EAppReturnType::Type DialogResult = FMessageDialog::Open(EAppMsgType::YesNoCancel, OverrideDialogMessage);
+							switch (DialogResult)
+							{
 							case EAppReturnType::Yes:
 							{
 								bConvertToReimport = true;
@@ -1829,20 +1845,32 @@ UInterchangeManager::ImportInternal(const FString& ContentPath, const UInterchan
 								UE_LOG(LogInterchangeEngine, Display, TEXT("User cancel import of file [%s]."), *(SourceData->GetFilename()));
 								return EarlyExit();
 							}
+							}
 						}
-					}
 
-					if (bConvertToReimport)
-					{
-						//Make sure we have the correct flag
-						ExistingAsset->SetFlags(RF_Standalone | RF_Public);
-						FImportAssetParameters* MutableImportAssetParameters = const_cast<FImportAssetParameters*>(&ImportAssetParameters);
-						MutableImportAssetParameters->ReimportAsset = ExistingAsset;
-						UInterchangeAssetImportData* OriginalAssetImportData = UInterchangeAssetImportData::GetFromObject(ImportAssetParameters.ReimportAsset);
-						if (!OriginalAssetImportData)
+						if (bConvertToReimport)
 						{
-							//Convert the object asset import data to interchange
-							ConvertImportData(MutableImportAssetParameters->ReimportAsset, FPaths::GetExtension(SourceData->GetFilename()));
+							//Make sure we have the correct flag
+							ExistingAsset->SetFlags(RF_Standalone | RF_Public);
+							if (FImportAssetParameters* MutableImportAssetParameters = const_cast<FImportAssetParameters*>(&ImportAssetParameters))
+							{
+								MutableImportAssetParameters->ReimportAsset = ExistingAsset;
+								MutableImportAssetParameters->ReimportSourceIndex = INDEX_NONE;
+								MutableImportAssetParameters->ImportLevel = (bImportScene && SceneImportAsset) ? SceneImportAsset->GetOriginalLevel() : nullptr;
+								MutableImportAssetParameters->bReplaceExisting |= bImportScene;
+							}
+							UInterchangeAssetImportData* MutableOriginalAssetImportData = UInterchangeAssetImportData::GetFromObject(ImportAssetParameters.ReimportAsset);
+							if (!MutableOriginalAssetImportData)
+							{
+								//Convert the object asset import data to interchange
+								ConvertImportData(ImportAssetParameters.ReimportAsset, FPaths::GetExtension(SourceData->GetFilename()));
+							}
+
+							//Add an analytic so we can know if a not re-import was turn into a re-import
+							if (FEngineAnalytics::IsAvailable())
+							{
+								Attribs.Add(FAnalyticsEventAttribute(TEXT("Parameters.ConvertToReimport"), true));
+							}
 						}
 					}
 				}
