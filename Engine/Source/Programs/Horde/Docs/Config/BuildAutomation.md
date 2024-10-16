@@ -241,6 +241,10 @@ Allows toggling whether to enable an option or not.
 
 See [BoolParameterData](Schema/Streams.md#boolparameterdata) for valid properties.
 
+## Artifacts
+
+See [Configuration > Artifacts](Artifacts.md).
+
 ## Schedules
 
 Templates may also specify a schedule and policy on which to trigger automatically; running for every submitted change,
