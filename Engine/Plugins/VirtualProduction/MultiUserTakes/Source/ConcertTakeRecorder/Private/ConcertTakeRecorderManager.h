@@ -136,7 +136,6 @@ private:
 		return TEXT("FConcertTakeRecorderManager");
 	}
 
-	void ReportRecordingError(FText &);
 	bool CanRecord() const;
 	bool CanAnyRecord() const;
 
