@@ -1,14 +1,15 @@
 [Horde](../../README.md) > [Internals](../Internals.md) > Storage
 
-# Storage
+# Storage Architecture
 
 Horde's storage platform is designed to support manipulating massive data structures consisting of
 interlinked blobs. Blobs are **immutable**, and consist of an arbitrary block of data and zero
 or more outward references to other blobs.
 
-The entry point to any such data structure is a ref, a user-defined name that keeps a reference
-to a blob at the root of the data structure. Any nodes that are not directly or indirectly referenced
-by a ref are subject to garbage collection.
+The entry point to any such data structure is a named reference, which maps a
+user-defined name to a blob at the root of the data structure. Any nodes that are
+not directly or indirectly referenced by a named reference are subject to garbage
+collection.
 
 ## History
 

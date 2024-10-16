@@ -25,19 +25,6 @@ running with a cached version of the previous configuration until fixed.
 Horde configuration files may include other configuration files by path. For CI use cases, for example, it can be
 convenient to configure each stream within the stream itself.
 
-## Projects and Streams
-
-Most of the Horde dashboard is split into projects and streams. Projects are designed as a top-level way of
-partitioning functionality for different teams working on a shared Horde instance, and streams configure functionality
-relevant for a specific Perforce stream.
-
-Each project and stream typically has its own configuration file. By convention (and for the schema server to work
-correctly), project configuration files have a `.project.json` extension, and stream configuration files have a
-`.stream.json` extension.
-
-Projects and streams need to be set up to use the CI, PerfMem Hub, and Test Hub aspects of Horde. For
-configuring remote execution and DDC use cases, a global configuration file will suffice.
-
 ## Revision Control
 
 Horde supports reading configuration files from Perforce.

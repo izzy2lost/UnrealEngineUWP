@@ -15,7 +15,7 @@ You can configure the mode via the `AuthMethod` setting.
 ### Anonymous
 Horde ships with authorization disabled by default for demonstration purposes and to get started.
 
-> **NOTE:** For production deployment, proper authentication must be configured using either OpenID Connect or built-in user accounts.
+> **NOTE:** For production deployments, proper authentication should be configured using either OpenID Connect or built-in user accounts.
 
 ### OpenID Connect
 Horde can use an external OpenID Connect (OIDC) provider for authorization.
