@@ -154,9 +154,6 @@ namespace UE::RivermaxCore::Private
 		/** Data and RTP frame index expected to be used for next frame */
 		uint8 ExpectedFrameIndex = 0;
 
-		/** Used to detect misalignment between chunk being sent and frame memory we are writing in */
-		bool bHasFrameFirstChunkBeenFetched = false;
-
 		/** Next alignment point based on PTP standard */
 		uint64 NextAlignmentPointNanosec = 0;
 

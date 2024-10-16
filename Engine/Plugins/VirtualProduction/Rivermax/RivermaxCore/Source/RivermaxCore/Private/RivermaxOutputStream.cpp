@@ -740,7 +740,6 @@ namespace UE::RivermaxCore::Private
 			}
 
 			Stats.TotalChunkRetries += Stats.LastFrameChunkRetries;
-			StreamData.bHasFrameFirstChunkBeenFetched = false;
 			Stats.LastFrameChunkRetries = 0;
 		}
 	}
@@ -763,6 +762,7 @@ namespace UE::RivermaxCore::Private
 			const double TargetPlatformTimeSec = CurrentPlatformTime + TimeLeftSec;
 			if (CurrentRmaxTimeNanosec < StreamData.NextAlignmentPointNanosec)
 			{
+				if (!StreamMemory.bUseIntermediateBuffer)
 				{
 					TRACE_CPUPROFILER_EVENT_SCOPE(RmaxOut::CopyFrame);
 
@@ -1264,10 +1264,8 @@ namespace UE::RivermaxCore::Private
 			CurrentFrame->HeaderPtr = rmx_output_media_get_chunk_strides(&StreamData.ChunkHandle, StreamMemory.HeaderBlockID);
 			if (Status == RMX_OK)
 			{
-				if (StreamData.bHasFrameFirstChunkBeenFetched == false)
+				if (CurrentFrame->FrameStartPtr == nullptr)
 				{
-					StreamData.bHasFrameFirstChunkBeenFetched = true;
-
 					// Stamp frame start in order to copy frame data sequentially as we query chunks
 					CurrentFrame->FrameStartPtr = CurrentFrame->PayloadPtr;
 
