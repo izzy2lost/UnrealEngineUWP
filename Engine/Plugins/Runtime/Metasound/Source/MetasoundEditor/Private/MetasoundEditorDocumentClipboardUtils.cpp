@@ -192,6 +192,16 @@ namespace Metasound::Editor
 									MetaSoundEditorSubsystem.BindMemberMetadata(Builder, *Output, LiteralClass, DefaultLiteral);
 								}
 							}
+
+							// Remove default node location from output node. 
+							// Correct node location from the ed graph node will be set subsequently in ProcessPastedNodePositions
+							TArray<FGuid> NodeLocationGuids;
+							NewNode->Style.Display.Locations.GetKeys(NodeLocationGuids);
+							if (!NodeLocationGuids.IsEmpty())
+							{
+								Builder.RemoveNodeLocation(NewNode->GetID());
+							}
+
 							OutputNode->Output = Output;
 						}
 						else
