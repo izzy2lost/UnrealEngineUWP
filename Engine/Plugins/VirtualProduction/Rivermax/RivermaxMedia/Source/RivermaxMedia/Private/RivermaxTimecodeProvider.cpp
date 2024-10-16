@@ -13,7 +13,7 @@
 bool URivermaxTimecodeProvider::FetchTimecode(FQualifiedFrameTime& OutFrameTime)
 {
 	IRivermaxCoreModule* RivermaxModule = FModuleManager::GetModulePtr<IRivermaxCoreModule>("RivermaxCore");
-	if (RivermaxModule && RivermaxModule->GetRivermaxManager())
+	if (RivermaxModule && RivermaxModule->GetRivermaxManager() && RivermaxModule->GetRivermaxManager()->IsLibraryInitialized())
 	{
 		// Get rivermax clock time, and truncate to timespan tick's resolution (100ns / tick)
 		const uint64 CurrentTime = RivermaxModule->GetRivermaxManager()->GetTime();
