@@ -408,6 +408,13 @@ namespace UE
 					FTransform TransformMatrixTransform;
 					TransformMatrixTransform.SetFromMatrix(TransformMatrix);
 
+					FTransform GeometricTransform;
+					if (SceneNode->GetCustomGeometricTransform(GeometricTransform))
+					{
+						//We must add the geometric node transform
+						TransformMatrixTransform = GeometricTransform * TransformMatrixTransform;
+					}
+
 					FMatrix VertexTransformMatrix = (SceneNodeTransform.Inverse() * ((TransformMatrixTransform * BindPose.Inverse()) * (T0 * SceneNodeTransform.Inverse()))).ToMatrixWithScale();
 
 					//Iterate all bone vertices

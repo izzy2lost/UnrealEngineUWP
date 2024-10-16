@@ -35,6 +35,11 @@ namespace UE
 				void AddMorphTargetAnimations(FbxScene* SDKScene, UInterchangeBaseNodeContainer& NodeContainer, TMap<FString, TSharedPtr<FPayloadContextBase, ESPMode::ThreadSafe>>& PayloadContexts, const TArray<FMorphTargetAnimationBuildingData>& MorphTargetAnimationsBuildingData);
 				UInterchangeSceneNode* CreateTransformNode(UInterchangeBaseNodeContainer& NodeContainer, const FString& NodeName, const FString& NodeUniqueID);
 
+				struct FRootJointInfo
+				{
+					bool bValidBindPose = false;
+				};
+
 			protected:
 				void CreateMeshNodeReference(UInterchangeSceneNode* UnrealSceneNode, FbxNodeAttribute* NodeAttribute, UInterchangeBaseNodeContainer& NodeContainer, const FTransform& GeometricTransform, const FTransform& PivotNodeTransform);
 				void CreateCameraNodeReference(UInterchangeSceneNode* UnrealSceneNode, FbxNodeAttribute* NodeAttribute, UInterchangeBaseNodeContainer& NodeContainer);
@@ -67,8 +72,9 @@ namespace UE
 
 				void FindForceJointNode(FbxScene* SDKScene, TArray<FbxNode*>& ForceJointNodes);
 
+				bool IsValidBindPose(FbxScene* SDKScene, FbxNode* RootJoint) const;
 
-				TSet<FbxNode*> CommonJointRootNodes;
+				TMap<FbxNode*, FRootJointInfo> CommonJointRootNodes;
 
 				FFbxParser& Parser;
 			};
