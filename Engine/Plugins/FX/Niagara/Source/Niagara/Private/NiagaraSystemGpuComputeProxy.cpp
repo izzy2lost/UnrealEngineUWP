@@ -31,6 +31,16 @@ FNiagaraSystemGpuComputeProxy::FNiagaraSystemGpuComputeProxy(FNiagaraSystemInsta
 		}
 		GpuCountBufferEstimate += Emitter->GetGpuCountBufferEstimate();
 	}
+	
+	for (const auto& Pair : OwnerInstance->GPUDataInterfaces)
+	{
+		UNiagaraDataInterface* Interface = Pair.Key.Get();
+		if (Interface == nullptr)
+		{
+			continue;
+		}
+		GpuCountBufferEstimate += Interface->GetGpuCountBufferEstimate();
+	}
 
 	// Calculate Tick Stage
 	if (bRequiresGlobalDistanceField || bRequiresDepthBuffer || bRequiresRayTracingScene || bRequiresCurrentFrameNDC)

@@ -1465,7 +1465,7 @@ void FNiagaraDataInterfaceProxy_DataChannelWrite::PreStage(const FNDIGpuComputeP
 			//Get a new instance count. This is later released by the ndc proxy
 			uint32 Offset = InstanceData->BufferForCPU->GetGPUInstanceCountBufferOffset();
 			Context.GetInstanceCountManager().FreeEntry(Offset);
-			InstanceData->BufferForCPU->SetGPUInstanceCountBufferOffset(Context.GetInstanceCountManager().AcquireOrAllocateEntry(Context.GetGraphBuilder().RHICmdList));
+			InstanceData->BufferForCPU->SetGPUInstanceCountBufferOffset(Context.GetInstanceCountManager().AcquireEntry());
 		}
 
 		if(InstanceData->bPublishToGPU)

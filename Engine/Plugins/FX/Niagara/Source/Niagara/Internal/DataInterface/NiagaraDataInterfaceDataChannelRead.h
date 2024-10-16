@@ -164,6 +164,8 @@ public:
 	virtual bool PostStageCanOverlapTickGroups() const { return false; }
 
 	virtual bool RequiresCurrentFrameNDC() const { return bReadCurrentFrame; }
+
+	virtual uint32 GetGpuCountBufferEstimate() const { return 1; }
 	//UNiagaraDataInterface Interface
 
 	//Functions usable anywhere.

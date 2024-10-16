@@ -724,6 +724,9 @@ public:
 	virtual bool RequiresRayTracingScene() const { return false; }
 	virtual bool RequiresCurrentFrameNDC() const { return false; }
 
+	//Returns an estimate allocation count for the GPU instance count manager. This is experimental and will likely be modified in the future.
+	virtual uint32 GetGpuCountBufferEstimate() const { return 0; }
+
 	virtual bool HasTickGroupPrereqs() const { return false; }
 	virtual ETickingGroup CalculateTickGroup(const void* PerInstanceData) const { return NiagaraFirstTickGroup; }
 	virtual bool HasTickGroupPostreqs() const { return false; }
