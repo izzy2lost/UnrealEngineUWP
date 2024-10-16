@@ -56,6 +56,28 @@ namespace NiagaraStatelessComputeManagerPrivate
 		return EComputeExecutionPath::None;
 	}
 
+	bool GenerateCPUDataForCPUSim(const NiagaraStateless::FEmitterInstance_RT* EmitterInstance, FNiagaraDataBuffer* DestinationBuffer)
+	{
+		using namespace NiagaraStateless;
+
+		const FNiagaraStatelessEmitterData* EmitterData = EmitterInstance->EmitterData.Get();
+
+		FParticleSimulationContext ParticleSimulation(EmitterData, EmitterInstance->ShaderParameters.Get(), EmitterInstance->BindingBufferData);
+		ParticleSimulation.Simulate(EmitterInstance->RandomSeed, EmitterInstance->Age, EmitterInstance->DeltaTime, EmitterInstance->SpawnInfos, DestinationBuffer);
+		return ParticleSimulation.GetNumInstances() > 0;
+	}
+
+	bool GenerateCPUDataForGPUSim(FRHICommandListBase& RHICmdList, const NiagaraStateless::FEmitterInstance_RT* EmitterInstance, FNiagaraDataBuffer* DestinationBuffer)
+	{
+		using namespace NiagaraStateless;
+
+		const FNiagaraStatelessEmitterData* EmitterData = EmitterInstance->EmitterData.Get();
+
+		FParticleSimulationContext ParticleSimulation(EmitterData, EmitterInstance->ShaderParameters.Get(), EmitterInstance->BindingBufferData);
+		ParticleSimulation.SimulateGPU(RHICmdList, EmitterInstance->RandomSeed, EmitterInstance->Age, EmitterInstance->DeltaTime, EmitterInstance->SpawnInfos, DestinationBuffer);
+		return ParticleSimulation.GetNumInstances() > 0;
+	}
+
 	void GenerateGPUData(FRHICommandList& RHICmdList, FNiagaraGpuComputeDispatchInterface* ComputeInterface, TConstArrayView<FNiagaraStatelessComputeManager::FStatelessDataGenerationRequest> GenerationRequests)
 	{
 		const int32 NumJobs = GenerationRequests.Num();
@@ -246,13 +268,12 @@ FNiagaraDataBuffer* FNiagaraStatelessComputeManager::GetDataBuffer(FRHICommandLi
 	const bool bAllowGPUGeneration = bAllowDeferredGeneration;
 
 	const EComputeExecutionPath ComputeExecutionPath = DetermineComputeExecutionPath(EmitterData, ActiveParticles, bAllowGPUGeneration);
+
 	switch (ComputeExecutionPath)
 	{
 		case EComputeExecutionPath::CPU:
 		{
-			FParticleSimulationContext ParticleSimulation(EmitterData, EmitterInstance->ShaderParameters.Get(), EmitterInstance->BindingBufferData);
-			ParticleSimulation.SimulateGPU(RHICmdList, EmitterInstance->RandomSeed, EmitterInstance->Age, EmitterInstance->DeltaTime, EmitterInstance->SpawnInfos, CacheData->DataBuffer);
-			if (ParticleSimulation.GetNumInstances() == 0)
+			if (!GenerateCPUDataForGPUSim(RHICmdList, EmitterInstance, CacheData->DataBuffer))
 			{
 				// Note: We can not free the data when in paralell GDME mode as multiple lock / unlock operations could result in the wrong one providing the final data
 				// The plus side to adding back into the cache data is that multiple calls to get the same emitter's data will resolve to no active particles.
@@ -264,14 +285,28 @@ FNiagaraDataBuffer* FNiagaraStatelessComputeManager::GetDataBuffer(FRHICommandLi
 
 		case EComputeExecutionPath::GPU:
 		{
-			CacheData->DataBuffer->SetNumInstances(ActiveParticles);
-
 			FNiagaraGPUInstanceCountManager& CountManager = ComputeInterface->GetGPUInstanceCounterManager();
-			const uint32 CountOffset = CountManager.AllocateDeferredEntry();
-			CacheData->DataBuffer->SetGPUInstanceCountBufferOffset(CountOffset);
-			CountsToRelease.Add(CountOffset);
-
-			GPUGenerationRequests.Emplace(CacheData->DataBuffer, EmitterInstance, ActiveParticles);
+			const uint32 CountOffset = CountManager.AcquireEntry();
+			if (ensure(CountOffset != INDEX_NONE))
+			{
+				CacheData->DataBuffer->SetNumInstances(ActiveParticles);
+				CacheData->DataBuffer->SetGPUInstanceCountBufferOffset(CountOffset);
+				GPUGenerationRequests.Emplace(CacheData->DataBuffer, EmitterInstance, ActiveParticles);
+				CountsToRelease.Add(CountOffset);
+			}
+			// If we failed to alocate a count we will need to go through the CPU path (if available)
+			// This should never happen as we reserve a count up front via the compute proxy
+			// If it does occur this means some other system has used a count slot but not reserved one
+			else
+			{
+				if (!GenerateCPUDataForGPUSim(RHICmdList, EmitterInstance, CacheData->DataBuffer))
+				{
+					// Note: We can not free the data when in paralell GDME mode as multiple lock / unlock operations could result in the wrong one providing the final data
+					// The plus side to adding back into the cache data is that multiple calls to get the same emitter's data will resolve to no active particles.
+					UsedData.Emplace(EmitterKey, CacheData);
+					return nullptr;
+				}
+			}
 			break;
 		}
 
@@ -313,8 +348,7 @@ void FNiagaraStatelessComputeManager::GenerateDataBufferForDebugging(FRHICommand
 	{
 		case EComputeExecutionPath::CPU:
 		{
-			FParticleSimulationContext ParticleSimulation(EmitterData, EmitterInstance->ShaderParameters.Get(), EmitterInstance->BindingBufferData);
-			ParticleSimulation.Simulate(EmitterInstance->RandomSeed, EmitterInstance->Age, EmitterInstance->DeltaTime, EmitterInstance->SpawnInfos, DataBuffer);
+			GenerateCPUDataForCPUSim(EmitterInstance, DataBuffer);
 			break;
 		}
 
@@ -371,18 +405,11 @@ void FNiagaraStatelessComputeManager::OnPreRender(FRDGBuilder& GraphBuilder)
 	RDG_CSV_STAT_EXCLUSIVE_SCOPE(GraphBuilder, NiagaraStateless);
 	RDG_GPU_MASK_SCOPE(GraphBuilder, FRHIGPUMask::All());
 
-	// Ensure we allocate any deferred counts that we need
-	FNiagaraGpuComputeDispatchInterface* ComputeInterface = GetOwnerInterface();
-	{
-		FNiagaraGPUInstanceCountManager& CountManager = ComputeInterface->GetGPUInstanceCounterManager();
-		CountManager.AllocateDeferredCounts(GraphBuilder.RHICmdList);
-	}
-
 	// Execute dispatches
 	AddPass(
 		GraphBuilder,
 		RDG_EVENT_NAME("FNiagaraStatelessComputeManager::OnPreRender"),
-		[GPUGenerationRequests_RDG=MoveTemp(GPUGenerationRequests), ComputeInterface](FRHICommandListImmediate& RHICmdList)
+		[GPUGenerationRequests_RDG=MoveTemp(GPUGenerationRequests), ComputeInterface=GetOwnerInterface()](FRHICommandListImmediate& RHICmdList)
 		{
 			SCOPED_DRAW_EVENT(RHICmdList, FNiagaraStatelessComputeManager_OnPreRender);
 

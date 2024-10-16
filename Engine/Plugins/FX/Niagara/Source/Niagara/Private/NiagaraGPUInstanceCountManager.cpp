@@ -148,7 +148,9 @@ void FNiagaraGPUInstanceCountManager::ReleaseCounts()
 
 uint32 FNiagaraGPUInstanceCountManager::AcquireEntry()
 {
-	check(IsInRenderingThread());
+	check(IsInParallelRenderingThread());
+
+	UE::TScopeLock LockGuard(AcquireEntryGuard);
 
 	if (FreeEntries.Num())
 	{
@@ -161,9 +163,6 @@ uint32 FNiagaraGPUInstanceCountManager::AcquireEntry()
 	}
 	else
 	{
-		// @TODO : add realloc the buffer and copy the current content to it. Might require reallocating the readback in FNiagaraGPUInstanceCountManager::EnqueueGPUReadback()
-		ensure(UsedInstanceCounts < AllocatedInstanceCounts);
-		//UE_LOG(LogNiagara, Error, TEXT("Niagara.MinGPUInstanceCount too small. UsedInstanceCounts: %d < AllocatedInstanceCounts: %d"), UsedInstanceCounts, AllocatedInstanceCounts);
 		return INDEX_NONE;
 	}
 }
@@ -187,35 +186,6 @@ uint32 FNiagaraGPUInstanceCountManager::AcquireOrAllocateEntry(FRHICommandListIm
 
 	check(UsedInstanceCounts < AllocatedInstanceCounts);
 	return UsedInstanceCounts++;
-}
-
-uint32 FNiagaraGPUInstanceCountManager::AllocateDeferredEntry()
-{
-	check(IsInParallelRenderingThread());
-
-	UE::TScopeLock LockGuard(DeferredCountAllocationGuard);
-
-	if (FreeEntries.Num())
-	{
-		return FreeEntries.Pop();
-	}
-	else if (UsedInstanceCounts < AllocatedInstanceCounts)
-	{
-		return UsedInstanceCounts++;
-	}
-
-	return AllocatedInstanceCounts + DeferredCountAllocations++;
-}
-
-void FNiagaraGPUInstanceCountManager::AllocateDeferredCounts(FRHICommandListImmediate& RHICmdList)
-{
-	if (DeferredCountAllocations == 0 )
-	{
-		return;
-	}
-	ResizeBuffers(RHICmdList, AllocatedInstanceCounts + DeferredCountAllocations);
-	UsedInstanceCounts += DeferredCountAllocations;
-	DeferredCountAllocations = 0;
 }
 
 void FNiagaraGPUInstanceCountManager::FreeEntry(uint32& BufferOffset)

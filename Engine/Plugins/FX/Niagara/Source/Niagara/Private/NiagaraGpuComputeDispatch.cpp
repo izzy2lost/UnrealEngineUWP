@@ -262,6 +262,7 @@ void FNiagaraGpuComputeDispatch::AddGpuComputeProxy(FNiagaraSystemGpuComputeProx
 	NumProxiesThatRequireEarlyViewData			+= ComputeProxy->RequiresEarlyViewData() ? 1 : 0;
 	NumProxiesThatRequireRayTracingScene		+= ComputeProxy->RequiresRayTracingScene() ? 1 : 0;
 	NumProxiesThatRequireCurrentFrameNDC		+= ComputeProxy->RequiresCurrentFrameNDC() ? 1 : 0;
+	ProxyGpuCountBufferEstimate					+= ComputeProxy->GetGpuCountBufferEstimate();
 }
 
 void FNiagaraGpuComputeDispatch::RemoveGpuComputeProxy(FNiagaraSystemGpuComputeProxy* ComputeProxy)
@@ -283,7 +284,17 @@ void FNiagaraGpuComputeDispatch::RemoveGpuComputeProxy(FNiagaraSystemGpuComputeP
 	NumProxiesThatRequireDepthBuffer			-= ComputeProxy->RequiresDepthBuffer() ? 1 : 0;
 	NumProxiesThatRequireEarlyViewData			-= ComputeProxy->RequiresEarlyViewData() ? 1 : 0;
 	NumProxiesThatRequireRayTracingScene		-= ComputeProxy->RequiresRayTracingScene() ? 1 : 0;
-	NumProxiesThatRequireCurrentFrameNDC		-= ComputeProxy->RequiresCurrentFrameNDC() ? 1 : 0;
+	NumProxiesThatRequireCurrentFrameNDC		-= ComputeProxy->RequiresCurrentFrameNDC() ? 1 : 0;	
+
+	const uint32 GpuCountEstimate = ComputeProxy->GetGpuCountBufferEstimate();
+	if (ensure(GpuCountEstimate <= ProxyGpuCountBufferEstimate))
+	{
+		ProxyGpuCountBufferEstimate				-= GpuCountEstimate;
+	}
+	else
+	{
+		ProxyGpuCountBufferEstimate				= 0;
+	}
 
 #if NIAGARA_COMPUTEDEBUG_ENABLED
 	if (FNiagaraGpuComputeDebug* GpuComputeDebug = GpuComputeDebugPtr.Get())
@@ -693,7 +704,8 @@ void FNiagaraGpuComputeDispatch::UpdateInstanceCountManager(FRHICommandListImmed
 				}
 			}
 		}
-		GPUInstanceCounterManager.ResizeBuffers(RHICmdList, TotalDispatchCount);
+
+		GPUInstanceCounterManager.ResizeBuffers(RHICmdList, TotalDispatchCount + ProxyGpuCountBufferEstimate);
 	}
 
 	// Consume any pending readbacks that are ready
