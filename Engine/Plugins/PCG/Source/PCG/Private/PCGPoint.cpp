@@ -58,7 +58,7 @@ bool FPCGPoint::Serialize(FStructuredArchive::FSlot Slot)
 	
 	const FPCGPoint Default;
 	EPCGPointSerializeFields SerializeMask = EPCGPointSerializeFields::None;
-	if (UnderlyingArchive.IsSaving())
+	if (!UnderlyingArchive.IsLoading())
 	{
 		if (Density != Default.Density)
 		{
