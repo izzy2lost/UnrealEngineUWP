@@ -254,6 +254,11 @@ namespace UnrealToolbox.Plugins.HordeAgent
 
 		public TrayAppPluginStatus GetStatus()
 		{
+			if (_settings.Mode == AgentMode.Disabled)
+			{
+				return TrayAppPluginStatus.Default;
+			}
+
 			if (!_toolCatalog.Items.Any(x => x.Pending != null && !x.Pending.Failed))
 			{
 				_reportStatus = _status;
