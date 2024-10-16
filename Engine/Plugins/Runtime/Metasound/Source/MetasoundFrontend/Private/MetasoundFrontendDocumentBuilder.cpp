@@ -1127,8 +1127,11 @@ const FMetasoundFrontendNode* FMetaSoundFrontendDocumentBuilder::AddGraphInput(c
 		FMetasoundFrontendInterface Interface;
 		if (DocumentBuilderPrivate::IsInterfaceInput(InClassInput.Name, InClassInput.TypeName, &Interface))
 		{
-			FText RequiredText;
-			bIsRequired = Interface.IsMemberInputRequired(InClassInput.Name, RequiredText);
+			if (Document.Interfaces.Contains(Interface.Version))
+			{
+				FText RequiredText;
+				bIsRequired = Interface.IsMemberInputRequired(InClassInput.Name, RequiredText);
+			}
 		}
 #endif // WITH_EDITORONLY_DATA
 

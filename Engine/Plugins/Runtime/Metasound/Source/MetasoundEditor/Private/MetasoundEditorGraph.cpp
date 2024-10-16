@@ -866,22 +866,28 @@ bool UMetasoundEditorGraphInput::IsInterfaceMember(FMetasoundFrontendInterface* 
 	FMetasoundFrontendInterface Interface;
 	if (NameContainsInterfaceNamespace(&Interface))
 	{
-		// Check if Input is a member of the found interface
-		if (const FMetasoundFrontendNode* InputNode = GetFrontendNode())
+		// Is interface declared on this MetaSound 
+		const UObject& MetaSoundObject = GetOwningGraph()->GetMetasoundChecked();
+		const FMetasoundAssetBase* MetaSoundAsset = Metasound::IMetasoundUObjectRegistry::Get().GetObjectAsAssetBase(&MetaSoundObject);
+		if (MetaSoundAsset && MetaSoundAsset->IsInterfaceDeclared(Interface.Version))
 		{
-			const FMetasoundFrontendVertex& Input = InputNode->Interface.Inputs.Last();
-			auto IsInput = [&Input](const FMetasoundFrontendClassInput& InterfaceInput)
+			// Check if Input is a member of the found interface
+			if (const FMetasoundFrontendNode* InputNode = GetFrontendNode())
 			{
-				return FMetasoundFrontendVertex::IsFunctionalEquivalent(Input, InterfaceInput);
-			};
-
-			if (Interface.Inputs.ContainsByPredicate(IsInput))
-			{
-				if (OutInterface)
+				const FMetasoundFrontendVertex& Input = InputNode->Interface.Inputs.Last();
+				auto IsInput = [&Input](const FMetasoundFrontendClassInput& InterfaceInput)
 				{
-					*OutInterface = MoveTemp(Interface);
+					return FMetasoundFrontendVertex::IsFunctionalEquivalent(Input, InterfaceInput);
+				};
+
+				if (Interface.Inputs.ContainsByPredicate(IsInput))
+				{
+					if (OutInterface)
+					{
+						*OutInterface = MoveTemp(Interface);
+					}
+					return true;
 				}
-				return true;
 			}
 		}
 	}
@@ -1134,22 +1140,28 @@ bool UMetasoundEditorGraphOutput::IsInterfaceMember(FMetasoundFrontendInterface*
 	FMetasoundFrontendInterface Interface;
 	if (NameContainsInterfaceNamespace(&Interface))
 	{
-		// Check if Output is a member of the found interface
-		if (const FMetasoundFrontendNode* OutputNode = GetFrontendNode())
+		// Is interface declared on this MetaSound 
+		const UObject& MetaSoundObject = GetOwningGraph()->GetMetasoundChecked();
+		const FMetasoundAssetBase* MetaSoundAsset = Metasound::IMetasoundUObjectRegistry::Get().GetObjectAsAssetBase(&MetaSoundObject);
+		if (MetaSoundAsset && MetaSoundAsset->IsInterfaceDeclared(Interface.Version))
 		{
-			const FMetasoundFrontendVertex& Output = OutputNode->Interface.Outputs.Last();
-			auto IsOutput = [&Output](const FMetasoundFrontendClassOutput& InterfaceOutput)
+			// Check if Output is a member of the found interface
+			if (const FMetasoundFrontendNode* OutputNode = GetFrontendNode())
 			{
-				return FMetasoundFrontendVertex::IsFunctionalEquivalent(Output, InterfaceOutput);
-			};
-
-			if (Interface.Outputs.ContainsByPredicate(IsOutput))
-			{
-				if (OutInterface)
+				const FMetasoundFrontendVertex& Output = OutputNode->Interface.Outputs.Last();
+				auto IsOutput = [&Output](const FMetasoundFrontendClassOutput& InterfaceOutput)
 				{
-					*OutInterface = MoveTemp(Interface);
+					return FMetasoundFrontendVertex::IsFunctionalEquivalent(Output, InterfaceOutput);
+				};
+
+				if (Interface.Outputs.ContainsByPredicate(IsOutput))
+				{
+					if (OutInterface)
+					{
+						*OutInterface = MoveTemp(Interface);
+					}
+					return true;
 				}
-				return true;
 			}
 		}
 	}
