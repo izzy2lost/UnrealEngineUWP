@@ -113,6 +113,8 @@ void FPCGEditorModule::ShutdownModule()
 		{
 			return Delegate.GetHandle() == ShouldDisableCPUThrottlingDelegateHandle;
 		});
+
+		GEditor->OnSceneMaterialsModifiedEvent().RemoveAll(this);
 	}
 
 	if (FModuleManager::Get().IsModuleLoaded("LevelEditor"))
@@ -142,6 +144,8 @@ void FPCGEditorModule::OnLevelEditorCreated(TSharedPtr<ILevelEditor> InLevelEdit
 			GEditor->ShouldDisableCPUThrottlingDelegates.Add(UEditorEngine::FShouldDisableCPUThrottling::CreateRaw(this, &FPCGEditorModule::ShouldDisableCPUThrottling));
 			ShouldDisableCPUThrottlingDelegateHandle = GEditor->ShouldDisableCPUThrottlingDelegates.Last().GetHandle();
 		}
+
+		GEditor->OnSceneMaterialsModifiedEvent().AddRaw(this, &FPCGEditorModule::OnSceneMaterialsModified);
 	}
 }
 
@@ -166,6 +170,23 @@ void FPCGEditorModule::OnEditorModeIDChanged(const FEditorModeID& EditorModeID, 
 		{
 			PCGSubsystem->NotifyLandscapeEditModeExited();
 		}
+	}
+}
+
+void FPCGEditorModule::OnSceneMaterialsModified()
+{
+	if (!GetDefault<UPCGEditorProjectSettings>()->bAutoRefreshGPUStaticMeshSpawners)
+	{
+		return;
+	}
+
+	// Currently, there is no explicit persistence of instance data in the GPU scene and procedural instances are lost when the GPU Scene is flushed.
+	// TODO: This function is a stop gap that refreshes PCG Components owning procedural instances, and should be removed later.
+	if (UPCGSubsystem* Subsystem = UPCGSubsystem::GetSubsystemForCurrentWorld())
+	{
+		Subsystem->RefreshAllComponentsFiltered(
+			[](UPCGComponent* InComponent) { return InComponent->AreProceduralInstancesInUse(); },
+			EPCGChangeType::Structural);
 	}
 }
 

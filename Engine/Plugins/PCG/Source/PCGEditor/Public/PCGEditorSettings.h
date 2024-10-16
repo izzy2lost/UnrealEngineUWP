@@ -23,6 +23,13 @@ public:
 	/** Default Builder Settings to use when running the PCGWorldPartitionBuilder */
 	UPROPERTY(EditAnywhere, config, Category = Builder)
 	TSoftObjectPtr<UPCGBuilderSettings> DefaultBuilderSetting;
+
+	/** [EXPERIMENTAL] Whether to automatically refresh components that use GPU Static Mesh Spawners when materials are modified. Temporary workaround for
+	* issues where instances can be lost.
+	* Note: This setting is subject to change/removal without deprecation.
+	*/
+	UPROPERTY(EditAnywhere, Config, Category = Workflow)
+	bool bAutoRefreshGPUStaticMeshSpawners = true;
 };
 
 UCLASS(config=EditorPerProjectUserSettings)
