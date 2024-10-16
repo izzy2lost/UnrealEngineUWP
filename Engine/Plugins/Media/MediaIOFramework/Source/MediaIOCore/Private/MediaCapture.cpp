@@ -512,7 +512,20 @@ bool UMediaCapture::UpdateTextureRenderTarget2D(UTextureRenderTarget2D* InRender
 
 void UMediaCapture::StopCapture(bool bAllowPendingFrameToBeProcess)
 {
-	check(IsInGameThread());
+	if (!IsInGameThread())
+	{
+		TWeakObjectPtr<UMediaCapture> Self = this;
+		AsyncTask(ENamedThreads::GameThread, [Self, bAllowPendingFrameToBeProcess]()
+			{
+				UMediaCapture* MediaCapture = Self.Get();
+				if (UObjectInitialized() && MediaCapture)
+				{
+					MediaCapture->StopCapture(bAllowPendingFrameToBeProcess);
+				}
+			});
+
+		return;
+	}
 
 	if (GetState() != EMediaCaptureState::StopRequested && GetState() != EMediaCaptureState::Capturing)
 	{

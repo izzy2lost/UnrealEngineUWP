@@ -155,7 +155,26 @@ void FDisplayClusterMediaCaptureBase::OnPostClusterTick()
 {
 	if (MediaCapture)
 	{
-		const EMediaCaptureState MediaCaptureState = MediaCapture->GetState();
+		EMediaCaptureState MediaCaptureState = MediaCapture->GetState();
+
+		// If we're capturing but the desired capture resolution does not match the texture being captured,
+		// restart the capture with the updated size.
+
+		if (MediaCaptureState == EMediaCaptureState::Capturing)
+		{
+			const FIntPoint LastSrcRegionIntPoint = LastSrcRegionSize.load().ToIntPoint();
+			const FIntPoint DesiredSize = MediaCapture->GetDesiredSize();
+
+			if (DesiredSize != LastSrcRegionIntPoint)
+			{
+				UE_LOG(LogDisplayClusterMedia, Log, TEXT("Stopping MediaCapture '%s' because its DesiredSize (%d, %d) doesn't match the captured texture size (%d, %d)"), 
+					*GetMediaId(), DesiredSize.X, DesiredSize.Y, LastSrcRegionIntPoint.X, LastSrcRegionIntPoint.Y);
+
+				MediaCapture->StopCapture(false /* bAllowPendingFrameToBeProcess */);
+				MediaCaptureState = MediaCapture->GetState(); // Re-sample state to restart the media capture right away
+			}
+		}
+
 		const bool bMediaCaptureNeedsRestart = (MediaCaptureState == EMediaCaptureState::Error) || (MediaCaptureState == EMediaCaptureState::Stopped);
 
 		if (!bWasCaptureStarted || bMediaCaptureNeedsRestart)
@@ -194,7 +213,7 @@ bool FDisplayClusterMediaCaptureBase::StartMediaCapture()
 
 	FMediaCaptureOptions MediaCaptureOptions;
 	MediaCaptureOptions.NumberOfFramesToCapture = -1;
-	MediaCaptureOptions.bAutoRestartOnSourceSizeChange = true;
+	MediaCaptureOptions.bAutoRestartOnSourceSizeChange = false; // true won't work due to MediaCapture auto-changing crop mode to custom when capture region is specified.
 	MediaCaptureOptions.bSkipFrameWhenRunningExpensiveTasks = false;
 	MediaCaptureOptions.OverrunAction = EMediaCaptureOverrunAction::Flush;
 
