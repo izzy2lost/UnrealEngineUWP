@@ -196,8 +196,6 @@ ImmediatePhysics::FJointHandle* FAnimNode_RigidBodyWithControl::CreateConstraint
 
 		// For control, we shouldn't be in situations where mass conditioning is needed.
 		Settings.bMassConditioningEnabled = false;
-
-		Settings.bUseLinearSolver = true;
 		// It's not our job to change collision settings - that should come from the physics asset.
 		// However, the naming of this is unclear - if collisions are disabled in the physics asset,
 		// trust that this doesn't enable them.

@@ -1719,17 +1719,6 @@ void FChaosEngineInterface::SetMassConditioningEnabled_AssumesLocked(const FPhys
 	}
 }
 
-void FChaosEngineInterface::SetUseLinearJointSolver_AssumesLocked(const FPhysicsConstraintHandle& InConstraintRef, bool bInUseLinearJointSolver)
-{
-	if (InConstraintRef.IsValid() && InConstraintRef.Constraint->IsType(Chaos::EConstraintType::JointConstraintType))
-	{
-		if (Chaos::FJointConstraint* Constraint = static_cast<Chaos::FJointConstraint*>(InConstraintRef.Constraint))
-		{
-			Constraint->SetUseLinearSolver(bInUseLinearJointSolver);
-		}
-	}
-}
-
 void FChaosEngineInterface::SetBreakForces_AssumesLocked(const FPhysicsConstraintHandle& InConstraintRef,float InLinearBreakForce,float InAngularBreakTorque)
 {
 	if (InConstraintRef.IsValid() && InConstraintRef.Constraint->IsType(Chaos::EConstraintType::JointConstraintType))

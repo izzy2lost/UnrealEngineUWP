@@ -180,10 +180,9 @@ namespace Chaos
 
 		/**
 		* Whether to use a linear or non-linear joint solver. Non-linear is more stable but much more expensive.
-		* A linear solver is used by default. This API is deprecated. See FPBDJointSettings::bUseLinearSolver instead. 
+		* A linear solver is used by default (see FPBDJointSolverSettings).
 		*/
-		UE_DEPRECATED(5.5, "No longer used, see per-constraint flag in FPBDJointSettings::bUseLinearSolver")
-		void SetUseLinearJointSolver(const bool bInEnable) { }
+		void SetUseLinearJointSolver(const bool bInEnable) { Settings.bUseLinearSolver = bInEnable; }
 
 		/**
 		* Whether to use simd in single precision on the linear joint solver. 
@@ -346,11 +345,6 @@ namespace Chaos
 		 * Set the angular drive target for a constraint by index
 		*/
 		CHAOS_API void SetAngularDrivePositionTarget(int32 ConstraintIndex, FRotation3 InAngularDrivePositionTarget);
-
-		/**
-		 * Set the option to use linear solver for a constraint by index
-		*/
-		CHAOS_API void SetUseLinearSolver(int32 ConstraintIndex, bool InbUseLinearSolver);
 
 		/**
 		* The total linear impulse applied by the constraint

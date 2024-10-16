@@ -73,8 +73,6 @@ namespace ImmediatePhysics_Chaos
 		JointSettings.bShockPropagationEnabled = Profile.bEnableShockPropagation;
 		JointSettings.bMassConditioningEnabled = Profile.bEnableMassConditioning;
 
-		JointSettings.bUseLinearSolver = Profile.bUseLinearJointSolver;
-
 		JointSettings.LinearMotionTypes[0] = ConvertToJointMotionType(Profile.LinearLimit.XMotion);
 		JointSettings.LinearMotionTypes[1] = ConvertToJointMotionType(Profile.LinearLimit.YMotion);
 		JointSettings.LinearMotionTypes[2] = ConvertToJointMotionType(Profile.LinearLimit.ZMotion);

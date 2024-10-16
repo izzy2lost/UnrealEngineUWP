@@ -139,8 +139,6 @@ namespace Chaos
 		bool bShockPropagationEnabled;	// @chaos(todo): remove - implied by alpha
 		bool bMassConditioningEnabled;
 
-		bool bUseLinearSolver;
-
 		TVector<EJointMotionType, 3> LinearMotionTypes;
 		FReal LinearLimit;
 
@@ -209,10 +207,6 @@ namespace Chaos
 	public:
 		CHAOS_API FPBDJointSolverSettings();
 
-		CHAOS_API FPBDJointSolverSettings(const FPBDJointSolverSettings& InSettings);
-
-		CHAOS_API FPBDJointSolverSettings& operator=(const FPBDJointSolverSettings& Other);
-
 		// Tolerances
 		FReal SwingTwistAngleTolerance;
 		FReal PositionTolerance;
@@ -229,7 +223,6 @@ namespace Chaos
 		int32 NumShockPropagationIterations;
 
 		// Whether to use the linear or non-linear joint solver
-		UE_DEPRECATED(5.5, "No longer used, see per-constraint flag in FPBDJointSettings::bUseLinearSolver")
 		bool bUseLinearSolver;
 
 		// Whether use vectorization in single precision, only available on the linear solver

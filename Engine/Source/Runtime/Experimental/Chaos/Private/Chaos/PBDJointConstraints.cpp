@@ -341,7 +341,6 @@ namespace Chaos
 		, bProjectionEnabled(false)
 		, bShockPropagationEnabled(false)
 		, bMassConditioningEnabled(true)
-		, bUseLinearSolver(true)
 		, LinearMotionTypes({ EJointMotionType::Locked, EJointMotionType::Locked, EJointMotionType::Locked })
 		, LinearLimit(UE_MAX_FLT)
 		, AngularMotionTypes({ EJointMotionType::Free, EJointMotionType::Free, EJointMotionType::Free })
@@ -511,6 +510,7 @@ namespace Chaos
 		, MaxSolverStiffness(1)
 		, NumIterationsAtMaxSolverStiffness(1)
 		, NumShockPropagationIterations(0)
+		, bUseLinearSolver(true)
 		, bUseSimd(false)
 		, bSortEnabled(false)
 		, bSolvePositionLast(true)
@@ -536,14 +536,6 @@ namespace Chaos
 		, SoftSwingDampingOverride(-1)
 	{
 	}
-
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	
-	FPBDJointSolverSettings::FPBDJointSolverSettings(const FPBDJointSolverSettings& InSettings) = default;
-
-	FPBDJointSolverSettings& FPBDJointSolverSettings::operator=(const FPBDJointSolverSettings& Other) = default;
-	
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 
 	//
@@ -578,12 +570,12 @@ namespace Chaos
 		return Settings;
 	}
 
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	
 	void FPBDJointConstraints::SetSettings(const FPBDJointSolverSettings& InSettings)
 	{
 		Settings = InSettings;
 	}
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
 
 	int32 FPBDJointConstraints::NumConstraints() const
 	{
@@ -908,11 +900,6 @@ namespace Chaos
 	void FPBDJointConstraints::SetAngularDrivePositionTarget(int32 ConstraintIndex, FRotation3 InAngularDrivePositionTarget)
 	{
 		ConstraintSettings[ConstraintIndex].AngularDrivePositionTarget = InAngularDrivePositionTarget;
-	}
-
-	void FPBDJointConstraints::SetUseLinearSolver(int32 ConstraintIndex, bool InbUseLinearSolver)
-	{
-		ConstraintSettings[ConstraintIndex].bUseLinearSolver = InbUseLinearSolver;
 	}
 
 	int32 FPBDJointConstraints::GetConstraintIsland(int32 ConstraintIndex) const

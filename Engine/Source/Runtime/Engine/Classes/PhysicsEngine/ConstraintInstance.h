@@ -148,10 +148,6 @@ struct FConstraintProfileProperties
 	UPROPERTY(EditAnywhere, Category = Projection)
 	uint8 bEnableMassConditioning : 1;
 
-	/** Whether to use linear solver for this joint. Linear solver is faster and less accurate. The nonlinear solver is slower and more convergent.  */
-	UPROPERTY(EditAnywhere, Category = Projection)
-	uint8 bUseLinearJointSolver : 1;
-
 	/** Whether it is possible to break the joint with angular force. */
 	UPROPERTY(EditAnywhere, AdvancedDisplay, Category = Angular)
 	uint8 bAngularBreakable : 1;
