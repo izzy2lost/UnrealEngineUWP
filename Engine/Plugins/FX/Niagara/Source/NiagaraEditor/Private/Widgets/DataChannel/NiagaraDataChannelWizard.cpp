@@ -102,7 +102,10 @@ namespace UE::Niagara::Wizard::DataChannel
 			if (UNiagaraDataChannelAsset* ChannelAsset = PreviousPage->GetAsset())
 			{
 				NewDataChannelRef = ChannelAsset;
-				DataChannelVariables = ChannelAsset->Get()->GetVariables();
+				if (UNiagaraDataChannel* DataChannel = ChannelAsset->Get())
+				{
+					DataChannelVariables = DataChannel->GetVariables();
+				}
 			}
 			if (NewDataChannelRef != LastDataChannelRef)
 			{
@@ -366,7 +369,10 @@ namespace UE::Niagara::Wizard::DataChannel
 			if (UNiagaraDataChannelAsset* ChannelAsset = PreviousPage->GetAsset())
 			{
 				NewDataChannelRef = ChannelAsset;
-				DataChannelVariables = ChannelAsset->Get()->GetVariables();
+				if (UNiagaraDataChannel* DataChannel = ChannelAsset->Get())
+				{
+					DataChannelVariables = DataChannel->GetVariables();
+				}
 			}
 			if (NewDataChannelRef != LastDataChannelRef)
 			{
