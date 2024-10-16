@@ -126,6 +126,11 @@ private:
 	 * @param Texture the result texture to create
 	 */
 	void CreateTextureAsset(const TObjectPtr<UTexture2D>& Texture) const;
+
+	/**
+	 * Initialize the list of all UV Layer names
+	 */
+	static void InitializeUVLayerNames(TArray<FString>& UVLayerNamesList, const int16 NumUVLayers);
 };
 
 UCLASS()
@@ -134,8 +139,8 @@ class UVEDITORTOOLS_API UUVEditorBakeUVShellProperties : public UInteractiveTool
 	GENERATED_BODY()
 public:
 	/** The source mesh UV Layer to sample. */
-	UPROPERTY(EditAnywhere, Category = "UV Snapshot Output", meta = (DisplayName = "UV Layer"))
-	int UVLayer = 0;
+	UPROPERTY(EditAnywhere, Category = "UV Snapshot Output", meta = (DisplayName = "UV Layer", GetOptions = GetTargetUVLayerNamesFunc))
+	FString UVLayer;
 
 	/** The thickness of the wireframe in pixels. */
 	UPROPERTY(EditAnywhere, Category = "UV Snapshot Output", meta = (UIMin = "0.0", UIMax = "10.0", ClampMin = "0.0"))
@@ -168,4 +173,13 @@ public:
 	/** Bake */
 	UPROPERTY(VisibleAnywhere, Category = Results, meta = (DisplayName = "Result Texture", TransientToolProperty))
 	TObjectPtr<UTexture2D> Result;
+
+	UFUNCTION()
+	const TArray<FString>& GetTargetUVLayerNamesFunc() const
+	{
+		return TargetUVLayerNamesList;
+	}
+
+	UPROPERTY(meta = (TransientToolProperty))
+	TArray<FString> TargetUVLayerNamesList;
 };
