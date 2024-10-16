@@ -240,6 +240,8 @@ private:
 	uint32 NumProxiesThatRequireRayTracingScene = 0;
 	uint32 NumProxiesThatRequireCurrentFrameNDC = 0;
 
+	uint32 ProxyGpuCountBufferEstimate = 0;
+
 	int32 TotalDispatchesThisFrame = 0;
 
 	int32 MaxTicksToFlush = TNumericLimits<int32>::Max();

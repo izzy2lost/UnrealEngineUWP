@@ -71,6 +71,7 @@ public:
 	virtual void OnPooledReuse() override {}
 	virtual bool HandleCompletion(bool bForce) override;
 	virtual int32 GetNumParticles() const override;
+	virtual uint32 GetGpuCountBufferEstimate() const { return 1; }
 	virtual FNiagaraStatelessEmitterInstance* AsStateless() override { return this; }
 	virtual TConstArrayView<UNiagaraRendererProperties*> GetRenderers() const override;
 	virtual void BindParameters(bool bExternalOnly) override;

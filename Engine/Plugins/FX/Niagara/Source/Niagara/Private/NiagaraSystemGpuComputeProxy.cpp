@@ -29,6 +29,7 @@ FNiagaraSystemGpuComputeProxy::FNiagaraSystemGpuComputeProxy(FNiagaraSystemInsta
 		{
 			ComputeContexts.Emplace(ComputeContext);
 		}
+		GpuCountBufferEstimate += Emitter->GetGpuCountBufferEstimate();
 	}
 
 	// Calculate Tick Stage

@@ -70,6 +70,8 @@ public:
 	NIAGARA_API virtual int32 GetNumParticles() const;
 	int32 GetTotalSpawnedParticles() const { return TotalSpawnedParticles; }
 
+	virtual uint32 GetGpuCountBufferEstimate() const { return 0; }
+
 	bool AreBoundsDynamic() const { return bCachedBoundsDynamic; }
 	[[nodiscard]] FBox GetBounds() const { return CachedBounds; }
 

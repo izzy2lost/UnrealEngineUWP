@@ -74,14 +74,6 @@ public:
 	/** Acquire an entry, this will either come from the free list or reallocate the buffer. */
 	uint32 AcquireOrAllocateEntry(FRHICommandListImmediate& RHICmdList);
 
-	/**
-	Allocate a count entry that might return an existing cleared count, or a count waiting to be allocated.
-	This method allows you to allocated counts concurrently, then commit them by calling AllocateDeferredCounts once you join back on the render thread.
-	*/
-	uint32 AllocateDeferredEntry();
-	/** Commit any deferred count allocations */
-	void AllocateDeferredCounts(FRHICommandListImmediate& RHICmdList);
-
 	/** Free the entry and reset it to INDEX_NONE if valid. */
 	void FreeEntry(uint32& BufferOffset);
 	/** Free and array of entries, you are expected to reset or change to INDEX_NONE. */
@@ -195,6 +187,5 @@ protected:
 	TArray<FIndirectArgsPoolEntryPtr> DrawIndirectPool;
 	uint32 DrawIndirectLowWaterFrames = 0;
 
-	UE::FMutex	DeferredCountAllocationGuard;
-	int			DeferredCountAllocations = 0;
+	UE::FMutex	AcquireEntryGuard;
 };
