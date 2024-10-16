@@ -49,7 +49,6 @@ public:
 	virtual FText GetNodeTooltipText() const override { return NSLOCTEXT("PCGAddComponentElement", "NodeTooltip", "Adds component(s) to specified target actor(s)."); }
 	virtual EPCGSettingsType GetType() const override { return EPCGSettingsType::Generic; }
 #endif
-	virtual bool HasDynamicPins() const override { return true; }
 
 protected:
 	virtual TArray<FPCGPinProperties> InputPinProperties() const override;

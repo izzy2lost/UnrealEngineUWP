@@ -3082,6 +3082,13 @@ namespace PCGGraphExecutor
 	}
 }
 
+UPCGGridLinkageSettings::UPCGGridLinkageSettings()
+{
+#if WITH_EDITOR
+	bExposeToLibrary = false;
+#endif // WITH_EDITOR
+}
+
 FPCGElementPtr UPCGGridLinkageSettings::CreateElement() const
 {
 	auto GridLinkageOperation = [this](FPCGContext* InContext)

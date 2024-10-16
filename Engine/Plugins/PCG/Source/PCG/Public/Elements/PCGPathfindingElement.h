@@ -81,7 +81,7 @@ public:
 	FVector Goal = FVector::ZeroVector;
 
 	/** The heuristic estimates a faster path to speed up processing. A higher than 1 heuristic weight can be faster, but it may cease being the optimal path. A weight of 0 is essentially flood fill. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Settings, meta = (ClampMin = "0.0", EditCondition = "Algorithm == EPCGPathfindingAlgorithm::AStar", PCG_Overridable))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Settings, meta = (ClampMin = "0.0", PCG_Overridable))
 	double HeuristicWeight = 1.0;
 
 	/** Controls whether the cost function will use a given attribute as a scalar wrt to the distance. */

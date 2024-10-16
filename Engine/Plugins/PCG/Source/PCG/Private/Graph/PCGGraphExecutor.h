@@ -489,6 +489,9 @@ class UPCGGridLinkageSettings : public UPCGSettings
 {
 	GENERATED_BODY()
 
+public:
+	UPCGGridLinkageSettings();
+
 protected:
 	virtual FPCGElementPtr CreateElement() const override;
 
