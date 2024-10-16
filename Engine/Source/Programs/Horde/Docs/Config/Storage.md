@@ -14,12 +14,16 @@ in the storage system (some arbitrary block of data) are characterized by being 
 outward references to other nodes. These tree-like data structures can be traversed one node at a time, with the
 underlying storage system retrieving and storing individual nodes efficiently.
 
-The entry point to any such data structure is a ref, a user-defined name that keeps a reference to the root of the
+The entry point to any such data structure is a user-defined name that keeps a reference to the root of the
 tree. Any nodes not directly or indirectly referenced by a ref are subject to garbage collection.
 
 This design intends to support a massive range of payload sizes by splitting larger data blocks into smaller chunks 
-and has advantages in caching and incremental client data patching. With this, it becomes reasonable to have a ref 
-point to a single 4kb payload as it is to point to a multi-gigabyte payload split into 128kb chunks.
+and has advantages in caching and incremental client data patching. With this, it becomes as reasonable to reference 
+a single 4kb payload as it is to point to a multi-gigabyte payload partitioned into 128kb chunks.
+
+The [Internals > Storage Architecture](../Internals/StorageArchitecture.md) page
+goes into technical details around implementation of the storage system, and
+describes how to interface with it programmatically.
 
 ## Namespaces and Backends
 

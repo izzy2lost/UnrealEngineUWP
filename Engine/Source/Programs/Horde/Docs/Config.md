@@ -10,20 +10,53 @@ This section targets operating and managing Horde installations and shares some 
   revision control, and how to set up a schema server.
 * [Permissions](Config/Permissions.md): Understand how to use the Horde permissions model.
 
-## Resources
+## Plugins
+
+Horde is implemented as a set of plugins over a host framework. For information about enabling or disabling specific plugins, see [Configuration > Plugins](Config/Plugins.md).
+
+### Analytics
+
+Experimental solution for studio-wide analytics and metrics gathering, with
+support integrated into AutomationTool, UnrealBuildTool and Unreal Editor.
+
+* [Analytics](Config/Analytics.md): Setting up a telemetry sink and creating dashboards showing KPIs.
+
+### Build
+
+Mature build automation system similar to Jenkins or TeamCity, designed
+and streamlined for Unreal Engine projects and best practices adoped by Epic.
+
+* [Build Automation](Config/BuildAutomation.md): Introduction to Horde's Build Automation and CI/CD system.
+* [Artifacts](Config/Artifacts.md): Managing and distributing artifacts produced by build steps.
+* [Devices](Config/Devices.md): Adding mobile devices and console development kits as shared resources.
+* [Automation Hub](Config/AutomationHub.md): Dashboard for surfacing test jamdata and trends across multiple projects and streams.
+* [UGS Metadata Server](Config/UgsMetadataServer.md): Surfaces team metadata to users of UnrealGameSync.
+
+### Compute
+
+Manages worker machines that can be leased out to perform workloads, including build automation and remote execution use cases.
 
 * [Agents](Config/Agents.md): Configure worker machines to connect to the Horde server for CI and remote execution workspaces.
-* [Devices](Config/Devices.md): Adding mobile devices and console development kits as shared resources.
-* [Secrets](Config/Secrets.md): Allowing Horde to manage access to confidential values.
-* [Storage](Config/Storage.md): Setting up different storage backends for Horde.
 
-## Features
+### Secrets
 
-* [Build Automation](Config/BuildAutomation.md)
-* [Remote Execution](Config/RemoteExecution.md)
-* DDC Server (Coming Soon)
-* [Automation Hub](Config/AutomationHub.md)
-* [UnrealGameSync Metadata Server](Config/UgsMetadataServer.md)
+Managed access to sensitive data integrated with Horde's permissions model.Secrets may be stored in Horde itself, or in an external secret store.
+
+* [Secrets](Config/Secrets.md): Configuring secrets and external secret providers.
+
+### Storage
+
+Flexible, low overhead storage abstraction suitable for many different use
+cases. Used by Horde internally, but it can also be used directly by client applications.
+
+* [Storage](Config/Storage.md): Setting up and managing the storage system.  
+
+### Symbols
+
+Implements a Windows symbol store indexing artifacts uploaded to Horde's
+storage system.
+
+* [Symbols](Config/Symbols.md): Adding symbol stores and configuring clients to use them.
 
 ## Reference
 

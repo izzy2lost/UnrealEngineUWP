@@ -10,8 +10,8 @@ tracking and transfer of intermediate build artifacts between agents.
 
 It also supports the following features:
 
-* Build Health
-* Perforce metadata caching, workspace management
+* [Build Health](BuildHealth.md)
+* Perforce metadata caching and workspace management
 * Support for autoscaling based on job queues
 * Support for structured logging, with many common UE-types automatically annotated with additional metadata.
 * Profiling and telemetry functionality
@@ -29,7 +29,7 @@ When running a job on Horde, you specify a BuildGraph script, any command line a
 of one or more nodes to evaluate. Horde takes care of provisioning machines, syncing from Perforce, and transferring
 inputs and outputs to temporary storage.
 
-## Enabling CI functionality
+## Configuration
 
 To enable CI functionality in Horde, you will need to perform the following steps:
 

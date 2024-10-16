@@ -1,9 +1,10 @@
-[Horde](../../README.md) > [Internals](../Internals.md) > Leases
+[Horde](../../README.md) > [Internals](../Internals.md) > Compute Architecture
 
-# Leases
+# Compute Architecture
 
-The mechanism by which Horde communicates with its agents is based heavily on Google's Remote Worker API. Work items
-assigned to agents are known as *leases*.
+The mechanism by which Horde communicates with its agents is based heavily
+on Google's Remote Worker API. Work items assigned to agents are known as
+*leases*.
 
 Communication between the agent and server is done through streaming gRPC calls initiated by the agent. The ends of the
 connection exchange copies of what they believe the current state of leases owned by the agent should be, and a state
