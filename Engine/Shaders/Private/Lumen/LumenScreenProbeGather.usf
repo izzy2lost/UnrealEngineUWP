@@ -2059,6 +2059,8 @@ void ScreenProbeTemporalReprojectionCS(
 #endif
 		const float3 NewBackfaceDiffuseLighting = BackfaceDiffuseIndirect[Coord.SvPositionFlatten].xyz;
 		OutBackfaceDiffuseIndirect = lerp(HistoryBackfaceDiffuseIndirect, NewBackfaceDiffuseLighting, Alpha);
+		
+		OutBackfaceDiffuseIndirect = -min(-OutBackfaceDiffuseIndirect, 0.0);
 	}
 
 	RWNewHistoryBackfaceDiffuseIndirect[Coord.SvPositionFlatten] =

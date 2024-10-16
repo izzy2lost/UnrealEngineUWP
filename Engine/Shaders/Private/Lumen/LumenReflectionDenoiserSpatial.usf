@@ -28,6 +28,16 @@ float3 InverseTonemapLighting(float3 TonemappedLighting, float DisocclusionFacto
 	return TonemappedLighting / (1.0f - DisocclusionFactor * Luminance(TonemappedLighting));
 }
 
+// Workaround for Substrate fetching invalid value at tile border
+bool IsLightingValidForDenoiser(float In)
+{
+#if SUBSTRATE_ENABLED
+	return all(In < INVALID_LIGHTING);
+#else
+	return IsLightingValid(In);
+#endif
+}
+
 /**
  * Run a spatial filter in order to filter out noise based on the temporal variance.
  */
@@ -49,7 +59,7 @@ void LumenReflectionDenoiserSpatialCS(
 #endif
 
 	float4 CenterSpecularLightingAndSecondMoment = RGBAToDenoiserSpace(SpecularLightingAndSecondMomentTexture[Coord.SvPositionFlatten]);
-	if (IsLightingValid(CenterSpecularLightingAndSecondMoment.xyz))
+	if (IsLightingValidForDenoiser(CenterSpecularLightingAndSecondMoment.xyz))
 	{
 		float CenterSpecularStdDev = sqrt(max(CenterSpecularLightingAndSecondMoment.w - Pow2(Luminance(CenterSpecularLightingAndSecondMoment.xyz)), 0.0f));
 
@@ -107,7 +117,7 @@ void LumenReflectionDenoiserSpatialCS(
 					float NormalWeight = 1.0f - saturate(AngleBetweenNormals / (LobeHalfAngle + 0.01f));
 
 					float3 NeighborSpecularLighting = RGBToDenoiserSpace(SpecularLightingAndSecondMomentTexture[uint3(NeighborCoord, Coord.SvPositionFlatten.z)].xyz);
-					if (IsLightingValid(NeighborSpecularLighting))
+					if (IsLightingValidForDenoiser(NeighborSpecularLighting))
 					{
 						float LuminanceDelta = abs(Luminance(CenterSpecularLightingAndSecondMoment.xyz) - Luminance(NeighborSpecularLighting));
 						float LuminanceWeight = exp2(-LuminanceDelta / max(CenterSpecularStdDev, 0.001f));
