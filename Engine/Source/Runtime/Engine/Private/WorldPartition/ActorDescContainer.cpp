@@ -71,7 +71,7 @@ void UActorDescContainer::Initialize(const FInitializeParams& InitParams)
 
 	TArray<FAssetData> ExternalAssets;
 	TArray<FString> InternalAssets;
-	if (!ContainerPackageName.IsNone())
+	if (!ContainerPackageName.IsNone() && !FPackageName::IsTempPackage(ContainerPackageName.ToString()))
 	{
 		const FString ContainerExternalActorsPath = GetExternalActorPath();
 
