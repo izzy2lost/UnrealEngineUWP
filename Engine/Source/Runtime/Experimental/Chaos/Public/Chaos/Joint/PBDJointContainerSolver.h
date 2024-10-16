@@ -28,7 +28,7 @@ namespace Chaos
 			~FPBDJointContainerSolver();
 
 			// FConstraintContainerSolver impl
-			virtual int32 GetNumConstraints() const override final { return ContainerLinearConstraintGlobalIndices.Num() + ContainerNonLinearConstraintGlobalIndices.Num();}
+			virtual int32 GetNumConstraints() const override final { return ContainerConstraintIndices.Num(); }
 			virtual void Reset(const int32 InMaxCollisions) override final;
 			virtual void AddConstraints() override final;
 			virtual void AddConstraints(const TArrayView<Private::FPBDIslandConstraint*>& IslandConstraints) override final;
@@ -43,52 +43,24 @@ namespace Chaos
 
 			FPBDJointConstraints& GetContainer() const { return ConstraintContainer; }
 			const FPBDJointSolverSettings& GetSettings() const { return ConstraintContainer.GetSettings(); }
-			const FPBDJointSettings& GetLinearConstraintSettings(const int32 InConstraintIndex) const { return ConstraintContainer.GetConstraintSettings(ContainerLinearConstraintGlobalIndices[InConstraintIndex]);}
-			const FPBDJointSettings& GetNonLinearConstraintSettings(const int32 InConstraintIndex) const { return ConstraintContainer.GetConstraintSettings(ContainerNonLinearConstraintGlobalIndices[InConstraintIndex]); }
-			const FPBDJointSettings& GetConstraintSettings(const int32 InConstraintIndex, const bool bUseLinearSolver = true) const 
-			{
-				if (bUseLinearSolver)
-				{
-					return ConstraintContainer.GetConstraintSettings(ContainerLinearConstraintGlobalIndices[InConstraintIndex]);
-				}
-				else
-				{
-					return ConstraintContainer.GetConstraintSettings(ContainerNonLinearConstraintGlobalIndices[InConstraintIndex]);
-				}
-			}
-			int32 GetContainerConstraintIndex(const int32 InConstraintIndex, const bool bUseLinearSolver) const 
-			{
-				if (bUseLinearSolver)
-				{
-					return ContainerLinearConstraintGlobalIndices[InConstraintIndex];
-				}
-				else
-				{
-					return ContainerNonLinearConstraintGlobalIndices[InConstraintIndex];
-				}
-			}
-			int32 GetContainerLinearConstraintGlobalIndex(const int32 InLocalConstraintIndex) const { return ContainerLinearConstraintGlobalIndices[InLocalConstraintIndex];}
-			int32 GetContainerNonLinearConstraintGlobalIndex(const int32 InLocalConstraintIndex) const { return ContainerNonLinearConstraintGlobalIndices[InLocalConstraintIndex]; }
-			int32 GetContainerLinearGlobalContraintIndex(const int32 InSolverIndex) const { return ContainerLinearConstraintGlobalIndices[InSolverIndex]; }
-			int32 GetContainerNonLinearGlobalContraintIndex(const int32 InSolverIndex) const { return ContainerNonLinearConstraintGlobalIndices[InSolverIndex]; }
-
+			const FPBDJointSettings& GetConstraintSettings(const int32 InConstraintIndex) const { return ConstraintContainer.GetConstraintSettings(ContainerConstraintIndices[InConstraintIndex]); }
+			int32 GetContainerConstraintIndex(const int32 InConstraintIndex) const { return ContainerConstraintIndices[InConstraintIndex]; }
 
 		private:
 			bool UseLinearSolver() const;
-			void AddConstraint(const int32 InContainerConstraintIndex, const bool bUseLinearSolver = true);
+			void AddConstraint(const int32 InContainerConstraintIndex);
 			void ResizeSolverArrays();
 			void ApplyLinearProjectionConstraints(const FReal Dt, const int32 It, const int32 NumIts);
 			void ApplyNonLinearProjectionConstraints(const FReal Dt, const int32 It, const int32 NumIts);
 
 			FPBDJointConstraints& ConstraintContainer;
 
+			// Index remapping from internal index [0,NumToSolve) to index in the joint container [0,NumJointsInWorld)
+			TArray<int32> ContainerConstraintIndices;
+
 			// The linear and non-linear joint solvers. One for each joint we wish to solve in the order that they are solved
 			TArray<FPBDJointCachedSolver> LinearConstraintSolvers;
 			TArray<FPBDJointSolver> NonLinearConstraintSolvers;
-
-			// Index remapping from respective internal index of each array to index in the joint container [0,NumJointsInWorld)
-			TArray<int32> ContainerLinearConstraintGlobalIndices;
-			TArray<int32> ContainerNonLinearConstraintGlobalIndices;
 		};
 
 	}

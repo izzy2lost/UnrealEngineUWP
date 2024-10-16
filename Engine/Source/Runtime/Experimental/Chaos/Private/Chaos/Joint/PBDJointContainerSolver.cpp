@@ -120,17 +120,27 @@ namespace Chaos
 		{
 		}
 
-		bool FPBDJointContainerSolver::UseLinearSolver() const 
+		bool FPBDJointContainerSolver::UseLinearSolver() const
 		{
-			return NonLinearConstraintSolvers.Num() == 0;
+			return ConstraintContainer.GetSettings().bUseLinearSolver;
 		}
 
 		void FPBDJointContainerSolver::Reset(const int32 InMaxConstraints)
 		{
-			LinearConstraintSolvers.SetNum(InMaxConstraints);
-			NonLinearConstraintSolvers.SetNum(InMaxConstraints);
-			ContainerLinearConstraintGlobalIndices.Reset(InMaxConstraints);
-			ContainerNonLinearConstraintGlobalIndices.Reset(InMaxConstraints);
+			ContainerConstraintIndices.Reset(InMaxConstraints);
+
+			// NOTE: We presize the solver arrays to avoid repeated calls to Add(). We resize down later if
+			// the InMaxConstraints turns out to be an over-estimate (which is should never be, currently)
+			if (UseLinearSolver())
+			{
+				LinearConstraintSolvers.SetNum(InMaxConstraints);
+				NonLinearConstraintSolvers.Empty();
+			}
+			else
+			{
+				LinearConstraintSolvers.Empty();
+				NonLinearConstraintSolvers.SetNum(InMaxConstraints);
+			}
 		}
 
 		void FPBDJointContainerSolver::AddConstraints()
@@ -142,30 +152,26 @@ namespace Chaos
 			{
 				if (ConstraintContainer.IsConstraintEnabled(ContainerConstraintIndex))
 				{
-					AddConstraint(ContainerConstraintIndex, ConstraintContainer.GetConstraintSettings(ContainerConstraintIndex).bUseLinearSolver);
+					AddConstraint(ContainerConstraintIndex);
 				}
 			}
 		}
 
 		void FPBDJointContainerSolver::AddConstraints(const TArrayView<Private::FPBDIslandConstraint*>& IslandConstraints)
 		{
-			int32 LinearSolverIndex = 0;
-			int32 NonLinearSolverIndex = 0;
-			int32 CurrentIndex = 0;
 			for (Private::FPBDIslandConstraint* IslandConstraint : IslandConstraints)
 			{
 				// We will only ever be given constraints from our container (asserts in non-shipping)
 				const int32 ContainerConstraintIndex = IslandConstraint->GetConstraint()->AsUnsafe<FPBDJointConstraintHandle>()->GetConstraintIndex();
 
-				AddConstraint(ContainerConstraintIndex, ConstraintContainer.GetConstraintSettings(ContainerConstraintIndex).bUseLinearSolver);
+				AddConstraint(ContainerConstraintIndex);
 			}
 		}
 
-		void FPBDJointContainerSolver::AddConstraint(const int32 InContainerConstraintIndex, const bool bUseLinearSolver)
+		void FPBDJointContainerSolver::AddConstraint(const int32 InContainerConstraintIndex)
 		{
 			// If this triggers, Reset was called with the wrong constraint count
-			check(ContainerLinearConstraintGlobalIndices.Num() <= ContainerLinearConstraintGlobalIndices.Max());
-			check(ContainerNonLinearConstraintGlobalIndices.Num() <= ContainerNonLinearConstraintGlobalIndices.Max());
+			check(ContainerConstraintIndices.Num() < ContainerConstraintIndices.Max());
 
 			// Only add a constraint if it is working on at least one dynamic body
 			const FGenericParticleHandle Particle0 = GetJointParticle(ConstraintContainer, InContainerConstraintIndex, 0);
@@ -173,83 +179,84 @@ namespace Chaos
 
 			if (Particle0->IsDynamic() || Particle1->IsDynamic())
 			{
-				if (bUseLinearSolver)
-				{
-					ContainerLinearConstraintGlobalIndices.Add(InContainerConstraintIndex);
-				}
-				else
-				{
-					ContainerNonLinearConstraintGlobalIndices.Add(InContainerConstraintIndex);
-				}
+				ContainerConstraintIndices.Add(InContainerConstraintIndex);
 			}
-		}
-
-		template <typename SolverType>
-		void AddBodiesImpl(const FPBDJointContainerSolver& Container, const TArray<int32>& SolverGlobalIndices, FSolverBodyContainer& SolverBodyContainer, TArray<SolverType>& Solvers)
-		{
-			for (int32 i = 0; i < SolverGlobalIndices.Num(); i++)
-			{
-				const int32 ContainerConstraintIndex = SolverGlobalIndices[i];
-				FGenericParticleHandle Particle0 = GetJointParticle(Container.GetContainer(), ContainerConstraintIndex, 0);
-				FGenericParticleHandle Particle1 = GetJointParticle(Container.GetContainer(), ContainerConstraintIndex, 1);
-
-				FSolverBody* SolverBody0 = SolverBodyContainer.FindOrAdd(Particle0);
-				FSolverBody* SolverBody1 = SolverBodyContainer.FindOrAdd(Particle1);
-
-				Solvers[i].SetSolverBodies(SolverBody0, SolverBody1);
-			}
-
 		}
 
 		void FPBDJointContainerSolver::AddBodies(FSolverBodyContainer& SolverBodyContainer)
 		{
-			AddBodiesImpl(*this, ContainerLinearConstraintGlobalIndices, SolverBodyContainer, LinearConstraintSolvers);
-			AddBodiesImpl(*this, ContainerNonLinearConstraintGlobalIndices, SolverBodyContainer, NonLinearConstraintSolvers);
+			for (int32 SolverConstraintIndex = 0, SolverConstraintEndIndex = ContainerConstraintIndices.Num(); SolverConstraintIndex < SolverConstraintEndIndex; ++SolverConstraintIndex)
+			{
+				const int32 ContainerConstraintIndex = ContainerConstraintIndices[SolverConstraintIndex];
+
+				FGenericParticleHandle Particle0 = GetJointParticle(ConstraintContainer, ContainerConstraintIndex, 0);
+				FGenericParticleHandle Particle1 = GetJointParticle(ConstraintContainer, ContainerConstraintIndex, 1);
+
+				FSolverBody* SolverBody0 = SolverBodyContainer.FindOrAdd(Particle0);
+				FSolverBody* SolverBody1 = SolverBodyContainer.FindOrAdd(Particle1);
+
+				if (UseLinearSolver())
+				{
+					LinearConstraintSolvers[SolverConstraintIndex].SetSolverBodies(SolverBody0, SolverBody1);
+				}
+				else
+				{
+					NonLinearConstraintSolvers[SolverConstraintIndex].SetSolverBodies(SolverBody0, SolverBody1);
+				}
+			}
 		}
 
 		void FPBDJointContainerSolver::GatherInput(const FReal Dt)
 		{
-			GatherInput(Dt, 0, GetNumConstraints());
+			GatherInput(Dt, 0, ContainerConstraintIndices.Num());
 		}
 
 		template<typename SolverType>
-		void GatherInputImpl(const FPBDJointContainerSolver& Container, TArray<SolverType>& Solvers, const TArray<int32>& SolverGlobalIndices, const FReal Dt, const int32 SolverConstraintBeginIndex, const int32 SolverConstraintEndIndex, const bool bUseLinearSolver)
+		void GatherInputImpl(const FPBDJointContainerSolver& Container, TArray<SolverType>& Solvers, const FReal Dt, const int32 SolverConstraintBeginIndex, const int32 SolverConstraintEndIndex)
 		{
 			const FPBDJointSolverSettings& SolverSettings = Container.GetSettings();
 
-			for (int32 SolverConstraintIndex = FMath::Max(0, SolverConstraintBeginIndex); SolverConstraintIndex < FMath::Min(SolverConstraintEndIndex, SolverGlobalIndices.Num()); ++SolverConstraintIndex)
+			for (int32 SolverConstraintIndex = SolverConstraintBeginIndex; SolverConstraintIndex < SolverConstraintEndIndex; ++SolverConstraintIndex)
 			{
-				const FPBDJointSettings& JointSettings = Container.GetConstraintSettings(SolverConstraintIndex, bUseLinearSolver);
+				const FPBDJointSettings& JointSettings = Container.GetConstraintSettings(SolverConstraintIndex);
 
-				const int32 ContainerConstraintIndex = Container.GetContainerConstraintIndex(SolverConstraintIndex, bUseLinearSolver);
+				const int32 ContainerConstraintIndex = Container.GetContainerConstraintIndex(SolverConstraintIndex);
 				FGenericParticleHandle Particle0 = GetJointParticle(Container.GetContainer(), ContainerConstraintIndex, 0);
 				FGenericParticleHandle Particle1 = GetJointParticle(Container.GetContainer(), ContainerConstraintIndex, 1);
 				const FRigidTransform3& Frame0 = GetJointFrame(Container.GetContainer(), ContainerConstraintIndex, 0);
 				const FRigidTransform3& Frame1 = GetJointFrame(Container.GetContainer(), ContainerConstraintIndex, 1);
+
 				Solvers[SolverConstraintIndex].Init(Dt, SolverSettings, JointSettings, Particle0->GetComRelativeTransform(Frame0), Particle1->GetComRelativeTransform(Frame1));
 			}
 		}
 
 		void FPBDJointContainerSolver::GatherInput(const FReal Dt, const int32 ConstraintBeginIndex, const int32 ConstraintEndIndex)
 		{
-			GatherInputImpl(*this, LinearConstraintSolvers, ContainerLinearConstraintGlobalIndices, Dt, ConstraintBeginIndex, ConstraintEndIndex, true);
-			GatherInputImpl(*this, NonLinearConstraintSolvers, ContainerNonLinearConstraintGlobalIndices, Dt, ConstraintBeginIndex - ContainerLinearConstraintGlobalIndices.Num(), ConstraintEndIndex - -ContainerLinearConstraintGlobalIndices.Num(), false);
+			if (UseLinearSolver())
+			{
+				GatherInputImpl(*this, LinearConstraintSolvers, Dt, ConstraintBeginIndex, ConstraintEndIndex);
+			}
+			else
+			{
+				GatherInputImpl(*this, NonLinearConstraintSolvers, Dt, ConstraintBeginIndex, ConstraintEndIndex);
+			}
 		}
 
 		void FPBDJointContainerSolver::ScatterOutput(const FReal Dt)
 		{
-			ScatterOutput(Dt, 0, ContainerLinearConstraintGlobalIndices.Num() + ContainerNonLinearConstraintGlobalIndices.Num());
+			ScatterOutput(Dt, 0, ContainerConstraintIndices.Num());
 		}
 
 		template<typename SolverType>
-		void ScatterOutputImpl(const FPBDJointContainerSolver& Container, TArray<SolverType>& Solvers, const TArray<int32>& SolverGlobalIndices, const FReal Dt, const int32 SolverConstraintBeginIndex, const int32 SolverConstraintEndIndex, const bool bUseLinearSolver)
+		void ScatterOutputImpl(const FPBDJointContainerSolver& Container, TArray<SolverType>& Solvers, const FReal Dt, const int32 SolverConstraintBeginIndex, const int32 SolverConstraintEndIndex)
 		{
-			for (int32 SolverConstraintIndex = FMath::Max(0, SolverConstraintBeginIndex); SolverConstraintIndex < FMath::Min(SolverConstraintEndIndex, SolverGlobalIndices.Num()); ++SolverConstraintIndex)
+			for (int32 SolverConstraintIndex = SolverConstraintBeginIndex; SolverConstraintIndex < SolverConstraintEndIndex; ++SolverConstraintIndex)
 			{
-				const int32 GlobalContainerConstraintIndex = Container.GetContainerConstraintIndex(SolverConstraintIndex, bUseLinearSolver);
+				const int32 ContainerConstraintIndex = Container.GetContainerConstraintIndex(SolverConstraintIndex);
 				if (Dt > UE_SMALL_NUMBER)
 				{
 					SolverType& Solver = Solvers[SolverConstraintIndex];
+
 					// NOTE: Particle order was revered in the solver...
 					// NOTE: Solver impulses are positional impulses
 					const FVec3 LinearImpulse = -Solver.GetNetLinearImpulse() / Dt;
@@ -257,39 +264,52 @@ namespace Chaos
 					const FSolverBody* SolverBody0 = &Solver.Body0().SolverBody();
 					const FSolverBody* SolverBody1 = &Solver.Body1().SolverBody();
 					const bool bIsBroken = Solver.IsBroken();
-
 					const bool bIsViolating = Solver.IsViolating();
 					const float LinearViolation = bIsViolating ? FMath::Sqrt((float)Solver.GetLinearViolationSq()) : 0.f;
 					const float AngularViolation = bIsViolating ? (float)Solver.GetAngularViolation() : 0.f;
 
-					Container.GetContainer().SetSolverResults(GlobalContainerConstraintIndex, LinearImpulse, AngularImpulse, LinearViolation, AngularViolation, bIsBroken, bIsViolating, SolverBody0, SolverBody1);
+					Container.GetContainer().SetSolverResults(ContainerConstraintIndex, LinearImpulse, AngularImpulse, LinearViolation, AngularViolation, bIsBroken, bIsViolating, SolverBody0, SolverBody1);
 
 					Solver.Deinit();
 				}
 				else
 				{
-					Container.GetContainer().SetSolverResults(GlobalContainerConstraintIndex, FVec3(0), FVec3(0), 0.f, 0.f, false, false, nullptr, nullptr);
+					Container.GetContainer().SetSolverResults(ContainerConstraintIndex, FVec3(0), FVec3(0), 0.f, 0.f, false, false, nullptr, nullptr);
 				}
 			}
 		}
 
 		void FPBDJointContainerSolver::ScatterOutput(const FReal Dt, const int32 ConstraintBeginIndex, const int32 ConstraintEndIndex)
 		{
-			ScatterOutputImpl(*this, LinearConstraintSolvers, ContainerLinearConstraintGlobalIndices, Dt, ConstraintBeginIndex, ConstraintEndIndex, true);
-			ScatterOutputImpl(*this, NonLinearConstraintSolvers, ContainerNonLinearConstraintGlobalIndices, Dt, ConstraintBeginIndex - ContainerLinearConstraintGlobalIndices.Num(), ConstraintEndIndex - ContainerLinearConstraintGlobalIndices.Num(), false);
+			if (UseLinearSolver())
+			{
+				ScatterOutputImpl(*this, LinearConstraintSolvers, Dt, ConstraintBeginIndex, ConstraintEndIndex);
+			}
+			else
+			{
+				ScatterOutputImpl(*this, NonLinearConstraintSolvers, Dt, ConstraintBeginIndex, ConstraintEndIndex);
+			}
 		}
 
 		void FPBDJointContainerSolver::ResizeSolverArrays()
 		{
-			check(LinearConstraintSolvers.Num() >= ContainerLinearConstraintGlobalIndices.Num());
-			LinearConstraintSolvers.SetNum(ContainerLinearConstraintGlobalIndices.Num());
-			check(NonLinearConstraintSolvers.Num() >= ContainerNonLinearConstraintGlobalIndices.Num());
-			NonLinearConstraintSolvers.SetNum(ContainerNonLinearConstraintGlobalIndices.Num());
+			// We may have conservatively allocated the solver arrays. If so, reduce their size now
+			const int32 NumConstraints = GetNumConstraints();
+			if (UseLinearSolver())
+			{
+				check(LinearConstraintSolvers.Num() >= NumConstraints);
+				LinearConstraintSolvers.SetNum(NumConstraints);
+			}
+			else
+			{
+				check(NonLinearConstraintSolvers.Num() >= NumConstraints);
+				NonLinearConstraintSolvers.SetNum(NumConstraints);
+			}
 		}
 
 		// Apply position constraints for linear or non-linear solvers
 		template<typename SolverType>
-		void ApplyPositionConstraintsImpl(const FPBDJointContainerSolver& Container, TArray<SolverType>& Solvers, const FReal Dt, const int32 It, const int32 NumIts, const bool bUseLinearSolver)
+		void ApplyPositionConstraintsImpl(const FPBDJointContainerSolver& Container, TArray<SolverType>& Solvers, const FReal Dt, const int32 It, const int32 NumIts)
 		{
 			const FPBDJointSolverSettings& Settings = Container.GetSettings();
 			const FReal IterationStiffness = GetJointIterationStiffness(Settings, It, NumIts);
@@ -302,7 +322,7 @@ namespace Chaos
 					continue;
 				}
 
-				const FPBDJointSettings& JointSettings = Container.GetConstraintSettings(SolverConstraintIndex, bUseLinearSolver);
+				const FPBDJointSettings& JointSettings = Container.GetConstraintSettings(SolverConstraintIndex);
 				Solver.Update(Dt, Settings, JointSettings);
 
 				// Set parent inverse mass scale based on current shock propagation state
@@ -325,15 +345,13 @@ namespace Chaos
 		{
 			ResizeSolverArrays();
 
-			constexpr bool bUseSolveLinear = true;
-
-			ApplyPositionConstraintsImpl(*this, LinearConstraintSolvers, Dt, It, NumIts, bUseSolveLinear);
-			ApplyPositionConstraintsImpl(*this, NonLinearConstraintSolvers, Dt, It, NumIts, !bUseSolveLinear);
+			ApplyPositionConstraintsImpl(*this, LinearConstraintSolvers, Dt, It, NumIts);
+			ApplyPositionConstraintsImpl(*this, NonLinearConstraintSolvers, Dt, It, NumIts);
 		}
 
 		// Apply velocity constraints for linear or non-linear solvers
 		template<typename SolverType>
-		void ApplyVelocityConstraintsImpl(const FPBDJointContainerSolver& Container, TArray<SolverType>& Solvers, const FReal Dt, const int32 It, const int32 NumIts, const bool bUseLinearSolver)
+		void ApplyVelocityConstraintsImpl(const FPBDJointContainerSolver& Container, TArray<SolverType>& Solvers, const FReal Dt, const int32 It, const int32 NumIts)
 		{
 			const FPBDJointSolverSettings& Settings = Container.GetSettings();
 			const FReal IterationStiffness = GetJointIterationStiffness(Settings, It, NumIts);
@@ -346,7 +364,7 @@ namespace Chaos
 					continue;
 				}
 
-				const FPBDJointSettings& JointSettings = Container.GetConstraintSettings(SolverConstraintIndex, bUseLinearSolver);
+				const FPBDJointSettings& JointSettings = Container.GetConstraintSettings(SolverConstraintIndex);
 				Solver.Update(Dt, Settings, JointSettings);
 
 				// Set parent inverse mass scale based on current shock propagation state
@@ -361,9 +379,8 @@ namespace Chaos
 
 		void FPBDJointContainerSolver::ApplyVelocityConstraints(const FReal Dt, const int32 It, const int32 NumIts)
 		{
-			constexpr bool bUseSolveLinear = true;
-			ApplyVelocityConstraintsImpl(*this, LinearConstraintSolvers, Dt, It, NumIts, bUseSolveLinear);
-			ApplyVelocityConstraintsImpl(*this, NonLinearConstraintSolvers, Dt, It, NumIts, !bUseSolveLinear);
+			ApplyVelocityConstraintsImpl(*this, LinearConstraintSolvers, Dt, It, NumIts);
+			ApplyVelocityConstraintsImpl(*this, NonLinearConstraintSolvers, Dt, It, NumIts);
 		}
 
 		void FPBDJointContainerSolver::ApplyProjectionConstraints(const FReal Dt, const int32 It, const int32 NumIts)
@@ -374,7 +391,6 @@ namespace Chaos
 
 		void FPBDJointContainerSolver::ApplyLinearProjectionConstraints(const FReal Dt, const int32 It, const int32 NumIts)
 		{
-			constexpr bool bUseSolveLinear = true;
 			const FPBDJointSolverSettings& Settings = GetSettings();
 
 			if (It == 0)
@@ -391,7 +407,7 @@ namespace Chaos
 						continue;
 					}
 
-					const FPBDJointSettings& JointSettings = GetConstraintSettings(SolverConstraintIndex, bUseSolveLinear);
+					const FPBDJointSettings& JointSettings = GetConstraintSettings(SolverConstraintIndex);
 					if (!JointSettings.bProjectionEnabled)
 					{
 						continue;
@@ -409,7 +425,7 @@ namespace Chaos
 					continue;
 				}
 
-				const FPBDJointSettings& JointSettings = GetConstraintSettings(SolverConstraintIndex, bUseSolveLinear);
+				const FPBDJointSettings& JointSettings = GetConstraintSettings(SolverConstraintIndex);
 				if (!JointSettings.bProjectionEnabled)
 				{
 					continue;
@@ -427,7 +443,6 @@ namespace Chaos
 
 		void FPBDJointContainerSolver::ApplyNonLinearProjectionConstraints(const FReal Dt, const int32 It, const int32 NumIts)
 		{
-			constexpr bool bUseSolveLinear = false;
 			const FPBDJointSolverSettings& Settings = GetSettings();
 
 			for (int32 SolverConstraintIndex = 0; SolverConstraintIndex < NonLinearConstraintSolvers.Num(); ++SolverConstraintIndex)
@@ -438,7 +453,7 @@ namespace Chaos
 					continue;
 				}
 
-				const FPBDJointSettings& JointSettings = GetConstraintSettings(SolverConstraintIndex, bUseSolveLinear);
+				const FPBDJointSettings& JointSettings = GetConstraintSettings(SolverConstraintIndex);
 				if (!JointSettings.bProjectionEnabled)
 				{
 					continue;

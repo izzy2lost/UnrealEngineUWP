@@ -818,10 +818,7 @@ namespace ImmediatePhysics_Chaos
 
 		if (UseLinearJointSolver >= 0)
 		{
-			for (int32 ConstraintIndex = 0; ConstraintIndex < Implementation->Joints.GetNumConstraints(); ConstraintIndex++)
-			{
-				Implementation->Joints.SetUseLinearSolver(ConstraintIndex, UseLinearJointSolver != 0);
-			}
+			Implementation->Joints.SetUseLinearJointSolver(UseLinearJointSolver != 0);
 			Implementation->Joints.SetUseSimd(bChaosImmediate_UseSimdForLinearSolver); // RBAN solver can use safely the SIMD version
 		}
 
@@ -1002,7 +999,7 @@ namespace ImmediatePhysics_Chaos
 		SCOPE_CYCLE_COUNTER(STAT_ImmediateSimulate_Chaos_InertiaConditioning);
 
 		// Linear and Non-linear joint solvers have a separate cvar to enable inertia conditioning
-		const bool bUseInertiaConditioning = ChaosImmediate_Joint_UseLinearSolver ? bChaosImmediate_LinearInertiaConditioningEnabled : bChaosImmediate_NonLinearInertiaConditioningEnabled;
+		const bool bUseInertiaConditioning = Implementation->Joints.GetSettings().bUseLinearSolver ? bChaosImmediate_LinearInertiaConditioningEnabled : bChaosImmediate_NonLinearInertiaConditioningEnabled;
 
 		if (bUseInertiaConditioning)
 		{

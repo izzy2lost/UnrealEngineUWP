@@ -187,7 +187,6 @@ bool FChaosVDJointSettingsDataWrapper::Serialize(FArchive& Ar)
 		CVD_PACK_BITFIELD_DATA(bLinearVelocityDriveEnabled0, Flags, EChaosVDJointSettingsFlags::LinearVelocityDriveEnabled0);
 		CVD_PACK_BITFIELD_DATA(bLinearVelocityDriveEnabled1, Flags, EChaosVDJointSettingsFlags::LinearVelocityDriveEnabled1);
 		CVD_PACK_BITFIELD_DATA(bLinearVelocityDriveEnabled2, Flags, EChaosVDJointSettingsFlags::LinearVelocityDriveEnabled2);
-		CVD_PACK_BITFIELD_DATA(bUseLinearSolver, Flags, EChaosVDJointSettingsFlags::UseLinearSolver);
 	}
 	else
 	{
@@ -208,8 +207,7 @@ bool FChaosVDJointSettingsDataWrapper::Serialize(FArchive& Ar)
 		CVD_UNPACK_BITFIELD_DATA(bLinearPositionDriveEnabled2, Flags, EChaosVDJointSettingsFlags::LinearPositionDriveEnable2);
 		CVD_UNPACK_BITFIELD_DATA(bLinearVelocityDriveEnabled0, Flags, EChaosVDJointSettingsFlags::LinearVelocityDriveEnabled0);
 		CVD_UNPACK_BITFIELD_DATA(bLinearVelocityDriveEnabled1, Flags, EChaosVDJointSettingsFlags::LinearVelocityDriveEnabled1);
-		CVD_UNPACK_BITFIELD_DATA(bLinearVelocityDriveEnabled2, Flags, EChaosVDJointSettingsFlags::LinearVelocityDriveEnabled2);
-		CVD_UNPACK_BITFIELD_DATA(bUseLinearSolver, Flags, EChaosVDJointSettingsFlags::UseLinearSolver);;
+		CVD_UNPACK_BITFIELD_DATA(bLinearVelocityDriveEnabled2, Flags, EChaosVDJointSettingsFlags::LinearVelocityDriveEnabled2);;
 
 		Ar << Flags;
 	}

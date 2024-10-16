@@ -206,7 +206,7 @@ enum class EChaosVDJointSettingsFlags : uint32
 	AngularTwistVelocityDriveEnabled = 1 << 5,
 	AngularSwingPositionDriveEnabled = 1 << 6,
 	AngularSwingVelocityDriveEnabled = 1 << 7,
-	SoftLinearLimitsEnabled = 1 << 8,
+	SoftLinearLimitsEnabled= 1 << 8,
 	SoftTwistLimitsEnabled = 1 << 9,
 	SoftSwingLimitsEnabled = 1 << 10,
 	LinearPositionDriveEnabled0 = 1 << 11,
@@ -215,7 +215,6 @@ enum class EChaosVDJointSettingsFlags : uint32
 	LinearVelocityDriveEnabled0 = 1 << 14,
 	LinearVelocityDriveEnabled1 = 1 << 15,
 	LinearVelocityDriveEnabled2 = 1 << 16,
-	UseLinearSolver = 1 << 17,
 };
 
 USTRUCT()
@@ -247,8 +246,6 @@ public:
 	uint16 bCollisionEnabled : 1 = false;
 	UPROPERTY(VisibleAnywhere, Category="General")
 	uint16 bMassConditioningEnabled : 1 = false;
-	UPROPERTY(VisibleAnywhere, Category="General")
-	uint16 bUseLinearSolver : 1 = false;
 	UPROPERTY(VisibleAnywhere, Category="General")
 	uint16 bSoftLinearLimitsEnabled : 1 = false;
 	UPROPERTY(VisibleAnywhere, Category="General")
