@@ -281,12 +281,22 @@ namespace MegaLights
 		return IsFeatureLevelSupported(ShaderPlatform, ERHIFeatureLevel::SM6) && RHISupportsWaveOperations(ShaderPlatform);
 	}
 
+	bool IsRequested(const FSceneViewFamily& ViewFamily)
+	{
+		return ViewFamily.Views[0]->FinalPostProcessSettings.bMegaLights
+			&& CVarMegaLightsAllowed.GetValueOnRenderThread() != 0
+			&& ViewFamily.EngineShowFlags.MegaLights
+			&& ShouldCompileShaders(ViewFamily.GetShaderPlatform());
+	}
+
+	bool HasRequiredTracingData(const FSceneViewFamily& ViewFamily)
+	{
+		return IsHardwareRayTracingSupported(ViewFamily) || IsSoftwareRayTracingSupported(ViewFamily);
+	}
+
 	bool IsEnabled(const FSceneViewFamily& ViewFamily)
 	{
-		return ViewFamily.Views[0]->FinalPostProcessSettings.bMegaLights 
-			&& CVarMegaLightsAllowed.GetValueOnRenderThread() != 0 
-			&& ViewFamily.EngineShowFlags.MegaLights 
-			&& ShouldCompileShaders(ViewFamily.GetShaderPlatform());
+		return IsRequested(ViewFamily) && HasRequiredTracingData(ViewFamily);
 	}
 
 	bool UseVolume()
@@ -307,11 +317,8 @@ namespace MegaLights
 	EMegaLightsMode GetMegaLightsMode(const FSceneViewFamily& ViewFamily, uint8 LightType, bool bLightAllowsMegaLights, TEnumAsByte<EMegaLightsShadowMethod::Type> ShadowMethod)
 	{
 		if (LightType != LightType_Directional 
-			&& ViewFamily.EngineShowFlags.MegaLights 
-			&& ShouldCompileShaders(ViewFamily.GetShaderPlatform())
-			&& bLightAllowsMegaLights
-			&& ViewFamily.Views[0]->FinalPostProcessSettings.bMegaLights
-			&& CVarMegaLightsAllowed.GetValueOnRenderThread() != 0)
+			&& IsEnabled(ViewFamily) 
+			&& bLightAllowsMegaLights)
 		{
 			// Resolve  default
 			if (ShadowMethod == EMegaLightsShadowMethod::Default)
@@ -1876,5 +1883,59 @@ void FDeferredShadingSceneRenderer::RenderMegaLights(FRDGBuilder& GraphBuilder, 
 				MegaLightsViewState.VisibleLightMaskHashHistory = nullptr;
 			}
 		}
+	}
+}
+
+namespace MegaLights
+{
+	bool HasWarning(const FSceneViewFamily& ViewFamily)
+	{
+		return IsRequested(ViewFamily) && !HasRequiredTracingData(ViewFamily);
+	}
+
+	void WriteWarnings(const FSceneViewFamily& ViewFamily, FScreenMessageWriter& Writer)
+	{
+		if (!HasWarning(ViewFamily))
+		{
+			return;
+		}
+
+		static const FText MainMessage = NSLOCTEXT("Renderer", "MegaLightsCantDisplay", "MegaLights is enabled, but has no ray tracing data and won't operate correctly.");
+		Writer.DrawLine(MainMessage);
+
+#if RHI_RAYTRACING
+		if (!IsRayTracingAllowed())
+		{
+			static const FText Message = NSLOCTEXT("Renderer", "MegaLightsCantDisplayDueToHWRTNotAllowed", "- Hardware Ray Tracing is not allowed. Check log for more info.");
+			Writer.DrawLine(Message);
+		}
+		else if (!IsRayTracingEnabled())
+		{
+			static const FText Message = NSLOCTEXT("Renderer", "MegaLightsCantDisplayDueToHWRTDisabled", "- Enable 'r.RayTracing.Enable'.");
+			Writer.DrawLine(Message);
+		}
+
+		static auto CVarMegaLightsHardwareRayTracing = IConsoleManager::Get().FindConsoleVariable(TEXT("r.MegaLights.HardwareRayTracing"));
+		if (CVarMegaLightsHardwareRayTracing->GetInt() == 0)
+		{
+			static const FText Message = NSLOCTEXT("Renderer", "MegaLightsCantDisplayDueToCvar", "- Enable 'r.MegaLights.HardwareRayTracing'.");
+			Writer.DrawLine(Message);
+		}
+
+		if (!(ViewFamily.Views.Num() == 1 || (ViewFamily.Views.Num() == 2 && IStereoRendering::IsStereoEyeView(*ViewFamily.Views[0]))))
+		{
+			static const FText Message = NSLOCTEXT("Renderer", "MegaLightsCantDisplayDueToMultipleViews", "- Multiple views are not supported.");
+			Writer.DrawLine(Message);
+		}
+
+		if (!ViewFamily.Views[0]->IsRayTracingAllowedForView())
+		{
+			static const FText Message = NSLOCTEXT("Renderer", "MegaLightsCantDisplayDueToView", "- Ray Tracing not allowed on the View.");
+			Writer.DrawLine(Message);
+		}
+#else
+		static const FText Message = NSLOCTEXT("Renderer", "MegaLightsCantDisplayDueToBuild", "- Unreal Engine was built without Hardware Ray Tracing support.");
+		Writer.DrawLine(Message);
+#endif
 	}
 }
