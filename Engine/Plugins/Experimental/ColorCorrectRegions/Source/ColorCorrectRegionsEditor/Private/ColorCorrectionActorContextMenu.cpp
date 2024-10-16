@@ -14,7 +14,6 @@
 #include "Editor/SceneOutliner/Public/SSceneOutliner.h"
 #include "Widgets/Input/SButton.h"
 #include "SSocketChooser.h"
-#include "ScopedTransaction.h"
 #include "Runtime/Engine/Classes/GameFramework/WorldSettings.h"
 #include "Editor/UnrealEdEngine.h"
 #include "UnrealEdGlobals.h"
@@ -54,14 +53,6 @@ namespace
 		// Hide all context menus.
 		FSlateApplication::Get().DismissAllMenus();
 
-		if (!InSelectedActors.IsValid() || InSelectedActors->Num() == 0)
-		{
-			return;
-		}
-
-#if WITH_EDITOR
-		const FScopedTransaction Transaction(LOCTEXT("PerActorCCActorListUpdated", "Added actors to Per actor CC via context menu."));
-#endif
 		CCActorPtr->bEnablePerActorCC = true;
 		for (AActor* SelectedActor : *InSelectedActors)
 		{
@@ -77,9 +68,6 @@ namespace
 			PropertyEvent.ChangeType = EPropertyChangeType::ArrayAdd;
 			CCActorPtr->PostEditChangeProperty(PropertyEvent);
 		}
-#if WITH_EDITOR
-		CCActorPtr->Modify();
-#endif
 	}
 
 	/** Creates a new CCR or CCW and then adds Selected actors to Per Actor CC. */
