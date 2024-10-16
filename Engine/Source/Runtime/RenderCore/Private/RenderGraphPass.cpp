@@ -222,10 +222,20 @@ void FRDGBarrierBatchBegin::CreateTransition(TConstArrayView<FRHITransitionInfo>
 {
 	check(bTransitionNeeded && !Transition);
 	Transition = RHICreateTransition(FRHITransitionCreateInfo(PipelinesToBegin, PipelinesToEnd, TransitionFlags, TransitionsRHI, Aliases));
+
+	if (bSeparateFenceTransitionNeeded)
+	{
+		SeparateFenceTransition = RHICreateTransition(FRHITransitionCreateInfo(PipelinesToBegin, PipelinesToEnd));
+	}
 }
 
 void FRDGBarrierBatchBegin::Submit(FRHIComputeCommandList& RHICmdList, ERHIPipeline Pipeline, FRDGTransitionQueue& TransitionsToBegin)
 {
+	if (SeparateFenceTransition)
+	{
+		TransitionsToBegin.Emplace(SeparateFenceTransition);
+	}
+
 	if (Transition)
 	{
 		TransitionsToBegin.Emplace(Transition);
@@ -304,6 +314,11 @@ void FRDGBarrierBatchEnd::Submit(FRHIComputeCommandList& RHICmdList, ERHIPipelin
 	{
 		if (Dependent->BarriersToEnd[Pipeline] == Id)
 		{
+			if (Dependent->SeparateFenceTransition)
+			{
+				Transitions.Emplace(Dependent->SeparateFenceTransition);
+			}
+
 			Transitions.Emplace(Dependent->Transition);
 		}
 	}

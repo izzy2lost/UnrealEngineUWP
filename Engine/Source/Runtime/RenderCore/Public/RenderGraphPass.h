@@ -129,9 +129,16 @@ public:
 
 	RENDERCORE_API void AddAlias(FRDGViewableResource* Resource, const FRHITransientAliasingInfo& Info);
 
-	void SetUseCrossPipelineFence()
+	void SetUseCrossPipelineFence(bool bUseSeparateTransition)
 	{
-		TransitionFlags = ERHITransitionCreateFlags::None;
+		if (bUseSeparateTransition)
+		{
+			bSeparateFenceTransitionNeeded = true;
+		}
+		else
+		{
+			TransitionFlags = ERHITransitionCreateFlags::None;
+		}
 		bTransitionNeeded = true;
 	}
 
@@ -153,13 +160,15 @@ public:
 
 private:
 	const FRHITransition* Transition = nullptr;
+	const FRHITransition* SeparateFenceTransition = nullptr;
+	TRHIPipelineArray<FRDGBarrierBatchEndId> BarriersToEnd;
 	TArray<FRDGTransitionInfo, FRDGArrayAllocator> Transitions;
 	TArray<FRHITransientAliasingInfo, FRDGArrayAllocator> Aliases;
 	ERHITransitionCreateFlags TransitionFlags = ERHITransitionCreateFlags::NoFence;
 	ERHIPipeline PipelinesToBegin;
 	ERHIPipeline PipelinesToEnd;
-	TRHIPipelineArray<FRDGBarrierBatchEndId> BarriersToEnd;
 	bool bTransitionNeeded = false;
+	bool bSeparateFenceTransitionNeeded = false;
 
 #if RDG_ENABLE_DEBUG
 	FRDGPassesByPipeline DebugPasses;

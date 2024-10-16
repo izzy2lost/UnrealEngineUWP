@@ -1570,8 +1570,12 @@ void FRDGBuilder::Compile()
 
 				FRDGBarrierBatchBegin& EpilogueBarriersToBeginForAsyncCompute = GraphicsForkPass->GetEpilogueBarriersToBeginForAsyncCompute(Allocators.Transition, TransitionCreateQueue);
 
+				// Workaround for RHI validation. The prologue pass issues its own separate transition for the prologue pass
+				// so that external access resources left in the all pipes state can be transitioned back to graphics.
+				const bool bSeparateTransitionNeeded = GraphicsForkPass == ProloguePass;
+
 				GraphicsForkPass->bGraphicsFork = 1;
-				EpilogueBarriersToBeginForAsyncCompute.SetUseCrossPipelineFence();
+				EpilogueBarriersToBeginForAsyncCompute.SetUseCrossPipelineFence(bSeparateTransitionNeeded);
 
 				AsyncComputePass->bAsyncComputeBegin = 1;
 				AsyncComputePass->GetPrologueBarriersToEnd(Allocators.Transition).AddDependency(&EpilogueBarriersToBeginForAsyncCompute);
@@ -1622,8 +1626,10 @@ void FRDGBuilder::Compile()
 
 				FRDGBarrierBatchBegin& EpilogueBarriersToBeginForGraphics = AsyncComputePass->GetEpilogueBarriersToBeginForGraphics(Allocators.Transition, TransitionCreateQueue);
 
+				const bool bSeparateTransitionNeeded = false;
+
 				AsyncComputePass->bAsyncComputeEnd = 1;
-				EpilogueBarriersToBeginForGraphics.SetUseCrossPipelineFence();
+				EpilogueBarriersToBeginForGraphics.SetUseCrossPipelineFence(bSeparateTransitionNeeded);
 
 				GraphicsJoinPass->bGraphicsJoin = 1;
 				GraphicsJoinPass->GetPrologueBarriersToEnd(Allocators.Transition).AddDependency(&EpilogueBarriersToBeginForGraphics);
