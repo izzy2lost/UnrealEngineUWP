@@ -102,6 +102,9 @@ struct FNiagaraDataChannelData final : public TSharedFromThis<FNiagaraDataChanne
 	void RegisterGPUSpawningReader() { ++NumGPUSpawningReaders; }
 	void UnregisterGPUSpawningReader() { --NumGPUSpawningReaders; }
 	int32 NumRegisteredGPUSpawningReaders()const{ return NumGPUSpawningReaders; }
+
+	//Returns if this data is still valid. This can return false in cases where the owning data channel has been modified for example.
+	bool IsLayoutValid(UNiagaraDataChannelHandler* Owner)const;
 private:
 
 	void CreateRenderThreadProxy(UNiagaraDataChannelHandler* Owner);

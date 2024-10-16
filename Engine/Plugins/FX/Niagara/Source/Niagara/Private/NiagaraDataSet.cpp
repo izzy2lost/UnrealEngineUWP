@@ -1073,13 +1073,13 @@ void FNiagaraDataBuffer::CopyToUnrelated(FNiagaraDataBuffer& DestBuffer, int32 S
 		const FNiagaraDataSetCompiledData& DestCompiledData = DestBuffer.GetOwner()->GetCompiledData();
 		const FNiagaraDataSetCompiledData& CompiledData = GetOwner()->GetCompiledData();
 
-		for(int32 VarIdx = 0; VarIdx < DestCompiledData.Variables.Num(); ++VarIdx)
+		for (int32 VarIdx = 0; VarIdx < DestCompiledData.Variables.Num(); ++VarIdx)
 		{
 			const FNiagaraVariableBase& DestVar = DestCompiledData.Variables[VarIdx];
 			const FNiagaraVariableLayoutInfo& DestVarLayout = DestCompiledData.VariableLayouts[VarIdx];
 
 			const int32 SrcVarIdx = CompiledData.Variables.IndexOfByKey(DestVar);
-			if(SrcVarIdx != INDEX_NONE)
+			if (SrcVarIdx != INDEX_NONE)
 			{
 				//Found a the variable to copy over.
 				const FNiagaraVariableLayoutInfo& SrcVarLayout = CompiledData.VariableLayouts[SrcVarIdx];
@@ -1144,7 +1144,32 @@ void FNiagaraDataBuffer::CopyToUnrelated(FNiagaraDataBuffer& DestBuffer, int32 S
 						}
 					}
 				}
+			}
+			else
+			{
+				const uint32 FloatComponents = DestVarLayout.GetNumFloatComponents();
+				for (uint32 CompIdx = 0; CompIdx < FloatComponents; ++CompIdx)
+				{
+					const int32 DestCompOffest = DestVarLayout.GetFloatComponentStart() + CompIdx;
+					float* Dst = DestBuffer.GetInstancePtrFloat(DestCompOffest, DestStartIdx);
+					FMemory::Memzero(Dst, InstancesToCopy * sizeof(float));
+				}
 
+				const uint32 IntComponents = DestVarLayout.GetNumInt32Components();
+				for (uint32 CompIdx = 0; CompIdx < IntComponents; ++CompIdx)
+				{
+					const int32 DestCompOffest = DestVarLayout.GetInt32ComponentStart() + CompIdx;
+					int32* Dst = DestBuffer.GetInstancePtrInt32(DestCompOffest, DestStartIdx);
+					FMemory::Memzero(Dst, InstancesToCopy * sizeof(int32));
+				}
+
+				const uint32 HalfComponents = DestVarLayout.GetNumHalfComponents();
+				for (uint32 CompIdx = 0; CompIdx < HalfComponents; ++CompIdx)
+				{
+					const int32 DestCompOffest = DestVarLayout.GetHalfComponentStart() + CompIdx;
+					FFloat16* Dst = DestBuffer.GetInstancePtrHalf(DestCompOffest, DestStartIdx);
+					FMemory::Memzero(Dst, InstancesToCopy * sizeof(FFloat16));
+				}
 			}
 		}
 	}

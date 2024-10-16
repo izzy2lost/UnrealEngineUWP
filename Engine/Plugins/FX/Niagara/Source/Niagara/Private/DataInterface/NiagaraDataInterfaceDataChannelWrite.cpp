@@ -300,6 +300,7 @@ struct FNDIDataChannelWriteInstanceData
 	{
 		DynamicAllocationCount = 0;
 		AtomicNumInstances = 0;
+		DestinationData = nullptr;
 		
 		LwcTile = Instance->GetLWCTile();
 		if (Interface->ShouldPublish())
@@ -353,7 +354,8 @@ struct FNDIDataChannelWriteInstanceData
 				//In non test/shipping builds we gather and log and missing parameters that cause us to fail to find correct bindings.
 				TArray<FNiagaraVariableBase> MissingParams;
 
-				if (DataChannelData == nullptr || Interface->bUpdateDestinationDataEveryTick)
+				bool bNDCDataIsValid = DataChannelData && DataChannelData->IsLayoutValid(DataChannelPtr);
+				if (bNDCDataIsValid == false || Interface->bUpdateDestinationDataEveryTick)
 				{
 					FNiagaraDataChannelSearchParameters SearchParams(Instance->GetAttachComponent());
 					DataChannelData = DataChannelPtr->FindData(SearchParams, ENiagaraResourceAccess::WriteOnly);
@@ -449,8 +451,7 @@ struct FNDIDataChannelWriteInstanceData
 #endif
 				DataChannelData->Publish(PublishRequest);
 			}
-
-			DestinationData = nullptr;
+			
 			AtomicNumInstances = 0;
 		}
 		return true;
@@ -1042,31 +1043,49 @@ void UNiagaraDataInterfaceDataChannelWrite::Write(FVectorVMExternalFunctionConte
 				uint32 Index = static_cast<uint32>(RawIndex);
 				MaxLocalIndex = bEmit ? FMath::Max(Index, MaxLocalIndex) : MaxLocalIndex;
 
-				bool bSuccess = false;
+				bool bAllWritesSuccess = true;
 
 				//TODO: Optimize case where emit is constant
 				//TODO: Optimize for runs of sequential true emits.
-				auto FloatFunc = [Data, Index](const FNDIDataChannelRegisterBinding& VMBinding, FNDIInputParam<float>& FloatData)
+				auto FloatFunc = [Data, Index, &bAllWritesSuccess](const FNDIDataChannelRegisterBinding& VMBinding, FNDIInputParam<float>& FloatData)
 				{
-					if (VMBinding.DataSetRegisterIndex != INDEX_NONE)
-						*Data->GetInstancePtrFloat(VMBinding.DataSetRegisterIndex, Index) = FloatData.GetAndAdvance();
+					if (VMBinding.GetDataSetRegisterIndex() != INDEX_NONE)
+					{
+						*Data->GetInstancePtrFloat(VMBinding.GetDataSetRegisterIndex(), Index) = FloatData.GetAndAdvance();
+					}
+					else
+					{
+						bAllWritesSuccess = false;
+					}
 				};
-				auto IntFunc = [Data, Index](const FNDIDataChannelRegisterBinding& VMBinding, FNDIInputParam<int32>& IntData)
+				auto IntFunc = [Data, Index, &bAllWritesSuccess](const FNDIDataChannelRegisterBinding& VMBinding, FNDIInputParam<int32>& IntData)
 				{
-					if (VMBinding.DataSetRegisterIndex != INDEX_NONE)
-						*Data->GetInstancePtrInt32(VMBinding.DataSetRegisterIndex, Index) = IntData.GetAndAdvance();
+					if (VMBinding.GetDataSetRegisterIndex() != INDEX_NONE)
+					{
+						*Data->GetInstancePtrInt32(VMBinding.GetDataSetRegisterIndex(), Index) = IntData.GetAndAdvance();
+					}
+					else
+					{
+						bAllWritesSuccess = false;
+					}
 				};
-				auto HalfFunc = [Data, Index](const FNDIDataChannelRegisterBinding& VMBinding, FNDIInputParam<FFloat16>& HalfData)
+				auto HalfFunc = [Data, Index, &bAllWritesSuccess](const FNDIDataChannelRegisterBinding& VMBinding, FNDIInputParam<FFloat16>& HalfData)
 				{
-					if (VMBinding.DataSetRegisterIndex != INDEX_NONE)
-						*Data->GetInstancePtrHalf(VMBinding.DataSetRegisterIndex, Index) = HalfData.GetAndAdvance();
+					if (VMBinding.GetDataSetRegisterIndex() != INDEX_NONE)
+					{
+						*Data->GetInstancePtrHalf(VMBinding.GetDataSetRegisterIndex(), Index) = HalfData.GetAndAdvance();
+					}
+					else
+					{
+						bAllWritesSuccess = false;
+					}
 				};
 
-				bSuccess = VariadicInputs.Process(bEmit, 1, BindingInfo, FloatFunc, IntFunc, HalfFunc);
+				bool bFinalSuccess = VariadicInputs.Process(bEmit, 1, BindingInfo, FloatFunc, IntFunc, HalfFunc) && bAllWritesSuccess;
 
 				if (OutSuccess.IsValid())
 				{
-					OutSuccess.SetAndAdvance(bSuccess);
+					OutSuccess.SetAndAdvance(bFinalSuccess);
 				}
 			}
 
@@ -1149,13 +1168,13 @@ void UNiagaraDataInterfaceDataChannelWrite::Append(FVectorVMExternalFunctionCont
 					LocalNumToEmit = FMath::Min(LocalNumToEmit, MaxWriteCount);
 
 					//If we're writing all instances then we can do a memcpy instead of slower loop copies.
-					bool bSuccess = false;
+					bool bAllWritesSuccess = true;
 					uint32 Index = CurrNumInstances;
-					auto FloatFunc = [Data, Index, LocalNumToEmit](const FNDIDataChannelRegisterBinding& VMBinding, FNDIInputParam<float>& FloatData)
+					auto FloatFunc = [Data, Index, LocalNumToEmit, &bAllWritesSuccess](const FNDIDataChannelRegisterBinding& VMBinding, FNDIInputParam<float>& FloatData)
 					{
-						if (VMBinding.DataSetRegisterIndex != INDEX_NONE)
+						if (VMBinding.GetDataSetRegisterIndex() != INDEX_NONE)
 						{
-							float* Dest = Data->GetInstancePtrFloat(VMBinding.DataSetRegisterIndex, Index);
+							float* Dest = Data->GetInstancePtrFloat(VMBinding.GetDataSetRegisterIndex(), Index);
 							if (FloatData.IsConstant())
 							{
 								float Value = FloatData.GetAndAdvance();
@@ -1167,12 +1186,16 @@ void UNiagaraDataInterfaceDataChannelWrite::Append(FVectorVMExternalFunctionCont
 								 FMemory::Memcpy(Dest, Src, LocalNumToEmit * sizeof(float));
 							}
 						}
-					};
-					auto IntFunc = [Data, Index, LocalNumToEmit](const FNDIDataChannelRegisterBinding& VMBinding, FNDIInputParam<int32>& IntData)
-					{
-						if (VMBinding.DataSetRegisterIndex != INDEX_NONE)
+						else
 						{
-							int32* Dest = Data->GetInstancePtrInt32(VMBinding.DataSetRegisterIndex, Index);
+							bAllWritesSuccess = false;
+						}
+					};
+					auto IntFunc = [Data, Index, LocalNumToEmit, &bAllWritesSuccess](const FNDIDataChannelRegisterBinding& VMBinding, FNDIInputParam<int32>& IntData)
+					{
+						if (VMBinding.GetDataSetRegisterIndex() != INDEX_NONE)
+						{
+							int32* Dest = Data->GetInstancePtrInt32(VMBinding.GetDataSetRegisterIndex(), Index);
 							if (IntData.IsConstant())
 							{
 								int32 Value = IntData.GetAndAdvance();
@@ -1184,12 +1207,16 @@ void UNiagaraDataInterfaceDataChannelWrite::Append(FVectorVMExternalFunctionCont
 								FMemory::Memcpy(Dest, Src, LocalNumToEmit * sizeof(int32));
 							}
 						}
-					};
-					auto HalfFunc = [Data, Index, LocalNumToEmit](const FNDIDataChannelRegisterBinding& VMBinding, FNDIInputParam<FFloat16>& HalfData)
-					{
-						if (VMBinding.DataSetRegisterIndex != INDEX_NONE)
+						else
 						{
-							FFloat16* Dest = Data->GetInstancePtrHalf(VMBinding.DataSetRegisterIndex, Index);
+							bAllWritesSuccess = false;
+						}
+					};
+					auto HalfFunc = [Data, Index, LocalNumToEmit, &bAllWritesSuccess](const FNDIDataChannelRegisterBinding& VMBinding, FNDIInputParam<FFloat16>& HalfData)
+					{
+						if (VMBinding.GetDataSetRegisterIndex() != INDEX_NONE)
+						{
+							FFloat16* Dest = Data->GetInstancePtrHalf(VMBinding.GetDataSetRegisterIndex(), Index);
 							if (HalfData.IsConstant())
 							{
 								FFloat16 Value = HalfData.GetAndAdvance();
@@ -1201,14 +1228,19 @@ void UNiagaraDataInterfaceDataChannelWrite::Append(FVectorVMExternalFunctionCont
 								FMemory::Memcpy(Dest, Src, LocalNumToEmit * sizeof(FFloat16));
 							}
 						}
+						else
+						{
+							bAllWritesSuccess = false;
+						}
 					};
-					bSuccess = VariadicInputs.Process(true, Context.GetNumInstances(), BindingInfo, FloatFunc, IntFunc, HalfFunc);
+
+					bool bFinalSuccess = VariadicInputs.Process(true, Context.GetNumInstances(), BindingInfo, FloatFunc, IntFunc, HalfFunc) && bAllWritesSuccess;
 
 					if (OutSuccess.IsValid())
 					{
 						for (int32 i = 0; i < Context.GetNumInstances(); ++i)
 						{
-							OutSuccess.SetAndAdvance(bSuccess);
+							OutSuccess.SetAndAdvance(bFinalSuccess);
 						}
 					}
 				}
@@ -1219,33 +1251,52 @@ void UNiagaraDataInterfaceDataChannelWrite::Append(FVectorVMExternalFunctionCont
 						uint32 Index = CurrNumInstances;
 
 						bool bEmit = InEmit.GetAndAdvance();
-						bool bSuccess = false;
+						bool bAllWritesSuccess = true;
 
 						if(bEmit)
 						{
 							++CurrNumInstances;
 						}
 
-						auto FloatFunc = [Data, Index](const FNDIDataChannelRegisterBinding& VMBinding, FNDIInputParam<float>& FloatData)
+						auto FloatFunc = [Data, Index, &bAllWritesSuccess](const FNDIDataChannelRegisterBinding& VMBinding, FNDIInputParam<float>& FloatData)
 						{
-							if (VMBinding.DataSetRegisterIndex != INDEX_NONE)
-								*Data->GetInstancePtrFloat(VMBinding.DataSetRegisterIndex, Index) = FloatData.GetAndAdvance();
+							if (VMBinding.GetDataSetRegisterIndex() != INDEX_NONE)
+							{
+								*Data->GetInstancePtrFloat(VMBinding.GetDataSetRegisterIndex(), Index) = FloatData.GetAndAdvance();
+							}
+							else
+							{
+								bAllWritesSuccess = false;
+							}
 						};
-						auto IntFunc = [Data, Index](const FNDIDataChannelRegisterBinding& VMBinding, FNDIInputParam<int32>& IntData)
+						auto IntFunc = [Data, Index, &bAllWritesSuccess](const FNDIDataChannelRegisterBinding& VMBinding, FNDIInputParam<int32>& IntData)
 						{
-							if (VMBinding.DataSetRegisterIndex != INDEX_NONE)
-								*Data->GetInstancePtrInt32(VMBinding.DataSetRegisterIndex, Index) = IntData.GetAndAdvance();
+							if (VMBinding.GetDataSetRegisterIndex() != INDEX_NONE)
+							{
+								*Data->GetInstancePtrInt32(VMBinding.GetDataSetRegisterIndex(), Index) = IntData.GetAndAdvance();
+							}
+							else
+							{
+								bAllWritesSuccess = false;
+							}
 						};
-						auto HalfFunc = [Data, Index](const FNDIDataChannelRegisterBinding& VMBinding, FNDIInputParam<FFloat16>& HalfData)
+						auto HalfFunc = [Data, Index, &bAllWritesSuccess](const FNDIDataChannelRegisterBinding& VMBinding, FNDIInputParam<FFloat16>& HalfData)
 						{
-							if (VMBinding.DataSetRegisterIndex != INDEX_NONE)
-								*Data->GetInstancePtrHalf(VMBinding.DataSetRegisterIndex, Index) = HalfData.GetAndAdvance();
+							if (VMBinding.GetDataSetRegisterIndex() != INDEX_NONE)
+							{
+								*Data->GetInstancePtrHalf(VMBinding.GetDataSetRegisterIndex(), Index) = HalfData.GetAndAdvance();
+							}
+							else
+							{
+								bAllWritesSuccess = false;
+							}
 						};
-						bSuccess = VariadicInputs.Process(bEmit, 1, BindingInfo, FloatFunc, IntFunc, HalfFunc);
+
+						bool bFinalSuccess = VariadicInputs.Process(bEmit, 1, BindingInfo, FloatFunc, IntFunc, HalfFunc) && bAllWritesSuccess;
 
 						if (OutSuccess.IsValid())
 						{
-							OutSuccess.SetAndAdvance(bSuccess);
+							OutSuccess.SetAndAdvance(bFinalSuccess);
 						}
 					}
 				}

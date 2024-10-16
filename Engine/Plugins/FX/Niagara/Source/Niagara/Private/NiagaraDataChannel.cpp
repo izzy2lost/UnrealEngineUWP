@@ -687,17 +687,21 @@ FNiagaraDataBufferRef FNiagaraDataChannelDataProxy::PrepareForReadAccess(FRDGBui
 
 	if(bCurrentFrame)
 	{
-		if (CurrBufferAccessCounts < 0)
+		if(CurrFrameData)
 		{
+			if (CurrBufferAccessCounts < 0)
+			{
 #if !UE_BUILD_SHIPPING
-			UE_LOG(LogNiagara, Warning, TEXT("Attempting to write to a Niagara Data Channel in the same stage in which it's being read. {%s}"), *DebugName);
+				UE_LOG(LogNiagara, Warning, TEXT("Attempting to read from a Niagara Data Channel in the same stage in which it's being written. {%s}"), *DebugName);
 #endif
-			return nullptr;
-		}
-		
-		++CurrBufferAccessCounts;
+				return nullptr;
+			}
 
-		return CurrFrameData;
+			++CurrBufferAccessCounts;
+
+			return CurrFrameData;
+		}
+		return nullptr;
 	}
 	else
 	{
@@ -1138,6 +1142,15 @@ FNiagaraDataBuffer* FNiagaraDataChannelData::GetBufferForCPUWrite()
 	return nullptr;
 }
 
+bool FNiagaraDataChannelData::IsLayoutValid(UNiagaraDataChannelHandler* Owner)const
+{
+	if(Owner && LayoutInfo)
+	{
+		return Owner->GetDataChannel()->GetLayoutInfo() == LayoutInfo;//If our layout has been modified then this NDC data is no longer valid.
+	}
+	return false;
+}
+
 void FNiagaraDataChannelData::DestroyRenderThreadProxy(FNiagaraGpuComputeDispatchInterface* ComputeDispatchInterface)
 {
 	//We can leave the proxy to be destroyed by the dispatcher ( or in some edge cases perhaps a DI proxy ).
@@ -1278,6 +1291,8 @@ bool UNiagaraDataChannel::IsReadyForFinishDestroy()
 
 void UNiagaraDataChannel::PreEditChange(FProperty* PropertyAboutToChange)
 {
+	Super::PreEditChange(PropertyAboutToChange);
+
 	FNiagaraWorldManager::ForAllWorldManagers(
 		[DataChannel = this](FNiagaraWorldManager& WorldMan)
 		{
@@ -1290,13 +1305,17 @@ void UNiagaraDataChannel::PostEditChangeProperty(FPropertyChangedEvent& Property
 	FName VariablesMemberName = GET_MEMBER_NAME_CHECKED(UNiagaraDataChannel, ChannelVariables);
 	if (PropertyChangedEvent.ChangeType == EPropertyChangeType::ArrayAdd && PropertyChangedEvent.GetPropertyName() == VariablesMemberName)
 	{
-		TSet<FName> ExistingNames;
-		for (const FNiagaraDataChannelVariable& Var : ChannelVariables)
+		int32 ArrayIndex = PropertyChangedEvent.GetArrayIndex(VariablesMemberName.ToString());
+		if(ChannelVariables.IsValidIndex(ArrayIndex))
 		{
-			ExistingNames.Add(Var.GetName());
+			TSet<FName> ExistingNames;
+			for (const FNiagaraDataChannelVariable& Var : ChannelVariables)
+			{
+				ExistingNames.Add(Var.GetName());
+			}
+			FName UniqueName = FNiagaraUtilities::GetUniqueName(FName("MyNewVar"), ExistingNames);
+			ChannelVariables[ArrayIndex].SetName(UniqueName);
 		}
-		FName UniqueName = FNiagaraUtilities::GetUniqueName(FName("MyNewVar"), ExistingNames);
-		ChannelVariables.Last().SetName(UniqueName);
 	}
 	if (PropertyChangedEvent.ChangeType == EPropertyChangeType::Duplicate && PropertyChangedEvent.GetPropertyName() == VariablesMemberName)
 	{

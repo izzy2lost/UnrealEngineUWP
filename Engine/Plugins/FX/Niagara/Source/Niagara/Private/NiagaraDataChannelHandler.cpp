@@ -37,6 +37,12 @@ void UNiagaraDataChannelHandler::Cleanup()
 		Writer->Cleanup();
 		Writer = nullptr;
 	}
+
+	if (!HasAnyFlags(RF_ClassDefaultObject))
+	{
+		//Mark this handler as garbage so any reading DIs will know to stop using it.
+		MarkAsGarbage();
+	}
 }
 
 void UNiagaraDataChannelHandler::BeginFrame(float DeltaTime, FNiagaraWorldManager* OwningWorld)

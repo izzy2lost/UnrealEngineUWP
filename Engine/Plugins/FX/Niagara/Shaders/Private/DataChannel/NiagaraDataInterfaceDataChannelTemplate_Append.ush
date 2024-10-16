@@ -14,8 +14,7 @@ void {FunctionSymbol}(bool bEmit, {FunctionInputParameters}, out bool bOutSucces
 	if(bEmit)
 	{
 		FNDCAccessContext_{ParameterName} Context;
-		Context.InitAppend();
-		if(Context.IsValid())
+		if(Context.InitAppend())
 		{
 			bOutSuccess = true;
 	

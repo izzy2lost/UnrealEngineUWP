@@ -16,8 +16,15 @@ Shader code common to all instances and functions of Niagara Data Channel DI.
 
 void NiagaraDataChannelRead_Float(Buffer<float> InBuffer, uint Stride, in out uint RegisterIdx, uint ParticleIdx, out float OutValue)
 {
-	OutValue = InBuffer[RegisterIdx * Stride + ParticleIdx];
-	++RegisterIdx;
+	if(RegisterIdx != -1)
+	{
+		OutValue = InBuffer[RegisterIdx * Stride + ParticleIdx];
+		++RegisterIdx;
+	}
+	else
+	{
+		OutValue = 0.0;
+	}
 }
 
 void NiagaraDataChannelRead_Float(Buffer<float> InBuffer, uint Stride, in out uint RegisterIdx, uint ParticleIdx, out float2 OutValue)
@@ -43,8 +50,15 @@ void NiagaraDataChannelRead_Float(Buffer<float> InBuffer, uint Stride, in out ui
 
 void NiagaraDataChannelRead_Int32(Buffer<int> InBuffer, uint Stride, in out uint RegisterIdx, uint ParticleIdx, out int OutValue)
 {
-	OutValue = InBuffer[RegisterIdx * Stride + ParticleIdx];
-	++RegisterIdx;
+	if(RegisterIdx != -1)
+	{
+		OutValue = InBuffer[RegisterIdx * Stride + ParticleIdx];
+		++RegisterIdx;
+	}
+	else
+	{
+		OutValue = 0;
+	}
 }
 
 void NiagaraDataChannelRead_Int32(Buffer<int> InBuffer, uint Stride, in out uint RegisterIdx, uint ParticleIdx, out int2 OutValue)
@@ -72,8 +86,15 @@ void NiagaraDataChannelRead_Int32(Buffer<int> InBuffer, uint Stride, in out uint
 //TODO: Half Support | 
 void NiagaraDataChannelRead_Half(Buffer<half> InBuffer, uint Stride, in out uint RegisterIdx, uint ParticleIdx, out half OutValue)
 {
-	OutValue = InBuffer[RegisterIdx * Stride + ParticleIdx];
-	++RegisterIdx;
+	if(RegisterIdx != -1)
+	{
+		OutValue = InBuffer[RegisterIdx * Stride + ParticleIdx];
+		++RegisterIdx;
+	}
+	else
+	{
+		OutValue = 0.0;
+	}
 }
 
 void NiagaraDataChannelRead_Half(Buffer<half> InBuffer, uint Stride, in out uint RegisterIdx, uint ParticleIdx, out half2 OutValue)
@@ -102,8 +123,11 @@ void NiagaraDataChannelRead_Half(Buffer<half> InBuffer, uint Stride, in out uint
 
 void NiagaraDataChannelWrite_Float(RWBuffer<float> InBuffer, uint Stride, in out uint RegisterIdx, uint ParticleIdx, float InValue)
 {
-	InBuffer[RegisterIdx * Stride + ParticleIdx] = InValue;
-	++RegisterIdx;
+	if(RegisterIdx != -1)
+	{
+		InBuffer[RegisterIdx * Stride + ParticleIdx] = InValue;
+		++RegisterIdx;
+	}
 }
 
 void NiagaraDataChannelWrite_Float(RWBuffer<float> InBuffer, uint Stride, in out uint RegisterIdx, uint ParticleIdx, float2 InValue)
@@ -129,8 +153,11 @@ void NiagaraDataChannelWrite_Float(RWBuffer<float> InBuffer, uint Stride, in out
 
 void NiagaraDataChannelWrite_Int32(RWBuffer<int> InBuffer, uint Stride, in out uint RegisterIdx, uint ParticleIdx, int InValue)
 {
-	InBuffer[RegisterIdx * Stride + ParticleIdx] = InValue;
-	++RegisterIdx;
+	if(RegisterIdx != -1)
+	{
+		InBuffer[RegisterIdx * Stride + ParticleIdx] = InValue;
+		++RegisterIdx;
+	}
 }
 
 void NiagaraDataChannelWrite_Int32(RWBuffer<int> InBuffer, uint Stride, in out uint RegisterIdx, uint ParticleIdx, int2 InValue)
@@ -158,8 +185,11 @@ void NiagaraDataChannelWrite_Int32(RWBuffer<int> InBuffer, uint Stride, in out u
 //TODO: Half Support | 
 void NiagaraDataChannelWrite_Half(RWBuffer<half> InBuffer, uint Stride, in out uint RegisterIdx, uint ParticleIdx, half InValue)
 {
-	InBuffer[RegisterIdx * Stride + ParticleIdx] = InValue;
-	++RegisterIdx;
+	if(RegisterIdx != -1)
+	{
+		InBuffer[RegisterIdx * Stride + ParticleIdx] = InValue;
+		++RegisterIdx;
+	}
 }
 
 void NiagaraDataChannelWrite_Half(RWBuffer<half> InBuffer, uint Stride, in out uint RegisterIdx, uint ParticleIdx, half2 InValue)

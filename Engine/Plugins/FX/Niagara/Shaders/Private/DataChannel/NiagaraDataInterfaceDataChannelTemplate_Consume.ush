@@ -15,14 +15,17 @@ void {FunctionSymbol}(bool bInConsume, out bool bOutSuccess, out int OutIndex, {
 	bOutSuccess = false;
 	OutIndex = -1;
 	
-	FNDCAccessContext_{ParameterName} Context;
-	Context.InitConsume();
-	if(Context.IsValid())
+	if(bInConsume)
 	{
-		bOutSuccess = true;
+		FNDCAccessContext_{ParameterName} Context;
+		if(Context.InitConsume())
+		{
+			bOutSuccess = true;
+			OutIndex = Context.ReadIndex;
 
-		//This is generated in the DI Cpp depending on the function parameters.
-{PerFunctionParameterShaderCode}
+			//This is generated in the DI Cpp depending on the function parameters.
+			{PerFunctionParameterShaderCode}
+		}
 	}
 }
 
