@@ -27,11 +27,9 @@ Horde's reference documentation is divided into sections by target audience:
 
 ## Status
 
-Horde is under heavy development, and large parts of it are still in flux. While we use aspects of it
-(particularly the CI system) heavily at Epic, we consider it experimental for Unreal Engine licensees
-and offer limited support for it.
+Horde is considered production ready for Unreal Engine licensees.
 
-See also: [Feature Status](Features.md)
+See: [Feature Status](Features.md)
 
 ## Further Reading
 
