@@ -128,7 +128,11 @@ void SAvaOperatorStackTab::OnAnimatorRemoved(UPropertyAnimatorCoreComponent* InC
 		if (SelectionSet->CountSelections(UPropertyAnimatorCoreComponent::StaticClass())
 			|| SelectionSet->CountSelections(UPropertyAnimatorCoreBase::StaticClass()))
 		{
-			RefreshSelection(SelectionSet);
+			FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateSPLambda(this, [this, SelectionSet](float)
+			{
+				RefreshSelection(SelectionSet);
+				return false;
+			}));
 		}
 		else
 		{

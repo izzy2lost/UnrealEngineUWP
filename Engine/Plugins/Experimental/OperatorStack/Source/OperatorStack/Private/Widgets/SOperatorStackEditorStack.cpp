@@ -911,27 +911,27 @@ bool SOperatorStackEditorStack::HandleRecursiveSearch(const TSet<FString>& InSea
 		}
 	}
 
-	// Search for properties row in details view
-	bool bRowFound = false;
-
-	if (BodyDetailsView)
-	{
-		bRowFound |= BodyDetailsView->FilterItems(InSearchedKeywords_AND.Array());
-	}
-
-	if (FooterDetailsView)
-	{
-		bRowFound |= FooterDetailsView->FilterItems(InSearchedKeywords_AND.Array());
-	}
-
-	if (!InSearchedKeywords_AND.IsEmpty())
-	{
-		bMatchSearch |= bRowFound;
-	}
-
 	// Do not hide root item if nothing was found
-	if (CustomizeItem.IsValid())
+	if (CustomizeItem.IsValid() && CustomizeItem->HasValue())
 	{
+		// Search for properties row in details view
+		bool bRowFound = false;
+
+		if (BodyDetailsView)
+		{
+			bRowFound |= BodyDetailsView->FilterItems(InSearchedKeywords_AND.Array());
+		}
+
+		if (FooterDetailsView)
+		{
+			bRowFound |= FooterDetailsView->FilterItems(InSearchedKeywords_AND.Array());
+		}
+
+		if (!InSearchedKeywords_AND.IsEmpty())
+		{
+			bMatchSearch |= bRowFound;
+		}
+		
 		bMatchSearch |= MatchSearch(InSearchedKeywords_OR, InSearchedKeywords_AND);
 		bHiddenByFilter = !bMatchSearch;
 	}
