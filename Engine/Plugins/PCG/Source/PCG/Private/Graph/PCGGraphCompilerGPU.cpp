@@ -864,7 +864,7 @@ UPCGComputeGraph* FPCGGraphCompilerGPU::CompileComputeGraph(
 
 			if (!UpstreamDI)
 			{
-				ensure(false);
+				UE_LOG(LogPCG, Warning, TEXT("Encountered missing data interface, skipping."))
 				continue;
 			}
 
