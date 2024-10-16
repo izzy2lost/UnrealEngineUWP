@@ -2102,7 +2102,7 @@ void FNiagaraDataInterfaceProxy_DataChannelRead::PreStage(const FNDIGpuComputePr
 		//TODO: Add some wrap behavior...		
 		if(InstanceData->ConsumeInstanceCountOffset == INDEX_NONE)
 		{
-			InstanceData->ConsumeInstanceCountOffset = Context.GetInstanceCountManager().AcquireOrAllocateEntry(Context.GetGraphBuilder().RHICmdList);
+			InstanceData->ConsumeInstanceCountOffset = Context.GetInstanceCountManager().AcquireEntry();
 		}
 
 		if(InstanceData->NDCSpawnDataBuffer == nullptr)

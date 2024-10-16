@@ -170,6 +170,8 @@ public:
 	virtual bool PostSimulateCanOverlapFrames() const override { return false; }
 	//We cannot have post stage overlap tick groups so that the write DI can publish it's contents to the data channel at the correct time to allow same frame reads.
 	virtual bool PostStageCanOverlapTickGroups() const override { return false; }
+
+	virtual uint32 GetGpuCountBufferEstimate() const { return 1; }
 	//UNiagaraDataInterface Interface
 
 	NIAGARA_API void Num(FVectorVMExternalFunctionContext& Context);
