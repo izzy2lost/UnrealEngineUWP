@@ -67,6 +67,7 @@
 		Templates/TP_DMXBP/TP_DMXBP.uproject
 		Templates/TP_MotionDesignBP/TP_MotionDesignBP.uproject
 		Samples/StarterContent/StarterContent.uproject
+		Engine/Source/Programs/LiveLinkHub/LiveLinkHub.uproject
 	</Property>
 	<!-- Win64 specific DDC -->
 	<Property Name="ProjectsToBuildDDCWin64" Value="$(ProjectsToBuildDDC)">
