@@ -27,7 +27,7 @@
 
 static TAutoConsoleVariable<int32> CVarDeterminismGraphTestCycleLimit(
 	TEXT("pcg.DeterminismGraphTestCycleLimit"),
-	10,
+	10000,
 	TEXT("How many execution attempts before discarding a graph test."));
 
 static TAutoConsoleVariable<int32> CVarDeterminismPermutationLimit(
@@ -120,12 +120,10 @@ namespace PCGDeterminismTests
 
 			// Clean up anything generated
 			PCGComponentCopy->Cleanup();
-			if (PCGComponentCopy->IsRegistered())
-			{
-				PCGComponentCopy->UnregisterComponent();
-			}
 
 			// Clean up the debug actor
+			PCGActorCopy->UnregisterAllComponents();
+			PCGActorCopy->MarkComponentsAsGarbage();
 			PCGActorCopy->RemoveFromRoot();
 			PCGActorCopy->MarkAsGarbage();
 		};
