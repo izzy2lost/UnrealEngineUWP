@@ -57,11 +57,34 @@ void UNiagaraDataInterfacePlatformSet::PostInitProperties()
 		ENiagaraTypeRegistryFlags Flags = ENiagaraTypeRegistryFlags::AllowAnyVariable | ENiagaraTypeRegistryFlags::AllowParameter;
 		FNiagaraTypeRegistry::Register(FNiagaraTypeDefinition(GetClass()), Flags);
 	}
-	else
+}
+
+void UNiagaraDataInterfacePlatformSet::PostLoad()
+{
+	using namespace NDIPlatformSetPrivate;
+	Super::PostLoad();
+	if (!HasAnyFlags(RF_ClassDefaultObject))
 	{
 		GetProxyAs<FNDIPlatformSetProxy>()->bIsActive = Platforms.IsActive();
 	}
 }
+
+#if WITH_EDITOR
+void UNiagaraDataInterfacePlatformSet::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
+{
+	Super::PostEditChangeProperty(PropertyChangedEvent);
+
+	using namespace NDIPlatformSetPrivate;
+	ENQUEUE_RENDER_COMMAND(UpdateProxyState)
+		(
+			[RT_Proxy = GetProxyAs<FNDIPlatformSetProxy>(), bActive = Platforms.IsActive()](FRHICommandListImmediate& CmdList)
+			{
+				RT_Proxy->bIsActive = bActive;
+			}
+		);
+}
+
+#endif
 
 #if WITH_EDITORONLY_DATA
 void UNiagaraDataInterfacePlatformSet::GetFunctionsInternal(TArray<FNiagaraFunctionSignature>& OutFunctions) const
