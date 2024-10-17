@@ -111,6 +111,13 @@ public:
 	CHAOS_API virtual void RemoveElements(const FName & Group, const TArray<int32> & SortedDeletionList, FProcessingParameters Params = FProcessingParameters()) override;
 
 	/**
+	* MergeElements
+	*   Merge elements from the transform collection. Updates parent and children hierachy to the remapped index
+	*	Deletes merged elements 
+	*/
+	CHAOS_API virtual void MergeElements(const FName& Group, const TArray<int32>& SortedMergeList, const TArray<int32>& MergeRemapIndex, FProcessingParameters Params = FProcessingParameters()) override;
+
+	/**
 	* reset internal state
 	*/
 	CHAOS_API virtual void Reset() override;

@@ -120,6 +120,9 @@ namespace GeometryCollection::Facades
 	const FName FTetrahedralBindings::OffsetsAttributeName = "Offsets";
 	const FName FTetrahedralBindings::MaskAttributeName = "Mask";
 
+	// Dependency
+	const FName FTetrahedralBindings::TetrahedralGroupDependency = TEXT("Tetrahedral");
+
 	FTetrahedralBindings::FTetrahedralBindings(FManagedArrayCollection& InCollection)
 		: MeshIdAttribute(InCollection, MeshIdAttributeName, MeshBindingsGroupName)
 	{}
@@ -216,7 +219,7 @@ namespace GeometryCollection::Facades
 		Offsets.Reset();
 		Masks.Reset();
 		FManagedArrayCollection& Collection = *MeshIdAttribute.GetCollection();
-		Parents.Reset(new TManagedArrayAccessor<FIntVector4>(Collection, ParentsAttributeName, GroupName));
+		Parents.Reset(new TManagedArrayAccessor<FIntVector4>(Collection, ParentsAttributeName, GroupName, TetrahedralGroupDependency));
 		Weights.Reset(new TManagedArrayAccessor<FVector4f>(Collection, WeightsAttributeName, GroupName));
 		Offsets.Reset(new TManagedArrayAccessor<FVector3f>(Collection, OffsetsAttributeName, GroupName));
 		Masks.Reset(new TManagedArrayAccessor<float>(Collection, MaskAttributeName, GroupName));
@@ -246,7 +249,7 @@ namespace GeometryCollection::Facades
 		if (!IsConst())
 		{
 			FManagedArrayCollection* Collection = MeshIdAttribute.GetCollection();
-			Parents.Reset(new TManagedArrayAccessor<FIntVector4>(*Collection, ParentsAttributeName, GroupName));
+			Parents.Reset(new TManagedArrayAccessor<FIntVector4>(*Collection, ParentsAttributeName, GroupName, TetrahedralGroupDependency));
 			Weights.Reset(new TManagedArrayAccessor<FVector4f>(*Collection, WeightsAttributeName, GroupName));
 			Offsets.Reset(new TManagedArrayAccessor<FVector3f>(*Collection, OffsetsAttributeName, GroupName));
 			Masks.Reset(new TManagedArrayAccessor<float>(*Collection, MaskAttributeName, GroupName));
@@ -254,7 +257,7 @@ namespace GeometryCollection::Facades
 		else
 		{
 			const FManagedArrayCollection& ConstCollection = MeshIdAttribute.GetConstCollection();
-			Parents.Reset(new TManagedArrayAccessor<FIntVector4>(ConstCollection, ParentsAttributeName, GroupName));
+			Parents.Reset(new TManagedArrayAccessor<FIntVector4>(ConstCollection, ParentsAttributeName, GroupName, TetrahedralGroupDependency));
 			Weights.Reset(new TManagedArrayAccessor<FVector4f>(ConstCollection, WeightsAttributeName, GroupName));
 			Offsets.Reset(new TManagedArrayAccessor<FVector3f>(ConstCollection, OffsetsAttributeName, GroupName));
 			Masks.Reset(new TManagedArrayAccessor<float>(ConstCollection, MaskAttributeName, GroupName));

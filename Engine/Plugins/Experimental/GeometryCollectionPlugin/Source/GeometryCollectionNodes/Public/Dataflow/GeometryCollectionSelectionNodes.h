@@ -37,7 +37,7 @@ public:
 	UPROPERTY(meta = (DataflowInput, DataflowOutput, DataflowPassthrough = "Collection", DataflowIntrinsic))
 	FManagedArrayCollection Collection;
 
-	/** Array of the selected bone indicies */
+	/** Array of the selected bone indices */
 	UPROPERTY(meta = (DataflowOutput, DisplayName = "TransformSelection"))
 	FDataflowTransformSelection TransformSelection;
 
@@ -86,15 +86,15 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Compare");
 	ESetOperationEnum Operation = ESetOperationEnum::Dataflow_SetOperation_AND;
 
-	/** Array of the selected bone indicies */
+	/** Array of the selected bone indices */
 	UPROPERTY(meta = (DataflowInput, DisplayName = "TransformSelectionA", DataflowIntrinsic))
 	FDataflowTransformSelection TransformSelectionA;
 
-	/** Array of the selected bone indicies */
+	/** Array of the selected bone indices */
 	UPROPERTY(meta = (DataflowInput, DisplayName = "TransformSelectionB", DataflowIntrinsic))
 	FDataflowTransformSelection TransformSelectionB;
 
-	/** Array of the selected bone indicies after operation*/
+	/** Array of the selected bone indices after operation*/
 	UPROPERTY(meta = (DataflowOutput, DisplayName = "TransformSelection", DataflowPassthrough = "TransformSelectionA"))
 	FDataflowTransformSelection TransformSelection;
 
@@ -123,7 +123,7 @@ struct FCollectionTransformSelectionInfoDataflowNode : public FDataflowNode
 	DATAFLOW_NODE_DEFINE_INTERNAL(FCollectionTransformSelectionInfoDataflowNode, "CollectionTransformSelectionInfo", "GeometryCollection|Selection|Transform", "")
 
 public:
-	/** Array of the selected bone indicies */
+	/** Array of the selected bone indices */
 	UPROPERTY(meta = (DataflowInput, DisplayName = "TransformSelection", DataflowIntrinsic))
 	FDataflowTransformSelection TransformSelection;
 
@@ -164,7 +164,7 @@ public:
 	UPROPERTY(meta = (DataflowInput, DataflowOutput, DataflowPassthrough = "Collection", DataflowIntrinsic))
 	FManagedArrayCollection Collection;
 
-	/** Array of the selected bone indicies */
+	/** Array of the selected bone indices */
 	UPROPERTY(meta = (DataflowOutput, DisplayName = "TransformSelection"))
 	FDataflowTransformSelection TransformSelection;
 
@@ -193,7 +193,7 @@ struct FCollectionTransformSelectionInvertDataflowNode : public FDataflowNode
 	DATAFLOW_NODE_DEFINE_INTERNAL(FCollectionTransformSelectionInvertDataflowNode, "CollectionTransformSelectInvert", "GeometryCollection|Selection|Transform", "")
 
 public:
-	/** Array of the selected bone indicies */
+	/** Array of the selected bone indices */
 	UPROPERTY(meta = (DataflowInput, DataflowOutput, DisplayName = "TransformSelection", DataflowPassthrough = "TransformSelection", DataflowIntrinsic))
 	FDataflowTransformSelection TransformSelection;
 
@@ -237,7 +237,7 @@ public:
 	UPROPERTY(meta = (DataflowInput, DataflowOutput, DataflowPassthrough = "Collection", DataflowIntrinsic))
 	FManagedArrayCollection Collection;
 
-	/** Array of the selected bone indicies */
+	/** Array of the selected bone indices */
 	UPROPERTY(meta = (DataflowOutput, DisplayName = "TransformSelection"))
 	FDataflowTransformSelection TransformSelection;
 
@@ -273,7 +273,7 @@ public:
 	UPROPERTY(meta = (DataflowInput, DataflowOutput, DataflowPassthrough = "Collection", DataflowIntrinsic))
 	FManagedArrayCollection Collection;
 
-	/** Array of the selected bone indicies */
+	/** Array of the selected bone indices */
 	UPROPERTY(meta = (DataflowOutput, DisplayName = "TransformSelection"))
 	FDataflowTransformSelection TransformSelection;
 
@@ -309,7 +309,7 @@ public:
 
 	/** Space separated list of bone indices to specify the selection */
 	UPROPERTY(EditAnywhere, Category = "Selection", meta=(DisplayName="Bone Indices"))
-	FString BoneIndicies = FString();
+	FString BoneIndicies = FString(); //Fix typo for v2
 
 	/** Array of the selected bone indices */
 	UPROPERTY(meta = (DataflowOutput, DisplayName = "TransformSelection"))
@@ -379,7 +379,7 @@ struct FCollectionTransformSelectionParentDataflowNode : public FDataflowNode
 	DATAFLOW_NODE_DEFINE_INTERNAL(FCollectionTransformSelectionParentDataflowNode, "CollectionTransformSelectParent", "GeometryCollection|Selection|Transform", "")
 
 public:
-	/** Array of the selected bone indicies */
+	/** Array of the selected bone indices */
 	UPROPERTY(meta = (DataflowInput, DataflowOutput, DisplayName = "TransformSelection", DataflowPassthrough = "TransformSelection", DataflowIntrinsic))
 	FDataflowTransformSelection TransformSelection;
 
@@ -413,7 +413,7 @@ struct FCollectionTransformSelectionByPercentageDataflowNode : public FDataflowN
 	DATAFLOW_NODE_DEFINE_INTERNAL(FCollectionTransformSelectionByPercentageDataflowNode, "CollectionTransformSelectByPercentage", "GeometryCollection|Selection|Transform", "")
 
 public:
-	/** Array of the selected bone indicies */
+	/** Array of the selected bone indices */
 	UPROPERTY(meta = (DataflowInput, DataflowOutput, DisplayName = "TransformSelection", DataflowPassthrough = "TransformSelection", DataflowIntrinsic))
 	FDataflowTransformSelection TransformSelection;
 
@@ -456,7 +456,7 @@ struct FCollectionTransformSelectionChildrenDataflowNode : public FDataflowNode
 	DATAFLOW_NODE_DEFINE_INTERNAL(FCollectionTransformSelectionChildrenDataflowNode, "CollectionTransformSelectChildren", "GeometryCollection|Selection|Transform", "")
 
 public:
-	/** Array of the selected bone indicies */
+	/** Array of the selected bone indices */
 	UPROPERTY(meta = (DataflowInput, DataflowOutput, DisplayName = "TransformSelection", DataflowPassthrough = "TransformSelection", DataflowIntrinsic))
 	FDataflowTransformSelection TransformSelection;
 
@@ -490,7 +490,7 @@ struct FCollectionTransformSelectionSiblingsDataflowNode : public FDataflowNode
 	DATAFLOW_NODE_DEFINE_INTERNAL(FCollectionTransformSelectionSiblingsDataflowNode, "CollectionTransformSelectSiblings", "GeometryCollection|Selection|Transform", "")
 
 public:
-	/** Array of the selected bone indicies */
+	/** Array of the selected bone indices */
 	UPROPERTY(meta = (DataflowInput, DataflowOutput, DisplayName = "TransformSelection", DataflowPassthrough = "TransformSelection", DataflowIntrinsic))
 	FDataflowTransformSelection TransformSelection;
 
@@ -601,7 +601,7 @@ struct FCollectionTransformSelectionContactDataflowNode : public FDataflowNode
 	DATAFLOW_NODE_DEFINE_INTERNAL(FCollectionTransformSelectionContactDataflowNode, "CollectionTransformSelectContact", "GeometryCollection|Selection|Transform", "")
 
 public:
-	/** Array of the selected bone indicies */
+	/** Array of the selected bone indices */
 	UPROPERTY(meta = (DataflowInput, DataflowOutput, DisplayName = "TransformSelection", DataflowPassthrough = "TransformSelection", DataflowIntrinsic))
 	FDataflowTransformSelection TransformSelection;
 
@@ -643,7 +643,7 @@ public:
 	UPROPERTY(meta = (DataflowInput, DataflowOutput, DataflowPassthrough = "Collection", DataflowIntrinsic))
 	FManagedArrayCollection Collection;
 
-	/** Array of the selected bone indicies */
+	/** Array of the selected bone indices */
 	UPROPERTY(meta = (DataflowOutput, DisplayName = "TransformSelection"))
 	FDataflowTransformSelection TransformSelection;
 
@@ -678,7 +678,7 @@ public:
 	UPROPERTY(meta = (DataflowInput, DataflowOutput, DataflowPassthrough = "Collection", DataflowIntrinsic))
 	FManagedArrayCollection Collection;
 
-	/** Array of the selected bone indicies */
+	/** Array of the selected bone indices */
 	UPROPERTY(meta = (DataflowOutput, DisplayName = "TransformSelection"))
 	FDataflowTransformSelection TransformSelection;
 
@@ -711,7 +711,7 @@ public:
 	UPROPERTY(meta = (DataflowInput, DataflowOutput, DataflowPassthrough = "Collection", DataflowIntrinsic))
 	FManagedArrayCollection Collection;
 
-	/** Array of the selected bone indicies */
+	/** Array of the selected bone indices */
 	UPROPERTY(meta = (DataflowOutput, DisplayName = "TransformSelection"))
 	FDataflowTransformSelection TransformSelection;
 
@@ -827,7 +827,7 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Size")
 	bool bUseRelativeSize = true;
 
-	/** Array of the selected bone indicies */
+	/** Array of the selected bone indices */
 	UPROPERTY(meta = (DataflowOutput, DisplayName = "TransformSelection"))
 	FDataflowTransformSelection TransformSelection;
 
@@ -878,7 +878,7 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Volume")
 	bool bInclusive = true;
 
-	/** Array of the selected bone indicies */
+	/** Array of the selected bone indices */
 	UPROPERTY(meta = (DataflowOutput, DisplayName = "TransformSelection"))
 	FDataflowTransformSelection TransformSelection;
 
@@ -943,7 +943,7 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Select", meta = (EditCondition = "Type == ESelectSubjectTypeEnum::Dataflow_SelectSubjectType_Vertices"))
 	bool bAllVerticesMustContainedInBox = true;
 
-	/** Array of the selected bone indicies */
+	/** Array of the selected bone indices */
 	UPROPERTY(meta = (DataflowOutput, DisplayName = "TransformSelection"))
 	FDataflowTransformSelection TransformSelection;
 
@@ -994,7 +994,7 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Select", meta = (EditCondition = "Type == ESelectSubjectTypeEnum::Dataflow_SelectSubjectType_Vertices"))
 	bool bAllVerticesMustContainedInSphere = true;
 
-	/** Array of the selected bone indicies */
+	/** Array of the selected bone indices */
 	UPROPERTY(meta = (DataflowOutput, DisplayName = "TransformSelection"))
 	FDataflowTransformSelection TransformSelection;
 
@@ -1053,7 +1053,7 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Attribute")
 	bool bInclusive = true;
 
-	/** Array of the selected bone indicies */
+	/** Array of the selected bone indices */
 	UPROPERTY(meta = (DataflowOutput, DisplayName = "TransformSelection"))
 	FDataflowTransformSelection TransformSelection;
 
@@ -1112,7 +1112,7 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Attribute")
 	bool bInclusive = true;
 
-	/** Transform selection including the new indicies */
+	/** Transform selection including the new indices */
 	UPROPERTY(meta = (DataflowOutput, DisplayName = "TransformSelection"))
 	FDataflowTransformSelection TransformSelection;
 
@@ -1148,11 +1148,11 @@ public:
 	UPROPERTY(meta = (DataflowInput, DataflowOutput, DataflowPassthrough = "Collection", DataflowIntrinsic))
 	FManagedArrayCollection Collection;
 
-	/** Space separated list of vertex indicies to specify the selection */
+	/** Space separated list of vertex indices to specify the selection */
 	UPROPERTY(EditAnywhere, Category = "Selection")
-	FString VertexIndicies = FString();
+	FString VertexIndicies = FString(); //Fix typo for v2
 
-	/** Vertex selection including the new indicies */
+	/** Vertex selection including the new indices */
 	UPROPERTY(meta = (DataflowOutput, DisplayName = "VertexSelection"))
 	FDataflowVertexSelection VertexSelection;
 
@@ -1187,11 +1187,11 @@ public:
 	UPROPERTY(meta = (DataflowInput, DataflowOutput, DataflowPassthrough = "Collection", DataflowIntrinsic))
 	FManagedArrayCollection Collection;
 
-	/** Space separated list of face indicies to specify the selection */
+	/** Space separated list of face indices to specify the selection */
 	UPROPERTY(EditAnywhere, Category = "Selection")
-	FString FaceIndicies = FString();
+	FString FaceIndicies = FString(); //Fix typo for v2
 
-	/** Face selection including the new indicies */
+	/** Face selection including the new indices */
 	UPROPERTY(meta = (DataflowOutput, DisplayName = "FaceSelection"))
 	FDataflowFaceSelection FaceSelection;
 
@@ -1225,15 +1225,15 @@ public:
 	UPROPERTY(meta = (DataflowInput, DataflowOutput, DataflowPassthrough = "Collection", DataflowIntrinsic))
 	FManagedArrayCollection Collection;
 
-	/** Transform selection including the new indicies */
+	/** Transform selection including the new indices */
 	UPROPERTY(meta = (DataflowInput, DataflowOutput, DataflowPassthrough = "TransformSelection", DisplayName = "TransformSelection"))
 	FDataflowTransformSelection TransformSelection;
 
-	/** Face selection including the new indicies */
+	/** Face selection including the new indices */
 	UPROPERTY(meta = (DataflowInput, DataflowOutput, DataflowPassthrough = "FaceSelection", DisplayName = "FaceSelection"))
 	FDataflowFaceSelection FaceSelection;
 
-	/** Vertex selection including the new indicies */
+	/** Vertex selection including the new indices */
 	UPROPERTY(meta = (DataflowInput, DataflowOutput, DataflowPassthrough = "VertexSelection", DisplayName = "VertexSelection"))
 	FDataflowVertexSelection VertexSelection;
 	
@@ -1271,7 +1271,7 @@ struct FCollectionFaceSelectionInvertDataflowNode : public FDataflowNode
 	DATAFLOW_NODE_DEFINE_INTERNAL(FCollectionFaceSelectionInvertDataflowNode, "CollectionFaceSelectInvert", "GeometryCollection|Selection|Face", "")
 
 public:
-	/** Array of the selected bone indicies */
+	/** Array of the selected bone indices */
 	UPROPERTY(meta = (DataflowInput, DataflowOutput, DisplayName = "FaceSelection", DataflowPassthrough = "FaceSelection", DataflowIntrinsic))
 	FDataflowFaceSelection FaceSelection;
 
@@ -1299,7 +1299,7 @@ struct FCollectionVertexSelectionByPercentageDataflowNode : public FDataflowNode
 	DATAFLOW_NODE_DEFINE_INTERNAL(FCollectionVertexSelectionByPercentageDataflowNode, "CollectionVertexSelectByPercentage", "GeometryCollection|Selection|Vertex", "")
 
 public:
-	/** Array of the selected bone indicies */
+	/** Array of the selected bone indices */
 	UPROPERTY(meta = (DataflowInput, DataflowOutput, DisplayName = "VertexSelection", DataflowPassthrough = "VertexSelection", DataflowIntrinsic))
 	FDataflowVertexSelection VertexSelection;
 
@@ -1346,15 +1346,15 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Compare");
 	ESetOperationEnum Operation = ESetOperationEnum::Dataflow_SetOperation_AND;
 
-	/** Array of the selected vertex indicies */
+	/** Array of the selected vertex indices */
 	UPROPERTY(meta = (DataflowInput, DisplayName = "VertexSelectionA", DataflowIntrinsic))
 	FDataflowVertexSelection VertexSelectionA;
 
-	/** Array of the selected vertex indicies */
+	/** Array of the selected vertex indices */
 	UPROPERTY(meta = (DataflowInput, DisplayName = "VertexSelectionB", DataflowIntrinsic))
 	FDataflowVertexSelection VertexSelectionB;
 
-	/** Array of the selected vertex indicies after operation */
+	/** Array of the selected vertex indices after operation */
 	UPROPERTY(meta = (DataflowOutput, DisplayName = "VertexSelection", DataflowPassthrough = "VertexSelectionA"))
 	FDataflowVertexSelection VertexSelection;
 
@@ -1476,6 +1476,44 @@ public:
 		RegisterOutputConnection(&MaterialSelection);
 	}
 
+	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
+};
+
+/**
+ * Converts GeometrySelection to VertexSelection
+ */
+USTRUCT(meta = (DataflowGeometryCollection))
+struct FGeometrySelectionToVertexSelectionDataflowNode final : public FDataflowNode
+{
+	GENERATED_USTRUCT_BODY()
+	DATAFLOW_NODE_DEFINE_INTERNAL(FGeometrySelectionToVertexSelectionDataflowNode, "GeometrySelectionToVertexSelection", "GeometryCollection|Selection|All", "")
+
+public:
+	/** GeometryCollection */
+	UPROPERTY(meta = (DataflowInput))
+	FManagedArrayCollection Collection;
+
+	/** Space separated list of geometry indices to specify the selection when GeometrySelection is not connected*/
+	UPROPERTY(EditAnywhere, Category = "Selection")
+	FString GeometryIndices = FString();
+
+	/** Input geometry selection */
+	UPROPERTY(meta = (DataflowInput, DisplayName = "GeometrySelection"))
+	FDataflowGeometrySelection GeometrySelection;
+
+	/** Vertex selection output */
+	UPROPERTY(meta = (DataflowOutput, DisplayName = "VertexSelection"))
+	FDataflowVertexSelection VertexSelection;
+
+	FGeometrySelectionToVertexSelectionDataflowNode(const UE::Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid())
+		: FDataflowNode(InParam, InGuid)
+	{
+		RegisterInputConnection(&Collection);
+		RegisterInputConnection(&GeometrySelection);
+		RegisterOutputConnection(&VertexSelection);
+	}
+
+private:
 	virtual void Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 };
 

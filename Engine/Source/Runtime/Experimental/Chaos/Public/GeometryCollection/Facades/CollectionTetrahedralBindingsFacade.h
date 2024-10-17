@@ -76,6 +76,9 @@ namespace GeometryCollection::Facades
 		//! Per vertex amount for deformer masking.
 		static CHAOS_API const FName MaskAttributeName;
 
+		// Dependency
+		static const FName TetrahedralGroupDependency;
+
 		/**
 		* FSelectionFacade Constuctor
 		* @param VertixDependencyGroup : GroupName the index attribute is dependent on. 

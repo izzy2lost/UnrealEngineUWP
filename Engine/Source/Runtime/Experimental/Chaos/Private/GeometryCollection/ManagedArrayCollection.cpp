@@ -84,6 +84,34 @@ void FManagedArrayCollection::RemoveElements(const FName& Group, const TArray<in
 	}
 }
 
+void FManagedArrayCollection::MergeElements(const FName& Group, const TArray<int32>& SortedMergeList, const TArray<int32>& MergeRemapIndex, FProcessingParameters Params)
+{
+	check(SortedMergeList.Num() == MergeRemapIndex.Num());
+	if (SortedMergeList.Num())
+	{
+		const int32 GroupSize = GroupInfo[Group].Size;
+		TArray<int32> InverseNewOrder;
+		InverseNewOrder.Init(INDEX_NONE, GroupSize);
+		for (int32 Idx = 0; Idx < GroupSize; ++Idx)
+		{
+			InverseNewOrder[Idx] = Idx;
+		}
+		for (int32 DeletedIdx = 0; DeletedIdx < MergeRemapIndex.Num(); ++DeletedIdx)
+		{
+			InverseNewOrder[SortedMergeList[DeletedIdx]] = MergeRemapIndex[DeletedIdx];
+		}
+		for (TTuple<FKeyType, FValueType>& Entry : Map)
+		{
+			// Reindex attributes dependent deleted elements
+			if (Entry.Value.GetGroupIndexDependency() == Group)
+			{
+				Entry.Value.Modify().ReindexFromLookup(InverseNewOrder);
+			}
+		}
+		FManagedArrayCollection::RemoveElements(Group, SortedMergeList, Params);
+	}
+}
+
 void FManagedArrayCollection::RemoveElements(const FName& Group, int32 NumberElements, int32 Position)
 {
 	TArray<int32> SortedDeletionList;
@@ -412,7 +440,7 @@ void FManagedArrayCollection::ReorderElements(FName Group, const TArray<int32>& 
 	check(GroupSize == NewOrder.Num());
 
 	TArray<int32> InverseNewOrder;
-	InverseNewOrder.Init(-1, GroupSize);
+	InverseNewOrder.Init(INDEX_NONE, GroupSize);
 	for (int32 Idx = 0; Idx < GroupSize; ++Idx)
 	{
 		InverseNewOrder[NewOrder[Idx]] = Idx;

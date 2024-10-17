@@ -168,6 +168,10 @@ public:
 	T* NewCopy() const
 	{
 		T* Collection = new T();
+		for (const FName& GroupName : Collection->GroupNames())
+		{
+			Collection->EmptyGroup(GroupName); //Geometry collection has 1 element in ConvexProperties group when initialized
+		}
 		CopyTo(Collection);
 		return Collection;
 	}
@@ -394,6 +398,12 @@ public:
 	* Remove the element at index and reindex the dependent arrays 
 	*/
 	CHAOS_API virtual void RemoveElements(const FName & Group, const TArray<int32> & SortedDeletionList, FProcessingParameters Params = FProcessingParameters());
+
+	/**
+	* Merge the element indexed SortedMergeList[Idx] to the element indexed MergeRemapIndex[Idx]
+	* first redirect references of SortedMergeList[Idx] then delete
+	*/
+	CHAOS_API virtual void MergeElements(const FName& Group, const TArray<int32>& SortedMergeList, const TArray<int32>& MergeRemapIndex, FProcessingParameters Params = FProcessingParameters());
 
 	/**
 	* Remove the elements at Position and reindex the dependent arrays 
