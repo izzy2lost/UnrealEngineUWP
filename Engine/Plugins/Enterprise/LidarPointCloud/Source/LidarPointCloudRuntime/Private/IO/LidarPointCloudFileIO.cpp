@@ -250,9 +250,12 @@ TArray<FString> ULidarPointCloudFileIO::GetSupportedExportExtensions()
 
 void ULidarPointCloudFileIO::RegisterHandler(FLidarPointCloudFileIOHandler* Handler, const TArray<FString>& Extensions)
 {
-	for (const FString& Extension : Extensions)
+	if (Instance)
 	{
-		Instance->RegisteredHandlers.Emplace(Extension, Handler);
+		for (const FString& Extension : Extensions)
+		{
+			Instance->RegisteredHandlers.Emplace(Extension, Handler);
+		}
 	}
 }
 
