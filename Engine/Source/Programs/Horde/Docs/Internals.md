@@ -6,6 +6,11 @@
 
 * [Building Horde](Internals/Building.md)
 
+## Interfacing with Horde
+
+* [C# API](Internals/CsApi.md)
+* [REST API](Internals/RestApi.md)
+
 ## Features
 
 * [Compute Architecture](Internals/ComputeArchitecture.md)
