@@ -1708,8 +1708,10 @@ void FGeometryCollectionPhysicsProxy::SyncParticles_External()
 			FParticle* GTParticle = GTParticles[Index].Get();
 			check(GTParticle != nullptr);
 			FClusterHandle* Handle = SolverParticleHandles[Index];
-			check(Handle != nullptr);
-			Handle->GTGeometryParticle() = GTParticle;
+			if (Handle != nullptr)
+			{
+				Handle->GTGeometryParticle() = GTParticle;
+			}
 		}
 	});
 }
