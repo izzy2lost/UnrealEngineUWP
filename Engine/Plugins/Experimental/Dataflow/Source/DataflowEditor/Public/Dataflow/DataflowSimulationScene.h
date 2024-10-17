@@ -65,6 +65,9 @@ public:
 	UFUNCTION(CallInEditor, Category = "Geometry", meta = (EditCondition = "CacheAsset != nullptr && GeometryCacheAsset != nullptr && EmbeddedSkeletalMesh != nullptr"))
 	void NewGeometryCache();
 
+	/** Visibility of the skeletal mesh */
+	UPROPERTY(EditAnywhere, Category = "Skeletal Mesh")
+	bool bSkeletalMeshVisibility = true;
 private:
 
 	//~ UObject Interface

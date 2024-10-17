@@ -198,7 +198,7 @@ void FDataflowSimulationScene::CreateSimulationScene()
 			SceneDescription->CacheAsset, false, GetEditorContent(), SceneDescription->BlueprintTransform);
 
 		// Setup all the skelmesh animations
-		UE::Dataflow::SetupSkeletonAnimation(PreviewActor);
+		UE::Dataflow::SetupSkeletonAnimation(PreviewActor, SceneDescription->bSkeletalMeshVisibility);
 		
 		GetWorld()->GetSubsystem<UDataflowSimulationManager>()->SetSimulationEnabled(false);
 	}
@@ -335,7 +335,7 @@ void UDataflowSimulationSceneDescription::GenerateGeometryCache()
 		}
 		if (!GeometryCachable)
 		{
-			UE_LOG(LogChaosDataflow, Error, TEXT("No Flesh Component in the Preview Actor"));
+			UE_LOG(LogDataflowSimulationGeometryCache, Error, TEXT("No GeometryCachable Component in the Preview Actor"));
 			return;
 		}
 		TOptional<TArray<int32>> OptionalMap = GeometryCachable->GetMeshImportVertexMap(*EmbeddedSkeletalMesh);

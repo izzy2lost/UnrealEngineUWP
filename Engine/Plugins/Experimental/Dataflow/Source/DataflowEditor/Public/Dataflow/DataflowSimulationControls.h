@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
@@ -22,7 +22,7 @@ namespace UE::Dataflow
 		const bool bIsRecording, const TObjectPtr<UDataflowBaseContent>& DataflowContent, const FTransform& ActorTransform);
 
 	/** Setup the skelmesh animations to be used in the scene/generator */
-	void SetupSkeletonAnimation(const TObjectPtr<AActor>& PreviewActor);
+	void SetupSkeletonAnimation(const TObjectPtr<AActor>& PreviewActor, const bool bSkeletalMeshVisibility = true);
 
 	/** Update the skelmesh animation at some point in time (GT) */
 	void UpdateSkeletonAnimation(const TObjectPtr<AActor>& PreviewActor, const float SimulationTime);
