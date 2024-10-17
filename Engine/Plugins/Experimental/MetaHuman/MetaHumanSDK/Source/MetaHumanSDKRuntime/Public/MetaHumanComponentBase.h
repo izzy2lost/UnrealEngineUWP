@@ -189,12 +189,12 @@ protected:
 	//////////////////////////////////////////////////////////////////////////////
 	// Body Parts
 	//////////////////////////////////////////////////////////////////////////////
-	UPROPERTY(EditAnywhere, Category = Torso, meta = (ShowOnlyInnerProperties))
+	UPROPERTY(EditAnywhere, Category = BodyParts)
 	FMetaHumanCustomizableBodyPart Torso;
 
-	UPROPERTY(EditAnywhere, Category = Legs, meta = (ShowOnlyInnerProperties))
+	UPROPERTY(EditAnywhere, Category = BodyParts)
 	FMetaHumanCustomizableBodyPart Legs;
 
-	UPROPERTY(EditAnywhere, Category = Feet, meta = (ShowOnlyInnerProperties))
+	UPROPERTY(EditAnywhere, Category = BodyParts)
 	FMetaHumanCustomizableBodyPart Feet;
 };
