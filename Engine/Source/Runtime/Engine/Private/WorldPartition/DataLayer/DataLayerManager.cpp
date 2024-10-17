@@ -237,11 +237,6 @@ void UDataLayerManager::Initialize()
 
 void UDataLayerManager::DeInitialize()
 {
-	if (AWorldDataLayers* WorldDataLayers = GetWorldDataLayers())
-	{
-		WorldDataLayers->OnDataLayerManagerDeinitialized();
-	}
-
 #if WITH_EDITOR
 	UActorDescContainerInstance::OnActorDescContainerInstanceInitialized.RemoveAll(this);
 
