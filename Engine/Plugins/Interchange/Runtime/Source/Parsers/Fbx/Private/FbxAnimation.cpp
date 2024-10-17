@@ -883,7 +883,12 @@ namespace UE::Interchange::Private
 		, TMap<FString, TSharedPtr<FPayloadContextBase>>& PayloadContexts
 		, const FMorphTargetAnimationBuildingData& MorphTargetAnimationBuildingData)
 	{
-		FString PayLoadKey = MorphTargetAnimationBuildingData.MorphTargetNodeUid + TEXT("\\") + FString::FromInt(MorphTargetAnimationBuildingData.AnimationIndex) + TEXT("\\") + FString::FromInt(MorphTargetAnimationBuildingData.MorphTargetIndex) + TEXT("\\") + FString::FromInt(MorphTargetAnimationBuildingData.ChannelIndex) + TEXT("_CurveAnimationPayloadKey");
+		FString PayLoadKey = MorphTargetAnimationBuildingData.MorphTargetNodeUid
+			+ TEXT("\\") + (MorphTargetAnimationBuildingData.InterchangeMeshNode ? MorphTargetAnimationBuildingData.InterchangeMeshNode->GetUniqueID() : FString()) //Same shape can be animated on different mesh node
+			+ TEXT("\\") + FString::FromInt(MorphTargetAnimationBuildingData.AnimationIndex)
+			+ TEXT("\\") + FString::FromInt(MorphTargetAnimationBuildingData.MorphTargetIndex)
+			+ TEXT("\\") + FString::FromInt(MorphTargetAnimationBuildingData.ChannelIndex)
+			+ TEXT("_CurveAnimationPayloadKey");
 
 		if (ensure(!PayloadContexts.Contains(PayLoadKey)))
 		{
