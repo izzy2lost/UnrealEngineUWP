@@ -174,6 +174,16 @@ ADisplayClusterRootActor* FDisplayClusterViewportConfiguration::GetRootActor(con
 	return nullptr;
 }
 
+FString FDisplayClusterViewportConfiguration::GetRootActorName() const
+{
+	if (ADisplayClusterRootActor* RootActor = GetRootActor(EDisplayClusterRootActorType::Scene))
+	{
+		return RootActor->GetName();
+	}
+
+	return FString();
+}
+
 void FDisplayClusterViewportConfiguration::OnHandleStartScene()
 {
 	bCurrentSceneActive = true;

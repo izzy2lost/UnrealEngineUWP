@@ -139,6 +139,10 @@ public:
 	void OnHandleStartScene();
 	void OnHandleEndScene();
 
+
+	/** Returns the DCRA name or an empty string. */
+	FString GetRootActorName() const;
+
 private:
 	/** Update configuration implementation.
 	* 

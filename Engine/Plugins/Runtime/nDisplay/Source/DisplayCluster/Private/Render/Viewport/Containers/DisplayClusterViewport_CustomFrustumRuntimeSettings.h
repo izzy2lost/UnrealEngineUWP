@@ -12,11 +12,19 @@ struct FDisplayClusterViewport_CustomFrustumRuntimeSettings
 {
 	/** Update custom frustum settings
 	*
-	* @param InViewport            - owner viewport
-	* @param InOutRuntimeSettings  - the CustomFrustum runtime settings.
-	* @param InOutRenderTargetRect - Viewport rect, changeable during CustomFrustum
+	* @param InViewportId            - owner viewport name
+	* @param InCustomFrustumSettings - CustomFrustum settings
+	* @param InOutRuntimeSettings    - CustomFrustum runtime settings.
+	* @param InOutRenderTargetRect   - Viewport rect, changeable during CustomFrustum
+	* @param InCustomResourceName    - (opt) The unique resource name used for log messages.
+	*                                        Use a new custom resource name for each new location from which this function is called.
 	*/
-	static void UpdateCustomFrustumSettings(const FString& InViewportId, const FDisplayClusterViewport_CustomFrustumSettings& InCustomFrustumSettings, FDisplayClusterViewport_CustomFrustumRuntimeSettings& InOutRuntimeSettings, FIntRect& InOutRenderTargetRect);
+	static void UpdateCustomFrustumSettings(
+		const FString& InViewportId,
+		const FDisplayClusterViewport_CustomFrustumSettings& InCustomFrustumSettings,
+		FDisplayClusterViewport_CustomFrustumRuntimeSettings& InOutRuntimeSettings,
+		FIntRect& InOutRenderTargetRect,
+		const TCHAR* InCustomResourceName = nullptr);
 	
 	/** Update projection angles by custom frustum
 	*

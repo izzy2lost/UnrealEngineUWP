@@ -130,15 +130,12 @@ FIntRect FDisplayClusterViewportHelpers::GetValidViewportRect(const FIntRect& In
 
 	FIntRect OutRect(InRect.Min, InRect.Min + FIntPoint(Width, Height));
 
-	float RectScale = 1;
 
 	// Make sure the rect doesn't exceed the maximum resolution, and preserve its aspect ratio if it needs to be clamped
-	int32 RectMaxSize = OutRect.Max.GetMax();
-	if (RectMaxSize > MaxTextureSize)
-	{
-		RectScale = float(MaxTextureSize) / RectMaxSize;
-		UE_LOG(LogDisplayClusterViewport, Error, TEXT("The viewport '%s' rect '%s' size %dx%d clamped: max texture dimensions is %d"), *InViewportId, (InResourceName == nullptr) ? TEXT("none") : InResourceName, InRect.Max.X, InRect.Max.Y, MaxTextureSize);
-	}
+	const int32 RectMaxSize = OutRect.Max.GetMax();
+	const float RectScale = (RectMaxSize > MaxTextureSize)
+		? float(MaxTextureSize) / RectMaxSize
+		: 1.f;
 
 	OutRect.Min.X = FMath::Min(OutRect.Min.X, MaxTextureSize);
 	OutRect.Min.Y = FMath::Min(OutRect.Min.Y, MaxTextureSize);
@@ -147,6 +144,42 @@ FIntRect FDisplayClusterViewportHelpers::GetValidViewportRect(const FIntRect& In
 
 	OutRect.Max.X = FMath::Clamp(ScaledRectMax.X, OutRect.Min.X, MaxTextureSize);
 	OutRect.Max.Y = FMath::Clamp(ScaledRectMax.Y, OutRect.Min.Y, MaxTextureSize);
+
+	// It's a temporary solution.
+	// It does not work properly for multiple DCRAs with the same viewport names.
+	static TMap<FString, bool> CachedLogMessages;
+	const FString UniqueLogMessageId = FString::Printf(TEXT("%s.%s"), *InViewportId, (InResourceName == nullptr) ? TEXT("none") : InResourceName);
+	bool* const LogMessageStatePtr = CachedLogMessages.Find(UniqueLogMessageId);
+
+	if (InRect != OutRect)
+	{
+		if (LogMessageStatePtr == nullptr || *LogMessageStatePtr == false)
+		{
+			UE_LOG(LogDisplayClusterViewport, Error,
+				TEXT("The '%s' %s has been clamped %dx%d->%dx%d (max texture dimensions is %d)"),
+				*InViewportId,
+				(InResourceName == nullptr) ? TEXT("none") : InResourceName,
+				InRect.Width(), InRect.Height(),
+				OutRect.Width(), OutRect.Height(),
+				MaxTextureSize);
+
+			// Raise the flag to show the log message once
+			if (LogMessageStatePtr)
+			{
+				*LogMessageStatePtr = true;
+			}
+			else
+			{
+				CachedLogMessages.Emplace(UniqueLogMessageId, true);
+			}
+		}
+	}
+	else if (LogMessageStatePtr)
+	{
+		// Reset flag
+		*LogMessageStatePtr = false;
+	}
+
 
 	return OutRect;
 }
