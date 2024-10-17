@@ -46,11 +46,19 @@ void FHeadMountedDisplayBase::RecordAnalytics()
 bool FHeadMountedDisplayBase::PopulateAnalyticsAttributes(TArray<FAnalyticsEventAttribute>& EventAttributes)
 {
 	IHeadMountedDisplay::MonitorInfo MonitorInfo;
-	GetHMDMonitorInfo(MonitorInfo);
+	if (!GetHMDMonitorInfo(MonitorInfo))
+	{
+		// still send the event but fill it with predictable values
+		MonitorInfo = IHeadMountedDisplay::MonitorInfo();
+		MonitorInfo.MonitorId = -1;
+		MonitorInfo.MonitorName = TEXT("FailedToGetHMDMonitorInfo");
+	}
 
 	EventAttributes.Add(FAnalyticsEventAttribute(TEXT("DeviceName"), GetSystemName().ToString()));
 	EventAttributes.Add(FAnalyticsEventAttribute(TEXT("VersionString"), UHeadMountedDisplayFunctionLibrary::GetVersionString()));
 	EventAttributes.Add(FAnalyticsEventAttribute(TEXT("DisplayDeviceName"), *MonitorInfo.MonitorName));
+	// duplicating the metric because DisplayDeviceName has been sent garbage values before and cannot be trusted.
+	EventAttributes.Add(FAnalyticsEventAttribute(TEXT("HMDMonitorName"), *MonitorInfo.MonitorName));
 #if PLATFORM_WINDOWS
 	EventAttributes.Add(FAnalyticsEventAttribute(TEXT("DisplayId"), MonitorInfo.MonitorId));
 #else // Other platforms need some help in formatting size_t as text

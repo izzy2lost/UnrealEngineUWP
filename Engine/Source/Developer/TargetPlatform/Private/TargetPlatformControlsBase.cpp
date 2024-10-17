@@ -29,6 +29,9 @@ void FTargetPlatformControlsBase::GetPlatformSpecificProjectAnalytics(TArray<FAn
 	static IConsoleVariable* CVarMobileMultiView = IConsoleManager::Get().FindConsoleVariable(TEXT("vr.MobileMultiView"));
 	const bool bVrMobileMultiView = CVarMobileMultiView ? (CVarMobileMultiView->GetInt() != 0) : false;
 
+	static IConsoleVariable* CVarAllowStaticLighting = IConsoleManager::Get().FindConsoleVariable(TEXT("r.AllowStaticLighting"));
+	const bool bRAllowStaticLighting = CVarAllowStaticLighting ? (CVarAllowStaticLighting->GetInt() != 0) : false;
+
 	AppendAnalyticsEventAttributeArray(AnalyticsParamArray,
 		TEXT("UsesDistanceFields"), TargetPlatformSettings->UsesDistanceFields(),
 		TEXT("UsesForwardShading"), TargetPlatformSettings->UsesForwardShading(),
@@ -36,7 +39,8 @@ void FTargetPlatformControlsBase::GetPlatformSpecificProjectAnalytics(TArray<FAn
 		TEXT("RForwardShading"), bRForwardShading,
 		TEXT("RMobileHdr"), bRMobileHdr,
 		TEXT("VrInstancedStereo"), bVrInstancedStereo,
-		TEXT("VrMobileMultiView"), bVrMobileMultiView
+		TEXT("VrMobileMultiView"), bVrMobileMultiView,
+		TEXT("RAllowStaticLighting"), bRAllowStaticLighting
 	);
 }
 
