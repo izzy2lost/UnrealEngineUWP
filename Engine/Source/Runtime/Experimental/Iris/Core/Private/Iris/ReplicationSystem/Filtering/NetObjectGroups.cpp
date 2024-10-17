@@ -22,8 +22,12 @@ static int32 CVarEnsureIfNumGroupMembershipsExceedsNum = 128;
 static FAutoConsoleVariableRef CVarEnsureIfNumGroupMembershipsExceeds(TEXT("net.Iris.EnsureIfNumGroupMembershipsExceeds"), CVarEnsureIfNumGroupMembershipsExceedsNum, TEXT("If set to a positive number we will warn and ensure if an object is added to a high number of groups."), ECVF_Default );
 
 FNetObjectGroups::FNetObjectGroups()
-: CurrentEpoch(++NetObjectGroupsInternal::NextEpoch)
+: CurrentEpoch((++NetObjectGroupsInternal::NextEpoch) & FNetObjectGroupHandle::EpochMask)
 {
+	if (CurrentEpoch == 0U)
+	{
+		UE_LOG(LogIris, Warning, TEXT("FNetObjectGroups::Epoch wraparound detected."));
+	}
 }
 
 FNetObjectGroups::~FNetObjectGroups()
@@ -56,8 +60,8 @@ void FNetObjectGroups::Init(const FNetObjectGroupInitParams& Params)
 {
 	NetRefHandleManager = Params.NetRefHandleManager;
 
-	ensureMsgf(Params.MaxGroupCount < std::numeric_limits<FNetObjectGroupHandle::FGroupIndexType>::max(), TEXT("MaxGroupCount cannot exceed %u"), std::numeric_limits<FNetObjectGroupHandle::FGroupIndexType>::max());
-	MaxGroupCount = FMath::Clamp<uint32>(Params.MaxGroupCount, 0U, std::numeric_limits<FNetObjectGroupHandle::FGroupIndexType>::max());
+	ensureMsgf(Params.MaxGroupCount <= FNetObjectGroupHandle::MaxGroupIndexCount, TEXT("MaxGroupCount cannot exceed %u"), FNetObjectGroupHandle::MaxGroupIndexCount);
+	MaxGroupCount = FMath::Clamp<uint32>(Params.MaxGroupCount, 0U, FNetObjectGroupHandle::MaxGroupIndexCount);
 
 	// Reserve first as invalid group
 	Groups.Add(FNetObjectGroup());
