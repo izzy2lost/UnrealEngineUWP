@@ -336,20 +336,43 @@ void UDataflowEdNode::PinConnectionListChanged(UEdGraphPin* Pin)
 	{
 		if (TSharedPtr<FDataflowNode> DataflowNode = DataflowGraph->FindBaseNode(DataflowNodeGuid))
 		{
+			check(Pin);
+
+			// Return whether a pin in the UEdGraph matches the specified connection in the Dataflow::FGraph
+			auto MatchesConnection = [this](const UEdGraphPin* const Pin, const FDataflowConnection* const Connection) -> bool
+				{
+					if (const UDataflowEdNode* const LinkedNode = Cast<UDataflowEdNode>(Pin->GetOwningNode()))
+					{
+						if (ensure(LinkedNode->IsBound()))
+						{
+							if (const TSharedPtr<FDataflowNode> LinkedDataflowNode = DataflowGraph->FindBaseNode(LinkedNode->GetDataflowNodeGuid()))
+							{
+								return
+									(Pin->Direction == EEdGraphPinDirection::EGPD_Input &&
+										Connection == LinkedDataflowNode->FindInput(FName(Pin->GetName()))) ||
+									(Pin->Direction == EEdGraphPinDirection::EGPD_Output &&
+										Connection == LinkedDataflowNode->FindOutput(FName(Pin->GetName())));
+							}
+						}
+					}
+					return false;
+				};
+
 			if (Pin->Direction == EEdGraphPinDirection::EGPD_Input)
 			{
-				if (FDataflowInput* ConnectionInput = DataflowNode->FindInput(FName(Pin->GetName())))
+				if (FDataflowInput* const ConnectionInput = DataflowNode->FindInput(FName(Pin->GetName())))
 				{
-					DataflowGraph->ClearConnections(ConnectionInput);
-					for (UEdGraphPin* LinkedCon : Pin->LinkedTo)
+					// Add any newly added connections
+					for (const UEdGraphPin* const LinkedCon : Pin->LinkedTo)
 					{
-						if (UDataflowEdNode* LinkedNode = Cast<UDataflowEdNode>(LinkedCon->GetOwningNode()))
+						const UDataflowEdNode* const LinkedNode = Cast<UDataflowEdNode>(LinkedCon->GetOwningNode());
+						if (ensure(LinkedNode && LinkedNode->IsBound()))
 						{
-							if (ensure(LinkedNode->IsBound()))
+							if (const TSharedPtr<FDataflowNode> LinkedDataflowNode = DataflowGraph->FindBaseNode(LinkedNode->GetDataflowNodeGuid()))
 							{
-								if (TSharedPtr<FDataflowNode> LinkedDataflowNode = DataflowGraph->FindBaseNode(LinkedNode->GetDataflowNodeGuid()))
+								if (FDataflowOutput* const LinkedConOutput = LinkedDataflowNode->FindOutput(FName(LinkedCon->GetName())))
 								{
-									if (FDataflowOutput* LinkedConOutput = LinkedDataflowNode->FindOutput(FName(LinkedCon->GetName())))
+									if (ConnectionInput->GetConnectedOutputs().Find(LinkedConOutput) == INDEX_NONE)
 									{
 										const bool bTypeChanged = DataflowNode->TrySetConnectionType(ConnectionInput, LinkedConOutput->GetType());
 										DataflowGraph->Connect(LinkedConOutput, ConnectionInput);
@@ -358,39 +381,58 @@ void UDataflowEdNode::PinConnectionListChanged(UEdGraphPin* Pin)
 										{
 											UpdatePinsFromDataflowNode();
 										}
-
 									}
 								}
 							}
+						}
+					}
+					// Clear any defunct connection
+					if (FDataflowOutput* const ConnectedOutput = ConnectionInput->GetConnection())
+					{
+						if (!Pin->LinkedTo.FindByPredicate(
+							[this, ConnectedOutput, &MatchesConnection](const UEdGraphPin* const LinkedCon) -> bool
+							{
+								return MatchesConnection(LinkedCon, ConnectedOutput);
+							}))
+						{
+							DataflowGraph->Disconnect(ConnectedOutput, ConnectionInput);
 						}
 					}
 				}
 			}
 			else if (Pin->Direction == EEdGraphPinDirection::EGPD_Output)
 			{
-				if (FDataflowOutput* ConnectionOutput = DataflowNode->FindOutput(FName(Pin->GetName())))
+				// Update newly added connections from the input pins
+				for (UEdGraphPin* const LinkedPin : Pin->LinkedTo)
 				{
-					DataflowGraph->ClearConnections(ConnectionOutput);
-					for (UEdGraphPin* LinkedCon : Pin->LinkedTo)
-					{
-						if (UDataflowEdNode* LinkedNode = Cast<UDataflowEdNode>(LinkedCon->GetOwningNode()))
-						{
-							if (ensure(LinkedNode->IsBound()))
-							{
-								if (TSharedPtr<FDataflowNode> LinkedDataflowNode = DataflowGraph->FindBaseNode(LinkedNode->GetDataflowNodeGuid()))
-								{
-									if (FDataflowInput* LinkedConInput = LinkedDataflowNode->FindInput(FName(LinkedCon->GetName())))
-									{
-										const bool bTypeChanged = DataflowNode->TrySetConnectionType(ConnectionOutput, LinkedConInput->GetType());
-										DataflowGraph->Connect(ConnectionOutput, LinkedConInput);
+					LinkedPin->GetOwningNode()->PinConnectionListChanged(LinkedPin);
+				}
 
-										if (bTypeChanged)
-										{
-											UpdatePinsFromDataflowNode();
-										}
-									}
-								}
-								
+				// Remove any remaining defunct connections
+				if (FDataflowOutput* const ConnectionOutput = DataflowNode->FindOutput(FName(Pin->GetName())))
+				{
+					const TArray<FDataflowInput*> InputsToDisconnect =
+						ConnectionOutput->GetConnections().FilterByPredicate(
+							[this, &Pin, &MatchesConnection](FDataflowInput* const ConnectedInput) -> bool
+							{
+								return ensure(ConnectedInput) && !Pin->LinkedTo.FindByPredicate(
+									[this, ConnectedInput, &MatchesConnection](const UEdGraphPin* const LinkedCon) -> bool
+									{
+										return MatchesConnection(LinkedCon, ConnectedInput);
+									});
+							});
+					UDataflow* const EdGraph = CastChecked<UDataflow>(GetGraph());
+					for (FDataflowInput* const ConnectedInput : InputsToDisconnect)
+					{
+						const TObjectPtr<UDataflowEdNode> InputEdNode = EdGraph->FindEdNodeByDataflowNodeGuid(ConnectedInput->GetOwningNodeGuid());
+						if (ensure(InputEdNode))
+						{
+							UEdGraphPin* const InputPin = InputEdNode->FindPin(ConnectedInput->GetName(), EEdGraphPinDirection::EGPD_Input);
+							if (ensure(InputPin))
+							{
+								// To avoid double invalidations, instead of disconnecting, update connections by calling PinConnectionListChanged on the input pin
+								// This means PinConnectionListChanged might be called twice on the input, with the second time resulting in no actions
+								InputEdNode->PinConnectionListChanged(InputPin);
 							}
 						}
 					}

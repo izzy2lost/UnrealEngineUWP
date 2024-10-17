@@ -57,7 +57,7 @@ public:
 	DATAFLOWENGINE_API void Serialize(FArchive& Ar);
 	// End UObject interface
 
-	bool IsBound() { return DataflowGraph && DataflowNodeGuid.IsValid(); }
+	bool IsBound() const { return DataflowGraph && DataflowNodeGuid.IsValid(); }
 
 	TSharedPtr<UE::Dataflow::FGraph> GetDataflowGraph() { return DataflowGraph; }
 	TSharedPtr<const UE::Dataflow::FGraph> GetDataflowGraph() const { return DataflowGraph; }

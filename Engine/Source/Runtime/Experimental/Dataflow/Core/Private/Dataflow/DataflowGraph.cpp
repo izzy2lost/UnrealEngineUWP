@@ -116,22 +116,49 @@ namespace UE::Dataflow
 	{
 		if (ensure(OutputConnection && InputConnection))
 		{
-			OutputConnection->AddConnection(InputConnection);
-			InputConnection->AddConnection(OutputConnection);
-			Connections.Add(FLink(
-				OutputConnection->GetOwningNode()->GetGuid(), OutputConnection->GetGuid(),
-				InputConnection->GetOwningNode()->GetGuid(), InputConnection->GetGuid()));
+			FDataflowOutput* const OldOutputConnection = InputConnection->GetConnection();
+			if (OldOutputConnection != OutputConnection)
+			{
+				if (OldOutputConnection)
+				{
+					UE_LOG(LogChaosDataflow, Verbose, TEXT("FGraph::Connect(): Disconnecting output [%s:%s] from input [%s:%s]"),
+						OldOutputConnection && OldOutputConnection->GetOwningNode() ? *OldOutputConnection->GetOwningNode()->GetName().ToString() : TEXT("Invalid"),
+						OldOutputConnection ? *OldOutputConnection->GetName().ToString() : TEXT("Invalid"),
+						InputConnection->GetOwningNode() ? *InputConnection->GetOwningNode()->GetName().ToString() : TEXT("Invalid"),
+						*InputConnection->GetName().ToString());
+					// Note: Do not remove the expired connection from the input to avoid an unnecessary invalidation.
+					//       Simply clobber it with calling AddConnection() on the input instead.
+					OldOutputConnection->RemoveConnection(InputConnection);
+					Connections.RemoveSwap(FLink(
+						OldOutputConnection->GetOwningNode()->GetGuid(), OldOutputConnection->GetGuid(),
+						InputConnection->GetOwningNode()->GetGuid(), InputConnection->GetGuid()));
+				}
+				UE_LOG(LogChaosDataflow, Verbose, TEXT("FGraph::Connect(): Connecting output [%s:%s] to input [%s:%s]"),
+					OutputConnection->GetOwningNode() ? *OutputConnection->GetOwningNode()->GetName().ToString() : TEXT("Invalid"),
+					*OutputConnection->GetName().ToString(),
+					InputConnection->GetOwningNode() ? *InputConnection->GetOwningNode()->GetName().ToString() : TEXT("Invalid"),
+					*InputConnection->GetName().ToString());
+				OutputConnection->AddConnection(InputConnection);
+				InputConnection->AddConnection(OutputConnection);
+				Connections.Add(FLink(
+					OutputConnection->GetOwningNode()->GetGuid(), OutputConnection->GetGuid(),
+					InputConnection->GetOwningNode()->GetGuid(), InputConnection->GetGuid()));
+			}
 		}
 	}
 
 	void FGraph::Disconnect(FDataflowOutput* OutputConnection, FDataflowInput* InputConnection)
 	{
+		UE_LOG(LogChaosDataflow, Verbose, TEXT("FGraph::Diconnect(): Disconnecting output [%s:%s] from input [%s:%s]"),
+			OutputConnection->GetOwningNode() ? *OutputConnection->GetOwningNode()->GetName().ToString() : TEXT("Invalid"),
+			*OutputConnection->GetName().ToString(),
+			InputConnection->GetOwningNode() ? *InputConnection->GetOwningNode()->GetName().ToString() : TEXT("Invalid"),
+			*InputConnection->GetName().ToString());
 		OutputConnection->RemoveConnection(InputConnection);
 		InputConnection->RemoveConnection(OutputConnection);
 		Connections.RemoveSwap(FLink(
 			OutputConnection->GetOwningNode()->GetGuid(), OutputConnection->GetGuid(),
 			InputConnection->GetOwningNode()->GetGuid(), InputConnection->GetGuid()));
-
 	}
 
 	void FGraph::AddReferencedObjects(FReferenceCollector& Collector)
