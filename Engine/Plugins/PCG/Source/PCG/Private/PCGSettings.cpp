@@ -207,13 +207,16 @@ void UPCGSettingsInterface::SetEnabled(bool bInEnabled)
 	if (bEnabled != bInEnabled)
 	{
 		bEnabled = bInEnabled;
-#if WITH_EDITOR
+
 		if (UPCGSettings* Settings = GetSettings())
 		{
+			Settings->CacheCrc();
+
+#if WITH_EDITOR
 			const EPCGChangeType ChangeType = Settings->GetChangeTypeForProperty(GET_MEMBER_NAME_CHECKED(UPCGSettingsInterface, bEnabled));
 			OnSettingsChangedDelegate.Broadcast(Settings, ChangeType);
-		}
 #endif
+		}
 	}
 }
 
