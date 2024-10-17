@@ -128,6 +128,10 @@ void UVCamOutputProviderBase::HandleCallingOnActivate()
 	if (!bIsActuallyActive)
 	{
 		OnActivate();
+		// Avoid broadcasting in the base OnActivate, as a listener might trigger OnDeactivate.
+		// This would require the subclass to verify if it's still active after calling the base OnActivate.
+		// To prevent this, we broadcast after OnActivate has fully completed.
+		OnActivatedDelegate.Broadcast(true);
 	}
 }
 
@@ -136,6 +140,8 @@ void UVCamOutputProviderBase::HandleCallingOnDeactivate()
 	if (bIsActuallyActive)
 	{
 		OnDeactivate();
+		// Similar as on OnActivate: execute after full virtual call hierarchy of OnDeactivate has been processed.
+		OnActivatedDelegate.Broadcast(false);
 	}
 }
 
@@ -220,8 +226,6 @@ void UVCamOutputProviderBase::OnActivate()
 	RequestResolutionRefresh();
 	CreateUMG();
 	DisplayUMG();
-
-	OnActivatedDelegate.Broadcast(true);
 }
 
 void UVCamOutputProviderBase::OnDeactivate()
@@ -231,8 +235,6 @@ void UVCamOutputProviderBase::OnDeactivate()
 	
 	RequestResolutionRefresh();
 	DestroyUMG();
-	
-	OnActivatedDelegate.Broadcast(false);
 }
 
 void UVCamOutputProviderBase::CreateUMG()
