@@ -1335,7 +1335,7 @@ namespace Metasound
 			return nullptr;
 		}
 
-		void FEditor::SetSelection(const TArray<UObject*>& SelectedObjects)
+		void FEditor::SetSelection(const TArray<UObject*>& SelectedObjects, bool bInvokeTabOnSelectionSet)
 		{
 			if (GraphMembersMenu.IsValid())
 			{
@@ -1354,7 +1354,7 @@ namespace Metasound
 			{
 				if (SelectedObjects.IsEmpty())
 				{
-					if (TabManager.IsValid())
+					if (bInvokeTabOnSelectionSet && TabManager.IsValid())
 					{
 						if (ShowPageGraphDetails())
 						{
@@ -1366,7 +1366,7 @@ namespace Metasound
 				{
 					MetasoundDetails->SetObjects(SelectedObjects);
 					MetasoundDetails->HideFilterArea(false);
-					if (TabManager.IsValid())
+					if (bInvokeTabOnSelectionSet && TabManager.IsValid())
 					{
 						TabManager->TryInvokeTab(TabNamesPrivate::Details);
 					}
@@ -1668,7 +1668,11 @@ namespace Metasound
 			MetasoundDetails->SetExtensionHandler(MakeShared<FMetaSoundNodeExtensionHandler>());
 
 			// Set details selection to the MetaSound's source settings 
-			SetSelection({ &MetaSound });
+				// Don't invoke tab as this can be called in response
+				// to opening multiple assets, and the higher level
+				// request handles tab invocation/focus
+				constexpr bool bInvokeTabOnSelectionSet = false;
+			SetSelection({ &MetaSound }, false);
 			InterfacesDetails = PropertyModule.CreateDetailView(Args);
 			if (InterfacesDetails.IsValid())
 			{
@@ -4597,7 +4601,11 @@ namespace Metasound
 
 				if (!Selection.IsEmpty())
 				{
-					SetSelection(Selection);
+					// Don't invoke tab as this can be called in response
+					// to another focused, referenced graph mutating (ex.
+					// interface changing).
+					constexpr bool bInvokeTabOnSelectionSet = false;
+					SetSelection(Selection, bInvokeTabOnSelectionSet);
 				}
 
 				// Avoids details panel displaying
