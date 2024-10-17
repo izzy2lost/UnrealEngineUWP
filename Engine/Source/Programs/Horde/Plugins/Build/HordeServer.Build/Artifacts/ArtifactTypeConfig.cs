@@ -1,5 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+using EpicGames.Horde.Acls;
 using EpicGames.Horde.Artifacts;
 using EpicGames.Horde.Storage;
 using HordeServer.Acls;
@@ -45,5 +46,13 @@ namespace HordeServer.Artifacts
 		/// Storage namespace to use for this artifact types
 		/// </summary>
 		public NamespaceId NamespaceId { get; set; } = new NamespaceId("horde-artifacts");
+
+		/// <summary>
+		/// Fixup an artifact type after reading the config
+		/// </summary>
+		public void PostLoad(AclConfig parentAcl)
+		{
+			Acl?.PostLoad(parentAcl, $"artifact:{Type}", AclConfig.GetActions([typeof(ArtifactTypeConfig)]));
+		}
 	}
 }

@@ -141,6 +141,7 @@ namespace HordeServer.Projects
 			}
 			foreach (ArtifactTypeConfig artifactTypeConfig in ArtifactTypes)
 			{
+				artifactTypeConfig.PostLoad(Acl);
 				_artifactTypeLookup[artifactTypeConfig.Type] = artifactTypeConfig;
 			}
 

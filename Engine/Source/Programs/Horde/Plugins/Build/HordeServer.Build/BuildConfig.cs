@@ -109,6 +109,11 @@ namespace HordeServer
 				}
 			}
 
+			foreach (ArtifactTypeConfig artifactTypeConfig in ArtifactTypes)
+			{
+				artifactTypeConfig.PostLoad(Acl);
+			}
+
 			UpdateWorkspacesForPools(configOptions.Plugins);
 		}
 
