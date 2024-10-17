@@ -231,6 +231,7 @@ TSharedRef<SWidget> SChaosVDViewportToolbar::GenerateShowMenu() const
 																		.IncludeFlag(FEngineShowFlags::SF_AntiAliasing)
 																		.IncludeFlag(FEngineShowFlags::SF_Grid)
 																		.IncludeFlag(FEngineShowFlags::SF_Translucency)
+																		.IncludeFlag(FEngineShowFlags::SF_MeshEdges)
 																		.IncludeFlag(FEngineShowFlags::SF_HitProxies)
 																		.IncludeFlag(FEngineShowFlags::SF_Fog)
 																		.IncludeFlag(FEngineShowFlags::SF_Pivot);
