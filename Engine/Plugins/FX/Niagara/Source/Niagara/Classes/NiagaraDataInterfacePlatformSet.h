@@ -20,7 +20,12 @@ public:
 
 	//UObject Interface
 	NIAGARA_API virtual void PostInitProperties() override;
-	//UObject Interface End
+	virtual void PostLoad()override;
+	
+#if WITH_EDITOR
+	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
+#endif
+//UObject Interface End
 
 	// UNiagaraDataInterface interface
 	NIAGARA_API virtual void GetVMExternalFunction(const FVMExternalFunctionBindingInfo& BindingInfo, void* InstanceData, FVMExternalFunction& OutFunc) override;
