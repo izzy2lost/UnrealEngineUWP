@@ -21,7 +21,12 @@ namespace UE::Net
 class FNetObjectGroupHandle
 {
 public:
-	typedef uint16 FGroupIndexType;
+	typedef uint32 FGroupIndexType;
+
+	enum { GroupIndexBits = 24U };
+	enum { EpochBits = 8U };
+	enum { EpochMask = (1U << EpochBits) - 1U };
+	enum { MaxGroupIndexCount = 1U << GroupIndexBits };
 
 	/** Reserved group indices */
 	enum : FGroupIndexType
@@ -77,8 +82,8 @@ private:
 		}
 		else
 		{
-			Index = IndexIn;
-			Epoch = EpochIn;
+			Index = (uint32)IndexIn;
+			Epoch = (uint32)EpochIn;
 			UniqueId = InUniqueId;
 		}
 	}
@@ -88,8 +93,8 @@ private:
 		uint64 Value;
 		struct
 		{
-			FGroupIndexType Index;
-			FGroupIndexType Epoch;
+			uint32 Index : GroupIndexBits;
+			uint32 Epoch : EpochBits;
 			uint32 UniqueId;
 		};
 	};
