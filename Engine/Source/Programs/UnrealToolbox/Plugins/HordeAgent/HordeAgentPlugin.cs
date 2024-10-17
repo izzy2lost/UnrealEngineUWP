@@ -2,6 +2,7 @@
 
 using Avalonia.Controls;
 using EpicGames.Core;
+using EpicGames.Horde;
 using FluentAvalonia.UI.Controls;
 using HordeAgent;
 using Microsoft.Extensions.Logging;
@@ -230,9 +231,25 @@ namespace UnrealToolbox.Plugins.HordeAgent
 				_status = null;
 			}
 			else if (!status.Healthy)
-			{
+			{				
 				string message = String.IsNullOrEmpty(status.Detail) ? "Error. Check logs." : status.Detail.Length > 100 ? status.Detail.Substring(0, 100) : status.Detail;
-				_status = new TrayAppPluginStatus(TrayAppPluginState.Error, message, message);
+				_status = new TrayAppPluginStatus(TrayAppPluginState.Error, message);
+				
+				if (_settings.Mode != AgentMode.Disabled)
+				{
+					// Make some known error messages more friendly
+					if (message.Contains("actively refused it", StringComparison.OrdinalIgnoreCase))
+					{
+						message = $"Could not connect to Horde Server: {HordeOptions.GetDefaultServerUrl()?.ToString() ?? "Not Conigured"}";
+					}
+
+					if (message.Contains("enrollment key does not match", StringComparison.OrdinalIgnoreCase))
+					{
+						message = $"Agent registration revoked by Horde Server: {HordeOptions.GetDefaultServerUrl()?.ToString() ?? "Not Conigured"}";
+					}
+
+					ToolboxNotificationManager.PostNotification("Horde Agent", message);
+				}
 			}
 			else if (status.NumLeases > 0)
 			{
