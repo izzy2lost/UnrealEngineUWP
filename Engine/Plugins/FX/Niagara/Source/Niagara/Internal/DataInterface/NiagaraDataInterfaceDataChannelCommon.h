@@ -16,7 +16,7 @@ enum class ENiagaraDataChannelAllocationMode : uint8
 	Static,
 
 	/** Allocation count is determined by DI script calls to Allocate in Emitter Scripts. */
-	Dynamic
+	Dynamic UMETA(Hidden)
 };
 
 //TODO: Possible we may want to do reads and writes using data channels in a single system in future, avoiding the need to push data out to any manager class etc.

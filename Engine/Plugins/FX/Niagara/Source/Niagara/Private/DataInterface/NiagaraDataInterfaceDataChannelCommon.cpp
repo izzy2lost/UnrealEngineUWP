@@ -292,7 +292,7 @@ namespace NDIDataChannelUtilities
 {
 	const FName GetNDCSpawnDataName(TEXT("GetNDCSpawnData"));
 	const FName SpawnConditionalName(TEXT("SpawnConditional"));
-	const FName SpawnDirectName(TEXT("SpawnConditional"));
+	const FName SpawnDirectName(TEXT("SpawnDirect"));
 	const TGlobalResource<FNDIDummyUAV> DummyUAVFloat(PF_R32_FLOAT, sizeof(float));
 	const TGlobalResource<FNDIDummyUAV> DummyUAVInt32(PF_R32_SINT, sizeof(int32));
 	const TGlobalResource<FNDIDummyUAV> DummyUAVHalf(PF_R16F, sizeof(FFloat16));

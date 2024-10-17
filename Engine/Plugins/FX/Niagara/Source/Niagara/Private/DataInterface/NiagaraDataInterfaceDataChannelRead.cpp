@@ -352,6 +352,11 @@ void FNDIDataChannelReadInstanceData::Cleanup(UNiagaraDataInterfaceDataChannelRe
 
 void FNDIDataChannelReadInstanceData::SetDataChannelData(FNiagaraDataChannelDataPtr NewData, UNiagaraDataInterfaceDataChannelRead* Interface)
 {
+	if(DataChannelData == NewData)
+	{
+		return;
+	}
+
 	FNDIDataChannelCompiledData& CompiledData = Interface->GetCompiledData();
 	//If this interface spawns into a GPU emitter then we need to inform the NDC data so that it can automatically upload all CPU data to the GPU.
 	//Otherwise we get mis-matching data used for spawn and the subsequent reads on the GPU to init particles.
