@@ -204,7 +204,6 @@ private:
 	bool bShowSettings = false;
 	bool bShowCards = true;
 
-	FName PreviousStackName = NAME_None;
 	FName CurrentStackName = NAME_None;
 	TObjectPtr<UInterchangePipelineBase> CurrentSelectedPipeline = nullptr;
 };

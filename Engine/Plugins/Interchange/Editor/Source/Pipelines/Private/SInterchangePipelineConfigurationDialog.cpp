@@ -341,7 +341,6 @@ TSharedRef<SBox> SInterchangePipelineConfigurationDialog::SpawnPipelineConfigura
 	{
 		CurrentStackName = FirstStackName;
 	}
-	PreviousStackName = CurrentStackName;
 
 	for(FInterchangeStackInfo& Stack : PipelineStacks)
 	{
@@ -1302,7 +1301,7 @@ void SInterchangePipelineConfigurationDialog::SaveAllPipelineSettings() const
 	{
 		if (PipelineElement->Pipeline)
 		{
-			PipelineElement->Pipeline->SaveSettings(PreviousStackName);
+			PipelineElement->Pipeline->SaveSettings(CurrentStackName);
 		}
 	}
 }
@@ -1334,7 +1333,6 @@ void SInterchangePipelineConfigurationDialog::ClosePipelineConfiguration(const E
 	//Save the settings only if its not a re-import
 	if (!bReimport)
 	{
-		PreviousStackName = CurrentStackName;
 		SaveAllPipelineSettings();
 	}
 
@@ -1368,7 +1366,7 @@ void SInterchangePipelineConfigurationDialog::RefreshStack(bool bStackSelectionC
 	//When doing a reimport we do not want to save the setting because the context have special default
 	//value for some options like: (Import Materials, Import Textures...).
 	//So when doing a reimport switching stack is like doing a reset to default on all pipelines
-	if (!bReimport || !bStackSelectionChange)
+	if (!bReimport && !bStackSelectionChange)
 	{
 		SaveAllPipelineSettings();
 	}
@@ -1468,8 +1466,11 @@ void SInterchangePipelineConfigurationDialog::OnStackSelectionChanged(TSharedPtr
 		return;
 	}
 
-	//Use the stack select by interchange manager
-	PreviousStackName = CurrentStackName;
+	if (!bReimport)
+	{
+		//Use the stack select by interchange manager
+		SaveAllPipelineSettings();
+	}
 	CurrentStackName = NewStackName;
 
 	constexpr bool bStackSelectionChange = true;
