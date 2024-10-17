@@ -93,7 +93,7 @@ namespace UE::Dataflow
 		return nullptr;
 	}
 	
-	void SetupSkeletonAnimation(const TObjectPtr<AActor>& PreviewActor)
+	void SetupSkeletonAnimation(const TObjectPtr<AActor>& PreviewActor, const bool bSkeletalMeshVisibility)
 	{
 		if(PreviewActor)
 		{
@@ -104,6 +104,7 @@ namespace UE::Dataflow
 			{
 				if(USkeletalMeshComponent* SkeletalMeshComponent = Cast<USkeletalMeshComponent>(PrimComponent))
 				{
+					SkeletalMeshComponent->SetVisibility(bSkeletalMeshVisibility);
 					SkeletalMeshComponent->SetAnimationMode(EAnimationMode::AnimationSingleNode);
 					SkeletalMeshComponent->InitAnim(true);
 					

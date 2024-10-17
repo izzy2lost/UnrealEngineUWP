@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Dataflow/DataflowSimulationGenerator.h"
 #include "Dataflow/DataflowSimulationManager.h"
@@ -65,7 +65,7 @@ void FDataflowSimulationTask::DoWork()
 
 bool FDataflowTaskManager::AllocateSimulationResource(const FVector2f& TimeRange, const int32 FrameRate,
 		const TObjectPtr<UChaosCacheCollection>& CacheAsset, const TSubclassOf<AActor>& ActorClass,
-		const TObjectPtr<UDataflowBaseContent>& DataflowContent, const FTransform& BlueprintTransform)
+		const TObjectPtr<UDataflowBaseContent>& DataflowContent, const FTransform& BlueprintTransform, const bool bSkeletalMeshVisibility)
 {
 	SimulationWorld = UWorld::CreateWorld(EWorldType::Editor, false);
 	SimulationWorld->bPostTickComponentUpdate = false;
@@ -76,7 +76,7 @@ bool FDataflowTaskManager::AllocateSimulationResource(const FVector2f& TimeRange
 	CacheManager = SimulationWorld->SpawnActor<AChaosCacheManager>();
 
 	PreviewActor = UE::Dataflow::SpawnSimulatedActor(ActorClass, CacheManager, CacheAsset, true, DataflowContent, BlueprintTransform);
-	UE::Dataflow::SetupSkeletonAnimation(PreviewActor);
+	UE::Dataflow::SetupSkeletonAnimation(PreviewActor, bSkeletalMeshVisibility);
 
 	// Init the cache manager
 	CacheManager->SetObservedComponentProperties(CacheManager->CacheMode);
@@ -190,7 +190,7 @@ void FDataflowSimulationGenerator::StartGenerateSimulation()
 	TaskManager->SimulationTask->GetTask().TaskManager = TaskManager;
 	TaskManager->SimulationTask->GetTask().bAsyncCaching = CacheParams.bAsyncCaching;
 	
-	TaskManager->AllocateSimulationResource(CacheParams.TimeRange, CacheParams.FrameRate, CacheAsset, BlueprintClass, DataflowContent, BlueprintTransform);
+	TaskManager->AllocateSimulationResource(CacheParams.TimeRange, CacheParams.FrameRate, CacheAsset, BlueprintClass, DataflowContent, BlueprintTransform, bSkeletalMeshVisibility);
 
 	if(CacheParams.bAsyncCaching)
 	{
@@ -276,6 +276,11 @@ void FDataflowSimulationGenerator::SetBlueprintTransform(const FTransform& InBlu
 void FDataflowSimulationGenerator::SetDataflowContent(const TObjectPtr<UDataflowBaseContent>& InDataflowContent)
 {
 	DataflowContent = InDataflowContent;
+}
+
+void FDataflowSimulationGenerator::SetSkeletalMeshVisibility(const bool bInSkeletalMeshVisibility)
+{
+	bSkeletalMeshVisibility = bInSkeletalMeshVisibility;
 }
 
 void FDataflowSimulationGenerator::RequestGeneratorAction(EDataflowGeneratorActions ActionType)

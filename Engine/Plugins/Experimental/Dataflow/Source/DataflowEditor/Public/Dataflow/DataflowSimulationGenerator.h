@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
@@ -106,7 +106,7 @@ namespace UE::Dataflow
 		/** Allocate the simulation resource from the properties */
         bool AllocateSimulationResource(const FVector2f& TimeRange, const int32 FrameRate,
         	const TObjectPtr<UChaosCacheCollection>& CacheAsset, const TSubclassOf<AActor>& ActorClass,
-        	const TObjectPtr<UDataflowBaseContent>& DataflowContent, const FTransform& BlueprintTransform);
+        	const TObjectPtr<UDataflowBaseContent>& DataflowContent, const FTransform& BlueprintTransform, const bool bSkeletalMeshVisibility = true);
 
         /** Free the simulation resource */
         void FreeSimulationResource();
@@ -166,6 +166,9 @@ namespace UE::Dataflow
 		/** Set the dataflow content */
 		void SetDataflowContent(const TObjectPtr<UDataflowBaseContent>& InDataflowContent);
 
+		/** Set the skeletal mesh visibility */
+		void SetSkeletalMeshVisibility(const bool bInSkeletalMeshVisibility);
+
 		/** Enqueue a generator action to be processed on the async thread */
 		void RequestGeneratorAction(EDataflowGeneratorActions Action);
 		
@@ -194,6 +197,9 @@ namespace UE::Dataflow
 
 		/** Dataflow content */
 		TObjectPtr<UDataflowBaseContent> DataflowContent;
+
+		/** Skeletal mesh visibility */
+		bool bSkeletalMeshVisibility = true;
 
 		/** Pending action to be send to the async thread */
 		EDataflowGeneratorActions PendingAction = EDataflowGeneratorActions::NoAction;
