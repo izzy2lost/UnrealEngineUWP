@@ -17,7 +17,20 @@ void METALRHI_API SafeReleaseMetalObject(NS::Object* Object)
 {
 	if(GIsMetalInitialized && GDynamicRHI && Object)
 	{
-		FMetalDynamicRHI::Get().DeferredDelete(Object);
+		if(!IsRunningRHIInSeparateThread())
+		{
+			FMetalDynamicRHI::Get().DeferredDelete(Object);
+		}
+		else
+		{
+			FFunctionGraphTask::CreateAndDispatchWhenReady(
+			   [Object]()
+			   {
+				   FMetalDynamicRHI::Get().DeferredDelete(Object);
+			   },
+			   QUICK_USE_CYCLE_STAT(FExecuteRHIThreadTask, STATGROUP_TaskGraphTasks), nullptr, ENamedThreads::RHIThread);
+		}
+		
 		return;
 	}
 	Object->release();
