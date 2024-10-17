@@ -129,6 +129,16 @@ public:
 	/** Unbinds this entity from DMX */
 	void UnbindDMX();
 
+#if WITH_EDITOR
+	/** 
+	 * Sets the attribute name of the entity. 
+	 * Use with care, the attribute name needs to exist in the fixture patch's active mode for the entity to be functional.
+	 * 
+	 * @param AttributeName			The DMX attribute name the entity corresponds to.
+	 */
+	REMOTECONTROLPROTOCOLDMX_API void SetAttributeName(const FName& AttributeName);
+#endif // WITH_EDITOR
+
 	/** Called when the struct is serialized */
 	bool Serialize(FArchive& Ar);
 

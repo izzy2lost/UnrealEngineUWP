@@ -336,19 +336,20 @@ namespace UE::RemoteControl::DMX
 						}();
 
 					const int32 AttributeCount = AttributeNameToCountMap.FindOrAdd(DMXEntity->ExtraSetting.AttributeName, 1)++;
-					const FName AttributeName = AttributeCount == 0 ?
-						DMXEntity->ExtraSetting.AttributeName :
-						*FString::Printf(TEXT("%s%i"), *DMXEntity->ExtraSetting.AttributeName.ToString(), AttributeCount);
+					const FName AttributeName = AttributeCount > 1 ?
+						*FString::Printf(TEXT("%s%i"), *DMXEntity->ExtraSetting.AttributeName.ToString(), AttributeCount) :
+						DMXEntity->ExtraSetting.AttributeName;
 
+					// Update the attribute name of the entity
+					DMXEntity->SetAttributeName(AttributeName);
+
+					// Create the related fixture function
 					FDMXFixtureFunction NewFunction;
 					NewFunction.Attribute = AttributeName;
 					NewFunction.FunctionName = Property->ExposedProperty->FieldPathInfo.ToString();
 					NewFunction.Channel = NextFreeChannel;
 					NewFunction.DataType = DMXEntity->ExtraSetting.DataType;
 					NewFunction.bUseLSBMode = DMXEntity->ExtraSetting.bUseLSB;
-
-					// Addopt the attribute name from the DMX entity
-					NewFunction.Attribute = DMXEntity->ExtraSetting.AttributeName;
 
 					const int32 FunctionIndex = NewMode.Functions.Add(NewFunction);
 
@@ -399,7 +400,9 @@ namespace UE::RemoteControl::DMX
 
 		void FRCSinglePatchBuilder::UpdateFixturePatch(UDMXLibrary& DMXLibrary, UDMXEntityFixtureType* FixtureType, UDMXEntityFixturePatch* ReuseFixturePatch)
 		{
-			if (!FixtureType || !ReuseFixturePatch)
+			if (!FixtureType || 
+				!IsValid(FixtureType->GetParentLibrary()) || 
+				!ReuseFixturePatch)
 			{
 				ClearFixturePatches();
 			}
