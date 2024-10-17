@@ -224,7 +224,7 @@ void UNiagaraStackScriptHierarchyRoot::RefreshChildrenInternal(const TArray<UNia
 			FGuid VariableGuid = HierarchyParameter->GetScriptVariable()->Metadata.GetVariableGuid();
 			InputChild->SetIsHidden(ScriptInstanceData.PerInputInstanceData[VariableGuid].bIsHidden);
 			
-			NewChildren.Add(InputChild);
+			NewChildren.AddUnique(InputChild);
 		}
 		
 		if(const UNiagaraHierarchyCategory* HierarchyCategory = Cast<UNiagaraHierarchyCategory>(ChildHierarchyItem))
@@ -246,7 +246,7 @@ void UNiagaraStackScriptHierarchyRoot::RefreshChildrenInternal(const TArray<UNia
 			
 			StackCategory->SetScriptInstanceData(ScriptInstanceData);
 
-			NewChildren.Add(StackCategory);
+			NewChildren.AddUnique(StackCategory);
 		}		
 	}
 
@@ -277,7 +277,7 @@ void UNiagaraStackScriptHierarchyRoot::RefreshChildrenInternal(const TArray<UNia
 		{
 			InputChild->SetIsHidden(ScriptInstanceData.PerInputInstanceData[VariableGuid].bIsHidden);
 		}
-		NewChildren.Add(InputChild);
+		NewChildren.AddUnique(InputChild);
 	}
 }
 
