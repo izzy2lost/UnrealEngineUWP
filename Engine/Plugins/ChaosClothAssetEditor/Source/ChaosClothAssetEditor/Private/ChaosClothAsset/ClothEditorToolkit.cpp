@@ -15,6 +15,7 @@
 #include "ChaosClothAsset/ClothEditorModeToolkit.h"
 #include "ChaosClothAsset/CollectionClothFacade.h"
 #include "ChaosClothAsset/ClothEditorCommands.h"
+#include "ChaosClothAsset/ClothSimulationNodeDetailExtender.h"
 #include "ChaosClothAsset/AddWeightMapNode.h"
 #include "ChaosClothAsset/TransferSkinWeightsNode.h"
 #include "EdModeInteractiveToolsContext.h"
@@ -1047,6 +1048,9 @@ TSharedPtr<IStructureDetailsView> FChaosClothAssetEditorToolkit::CreateNodeDetai
 	TSharedPtr<IStructureDetailsView> NodeDetailsView = PropertyEditorModule.CreateStructureDetailView(DetailsViewArgs, StructureViewArgs, nullptr);
 	NodeDetailsView->GetDetailsView()->SetObject(ObjectToEdit);
 	NodeDetailsView->GetOnFinishedChangingPropertiesDelegate().AddSP(this, &FChaosClothAssetEditorToolkit::OnPropertyValueChanged);
+
+	NodeDetailsExtender = MakeShared<FClothSimulationNodeDetailExtender>();
+	NodeDetailsView->GetDetailsView()->SetExtensionHandler(NodeDetailsExtender);
 
 	return NodeDetailsView;
 }

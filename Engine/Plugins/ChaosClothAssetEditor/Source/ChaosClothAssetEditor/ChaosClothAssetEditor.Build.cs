@@ -18,6 +18,7 @@ public class ChaosClothAssetEditor : ModuleRules
 		PrivateDependencyModuleNames.AddRange(
 			new string[]
 			{
+				"ApplicationCore",
 				"BaseCharacterFXEditor",
 				"Core",
 				"UnrealEd",

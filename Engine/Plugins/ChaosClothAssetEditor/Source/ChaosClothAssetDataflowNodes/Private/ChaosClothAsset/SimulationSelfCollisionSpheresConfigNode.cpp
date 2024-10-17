@@ -20,7 +20,7 @@ FChaosClothAssetSimulationSelfCollisionSpheresConfigNode::FChaosClothAssetSimula
 void FChaosClothAssetSimulationSelfCollisionSpheresConfigNode::AddProperties(FPropertyHelper& PropertyHelper) const
 {
 	PropertyHelper.SetProperty(this, &SelfCollisionSphereRadius);
-	PropertyHelper.SetProperty(this, &SelfCollisionSphereRadiusCullMultiplier);
+	PropertyHelper.SetProperty(this, &SelfCollisionSphereRadiusCullMultiplier, {}, ECollectionPropertyFlags::Intrinsic); // Need to rebuild the sphere set to see this effect.
 	PropertyHelper.SetProperty(this, &SelfCollisionSphereStiffness);
 	PropertyHelper.SetPropertyString(this, &SelfCollisionSphereSetName, {}, ECollectionPropertyFlags::None);  // Non animatable
 }

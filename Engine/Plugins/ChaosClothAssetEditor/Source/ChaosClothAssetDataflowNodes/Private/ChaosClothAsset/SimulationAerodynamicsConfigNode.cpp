@@ -27,7 +27,7 @@ FChaosClothAssetSimulationAerodynamicsConfigNode::FChaosClothAssetSimulationAero
 void FChaosClothAssetSimulationAerodynamicsConfigNode::AddProperties(FPropertyHelper& PropertyHelper) const
 {
 	PropertyHelper.SetProperty(this, &FluidDensity);
-	PropertyHelper.SetPropertyEnum(this, &WindVelocitySpace, {}, ECollectionPropertyFlags::None);
+	PropertyHelper.SetPropertyEnum(this, &WindVelocitySpace);
 	PropertyHelper.SetProperty(this, &WindVelocity);
 	
 	PropertyHelper.SetSolverPropertyWeighted(FName(TEXT("Drag")), Drag, [](

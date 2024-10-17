@@ -14,11 +14,11 @@ struct FChaosClothAssetSimulationSelfCollisionSpheresConfigNode : public FChaosC
 
 public:
 	/** The radius of the spheres used in self collision centered at each vertex. */
-	UPROPERTY(EditAnywhere, Category = "Self-Collision Spheres Properties", meta = (UIMin = "0", UIMax = "100", ClampMin = "0", ClampMax = "1000"))
+	UPROPERTY(EditAnywhere, Category = "Self-Collision Spheres Properties", meta = (UIMin = "0", UIMax = "100", ClampMin = "0", ClampMax = "1000", InteractorName = "SelfCollisionSphereRadius"))
 	float SelfCollisionSphereRadius = 0.5f;
 
 	/** The stiffness of the springs used to control self collision. */
-	UPROPERTY(EditAnywhere, Category = "Self-Collision Spheres Properties", meta = (UIMin = "0", UIMax = "100", ClampMin = "0", ClampMax = "1000"))
+	UPROPERTY(EditAnywhere, Category = "Self-Collision Spheres Properties", meta = (UIMin = "0", UIMax = "100", ClampMin = "0", ClampMax = "1000", InteractorName = "SelfCollisionSphereStiffness"))
 	float SelfCollisionSphereStiffness = 1.f;
 
 	/** 
