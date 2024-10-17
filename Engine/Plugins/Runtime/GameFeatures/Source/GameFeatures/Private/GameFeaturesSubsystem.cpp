@@ -663,6 +663,7 @@ void UGameFeaturesSubsystem::AddObserver(UObject* Observer)
 					if (GFSM->GetCurrentState() >= EGameFeaturePluginState::Active)
 					{
 						Interface->OnGameFeatureActivating(GameFeatureData, PluginURL);
+						Interface->OnGameFeatureActivated(GameFeatureData, PluginURL);
 					}
 				}
 			}
@@ -1118,6 +1119,25 @@ void UGameFeaturesSubsystem::OnGameFeatureActivating(const UGameFeatureData* Gam
 			if (Action != nullptr)
 			{
 				Action->OnGameFeatureActivating(Context);
+			}
+		}
+	}
+}
+
+void UGameFeaturesSubsystem::OnGameFeatureActivated(const UGameFeatureData* GameFeatureData, const FString& PluginName, const FGameFeaturePluginIdentifier& PluginIdentifier)
+{
+	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(GFP_OnActivated_CallbackObservers);
+		CallbackObservers(EObserverCallback::Activated, PluginIdentifier, &PluginName, GameFeatureData);
+	}
+
+	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(GFP_OnActivated_CallbackActions);
+		for (UGameFeatureAction* Action : GameFeatureData->GetActions())
+		{
+			if (Action != nullptr)
+			{
+				Action->OnGameFeatureActivated();
 			}
 		}
 	}
@@ -3242,7 +3262,7 @@ void UGameFeaturesSubsystem::CallbackObservers(EObserverCallback CallbackType, c
 	const UGameFeatureData* GameFeatureData /*= nullptr*/, 
 	FGameFeatureStateChangeContext* StateChangeContext /*= nullptr*/)
 {
-	static_assert(std::underlying_type<EObserverCallback>::type(EObserverCallback::Count) == 14, "Update UGameFeaturesSubsystem::CallbackObservers to handle added EObserverCallback");
+	static_assert(std::underlying_type<EObserverCallback>::type(EObserverCallback::Count) == 15, "Update UGameFeaturesSubsystem::CallbackObservers to handle added EObserverCallback");
 
 	// Protect against modifying the observer list during iteration
 	TArray<UObject*> LocalObservers(Observers);
@@ -3364,6 +3384,15 @@ void UGameFeaturesSubsystem::CallbackObservers(EObserverCallback CallbackType, c
 		for (UObject* Observer : LocalObservers)
 		{
 			CastChecked<IGameFeatureStateChangeObserver>(Observer)->OnGameFeatureActivating(GameFeatureData, PluginIdentifier.GetFullPluginURL());
+		}
+		break;
+	}
+	case EObserverCallback::Activated:
+	{
+		check(GameFeatureData);
+		for (UObject* Observer : LocalObservers)
+		{
+			CastChecked<IGameFeatureStateChangeObserver>(Observer)->OnGameFeatureActivated(GameFeatureData, PluginIdentifier.GetFullPluginURL());
 		}
 		break;
 	}

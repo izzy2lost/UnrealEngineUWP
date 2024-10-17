@@ -3182,6 +3182,17 @@ struct FGameFeaturePluginState_Active : public FDestinationGameFeaturePluginStat
 {
 	FGameFeaturePluginState_Active(FGameFeaturePluginStateMachineProperties& InStateProperties) : FDestinationGameFeaturePluginState(InStateProperties) {}
 
+	virtual void BeginState() override
+	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(GFP_Active);
+		check(GEngine);
+
+		{
+			TRACE_CPUPROFILER_EVENT_SCOPE(GFP_Active_SendEvents);
+			UGameFeaturesSubsystem::Get().OnGameFeatureActivated(StateProperties.GameFeatureData, StateProperties.PluginName, StateProperties.PluginIdentifier);
+		}
+	}
+
 	virtual void UpdateState(FGameFeaturePluginStateStatus& StateStatus) override
 	{
 		if (StateProperties.Destination < EGameFeaturePluginState::Active)

@@ -36,6 +36,9 @@ public:
 	/** Older-style activation function with no context, called by base class if context version is not overridden */
 	virtual void OnGameFeatureActivating() {}
 
+	/** Called when the feature is fully active */
+	virtual void OnGameFeatureActivated() {}
+
 	/** Called when game feature is deactivated, it may be activated again in the near future */
 	virtual void OnGameFeatureDeactivating(FGameFeatureDeactivatingContext& Context) {}
 
