@@ -3067,7 +3067,18 @@ public:
 				for (TTuple<FString, TUniquePtr<UE::ShaderLibrary::Private::FNamedShaderLibrary>>& NamedLibraryPair : NamedLibrariesStack)
 				{
 					TSet<int32> PrevComponentSet = NamedLibraryPair.Value->PresentChunks;
-					NamedLibraryPair.Value->OnPakFileMounted(MountInfo, NamedLibraryPair.Value->BaseDirectory);
+
+#if PLATFORM_APPLE
+					//@TODO properly fix this by making sure FMountedPakFileInfo has the proper path
+					FString RestOfPath;
+					FString CorrectPath;
+					MountInfo.PakFilename.Split(TEXT("/content"), &CorrectPath, &RestOfPath);
+					CorrectPath = CorrectPath + TEXT("/content");
+#else
+					FString CorrectPath = NamedLibraryPair.Value->BaseDirectory;
+#endif
+
+					NamedLibraryPair.Value->OnPakFileMounted(MountInfo, CorrectPath);
 					for (int32 ComponentID : NamedLibraryPair.Value->PresentChunks.Difference(PrevComponentSet))
 					{
 						// Defer these for outside of the lock, ShaderPipelineCache may want to inspect shader library.
