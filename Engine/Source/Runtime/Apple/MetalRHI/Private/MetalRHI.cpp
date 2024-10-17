@@ -1269,9 +1269,6 @@ void FMetalDynamicRHI::RHIEndFrame_RenderThread(FRHICommandListImmediate& RHICmd
 		[this](FMetalContextArray const& Contexts)
 	{
 		MTL_SCOPED_AUTORELEASE_POOL;
-
-		// Wait for the frame semaphore
-		dispatch_semaphore_wait(Device->GetFrameSemaphore(), DISPATCH_TIME_FOREVER);
 		
 #if ENABLE_METAL_GPUPROFILE
 		Contexts[ERHIPipeline::Graphics]->GetProfiler()->BeginFrame();
