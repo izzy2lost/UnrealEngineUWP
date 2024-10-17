@@ -314,7 +314,7 @@ void SChaosVDSolverPlaybackControls::OnFrameSelectionUpdated(int32 NewFrameIndex
 	if (const TSharedPtr<FChaosVDPlaybackController> PlaybackControllerPtr = PlaybackController.Pin())
 	{
 		// By default we always playback frames at the last recorded stage as that represents the end of frame state
-		const int32 LastStepNumber = GetMaxSolverStage();
+		constexpr int32 LastStepNumber = INDEX_NONE;
 		PlaybackControllerPtr->GoToTrackFrameAndSync(GetInstigatorID(), EChaosVDTrackType::Solver, SolverTrackInfoRef->TrackID, NewFrameIndex, LastStepNumber);
 	}
 }
