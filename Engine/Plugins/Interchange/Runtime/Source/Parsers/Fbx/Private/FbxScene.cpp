@@ -1086,6 +1086,7 @@ namespace UE
 				//Group the Morph Target animations based on SkeletonNodeUid and AnimationIndex
 				TMap<const UInterchangeSceneNode*, TMap<int32, TArray<FMorphTargetAnimationBuildingData>>> MorphTargetAnimationsBuildingDataGrouped;
 
+				TMap<FString, FString> EvaluatedJoints;
 				for (const FMorphTargetAnimationBuildingData& MorphTargetAnimationBuildingData : MorphTargetAnimationsBuildingData)
 				{
 					if (MorphTargetAnimationBuildingData.StartTime == MorphTargetAnimationBuildingData.StopTime)
@@ -1095,6 +1096,7 @@ namespace UE
 					}
 					
 					TSet<FString> SkeletonUids;
+					
 					if (MorphTargetAnimationBuildingData.InterchangeMeshNode->IsSkinnedMesh())
 					{
 						//Find the root joint(s) for this MeshGeometry
@@ -1103,31 +1105,39 @@ namespace UE
 						for (const FString& SkeletonDependency : SkeletonDependencies)
 						{
 							FString JointNodeUid = SkeletonDependency;
-							FString ParentNodeUid = SkeletonDependency;
-
-							while (!JointNodeUid.Equals(UInterchangeBaseNode::InvalidNodeUid()))
+							FString& RootJointNodeForJoint = EvaluatedJoints.FindOrAdd(JointNodeUid);
+							if (!RootJointNodeForJoint.IsEmpty())
 							{
-								if (const UInterchangeSceneNode* Node = Cast< UInterchangeSceneNode >(NodeContainer.GetNode(ParentNodeUid)))
+								SkeletonUids.Add(RootJointNodeForJoint);
+							}
+							else
+							{
+								FString ParentNodeUid = SkeletonDependency;
+								while (!JointNodeUid.Equals(UInterchangeBaseNode::InvalidNodeUid()))
 								{
-									if (Node->IsSpecializedTypeContains(FSceneNodeStaticData::GetJointSpecializeTypeString()))
+									if (const UInterchangeSceneNode* Node = Cast< UInterchangeSceneNode >(NodeContainer.GetNode(ParentNodeUid)))
 									{
-										JointNodeUid = ParentNodeUid;
-										ParentNodeUid = Node->GetParentUid();
+										if (Node->IsSpecializedTypeContains(FSceneNodeStaticData::GetJointSpecializeTypeString()))
+										{
+											JointNodeUid = ParentNodeUid;
+											ParentNodeUid = Node->GetParentUid();
+										}
+										else
+										{
+											break;
+										}
 									}
 									else
 									{
 										break;
 									}
 								}
-								else
-								{
-									break;
-								}
-							}
 
-							if (!JointNodeUid.Equals(UInterchangeBaseNode::InvalidNodeUid()))
-							{
-								SkeletonUids.Add(JointNodeUid);
+								if (!JointNodeUid.Equals(UInterchangeBaseNode::InvalidNodeUid()))
+								{
+									RootJointNodeForJoint = JointNodeUid;
+									SkeletonUids.Add(JointNodeUid);
+								}
 							}
 						}
 					}
