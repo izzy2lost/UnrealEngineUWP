@@ -4804,15 +4804,14 @@ FMaterialUpdateContext::~FMaterialUpdateContext()
 		UpdateInstance(InstancesToUpdate.Last());
 	}
 	
-	ENQUEUE_RENDER_COMMAND(ReloadNaniteFixedFunctionBins)(
-		[](FRHICommandListImmediate& RHICmdList) mutable
+	for (FSceneInterface* Scene : GetRendererModule().GetAllocatedScenes())
+	{
+		ENQUEUE_RENDER_COMMAND(ReloadNaniteFixedFunctionBins)(
+		[Scene](FRHICommandListImmediate& RHICmdList) mutable
 		{
-			for (FSceneInterface* Scene : GetRendererModule().GetAllocatedScenes())
-			{
-				Scene->ReloadNaniteFixedFunctionBins();
-			}
-		}
-	);
+			Scene->ReloadNaniteFixedFunctionBins();
+		});
+	}
 
 	if (bUpdateStaticDrawLists)
 	{
