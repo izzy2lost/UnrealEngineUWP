@@ -36,7 +36,7 @@ float3 GetDiffuseReflectProfileWithDiffuseMeanFreePath(float3 L, float3 S3D, flo
 	float3 R = Radius / L;
 	const float Inv8Pi = 1.0 / (8 * PI);
 	float3 NegRbyD = -R / D;
-	return max((exp(NegRbyD) + exp(NegRbyD / 3.0)) / (D*L)*Inv8Pi, 0);
+	return max((exp(NegRbyD) + exp(NegRbyD / 3.0)) / (D * L) * Inv8Pi, 0.000000000001f /*Fix color shift due to precision issue for substrate per-pixel MFP SSS*/);
 }
 
 float GetComponentForScalingFactorEstimation(float4 SurfaceAlbedo)
