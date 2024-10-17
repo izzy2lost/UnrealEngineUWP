@@ -4140,6 +4140,10 @@ bool URigVMBlueprint::RemoveEdGraphForCollapseNode(URigVMCollapseNode* InNode, b
 
 						FunctionGraphs.Remove(RigFunctionGraph);
 						RigFunctionGraph->Rename(nullptr, GetTransientPackage(), REN_DontCreateRedirectors);
+						if(RigFunctionGraph->IsRooted())
+						{
+							RigFunctionGraph->RemoveFromRoot();
+						}
 						RigFunctionGraph->MarkAsGarbage();
 						return bNotify;
 					}
@@ -4169,6 +4173,10 @@ bool URigVMBlueprint::RemoveEdGraphForCollapseNode(URigVMCollapseNode* InNode, b
 
 						RigGraph->SubGraphs.Remove(SubRigGraph);
 						SubRigGraph->Rename(nullptr, GetTransientPackage(), REN_DontCreateRedirectors);
+						if(SubRigGraph->IsRooted())
+						{
+							SubRigGraph->RemoveFromRoot();
+						}
 						SubRigGraph->MarkAsGarbage();
 						return bNotify;
 					}
