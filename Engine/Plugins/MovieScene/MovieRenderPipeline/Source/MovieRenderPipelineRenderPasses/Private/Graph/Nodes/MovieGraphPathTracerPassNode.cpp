@@ -16,7 +16,7 @@ TUniquePtr<UE::MovieGraph::Rendering::FMovieGraphImagePassBase> UMovieGraphPathT
 
 UMovieGraphPathTracerRenderPassNode::UMovieGraphPathTracerRenderPassNode()
 	: SpatialSampleCount(1)
-	, bEnableReferenceMotionBlur(false)
+	, bEnableReferenceMotionBlur(true)
 	, bEnableDenoiser(true)
 	, DenoiserType(EMovieGraphPathTracerDenoiserType::Spatial)
 	, FrameCount(2)

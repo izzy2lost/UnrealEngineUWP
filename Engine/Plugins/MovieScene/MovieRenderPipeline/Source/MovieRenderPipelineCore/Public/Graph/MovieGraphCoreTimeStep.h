@@ -56,6 +56,7 @@ protected:
 	virtual bool IsFirstTemporalSample() const;
 	virtual void ResetForEndOfOutputFrame();
 	virtual float GetBlendedMotionBlurAmount();
+	virtual int32 GetTemporalSampleCountFromConfig(UMovieGraphEvaluatedConfig* InConfig) const;
 
 protected:
 	/** This is the output data needed by the rest of MRQ to produce a frame. */

@@ -59,14 +59,15 @@ namespace UE::MovieGraph
 			const UE::MovieGraph::FMovieGraphSampleState* Payload = LocalData->GetPayload<UE::MovieGraph::FMovieGraphSampleState>();
 			const FMovieGraphTraversalContext& TraversalContext = Payload->TraversalContext;
 			const TObjectPtr<UMovieGraphEvaluatedConfig> EvaluatedConfig = TraversalContext.Time.EvaluatedConfig;
-
+			
 			// Resolve the file output path
 			FString FinalFilePath;
 			{
 				// TODO: Add Tile X/Y when tiling is available
-				const FString OutputName = FString::Printf(TEXT("%s_%s_%s_%s_SS_%d_TS_%d.%d"),
+				const FString OutputName = FString::Printf(TEXT("%s_%s_%s_%s_%s_SS_%d_TS_%d.%d"),
 					*TraversalContext.Shot->OuterName,
 					*TraversalContext.RenderDataIdentifier.LayerName,
+					*TraversalContext.RenderDataIdentifier.RendererName,
 					*TraversalContext.RenderDataIdentifier.SubResourceName,
 					*TraversalContext.RenderDataIdentifier.CameraName,
 					TraversalContext.Time.SpatialSampleIndex,
@@ -112,12 +113,12 @@ namespace UE::MovieGraph
 		FMovieGraphSampleState* Payload = InData->GetPayload<FMovieGraphSampleState>();
 		check(Payload);
 		
-		const int32 RenderedFrameNumber = Payload->TraversalContext.Time.RenderedFrameNumber;
+		const int32 IndexedFrameNumber = Payload->TraversalContext.Time.OutputFrameNumber;
 
 		// See if we can find the frame this data is for. This should always be valid, if it's not
 		// valid it means they either forgot to declare they were going to produce it, or this is
 		// coming in after the system already thinks it's finished that frame.
-		FMovieGraphOutputMergerFrame* OutputFrame = PendingData.Find(RenderedFrameNumber);
+		FMovieGraphOutputMergerFrame* OutputFrame = PendingData.Find(IndexedFrameNumber);
 		
 		// Make sure we expected this frame number
 		if (!ensureAlwaysMsgf(OutputFrame, TEXT("Received data for unknown frame. Frame was either already processed or not queued yet!")))
@@ -159,7 +160,7 @@ namespace UE::MovieGraph
 			);
 			// Move this frame into our FinishedFrames array so the Game Thread can read it at its leisure
 			FMovieGraphOutputMergerFrame FinalFrame;
-			ensureMsgf(PendingData.RemoveAndCopyValue(RenderedFrameNumber, FinalFrame), TEXT("Could not find frame in pending data, output will be skipped!"));
+			ensureMsgf(PendingData.RemoveAndCopyValue(IndexedFrameNumber, FinalFrame), TEXT("Could not find frame in pending data, output will be skipped!"));
 			
 			// TQueue is thread safe so it's okay to just push the data into it.
 			FinishedFrames.Enqueue(MoveTemp(FinalFrame));

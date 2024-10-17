@@ -51,6 +51,7 @@ void FMovieGraphDeferredPass::Setup(TWeakObjectPtr<UMovieGraphDefaultRenderer> I
 	// initialize the frames to delay for post submission.
 	UMovieGraphRenderPassNode* RenderPassNode = InLayer.RenderPassNode.Get();
 	FramesToDelayPostSubmission = RenderPassNode ? RenderPassNode->GetCoolingDownFrameCount() : 0;
+	RemainingCooldownReadbackFrames = FramesToDelayPostSubmission;
 }
 
 void FMovieGraphDeferredPass::Teardown()
@@ -101,6 +102,24 @@ FName FMovieGraphDeferredPass::GetBranchName() const
 	return LayerData.BranchName;
 }
 
+bool FMovieGraphDeferredPass::ShouldDiscardOutput(const TSharedRef<FSceneViewFamilyContext>& InFamily, const UE::MovieGraph::DefaultRenderer::FCameraInfo& InCameraInfo) const
+{
+	TObjectPtr<UMovieGraphDefaultRenderer> GraphRenderer = GetRenderer().Get();
+	if (!GraphRenderer)
+	{
+		return false;
+	}
+
+	if (UMovieGraphPipeline* Pipeline = GraphRenderer->GetOwningGraph())
+	{
+		// The deferred renderer should attempt to discard anything that isn't from the rendering state, as we don't need any data from
+		// the warm-up or cool-down phases of the shot.
+		return Pipeline->GetActiveShotList()[Pipeline->GetCurrentShotIndex()]->ShotInfo.State != EMovieRenderShotState::Rendering;
+	}
+	return false;
+}
+
+
 UMovieGraphImagePassBaseNode* FMovieGraphDeferredPass::GetParentNode(UMovieGraphEvaluatedConfig* InConfig) const
 {
 	// This is a bit of a workaround for the fact that the pass doesn't have a strong pointer to the node it's supposed to be associated with,
@@ -127,7 +146,9 @@ void FMovieGraphDeferredPass::Render(const FMovieGraphTraversalContext& InFrameT
 	}
 
 	UMovieGraphImagePassBaseNode* ParentNodeThisFrame = GetParentNode(InTimeData.EvaluatedConfig);
-	const bool bWriteAllSamples = ParentNodeThisFrame->GetWriteAllSamples();
+	
+	// We can only write rendered frames to disk right now (warm-up/cool-down indexes aren't propagated so files overwrite each other).
+	const bool bWriteAllSamples = ParentNodeThisFrame->GetWriteAllSamples() && InFrameTraversalContext.Shot->ShotInfo.State == EMovieRenderShotState::Rendering;
 	const bool bIsRenderingState = InFrameTraversalContext.Shot->ShotInfo.State == EMovieRenderShotState::Rendering ||
 									InFrameTraversalContext.Shot->ShotInfo.State == EMovieRenderShotState::CoolingDown;
 	int32 NumSpatialSamples = FMath::Max(1, bIsRenderingState ? ParentNodeThisFrame->GetNumSpatialSamples() : ParentNodeThisFrame->GetNumSpatialSamplesDuringWarmUp());
@@ -346,6 +367,26 @@ void FMovieGraphDeferredPass::Render(const FMovieGraphTraversalContext& InFrameT
 		if (bDiscardOutput)
 		{
 			continue;
+		}
+
+		// Example Assumptions: 2 frame denoise temporal denoise with 8 temporal sub-samples. 
+		// If you're using Cooldown Frames, we can get into a scenario where due to the particular render pass settings,
+		// you don't need all the cooldown frames. If you're using Path Tracer's "Use Reference Motion Blur" then the 
+		// above Discard is true for everything but the last sample. This means that we needed 8 Cool Down _samples_ to 
+		// produce the two output frames (matching the 2 frame delay in the PT denoiser).
+		// But if Use Reference Motion Blur is off, then the first two samples of the cool-down are enough to finish flushing
+		// the PT denoiser, and the remaining 14 end up confusing the system because it gets data it doesn't think it should.
+		if(InFrameTraversalContext.Shot->ShotInfo.State == EMovieRenderShotState::CoolingDown)
+		{
+			// When we're cooling down, we track the number of times we actually
+			// go to do a readback (ie: pass the above bShouldDiscardOutput check)
+			// and once we reach the number needed to actually flush the PT denoiser
+			// we stop submitting.
+			if (RemainingCooldownReadbackFrames == 0)
+			{
+				continue;
+			}
+			RemainingCooldownReadbackFrames--;
 		}
 		
 		// Post-submission is a little bit complicated to allow supporting temporal denoisers in the Path Tracer.

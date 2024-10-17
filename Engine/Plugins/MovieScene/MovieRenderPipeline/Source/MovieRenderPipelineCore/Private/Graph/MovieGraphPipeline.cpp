@@ -563,12 +563,6 @@ void UMovieGraphPipeline::BuildShotListFromDataSource()
 			Shot->ShotInfo.CachedShotTickResolution = Shot->ShotInfo.SubSectionHierarchy->MovieScene->GetTickResolution();
 		}
 		
-		const bool bPrePass = true;
-		const bool bExpandForTemporalSubSample = GraphTimeStepInstances.Last()->IsExpansionForTSRequired(EvaluatedConfig);
-		ExpandShot(Shot, OutputNode->HandleFrameCount, bExpandForTemporalSubSample, bPrePass, FinalFrameRate, TickResolution, WarmUpNode->NumWarmUpFrames);
-
-		Shot->ShotInfo.CurrentTimeInRoot = Shot->ShotInfo.TotalOutputRangeRoot.GetLowerBoundValue();
-
 		// Query the max frame count.
 		int32 MaxCoolingDownFrameCount = 0;
 		for (const FName& BranchName : EvaluatedConfig->GetBranchNames())
@@ -581,11 +575,19 @@ void UMovieGraphPipeline::BuildShotListFromDataSource()
 				MaxCoolingDownFrameCount = FMath::Max(Render->GetCoolingDownFrameCount(), MaxCoolingDownFrameCount);
 			}
 		}
-		
+
+		// When using cooldown, we need at least that many warm-up frames even if they have otherwise chosen not to do warm-ups.
 		Shot->ShotInfo.NumEngineCoolDownFramesRemaining = MaxCoolingDownFrameCount;
-		// When using cooldown, we need at least that many warm-up frames even if they have otherwise chose not to do warm-ups.
 		Shot->ShotInfo.NumEngineWarmUpFramesRemaining = FMath::Max(WarmUpNode->NumWarmUpFrames, MaxCoolingDownFrameCount);
 		Shot->ShotInfo.bEmulateFirstFrameMotionBlur = WarmUpNode->bEmulateMotionBlur;
+
+		const bool bPrePass = true;
+		const bool bExpandForTemporalSubSample = GraphTimeStepInstances.Last()->IsExpansionForTSRequired(EvaluatedConfig);
+		
+		// We need to wait until the NumEngineWarmUpFramesRemaining has been set by either actual warm up frames, or by cool-down frames before we expand.
+		ExpandShot(Shot, OutputNode->HandleFrameCount, bExpandForTemporalSubSample, bPrePass, FinalFrameRate, TickResolution, Shot->ShotInfo.NumEngineWarmUpFramesRemaining);
+
+		Shot->ShotInfo.CurrentTimeInRoot = Shot->ShotInfo.TotalOutputRangeRoot.GetLowerBoundValue();
 		Shot->ShotInfo.CalculateWorkMetrics();
 		Shot->ShotInfo.VersionNumber = ResolveVersionForShot(Shot, EvaluatedConfig);
 	}
@@ -1557,7 +1559,7 @@ void UMovieGraphPipeline::ProcessOutstandingFinishedFrames()
 		UE::MovieGraph::FMovieGraphOutputMergerFrame OutputFrame;
 		OutputMerger->GetFinishedFrames().Dequeue(OutputFrame);
 
-		UE::MovieGraph::FRenderTimeStatistics* TimeStats = GetRendererInstance()->GetRenderTimeStatistics(OutputFrame.TraversalContext.Time.RenderedFrameNumber);
+		UE::MovieGraph::FRenderTimeStatistics* TimeStats = GetRendererInstance()->GetRenderTimeStatistics(OutputFrame.TraversalContext.Time.OutputFrameNumber);
 		if (ensure(TimeStats))
 		{
 			TimeStats->EndTime = FDateTime::UtcNow();
