@@ -45,12 +45,23 @@ static TAutoConsoleVariable<int32> CVarPostprocessViewAfterWarpBlend(
 );
 
 // Enable/disable PP round 5
-static TAutoConsoleVariable<int32> CVarPostprocessFrameAfterWarpBlend(
+int32 GDisplayClusterPostprocessFrameAfterWarpBlendEnable = 1;
+static FAutoConsoleVariableRef CVarDisplayClusterPostprocessFrameAfterWarpBlendEnable(
 	TEXT("nDisplay.render.postprocess.FrameAfterWarpBlend"),
-	1,
+	GDisplayClusterPostprocessFrameAfterWarpBlendEnable,
 	TEXT("Enable PP per eye frame after warp&blend (0 = disabled)\n"),
 	ECVF_RenderThreadSafe
 );
+
+// Enables RTT cleanup before each full-frame post processing.
+int32 GDisplayClusterPostProcessFrameAfterWarpBlendAlwaysClearRTT = 1;
+static FAutoConsoleVariableRef CVarDisplayClusterPostProcessFrameAfterWarpBlendAlwaysClearRTT(
+	TEXT("nDisplay.render.postprocess.FrameAfterWarpBlend.AlwaysClearRTT"),
+	GDisplayClusterPostProcessFrameAfterWarpBlendAlwaysClearRTT,
+	TEXT("Enables RTT cleanup before each full-frame post processing. (0 to disable).\n"),
+	ECVF_RenderThreadSafe
+);
+
 
 //----------------------------------------------------------------------------------------------------------
 // FDisplayClusterViewportPostProcessManager
@@ -269,9 +280,10 @@ bool FDisplayClusterViewportPostProcessManager::IsPostProcessViewAfterWarpBlendR
 
 bool FDisplayClusterViewportPostProcessManager::IsPostProcessFrameAfterWarpBlendRequired(const TSharedPtr<IDisplayClusterPostProcess, ESPMode::ThreadSafe>& PostprocessInstance) const
 {
-	if (PostprocessInstance.IsValid() && PostprocessInstance->IsPostProcessFrameAfterWarpBlendRequired())
+	if (GDisplayClusterPostprocessFrameAfterWarpBlendEnable
+		&& PostprocessInstance.IsValid() && PostprocessInstance->IsPostProcessFrameAfterWarpBlendRequired())
 	{
-		return (CVarPostprocessFrameAfterWarpBlend.GetValueOnAnyThread() != 0);
+		return true;
 	}
 
 	return false;
@@ -531,32 +543,52 @@ void FDisplayClusterViewportPostProcessManager::ImplPerformPostProcessViewAfterW
 //////////////////////////////////////////////////////////////////////////////////////////////
 void FDisplayClusterViewportPostProcessManager::ImplPerformPostProcessFrameAfterWarpBlend_RenderThread(FRHICommandListImmediate& RHICmdList, const FDisplayClusterViewportManagerProxy* InViewportManagerProxy) const
 {
-	const bool bEnabled = (CVarPostprocessFrameAfterWarpBlend.GetValueOnRenderThread() != 0);
-	UE_LOG(LogDisplayClusterRender, VeryVerbose, TEXT("Postprocess VIEW after WarpBlend: %d"), bEnabled ? 1 : 0);
-
-	if (bEnabled != 0 && InViewportManagerProxy)
+	if (GDisplayClusterPostprocessFrameAfterWarpBlendEnable && InViewportManagerProxy)
 	{
 		TArray<FRHITexture*> FrameResources;
-		TArray<FRHITexture*> AdditionalFrameResources;
+		TArray<FRHITexture*> TempFrameResources;
 		TArray<FIntPoint> TargetOffset;
-		if (InViewportManagerProxy->GetFrameTargets_RenderThread(FrameResources, TargetOffset, &AdditionalFrameResources))
+		if (InViewportManagerProxy->GetFrameTargets_RenderThread(FrameResources, TargetOffset, &TempFrameResources))
 		{
-			for (const TSharedPtr<IDisplayClusterPostProcess, ESPMode::ThreadSafe >& It : PostprocessProxy)
-			{
-				if (IsPostProcessFrameAfterWarpBlendRequired(It))
-				{
-					UE_LOG(LogDisplayClusterRender, VeryVerbose, TEXT("Postprocess FRAME after WarpBlend"));
+			// This is expected to be the way the postprocess is implemented:
+			// 1. The 'FrameResources' is used as input and output data.
+			// 2. The 'AdditionalFrameResources' is a temporary RTT that can be provided by nDisplay to PP if requested by the PP party.
+			// 3. The 'AdditionalFrameResources' RTT will be cleared before each PP (if the GDisplayClusterPostProcessFrameAfterWarpBlendAlwaysClearRTT is set)
 
-					TArray<FRHITexture*>* AdditionalResources = (AdditionalFrameResources.Num() > 0 && It->ShouldUseAdditionalFrameTargetableResource())? &AdditionalFrameResources: nullptr;
-					It->PerformPostProcessFrameAfterWarpBlend_RenderThread(RHICmdList, &FrameResources, AdditionalResources);
+			for (const TSharedPtr<IDisplayClusterPostProcess, ESPMode::ThreadSafe >& PostProcessProxyIt : PostprocessProxy)
+			{
+				if (IsPostProcessFrameAfterWarpBlendRequired(PostProcessProxyIt))
+				{
+					TArray<FRHITexture*>* TempFrameResourcesPtr = (!TempFrameResources.IsEmpty() && PostProcessProxyIt->ShouldUseAdditionalFrameTargetableResource()) ? &TempFrameResources : nullptr;
+
+					UE_LOG(LogDisplayClusterRender, VeryVerbose, TEXT("Perform PostProcessFrameAfterWarpBlend '%s'"), *PostProcessProxyIt->GetId());
+
+					if (GDisplayClusterPostProcessFrameAfterWarpBlendAlwaysClearRTT && TempFrameResourcesPtr)
+					{
+						// Always perform RTT cleanup before each full-frame post-processing.
+						for (FRHITexture* FrameResourceIt : *TempFrameResourcesPtr)
+						{
+							FDisplayClusterViewportProxy::FillTextureWithColor_RenderThread(RHICmdList, FrameResourceIt, FLinearColor::Black);
+						}
+					}
+
+					PostProcessProxyIt->PerformPostProcessFrameAfterWarpBlend_RenderThread(RHICmdList, &FrameResources, TempFrameResourcesPtr);
 				}
 			}
 
-			// Apply OutputRemap after all postprocess
-			if (OutputRemap.IsValid() && OutputRemap->IsEnabled())
+			// Apply OutputRemap after all postprocess. The TempFrameResources is required.
+			if (OutputRemap.IsValid() && OutputRemap->IsEnabled() && !TempFrameResources.IsEmpty())
 			{
-				TArray<FRHITexture*>* AdditionalResources = (AdditionalFrameResources.Num() > 0) ? &AdditionalFrameResources : nullptr;
-				OutputRemap->PerformPostProcessFrame_RenderThread(RHICmdList, &FrameResources, AdditionalResources);
+				if (GDisplayClusterPostProcessFrameAfterWarpBlendAlwaysClearRTT)
+				{
+					// Always perform RTT cleanup before each full-frame post-processing.
+					for (FRHITexture* FrameResourceIt : TempFrameResources)
+					{
+						FDisplayClusterViewportProxy::FillTextureWithColor_RenderThread(RHICmdList, FrameResourceIt, FLinearColor::Black);
+					}
+				}
+
+				OutputRemap->PerformPostProcessFrame_RenderThread(RHICmdList, &FrameResources, &TempFrameResources);
 			}
 		}
 	}
