@@ -757,6 +757,11 @@ void FOpenXRHMD::EnableHMD(bool enable)
 
 bool FOpenXRHMD::GetHMDMonitorInfo(MonitorInfo& MonitorDesc)
 {
+	if (!AcquireSystemIdAndProperties())
+	{
+		return false;
+	}
+
 	MonitorDesc.MonitorName = UTF8_TO_TCHAR(SystemProperties.systemName);
 	MonitorDesc.MonitorId = 0;
 
@@ -2028,6 +2033,30 @@ bool FOpenXRHMD::PopulateAnalyticsAttributes(TArray<FAnalyticsEventAttribute>& E
 	return true;
 }
 
+bool FOpenXRHMD::AcquireSystemIdAndProperties()
+{
+	// system does not seem to be governed by the session handle lock as it can be reset in OnStartGameFrame outside of the lock
+	System = IOpenXRHMDModule::Get().GetSystemId();
+	if (!System)
+	{
+		return false;
+	}
+
+	// Retrieve system properties and check for hand tracking support
+	XrSystemHandTrackingPropertiesEXT HandTrackingSystemProperties = { XR_TYPE_SYSTEM_HAND_TRACKING_PROPERTIES_EXT };
+	SystemProperties = XrSystemProperties{ XR_TYPE_SYSTEM_PROPERTIES, &HandTrackingSystemProperties };
+	XrResult GetSystemPropsResult = xrGetSystemProperties(Instance, System, &SystemProperties);
+	XR_ENSURE(GetSystemPropsResult);
+	bxrGetSystemPropertiesSuccessful = (GetSystemPropsResult == XR_SUCCESS);
+
+	bSupportsHandTracking = HandTrackingSystemProperties.supportsHandTracking == XR_TRUE;
+	// Some runtimes aren't compliant with their number of layers supported.
+	// We support a fallback by emulating non-facelocked layers
+	bLayerSupportOpenXRCompliant = SystemProperties.graphicsProperties.maxLayerCount >= XR_MIN_COMPOSITION_LAYERS_SUPPORTED;
+
+	return true;
+}
+
 bool FOpenXRHMD::OnStereoStartup()
 {
 	FWriteScopeLock Lock(SessionHandleMutex);
@@ -2039,24 +2068,11 @@ bool FOpenXRHMD::OnStereoStartup()
 		return false;
 	}
 
-	System = IOpenXRHMDModule::Get().GetSystemId();
-	if (!System)
+	if (!AcquireSystemIdAndProperties())
 	{
 		UE_LOG(LogHMD, Error, TEXT("Failed to get an OpenXR system, please check that you have a VR headset connected."));
 		return false;
 	}
-
-	// Retrieve system properties and check for hand tracking support
-	XrSystemHandTrackingPropertiesEXT HandTrackingSystemProperties = { XR_TYPE_SYSTEM_HAND_TRACKING_PROPERTIES_EXT };
-	SystemProperties = XrSystemProperties{ XR_TYPE_SYSTEM_PROPERTIES, &HandTrackingSystemProperties };
-	XrResult GetSystemPropsResult = xrGetSystemProperties(Instance, System, &SystemProperties);
-	XR_ENSURE(GetSystemPropsResult);
-	bxrGetSystemPropertiesSuccessful = (GetSystemPropsResult == XR_SUCCESS);
-	bSupportsHandTracking = HandTrackingSystemProperties.supportsHandTracking == XR_TRUE;
-
-	// Some runtimes aren't compliant with their number of layers supported.
-	// We support a fallback by emulating non-facelocked layers
-	bLayerSupportOpenXRCompliant = SystemProperties.graphicsProperties.maxLayerCount >= XR_MIN_COMPOSITION_LAYERS_SUPPORTED; 
 
 	// Enumerate the viewport configurations
 	uint32 ConfigurationCount;

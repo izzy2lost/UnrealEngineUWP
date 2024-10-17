@@ -356,6 +356,9 @@ protected:
 
 	virtual bool PopulateAnalyticsAttributes(TArray<struct FAnalyticsEventAttribute>& EventAttributes) override;
 
+	/** Populates System, SystemProperties and related fields. Can get called before OnStereoStartup. */
+	bool AcquireSystemIdAndProperties();
+
 public:
 	/** IXRTrackingSystem interface */
 	virtual bool DoesSupportLateProjectionUpdate() const override { return true; }
