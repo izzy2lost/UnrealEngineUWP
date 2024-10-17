@@ -74,6 +74,7 @@ public:
 
 	virtual const TSet<FSceneInterface*>& GetAllocatedScenes() override
 	{
+		check(IsInGameThread());
 		return AllocatedScenes;
 	}
 
