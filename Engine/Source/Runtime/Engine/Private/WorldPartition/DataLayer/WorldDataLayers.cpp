@@ -1247,11 +1247,6 @@ void AWorldDataLayers::OnDataLayerManagerInitialized()
 	InitializeDataLayerRuntimeStates();
 }
 
-void AWorldDataLayers::OnDataLayerManagerDeinitialized()
-{
-	ResetDataLayerRuntimeStates();
-}
-
 void AWorldDataLayers::Serialize(FArchive& Ar)
 {
 	Super::Serialize(Ar);
