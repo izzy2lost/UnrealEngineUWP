@@ -147,7 +147,8 @@ namespace impl
 
 				Task_Mutable_UpdateMesh_Loop(OperationData, Task, InstanceID, LODIndex + 1);
 			},
-			GetMeshTask));
+			GetMeshTask,
+			LowLevelTasks::ETaskPriority::Inherit));
 	}
 
 	void Task_Mutable_UpdateMesh(const TSharedPtr<FMutableMeshOperationData> OperationData, TRefCountPtr<FCustomizableObjectMeshStreamIn>& Task)
