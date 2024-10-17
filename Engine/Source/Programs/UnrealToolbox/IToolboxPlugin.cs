@@ -17,7 +17,7 @@ namespace UnrealToolbox
 	/// <summary>
 	/// Reported status of a plugin
 	/// </summary>
-	record class TrayAppPluginStatus(TrayAppPluginState State, string? Message = null, string? NotificationMessage = null)
+	record class TrayAppPluginStatus(TrayAppPluginState State, string? Message = null)
 	{
 		public static TrayAppPluginStatus Default { get; } = new TrayAppPluginStatus(TrayAppPluginState.Undefined);
 	}

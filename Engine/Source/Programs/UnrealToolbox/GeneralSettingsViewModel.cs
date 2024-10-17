@@ -158,10 +158,12 @@ namespace UnrealToolbox
 				bool result = await client.LoginAsync(true, cancellationToken);
 				if (!result)
 				{
+					ToolboxNotificationManager.PostNotification($"Connection Error: {client.ServerUrl.ToString()}", "Login Failed");
 					return new ConnectionState(client.ServerUrl.ToString(), "Login failed");
 				}
 				else if (!client.HasValidAccessToken())
 				{
+					ToolboxNotificationManager.PostNotification($"Connection Error: {client.ServerUrl.ToString()}", "Session expired");
 					return new ConnectionState(client.ServerUrl.ToString(), "Session expired");
 				}
 				else
@@ -171,6 +173,18 @@ namespace UnrealToolbox
 			}
 			catch (Exception ex)
 			{
+				string message = ex.Message;
+				message = message.Length > 100 ? message.Substring(0, 100) : message;
+
+				// Make some connection errors more friendly
+				string serverUrl = HordeOptions.GetDefaultServerUrl()?.ToString() ?? "Not Conigured";
+				if (message.Contains("party did not properly respond", StringComparison.OrdinalIgnoreCase) || message.Contains("actively refused it", StringComparison.OrdinalIgnoreCase))
+				{
+					message = $"Unable to reach the Horde Server: {serverUrl}";
+				}
+
+				ToolboxNotificationManager.PostNotification($"Connection Error", $"{message}");
+
 				return new ConnectionState(hordeClientRef.Client.ServerUrl.ToString(), $"Connection failed: {ex.Message}");
 			}
 		}

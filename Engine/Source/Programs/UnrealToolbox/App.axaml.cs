@@ -46,9 +46,7 @@ namespace UnrealToolbox
 			serviceCollection.AddSingleton<IToolCatalog, ToolCatalog>(sp => sp.GetRequiredService<ToolCatalog>());
 			serviceCollection.AddSingleton<ITrayAppHost>(this);
 			serviceCollection.AddSingleton<SelfUpdateService>();
-
 			serviceCollection.AddSingleton<ToolboxNotificationManager>();
-			serviceCollection.AddSingleton<IToolboxNotificationManager, ToolboxNotificationManager>(sp => sp.GetRequiredService<ToolboxNotificationManager>());
 
 			// Configure plugins
 			serviceCollection.AddSingleton<ITrayAppPlugin, HordeAgentPlugin>();
@@ -320,17 +318,10 @@ namespace UnrealToolbox
 		{
 			TrayAppPluginState state = TrayAppPluginState.Undefined;
 			List<string> messages = new List<string>();
-			string? pluginName = null;
-			string? errorMessage = null;
 
 			foreach (ITrayAppPlugin plugin in _serviceProvider.GetServices<ITrayAppPlugin>())
 			{
 				TrayAppPluginStatus status = plugin.GetStatus();
-				if (status.State == TrayAppPluginState.Error && !String.IsNullOrEmpty(status.NotificationMessage))
-				{
-					pluginName = plugin.Name;
-					errorMessage = status.NotificationMessage;
-				}
 
 				if (status.State >= state)
 				{
@@ -355,16 +346,6 @@ namespace UnrealToolbox
 				_ => _normalIcon
 			};
 			trayIcon.ToolTipText = String.Join("\n", messages);
-
-			// Notify on errors
-			if (!String.IsNullOrEmpty(errorMessage))
-			{
-				IToolboxNotificationManager? notifications = _serviceProvider.GetService<IToolboxNotificationManager>();
-				if (notifications != null)
-				{
-					notifications.ShowNotification(pluginName ?? "Status Error", errorMessage);
-				}
-			}
 		}
 	}
 }

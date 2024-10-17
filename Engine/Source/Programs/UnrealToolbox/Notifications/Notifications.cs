@@ -4,29 +4,55 @@ using System.Reflection;
 using System.Runtime.InteropServices;
 using DesktopNotifications;
 using DesktopNotifications.Windows;
+using EpicGames.Core;
 
 namespace UnrealToolbox
 {
 	/// <summary>
-	/// Toolbox notification manager interface
+	/// A tool notification
 	/// </summary>
-	public interface IToolboxNotificationManager
+	class ToolboxNotification
 	{
 		/// <summary>
-		/// Show a notification
+		/// The title to display
+		/// </summary>
+		public string Title { get; }
+
+		/// <summary>
+		/// The body of the notification
+		/// </summary>
+		public string Body { get; }
+
+		/// <summary>
+		/// Whether to force the notification regardless of delta time
+		/// </summary>
+		public bool Force { get; }
+
+		/// <summary>
+		/// Constructor
 		/// </summary>
 		/// <param name="title"></param>
 		/// <param name="body"></param>
 		/// <param name="force"></param>
-		void ShowNotification(string title, string body, bool force = false);
+		public ToolboxNotification(string title, string body, bool force = false)
+		{
+			Title = title;
+			Body = body;
+			Force = force;
+		}		
 	}
 
 	/// <summary>
 	/// Toolbox notification manager implementation
 	/// </summary>
-	class ToolboxNotificationManager : IToolboxNotificationManager, IDisposable
+	class ToolboxNotificationManager : IAsyncDisposable
 	{
 		private INotificationManager? _platformManager;
+
+		private static readonly object s_lock = new object();
+
+		private static List<ToolboxNotification> s_notifications = new List<ToolboxNotification>();
+		readonly BackgroundTask _backgroundTask;
 
 		// spam prevention
 		DateTime? _lastNotificationTime;
@@ -38,7 +64,44 @@ namespace UnrealToolbox
 
 		public ToolboxNotificationManager()
 		{
+			_backgroundTask = new BackgroundTask(PostNotificationsAsync);
 		}
+
+		async Task PostNotificationsAsync(CancellationToken cancellationToken)
+		{
+			for (; ; )
+			{
+				try
+				{
+					List<ToolboxNotification>? notifications = null;
+					lock (s_lock)
+					{
+						if (s_notifications.Count > 0)
+						{
+							notifications = s_notifications;
+							s_notifications = new List<ToolboxNotification>();
+						}	
+					}
+
+					if (notifications != null && notifications.Count > 0)
+					{
+						notifications.Reverse();
+						ShowNotification(notifications[0].Title, notifications[0].Body, notifications[0].Force);
+					}
+				}
+				catch (OperationCanceledException)
+				{
+					throw;
+				}
+				catch (Exception)
+				{
+					
+				}
+
+				await Task.Delay(TimeSpan.FromSeconds(1.0), cancellationToken);
+			}
+		}
+
 
 		public void Start()
 		{
@@ -59,11 +122,28 @@ namespace UnrealToolbox
 			// initialize and ensure with result
 			_platformManager.Initialize().GetAwaiter().GetResult();
 
+			_backgroundTask.Start();
+
 		}
 
-		public void Dispose()
+		public async ValueTask DisposeAsync()
 		{
 			_platformManager?.Dispose();
+			await _backgroundTask.DisposeAsync();
+		}
+
+		/// <summary>
+		/// Threead safe notification posting
+		/// </summary>
+		/// <param name="title"></param>
+		/// <param name="body"></param>
+		/// <param name="force"></param>
+		public static void PostNotification(string title, string body, bool force = false)
+		{
+			lock (s_lock)
+			{
+				s_notifications.Add(new ToolboxNotification(title, body, force));
+			}
 		}
 
 		/// <summary>
@@ -72,7 +152,7 @@ namespace UnrealToolbox
 		/// <param name="title"></param>
 		/// <param name="body"></param>
 		/// <param name="force"></param>
-		public void ShowNotification(string title, string body, bool force = false)
+		private void ShowNotification(string title, string body, bool force = false)
 		{
 			if (_platformManager == null)
 			{
