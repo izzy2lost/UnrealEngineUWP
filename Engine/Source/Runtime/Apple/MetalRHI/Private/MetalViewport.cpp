@@ -576,6 +576,9 @@ void FMetalViewport::Present(FMetalCommandQueue& CommandQueue, bool bLockToVsync
 #endif // PLATFORM_MAC
                         METAL_GPUPROFILE(Stats->End(CurrentCommandBuffer->GetMTLCmdBuffer()));
                         CommandQueue.CommitCommandBuffer(CurrentCommandBuffer);
+						
+						// Wait for the frame semaphore
+						dispatch_semaphore_wait(Device.GetFrameSemaphore(), DISPATCH_TIME_FOREVER);
 					}
 				}
 			}
@@ -728,6 +731,9 @@ void FMetalViewport::PresentImmersive(const MetalRHIVisionOS::PresentImmersivePa
 				Context.ResetContext();
 				
 				cp_frame_end_submission(CompositorServicesFrame);
+				
+				// Wait for the frame semaphore
+				dispatch_semaphore_wait(Device.GetFrameSemaphore(), DISPATCH_TIME_FOREVER);
 			}
 		}
 	}
