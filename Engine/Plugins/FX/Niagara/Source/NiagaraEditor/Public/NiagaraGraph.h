@@ -461,6 +461,9 @@ public:
 
 	bool ReferencesStaticVariable(FNiagaraStaticVariableSearchContext& SearchContext) const;
 
+	/** Migrates the deprecated data from the provided OwnerData and populates the ParameterHierarchyRoot */
+	void MigrateParameterScriptDataToHierarchyRoot(FVersionedNiagaraScriptData& OwnerData);
+
 protected:
 	void RebuildNumericCache();
 	bool bNeedNumericCacheRebuilt;

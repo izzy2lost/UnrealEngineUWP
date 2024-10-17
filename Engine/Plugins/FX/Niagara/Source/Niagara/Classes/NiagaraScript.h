@@ -1470,6 +1470,11 @@ private:
 
 	/* Flag set on load based on whether we're loading from a cooked package. */
 	bool IsCooked = false;
+
+	/* Transient flag marking that the script will need to rebuild the hierarchy root based on the custom version encountered during serialize.
+	*  Note that this is required because GetLinkerCustomVersion() is not reliable when assets are being duplicated, something that happens
+	*  often to our scripts during emitter merging, for example */
+	bool bMigrateParameterDataToHierarchyRoot = false;
 #endif
 
 	/** Compiled VM bytecode and data necessary to run this script.*/

@@ -2072,6 +2072,11 @@ void UNiagaraScript::Serialize(FArchive& Ar)
 	{
 		SaveShaderStableKeys(Ar.CookingTarget());
 	}
+
+	if (Ar.IsLoading())
+	{
+		bMigrateParameterDataToHierarchyRoot = NiagaraVer < FNiagaraCustomVersion::HierarchyEditorScriptSupport;
+	}
 #endif
 
 	SerializeNiagaraShaderMaps(Ar, NiagaraVer, IsValidShaderScript);
@@ -2358,7 +2363,11 @@ void UNiagaraScript::PostLoad()
 		{
 			Source->ConditionalPostLoad();
 
-			Source->PostLoadFromOwner(Data);
+			if (bMigrateParameterDataToHierarchyRoot)
+			{
+				Source->MigrateParameterDataToHierarchyRoot(Data);
+				bMigrateParameterDataToHierarchyRoot = false;
+			}
 
 			// Synchronize with Definitions after source scripts have been postloaded.
 			FVersionedNiagaraScript& VersionedScriptAdapter = VersionedScriptAdapters.Emplace_GetRef(this, Data.Version.VersionGuid);
