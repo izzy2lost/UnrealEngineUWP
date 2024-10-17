@@ -42,7 +42,10 @@ namespace Private
 }
 
 bool FMovieGraphPathTracerPass::ShouldDiscardOutput(const TSharedRef<FSceneViewFamilyContext>& InFamily, const UE::MovieGraph::DefaultRenderer::FCameraInfo& InCameraInfo) const
-{ 
+{
+	// We intentionally skip calling the super because it discards any samples not done during Rendering state,
+	// but we need to not skip the results due to Temporal Denoising cooldown frames.
+
 	int32 SampleCount, SampleIndex;
 	Private::GetSampleData(InFamily, InCameraInfo, SampleCount, SampleIndex);
 

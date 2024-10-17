@@ -17,6 +17,7 @@
 #include "GameFramework/WorldSettings.h"
 #include "ProfilingDebugging/MiscTrace.h"
 #include "MoviePipelineUtils.h"
+#include "Graph/Nodes/MovieGraphSamplingMethodNode.h"
 
 UMovieGraphCoreTimeStep::UMovieGraphCoreTimeStep()
 {
@@ -628,8 +629,7 @@ void UMovieGraphCoreTimeStep::ResetForEndOfOutputFrame()
 
 bool UMovieGraphCoreTimeStep::IsExpansionForTSRequired(const TObjectPtr<UMovieGraphEvaluatedConfig>& InConfig) const
 {
-	// ToDo: This needs to come from the config (once we have TemporalSampleCount there)
-	return false;
+	return GetTemporalSampleCountFromConfig(InConfig) > 1;
 }
 
 void UMovieGraphCoreTimeStep::UpdateFrameMetrics()
@@ -846,5 +846,23 @@ bool UMovieGraphEngineTimeStep::UpdateTimeStep(UEngine* /*InEngine*/)
 
 	// Return false so the engine doesn't run its own logic to overwrite FApp timings.
 	return false;
+}
+
+int32 UMovieGraphCoreTimeStep::GetTemporalSampleCountFromConfig(UMovieGraphEvaluatedConfig* InConfig) const
+{
+	if (!ensure(InConfig))
+	{
+		return 1;
+	}
+
+	constexpr bool bIncludeCDOs = true;
+	const UMovieGraphSamplingMethodNode* SamplingMethod =
+		InConfig->GetSettingForBranch<UMovieGraphSamplingMethodNode>(UMovieGraphNode::GlobalsPinName, bIncludeCDOs);
+	if (SamplingMethod->TemporalSampleCount <= 0)
+	{
+		UE_LOG(LogMovieRenderPipeline, Error, TEXT("Sampling Method > Temporal Sample Count was zero, this is not allowed. Forcing value to 1!"));
+	}
+
+	return FMath::Max(SamplingMethod->TemporalSampleCount, 1);
 }
 

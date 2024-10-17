@@ -22,6 +22,8 @@ namespace UE::MovieGraph::Rendering
 		virtual void AddReferencedObjects(FReferenceCollector& Collector) override;
 		virtual FName GetBranchName() const override;
 		virtual UMovieGraphImagePassBaseNode* GetParentNode(UMovieGraphEvaluatedConfig* InConfig) const override;
+		bool ShouldDiscardOutput(const TSharedRef<FSceneViewFamilyContext>& InFamily, const UE::MovieGraph::DefaultRenderer::FCameraInfo& InCameraInfo) const override;
+
 		// End FMovieGraphImagePassBase
 			
 	protected:
@@ -37,6 +39,9 @@ namespace UE::MovieGraph::Rendering
 
 		// The number of frames to delay to send frames from SubmissionQueue to post-render submission.
 		int32 FramesToDelayPostSubmission;
+		
+		// If using cooldown, the number of cool-down frames we still need to process.
+		int32 RemainingCooldownReadbackFrames;
 
 		// FIFO queue of rendered frames. It allows frames to be sent to post-render submission with a delay if needed (e.g., when temporal denoising is used with path tracers).  
 		TQueue<FMovieGraphPostRendererSubmissionParams> SubmissionQueue;
