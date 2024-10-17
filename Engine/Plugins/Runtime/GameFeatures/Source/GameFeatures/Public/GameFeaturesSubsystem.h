@@ -688,6 +688,9 @@ private:
 	void OnGameFeatureActivating(const UGameFeatureData* GameFeatureData, const FString& PluginName, FGameFeatureActivatingContext& Context, const FGameFeaturePluginIdentifier& PluginIdentifier);
 	friend struct FGameFeaturePluginState_Activating;
 
+	void OnGameFeatureActivated(const UGameFeatureData* GameFeatureData, const FString& PluginName, const FGameFeaturePluginIdentifier& PluginIdentifier);
+	friend struct FGameFeaturePluginState_Active;
+
 	void OnGameFeatureDeactivating(const UGameFeatureData* GameFeatureData, const FString& PluginName, FGameFeatureDeactivatingContext& Context, const FGameFeaturePluginIdentifier& PluginIdentifier);
 	friend struct FGameFeaturePluginState_Deactivating;
 
@@ -803,6 +806,7 @@ private:
 		Loading,
 		Unloading,
 		Activating,
+		Activated,
 		Deactivating,
 		PauseChanged,
 		Count

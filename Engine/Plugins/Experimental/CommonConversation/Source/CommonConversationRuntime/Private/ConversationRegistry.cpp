@@ -185,7 +185,7 @@ void UConversationRegistry::GameFeatureStateModified()
 	}
 }
 
-void UConversationRegistry::OnGameFeatureActivating(const UGameFeatureData* GameFeatureData, const FString& PluginURL)
+void UConversationRegistry::OnGameFeatureActivated(const UGameFeatureData* GameFeatureData, const FString& PluginURL)
 {
 	GameFeatureStateModified();
 }
