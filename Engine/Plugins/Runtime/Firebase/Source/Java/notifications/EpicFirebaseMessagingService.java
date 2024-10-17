@@ -20,6 +20,7 @@ import com.epicgames.unreal.Logger;
 import com.google.android.gms.tasks.OnCompleteListener;
 import com.google.android.gms.tasks.Task;
 import com.google.android.gms.tasks.Tasks;
+import com.google.firebase.FirebaseApp;
 import com.google.firebase.messaging.FirebaseMessaging;
 import com.google.firebase.messaging.FirebaseMessagingService;
 import com.google.firebase.messaging.RemoteMessage;
@@ -321,6 +322,7 @@ public class EpicFirebaseMessagingService extends FirebaseMessagingService {
 	
 	@Nullable
 	public static String getFirebaseToken(@NonNull Context context) {
+		EnsureFirebaseIsInitialized(context);
 		String token = getFirebaseTokenFromCache(context);
 		if(TextUtils.isEmpty(token)) {
 			Task<String> tokenTask = FirebaseMessaging.getInstance().getToken();
@@ -356,9 +358,17 @@ public class EpicFirebaseMessagingService extends FirebaseMessagingService {
 	}
 
 	public static void enableFirebaseAutoInit(@NonNull Context context, boolean enableAnalytics) {
+		EnsureFirebaseIsInitialized(context);
 		FirebaseMessaging.getInstance().setAutoInitEnabled(true);
 		if (enableAnalytics) {
 			FirebaseAnalytics.getInstance(context).setAnalyticsCollectionEnabled(true);
+		}
+	}
+
+	public static void EnsureFirebaseIsInitialized(@NonNull Context context)
+	{
+		if (FirebaseApp.getApps(context).isEmpty()) {
+			FirebaseApp.initializeApp(context);
 		}
 	}
 }

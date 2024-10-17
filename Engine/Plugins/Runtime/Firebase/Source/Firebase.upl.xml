@@ -35,6 +35,12 @@
 							<meta-data android:name="firebase_messaging_auto_init_enabled" android:value="false" />
 							<meta-data android:name="firebase_analytics_collection_enabled" android:value="false" />
 						</addElements>
+						<setElement result="removeFirebaseInit" value="provider" />
+						<addAttribute tag="$removeFirebaseInit" name="android:name" value="com.google.firebase.provider.FirebaseInitProvider" />
+						<addAttribute tag="$removeFirebaseInit" name="android:authorities" value="$S(AndroidPackageName).firebaseinitprovider" />
+						<addAttribute tag="$removeFirebaseInit" name="android:exported" value="false" />
+						<addAttribute tag="$removeFirebaseInit" name="tools:node" value="remove" />
+						<addElement tag="application" name="removeFirebaseInit" />
 					</true>
 				</if>
 				<addElement tag="application" name="ServiceElement" />
@@ -46,7 +52,7 @@
 		<if condition="bEnabled">
 			<true>
 				<insert>dependencies {
-	classpath 'com.google.gms:google-services:4.3.15' // google-services plugin
+	classpath 'com.google.gms:google-services:4.4.2' // google-services plugin
 }
 </insert>
 			</true>
