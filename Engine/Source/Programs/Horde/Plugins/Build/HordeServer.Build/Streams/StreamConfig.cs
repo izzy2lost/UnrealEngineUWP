@@ -354,6 +354,7 @@ namespace HordeServer.Streams
 			}
 			foreach (ArtifactTypeConfig artifactTypeConfig in ArtifactTypes)
 			{
+				artifactTypeConfig.PostLoad(Acl);
 				_artifactTypeLookup[artifactTypeConfig.Type] = artifactTypeConfig;
 			}
 
