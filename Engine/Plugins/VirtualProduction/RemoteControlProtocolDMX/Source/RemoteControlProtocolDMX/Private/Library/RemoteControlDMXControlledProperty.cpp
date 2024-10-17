@@ -76,7 +76,7 @@ namespace UE::RemoteControl::DMX
 
 			if (DMXEntity->ExtraSetting.FunctionIndex == INDEX_NONE)
 			{
-				const FString AttributeName = [EntityIndex, this]()
+				const FString AttributeName = [&DMXEntity, EntityIndex, this]()
 					{
 						const FString FieldPathInfo = ExposedProperty->FieldPathInfo.ToString();
 						if (Entities.Num() == 1)
@@ -86,72 +86,75 @@ namespace UE::RemoteControl::DMX
 						}
 						else if (Entities.Num() <= 3 && 
 							(FieldPathInfo.Contains(TEXT("Location")) || FieldPathInfo.Contains(TEXT("Scale"))))
-						{
-							// Use XYZW for entities containing "Location" or "Scale" and up to 3 components
+						{							
+							// Use XYZ for entities containing "Location" or "Scale" and up to 3 components
 							FString VectorComponent;
-							switch (EntityIndex)
+							if (DMXEntity->HasMask(ERCMask::MaskA))
 							{
-							case 0:
-								VectorComponent = TEXT("_X");
-								break;
-							case 1:
-								VectorComponent = TEXT("_Y");
-								break;
-							case 2:
-								VectorComponent = TEXT("_Z");
-								break;
-							default:
-								checkf(0, TEXT("Expected max 4 components to create a vector-like attribute name, but got more."))
+								VectorComponent += TEXT("X");
 							}
 
-							return FString::Printf(TEXT("%s%s"), *FieldPathInfo, *VectorComponent);
+							if (DMXEntity->HasMask(ERCMask::MaskB))
+							{
+								VectorComponent += TEXT("Y");
+							}
+
+							if (DMXEntity->HasMask(ERCMask::MaskC))
+							{
+								VectorComponent += TEXT("Z");
+							}
+
+							return FString::Printf(TEXT("%s_%s"), *FieldPathInfo, *VectorComponent);
 						}
 						else if (Entities.Num() <= 3 && 
 							FieldPathInfo.Contains(TEXT("Rotation")))
 						{
 							// Use Yaw, Pitch, Roll for entities containing "Rotation" and up to 3 components
 							FString VectorComponent;
-							switch (EntityIndex)
+							if (DMXEntity->HasMask(ERCMask::MaskA))
 							{
-							case 0:
-								VectorComponent = TEXT("_Roll");
-								break;
-							case 1:
-								VectorComponent = TEXT("_Pitch");
-								break;
-							case 2:
-								VectorComponent = TEXT("_Yaw");
-								break;
-							default:
-								checkf(0, TEXT("Expected max 3 components to create a rotation-like attribute name, but got more."))
+								VectorComponent += TEXT("Roll");
 							}
 
-							return FString::Printf(TEXT("%s%s"), *FieldPathInfo, *VectorComponent);
+							if (DMXEntity->HasMask(ERCMask::MaskB))
+							{
+								VectorComponent += TEXT("Pitch");
+							}
+
+							if (DMXEntity->HasMask(ERCMask::MaskC))
+							{
+								VectorComponent += TEXT("Yaw");
+							}
+
+							return FString::Printf(TEXT("%s_%s"), *FieldPathInfo, *VectorComponent);
 						}
 						else if (Entities.Num() <= 4 &&
 							FieldPathInfo.Contains(TEXT("Color")))
 						{
 							// Use RGBA for entities containing "Color" and up to 4 components
 							FString ColorComponent;
-							switch (EntityIndex)
+							if (DMXEntity->HasMask(ERCMask::MaskA))
 							{
-							case 0:
-								ColorComponent = TEXT("_R");
-								break;
-							case 1:
-								ColorComponent = TEXT("_G");
-								break;
-							case 2:
-								ColorComponent = TEXT("_B");
-								break;
-							case 3:
-								ColorComponent = TEXT("_A");
-								break;
-							default:
-								checkf(0, TEXT("Expected max 4 components to create a color-like attribute name, but got more."))
+								ColorComponent += TEXT("R");
 							}
 
-							return FString::Printf(TEXT("%s%s"), *FieldPathInfo, *ColorComponent);
+							if (DMXEntity->HasMask(ERCMask::MaskB))
+							{
+								ColorComponent += TEXT("G");
+							}
+
+							if (DMXEntity->HasMask(ERCMask::MaskC))
+							{
+								ColorComponent += TEXT("B");
+							}
+
+
+							if (DMXEntity->HasMask(ERCMask::MaskD))
+							{
+								ColorComponent += TEXT("A");
+							}
+
+							return FString::Printf(TEXT("%s_%s"), *FieldPathInfo, *ColorComponent);
 						}
 						else
 						{
@@ -159,7 +162,6 @@ namespace UE::RemoteControl::DMX
 							return FString::Printf(TEXT("%s%i"), *FieldPathInfo, EntityIndex + 1);
 						}
 					}();
-
 
 				DMXEntity->ExtraSetting.AttributeName = *AttributeName;
 				DMXEntity->ExtraSetting.FunctionIndex = EntityIndex;

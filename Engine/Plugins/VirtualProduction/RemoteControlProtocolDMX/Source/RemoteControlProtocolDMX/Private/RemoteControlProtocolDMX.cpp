@@ -143,6 +143,13 @@ void FRemoteControlDMXProtocolEntity::UnbindDMX()
 	}
 }
 
+#if WITH_EDITOR
+void FRemoteControlDMXProtocolEntity::SetAttributeName(const FName& AttributeName)
+{
+	ExtraSetting.AttributeName = AttributeName;
+}
+#endif // WITH_EDITOR
+
 bool FRemoteControlDMXProtocolEntity::Serialize(FArchive& Ar)
 {
 	Ar.UsingCustomVersion(FRemoteControlProtocolDMXObjectVersion::GUID);
