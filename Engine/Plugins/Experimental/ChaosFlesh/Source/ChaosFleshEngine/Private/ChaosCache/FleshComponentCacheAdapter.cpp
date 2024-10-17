@@ -555,7 +555,7 @@ namespace Chaos
 		FString CacheDir = InObserved.USDCacheDirectory.Path;
 		if (CacheDir.IsEmpty())
 		{
-			CacheDir = FString(TEXT("SimCache"));
+			CacheDir = FPaths::Combine(FPaths::ProjectSavedDir(), FString(TEXT("SimCache")));
 		}
 		FPaths::NormalizeDirectoryName(CacheDir);
 		if (CacheDir.StartsWith(FString(TEXT("/Game"))))
