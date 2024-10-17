@@ -282,7 +282,7 @@ void IPCGElement::PreExecute(FPCGContext* Context) const
 		// Implementation note: this supposes that the current node has only ONE required pin, and not multiple.
 		// For more complex cases (such as multiple required pins, whether cartesian or matching), the implementation should use common code instead to streamline this process -
 		// both when getting the results from the cache but also when writing them
-		if (ExecutionLoopMode(Settings) != EPCGElementExecutionLoopMode::NotALoop && IsCacheable(Settings))
+		if (ExecutionLoopMode(Settings) != EPCGElementExecutionLoopMode::NotALoop && IsCacheableInstance(Settings))
 		{
 			PreExecutePrimaryLoopElement(Context, Settings);
 		}
@@ -373,7 +373,7 @@ void IPCGElement::PostExecute(FPCGContext* Context) const
 
 	if (CVarPCGAllowPerDataCaching.GetValueOnAnyThread())
 	{
-		if (!Context->OutputData.bCancelExecution && ExecutionLoopMode(Settings) != EPCGElementExecutionLoopMode::NotALoop && IsCacheable(Settings))
+		if (!Context->OutputData.bCancelExecution && ExecutionLoopMode(Settings) != EPCGElementExecutionLoopMode::NotALoop && IsCacheableInstance(Settings))
 		{
 			PostExecutePrimaryLoopElement(Context, Settings);
 		}

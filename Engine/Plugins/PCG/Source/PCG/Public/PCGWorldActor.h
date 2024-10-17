@@ -66,7 +66,7 @@ public:
 	bool bUse2DGrid = true;
 
 	/** Allows any currently active editor viewport to act as a Runtime Generation Source. */
-	UPROPERTY(EditAnywhere, Category = RuntimeGeneration)
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = RuntimeGeneration)
 	bool bTreatEditorViewportAsGenerationSource = false;
 #endif
 
