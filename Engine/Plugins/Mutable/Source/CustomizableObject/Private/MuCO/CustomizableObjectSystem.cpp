@@ -2182,7 +2182,8 @@ namespace impl
 		{
 			Task_Mutable_GetMeshes_GetImage_Post(OperationData, StartTime, GetImagesData, GetImageIndex, GetImageTask);
 		},
-		GetImageTask));
+		GetImageTask,
+		LowLevelTasks::ETaskPriority::Inherit));
 	}
 
 
@@ -2443,7 +2444,8 @@ namespace impl
 		{
 			Task_MutableGetMeshes_GetMesh_Post(OperationData, StartTime, GetMeshesData, GetMeshIndex, GetMeshTask);
 		},
-		GetMeshTask));
+		GetMeshTask,
+		LowLevelTasks::ETaskPriority::Inherit));
 	}
 
 
@@ -2585,7 +2587,8 @@ namespace impl
 		{
 			Task_Mutable_GetImages_GetImage(OperationData, StartTime, ImagesInThisInstance, ImageIndex, GetImageDescTask);
 		},
-		GetImageDescTask));
+		GetImageDescTask,
+		LowLevelTasks::ETaskPriority::Inherit));
 	}
 
 
@@ -2728,7 +2731,8 @@ namespace impl
 			{
 				Task_Mutable_GetImages_GetImage_Post(OperationData, StartTime, ImagesInThisInstance, ImageIndex, GetImageTask, MipSizeX, MipSizeY, FullLODCount, MipsToSkip);
 			},
-			GetImageTask));
+			GetImageTask,
+			LowLevelTasks::ETaskPriority::Inherit));
 		}
 	}
 
