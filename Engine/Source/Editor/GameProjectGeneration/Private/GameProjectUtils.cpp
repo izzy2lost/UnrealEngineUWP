@@ -96,14 +96,18 @@ constexpr const TCHAR GameProjectUtils::IncludePathFormatString[];
 namespace
 {
 	/** Get the configuration values for enabling Lumen by default. */
-	void AddLumenConfigValues(const FProjectInformation& InProjectInfo, TArray<FTemplateConfigValue>& ConfigValues)
+	void AddLumenConfigValues(const FProjectInformation& InProjectInfo, TArray<FTemplateConfigValue>& ConfigValues, bool bDisableStaticLighting = true)
 	{
-		// Disable static lighting support
-		ConfigValues.Emplace(TEXT("DefaultEngine.ini"),
-			TEXT("/Script/Engine.RendererSettings"),
-			TEXT("r.AllowStaticLighting"),
-			TEXT("0"),
-			true /* ShouldReplaceExistingValue */);
+		// In some cases we may want to leave static lighting enabled (e.g. VRTemplate needs it as of UE 5.5)
+		if (bDisableStaticLighting)
+		{
+			// Disable static lighting support
+			ConfigValues.Emplace(TEXT("DefaultEngine.ini"),
+				TEXT("/Script/Engine.RendererSettings"),
+				TEXT("r.AllowStaticLighting"),
+				TEXT("0"),
+				true /* ShouldReplaceExistingValue */);
+		}
 
 		// Required for Lumen's Software Ray Tracing support
 		ConfigValues.Emplace(TEXT("DefaultEngine.ini"),
@@ -1877,7 +1881,7 @@ TOptional<FGuid> GameProjectUtils::CreateProjectFromTemplate(const FProjectInfor
 
 	AddHardwareConfigValues(InProjectInfo, ConfigValuesToSet);
 
-	AddLumenConfigValues(InProjectInfo, ConfigValuesToSet);
+	AddLumenConfigValues(InProjectInfo, ConfigValuesToSet, /* do not disable static lighting, as some templates need it */ false);
 	AddRaytracingConfigValues(InProjectInfo, ConfigValuesToSet);
 	AddNewProjectDefaultShadowConfigValues(InProjectInfo, ConfigValuesToSet);
 	AddPostProcessingConfigValues(InProjectInfo, ConfigValuesToSet);
