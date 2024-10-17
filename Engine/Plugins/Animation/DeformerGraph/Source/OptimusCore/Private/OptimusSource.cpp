@@ -12,6 +12,19 @@ void UOptimusSource::SetSource(const FString& InText)
 	Modify();
 }
 
+#if WITH_EDITOR
+
+void UOptimusSource::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
+{
+	if (PropertyChangedEvent.GetMemberPropertyName() == GET_MEMBER_NAME_CHECKED(UOptimusSource, AdditionalSources))
+	{
+		// Avoid recursive source inclusion
+		AdditionalSources.Remove(this);
+	}
+}
+
+#endif
+
 FString UOptimusSource::GetVirtualPath() const 
 {
 	FString ShaderPathName = GetPathName();
