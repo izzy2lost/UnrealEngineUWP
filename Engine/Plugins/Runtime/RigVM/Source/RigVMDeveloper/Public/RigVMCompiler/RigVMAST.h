@@ -342,6 +342,12 @@ protected:
 	TMap<FName, int32> PinNameToChildIndex;
 	mutable TOptional<TOptional<uint32>> BlockCombinationHash;
 	mutable TOptional<int32> MaximumDepth;
+	mutable TOptional<int32> BlocksCacheVersion;
+	mutable FRigVMBlockArray CachedBlocks;
+	mutable TOptional<int32> FirstChildOfTypeCacheVersion;
+	mutable TMap<int32, const FRigVMExprAST*> CachedFirstChildOfType;
+	mutable TOptional<int32> FirstParentOfTypeCacheVersion;
+	mutable TMap<int32, const FRigVMExprAST*> CachedFirstParentOfType;
 
 	friend class FRigVMParserAST;
 	friend class URigVMCompiler;
@@ -1413,6 +1419,8 @@ private:
 
 	static FString GetLinkAsString(const FRigVMASTLinkDescription& InLink);
 
+	void IncrementCacheVersion() const;
+
 	TMap<FRigVMASTProxy, FRigVMExprAST*> SubjectToExpression;
 	TMap<FRigVMASTProxy, int32> NodeExpressionIndex;
 	TArray<FRigVMExprAST*> Expressions;
@@ -1420,6 +1428,7 @@ private:
 	TArray<FRigVMExprAST*> DeletedExpressions;
 	FRigVMBlockExprAST* ObsoleteBlock;
 	mutable TMap<uint32, FString> BlockCombinationHashToName;
+	mutable int32 CacheVersion;
 
 	TArray<FRigVMASTProxy> NodeProxies;
 	TMap<FRigVMASTProxy, FRigVMASTProxy> SharedOperandPins;
