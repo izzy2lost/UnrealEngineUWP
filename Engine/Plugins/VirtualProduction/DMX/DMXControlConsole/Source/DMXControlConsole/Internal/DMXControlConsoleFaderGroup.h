@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "Library/DMXEntityReference.h"
 #include "UObject/Object.h"
 
 #include "DMXControlConsoleFaderGroup.generated.h"
@@ -81,7 +82,7 @@ public:
 	void GenerateFromFixturePatch(UDMXEntityFixturePatch* InFixturePatch);
 
 	/** Gets the Fixture Patch used by this Fader Group, if valid */
-	UDMXEntityFixturePatch* GetFixturePatch() const { return CachedWeakFixturePatch.Get(); }
+	UDMXEntityFixturePatch* GetFixturePatch() const;
 
 	/** Reloads the Fixture Patch used by this Fader Group, if valid */
 	void ReloadFixturePatch();
@@ -129,10 +130,8 @@ public:
 
 	//~ Begin UObject interface
 	virtual void PostInitProperties() override;
+	virtual void Serialize(FArchive& Ar) override;
 	virtual void PostLoad() override;
-#if WITH_EDITOR
-	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
-#endif
 	//~ End UObject interface
 
 	/** Gets a reference to OnElementAdded delegate */
@@ -147,8 +146,7 @@ public:
 	// Property Name getters
 	FORCEINLINE static FName GetElementsPropertyName() { return GET_MEMBER_NAME_CHECKED(UDMXControlConsoleFaderGroup, Elements); }
 	FORCEINLINE static FName GetFaderGroupNamePropertyName() { return GET_MEMBER_NAME_CHECKED(UDMXControlConsoleFaderGroup, FaderGroupName); }
-	FORCEINLINE static FName GetSoftFixturePatchPtrPropertyName() { return GET_MEMBER_NAME_CHECKED(UDMXControlConsoleFaderGroup, SoftFixturePatchPtr); }
-	FORCEINLINE static FName GetCachedWeakFixturePatchPropertyName() { return GET_MEMBER_NAME_CHECKED(UDMXControlConsoleFaderGroup, CachedWeakFixturePatch); }
+	FORCEINLINE static FName GetFixturePatchRefPropertyName() { return GET_MEMBER_NAME_CHECKED(UDMXControlConsoleFaderGroup, FixturePatchRef); }
 	FORCEINLINE static FName GetIsEnabledPropertyName() { return GET_MEMBER_NAME_CHECKED(UDMXControlConsoleFaderGroup, bIsEnabled); }
 
 #if WITH_EDITORONLY_DATA
@@ -192,13 +190,19 @@ private:
 	UPROPERTY(EditAnywhere, Category = "DMX Fader Group")
 	FString FaderGroupName;
 
+#if WITH_EDITORONLY_DATA
 	/** Fixture Patch this Fader Group is based on */
 	UPROPERTY()
-	TSoftObjectPtr<UDMXEntityFixturePatch> SoftFixturePatchPtr;
+	TSoftObjectPtr<UDMXEntityFixturePatch> SoftFixturePatchPtr_DEPRECATED;
 
 	/** Cached fixture patch for faster access */
 	UPROPERTY(Transient)
-	TWeakObjectPtr<UDMXEntityFixturePatch> CachedWeakFixturePatch;
+	TWeakObjectPtr<UDMXEntityFixturePatch> CachedWeakFixturePatch_DEPRECATED;
+#endif 
+
+	/** Fixture Patch this Fader Group is based on */
+	UPROPERTY()
+	FDMXEntityFixturePatchRef FixturePatchRef;
 
 	/** Soft reference to the Controller of this Fader Group */
 	UPROPERTY()
