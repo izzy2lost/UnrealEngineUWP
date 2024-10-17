@@ -65,8 +65,8 @@ enum ELoadFlags
 //	LOAD_Unused						= 0x00000040
 	LOAD_NoVerify					= 0x00000080,	///< Don't verify imports yet.
 	LOAD_IsVerifying				= 0x00000100,	///< Is verifying imports
-	LOAD_SkipLoadImportedPackages	= 0x00000200,	///< Assume that all import packages are already loaded and don't call LoadPackage when creating imports 
-	LOAD_RegenerateBulkDataGuids	= 0x00000400,	///< BulkData identifiers should be regenerated as they are loaded 
+	LOAD_SkipLoadImportedPackages	= 0x00000200,	///< Assume that all import packages are already loaded and don't call LoadPackage when creating imports
+	LOAD_RegenerateBulkDataGuids UE_DEPRECATED(5.5, "This flag is now obsolete as the functionality is unnecessary.") = 0x00000400, ///< BulkData identifiers should be regenerated as they are loaded
 //	LOAD_Unused						= 0x00000800,
 	LOAD_DisableDependencyPreloading = 0x00001000,	///< Bypass dependency preloading system
 	LOAD_Quiet						= 0x00002000,	///< No log warnings.

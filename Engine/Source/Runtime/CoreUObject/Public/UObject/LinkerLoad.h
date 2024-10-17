@@ -985,10 +985,10 @@ public:
 	 */
 	COREUOBJECT_API void DetachExports();
 
-	/** Should bulkdata identifiers should be regenerated as they are loaded or not */
+	UE_DEPRECATED(5.5, "LOAD_RegenerateBulkDataGuids is now obsolete so this method no longer has any purpose.")
 	bool ShouldRegenerateGuids() const
 	{
-		return (LoadFlags & LOAD_RegenerateBulkDataGuids) != 0;
+		return false;
 	}
 
 private:
