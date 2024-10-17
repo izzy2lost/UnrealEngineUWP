@@ -766,10 +766,16 @@ bool FWindowsPlatformProcess::GetPerFrameProcessorUsage(uint32 ProcessId, float&
 			LastProcessTime = (double)DeltaProcessCycleTime / DeltaCyclesPerFrame;
 
 			// Idle cycles are stored per core and flipped to allow per-frame calculation
-			const uint32 BufferLength = 1024;
-			check(BufferLength >= NumCores * 8);
+			const uint32 BufferLength = NumCores * 8;
+			static uint64* IdleCycleTimeBuffers[2] = { nullptr };
 
-			static uint64 IdleCycleTimeBuffers[2][BufferLength] = {{0}};
+			if(IdleCycleTimeBuffers[0] == nullptr)
+			{
+				//Alloc buffers on first frame 
+				IdleCycleTimeBuffers[0] = new uint64[BufferLength];
+				IdleCycleTimeBuffers[1] = new uint64[BufferLength];
+			}
+
 			uint64* IdleCycleTime = IdleCycleTimeBuffers[CurrFrameIndex];
 			uint64* PrevIdleCycleTime = IdleCycleTimeBuffers[PrevFrameIndex];
 
