@@ -22,6 +22,7 @@ namespace UE::Chaos::ClothAsset
 {
 class FClothEditorSimulationVisualization;
 class FChaosClothAssetEditor3DViewportClient;
+struct FClothSimulationNodeDetailExtender;
 }
 
 namespace UE::Dataflow
@@ -177,6 +178,7 @@ private:
 	static const FName NodeDetailsTabId;
 	TSharedPtr<SDockTab> NodeDetailsTab;
 	TSharedPtr<IStructureDetailsView> NodeDetailsEditor;
+	TSharedPtr<FClothSimulationNodeDetailExtender> NodeDetailsExtender;
 
 	FDelegateHandle OnPackageReloadedDelegateHandle;
 

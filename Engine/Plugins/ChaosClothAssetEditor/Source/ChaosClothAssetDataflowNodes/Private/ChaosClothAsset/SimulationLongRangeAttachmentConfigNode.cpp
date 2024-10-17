@@ -24,7 +24,7 @@ void FChaosClothAssetSimulationLongRangeAttachmentConfigNode_v2::AddProperties(F
 {
 	PropertyHelper.SetPropertyWeighted(this, &TetherStiffness);
 	PropertyHelper.SetPropertyWeighted(this, &TetherScale);
-	PropertyHelper.SetPropertyBool(this, &bUseGeodesicTethers);
+	PropertyHelper.SetPropertyBool(this, &bUseGeodesicTethers, {}, ECollectionPropertyFlags::Intrinsic);  // Intrinsic since the tethers need to be recalculated.
 	PropertyHelper.SetPropertyString(this, &FixedEndSet);
 }
 
@@ -54,7 +54,7 @@ void FChaosClothAssetSimulationLongRangeAttachmentConfigNode::AddProperties(FPro
 PRAGMA_DISABLE_DEPRECATION_WARNINGS  // SetProperty functions are templated and cause deprecation warnings with the now deprecated v1
 	PropertyHelper.SetPropertyWeighted(this, &TetherStiffness);
 	PropertyHelper.SetPropertyWeighted(this, &TetherScale);
-	PropertyHelper.SetPropertyBool(this, &bUseGeodesicTethers);
+	PropertyHelper.SetPropertyBool(this, &bUseGeodesicTethers, {}, ECollectionPropertyFlags::Intrinsic);  // Intrinsic since the tethers need to be recalculated.
 	PropertyHelper.SetPropertyString(this, &FixedEndWeightMap);
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
 }
