@@ -618,7 +618,6 @@ void UPCGCustomHLSLSettings::SetShaderFunctionsText(const FString& NewFunctionsT
 		PostEditChangeProperty(PropertyChangedEvent);
 	}
 	
-
 	OnSettingsChangedDelegate.Broadcast(this, GetChangeTypeForProperty(PropertyName));
 }
 
@@ -1447,6 +1446,12 @@ bool UPCGCustomHLSLSettings::IsKernelValid(FPCGContext* InContext, bool bQuiet) 
 		if (AttributeKey.Name == NAME_None)
 		{
 			PCG_KERNEL_VALIDATION_ERR(InContext, this, bQuiet, LOCTEXT("InvalidAttributeNameNone", "'None' is not a valid GPU attribute name, check the 'Attributes to Create' array on your pins."));
+			return false;
+		}
+
+		if (AttributeKey.Type == EPCGKernelAttributeType::None)
+		{
+			PCG_KERNEL_VALIDATION_ERR(InContext, this, bQuiet, LOCTEXT("InvalidAttributeTypeNone", "'None' is not a valid GPU attribute type, check the 'Attributes to Create' array on your pins."));
 			return false;
 		}
 	}

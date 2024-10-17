@@ -23,7 +23,7 @@ enum class EPCGUnpackDataCollectionResult
 UENUM()
 enum class EPCGKernelAttributeType : uint8
 {
-	None = 0,
+	None = 0 UMETA(Hidden),
 	Bool,
 	Int,
 	Float,
