@@ -2114,6 +2114,14 @@ void FPCGEditor::OnToggleEnabled()
 	{
 		FScopedTransaction Transaction(*FPCGEditorCommon::ContextIdentifier, LOCTEXT("PCGEditorToggleEnableTransactionMessage", "PCG Editor: Toggle Enable Nodes"), nullptr);
 
+		UPCGGraph* PCGGraph = PCGEditorGraph ? PCGEditorGraph->GetPCGGraph() : nullptr;
+		if (!ensure(PCGGraph))
+		{
+			return;
+		}
+
+		PCGGraph->DisableNotificationsForEditor();
+
 		bool bChanged = false;
 		for (UObject* Object : GraphEditorWidget->GetSelectedNodes())
 		{
@@ -2134,6 +2142,8 @@ void FPCGEditor::OnToggleEnabled()
 				bChanged = true;
 			}
 		}
+
+		PCGGraph->EnableNotificationsForEditor();
 
 		if (bChanged)
 		{
