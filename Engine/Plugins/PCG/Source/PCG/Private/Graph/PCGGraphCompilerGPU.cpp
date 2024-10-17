@@ -682,6 +682,11 @@ UPCGComputeGraph* FPCGGraphCompilerGPU::CompileComputeGraph(
 		{
 			for (const FPCGPinProperties& OutputPinProperties : Settings->AllOutputPinProperties())
 			{
+				if (OutputPinProperties.Label == NAME_None)
+				{
+					continue;
+				}
+
 				if (OutputPinDataInterfaces.Contains({ TaskId, OutputPinProperties.Label }))
 				{
 					ensure(false);
@@ -889,6 +894,11 @@ UPCGComputeGraph* FPCGGraphCompilerGPU::CompileComputeGraph(
 		// Always create a DI for every output pin, so kernel always has something to write to.
 		for (const FPCGPinProperties& OutputPinProperties : Settings->AllOutputPinProperties())
 		{
+			if (OutputPinProperties.Label == NAME_None)
+			{
+				continue;
+			}
+
 			UPCGComputeDataInterface** FoundDI = OutputPinDataInterfaces.Find({ TaskId, OutputPinProperties.Label });
 			if (!ensure(FoundDI) || !ensure(*FoundDI))
 			{
