@@ -71,7 +71,7 @@ namespace UE::Dataflow
 		DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FCollectionVertexSelectionByPercentageDataflowNode);
 		DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FCollectionVertexSelectionSetOperationDataflowNode);
 		DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FCollectionSelectionByAttrDataflowNode);
-
+		DATAFLOW_NODE_REGISTER_CREATION_FACTORY(FGeometrySelectionToVertexSelectionDataflowNode);
 		// GeometryCollection|Selection
 		DATAFLOW_NODE_REGISTER_CREATION_FACTORY_NODE_COLORS_BY_CATEGORY("GeometryCollection|Selection", FLinearColor(1.f, 1.f, 0.05f), CDefaultNodeBodyTintColor);
 	}
@@ -375,10 +375,10 @@ void FCollectionTransformSelectionCustomDataflowNode::Evaluate(UE::Dataflow::FCo
 
 			const FString InBoneIndices = GetValue<FString>(Context, &BoneIndicies);
 
-			TArray<FString> Indicies;
-			InBoneIndices.ParseIntoArray(Indicies, TEXT(" "), true);
+			TArray<FString> Indices;
+			InBoneIndices.ParseIntoArray(Indices, TEXT(" "), true);
 
-			for (FString IndexStr : Indicies)
+			for (FString IndexStr : Indices)
 			{
 				if (IndexStr.IsNumeric())
 				{
@@ -888,12 +888,12 @@ void FCollectionVertexSelectionCustomDataflowNode::Evaluate(UE::Dataflow::FConte
 			FDataflowVertexSelection NewVertexSelection;
 			NewVertexSelection.Initialize(NumVertices, false);
 
-			const FString InVertexIndicies = GetValue<FString>(Context, &VertexIndicies);
+			const FString InVertexIndices = GetValue<FString>(Context, &VertexIndicies);
 
-			TArray<FString> Indicies;
-			InVertexIndicies.ParseIntoArray(Indicies, TEXT(" "), true);
+			TArray<FString> Indices;
+			InVertexIndices.ParseIntoArray(Indices, TEXT(" "), true);
 
-			for (FString IndexStr : Indicies)
+			for (FString IndexStr : Indices)
 			{
 				if (IndexStr.IsNumeric())
 				{
@@ -938,16 +938,16 @@ void FCollectionFaceSelectionCustomDataflowNode::Evaluate(UE::Dataflow::FContext
 			FDataflowFaceSelection NewFaceSelection;
 			NewFaceSelection.Initialize(NumFaces, false);
 
-			const FString InFaceIndicies = GetValue<FString>(Context, &FaceIndicies);
+			const FString InFaceIndices = GetValue<FString>(Context, &FaceIndicies);
 
-			TArray<FString> Indicies;
-			InFaceIndicies.ParseIntoArray(Indicies, TEXT(" "), true);
+			TArray<FString> Indices;
+			InFaceIndices.ParseIntoArray(Indices, TEXT(" "), true);
 
-			for (FString IndexStr : Indicies)
+			for (FString& IndexStr : Indices)
 			{
 				if (IndexStr.IsNumeric())
 				{
-					int32 Index = FCString::Atoi(*IndexStr);
+					const int32 Index = FCString::Atoi(*IndexStr);
 					if (Index >= 0 && Index < NumFaces)
 					{
 						NewFaceSelection.SetSelected(Index);
@@ -955,8 +955,7 @@ void FCollectionFaceSelectionCustomDataflowNode::Evaluate(UE::Dataflow::FContext
 					else
 					{
 						// ERROR: INVALID INDEX
-						FString ErrorStr = "Invalid specified index found.";
-						UE_LOG(LogTemp, Error, TEXT("[Dataflow ERROR] %s"), *ErrorStr);
+						UE_LOG(LogTemp, Error, TEXT("[Dataflow ERROR] Invalid specified index found."));
 					}
 				}
 			}
@@ -1327,3 +1326,63 @@ void FCollectionSelectionByAttrDataflowNode::Evaluate(UE::Dataflow::FContext& Co
 	}
 }
 
+void FGeometrySelectionToVertexSelectionDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
+{
+	if (Out->IsA<FDataflowVertexSelection>(&VertexSelection))
+	{
+		const FManagedArrayCollection& InCollection = GetValue<FManagedArrayCollection>(Context, &Collection);
+		const int32 NumVertices = InCollection.NumElements(FGeometryCollection::VerticesGroup);
+		const int32 NumGeometries = InCollection.NumElements(FGeometryCollection::GeometryGroup);
+		
+		FDataflowVertexSelection InVertexSelection;
+		InVertexSelection.Initialize(NumVertices, false);
+		const TManagedArray<int32>* VertexStart = InCollection.FindAttributeTyped<int32>("VertexStart", FGeometryCollection::GeometryGroup);
+		const TManagedArray<int32>* VertexCount = InCollection.FindAttributeTyped<int32>("VertexCount", FGeometryCollection::GeometryGroup);
+		TArray<int32> InGeometryIndexArray;
+		if (IsConnected(&GeometrySelection))
+		{
+			InGeometryIndexArray = GetValue<FDataflowGeometrySelection>(Context, &GeometrySelection).AsArray();
+		}
+		else
+		{
+			const FString InGeometryIndices = GetValue<FString>(Context, &GeometryIndices);
+			TArray<FString> Indices;
+			InGeometryIndices.ParseIntoArray(Indices, TEXT(" "), true);
+			for (FString IndexStr : Indices)
+			{
+				if (IndexStr.IsNumeric())
+				{
+					int32 Index = FCString::Atoi(*IndexStr);
+					if (Index >= 0 && Index < NumGeometries)
+					{
+						InGeometryIndexArray.Add(Index);
+					}
+					else
+					{
+						// ERROR: INVALID INDEX
+						FString ErrorStr = "Invalid geometry index found.";
+						UE_LOG(LogTemp, Error, TEXT("[Dataflow ERROR] %s"), *ErrorStr);
+					}
+				}
+			}
+		}
+		if (VertexStart && VertexCount)
+		{
+			TArray<int32> VertexIndices;
+			for (int32 GeometryIdx : InGeometryIndexArray)
+			{
+				if (ensure(VertexStart->IsValidIndex(GeometryIdx)))
+				{
+					const int32 Start = (*VertexStart)[GeometryIdx];
+					const int32 Count = (*VertexCount)[GeometryIdx];
+					for (int32 VertexIdx = Start; VertexIdx < Start + Count; ++VertexIdx)
+					{
+						VertexIndices.Add(VertexIdx);
+					}
+				}
+			}
+			InVertexSelection.SetFromArray(VertexIndices);
+		}
+		SetValue(Context, MoveTemp(InVertexSelection), &VertexSelection);
+	}
+}

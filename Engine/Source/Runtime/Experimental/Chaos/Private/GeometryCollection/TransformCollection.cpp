@@ -199,12 +199,12 @@ void FTransformCollection::RemoveElements(const FName & Group, const TArray<int3
 			TManagedArray<int32>& ParentArray = Parent;
 			TManagedArray<TSet<int32>>& ChildrenArray = Children;
 			TManagedArray<FTransform3f>&  LocalTransform = Transform;
-			for (int32 sdx = 0; sdx < SortedDeletionList.Num(); sdx++)
+			for (int32 Sdx = 0; Sdx < SortedDeletionList.Num(); Sdx++)
 			{
 				TArray<FTransform> GlobalTransform;
 				GeometryCollectionAlgo::GlobalMatrices(Transform, Parent, GlobalTransform);
 
-				int32 Index = SortedDeletionList[sdx];
+				int32 Index = SortedDeletionList[Sdx];
 				ensure(0 <= Index && Index < ParentArray.Num());
 
 				int32 ParentID = ParentArray[Index];
@@ -266,5 +266,80 @@ void FTransformCollection::RemoveElements(const FName & Group, const TArray<int3
 
 		Super::RemoveElements(Group, SortedDeletionList, Params);
 
+	}
+}
+
+void FTransformCollection::MergeElements(const FName& Group, const TArray<int32>& SortedMergeList, const TArray<int32>& MergeRemapIndex, FProcessingParameters Params)
+{
+	if (SortedMergeList.Num() && ensure(SortedMergeList.Num() == MergeRemapIndex.Num()))
+	{
+		if (Group == FTransformCollection::TransformGroup)
+		{
+			GeometryCollectionAlgo::ValidateSortedList(SortedMergeList, NumElements(Group));
+
+			TManagedArray<int32>& ParentArray = Parent;
+			TManagedArray<TSet<int32>>& ChildrenArray = Children;
+			TManagedArray<FTransform3f>& LocalTransform = Transform;
+			for (int32 Sdx = 0; Sdx < SortedMergeList.Num(); ++Sdx)
+			{
+				const int32 Index = SortedMergeList[Sdx];
+				if (ensure(0 <= Index && Index < ParentArray.Num()))
+				{
+					const int32 RemapId = MergeRemapIndex[Index];
+					const int32 ParentID = ParentArray[Index];
+					if (ensure(0 <= RemapId && RemapId < ParentArray.Num()))
+					{
+						for (const int32 ChildID : ChildrenArray[Index])
+						{
+							ParentArray[ChildID] = RemapId;
+							ChildrenArray[RemapId].Add(ChildID);
+						}
+						if (0 <= ParentID && ParentID < ChildrenArray.Num())
+						{
+							ChildrenArray[ParentID].Remove(Index);
+							ChildrenArray[ParentID].Add(RemapId);
+						}
+						ParentArray[Index] = INDEX_NONE;
+						ChildrenArray[Index].Empty();
+					}
+				}
+			}
+
+			// reindex
+			{
+				TArray<int32> Offsets;
+				GeometryCollectionAlgo::BuildIncrementMask(SortedMergeList, ParentArray.Num(), Offsets);
+
+				const int32 ArraySize = ParentArray.Num(), OffsetsSize = Offsets.Num();
+				const int32 FinalSize = ParentArray.Num() - SortedMergeList.Num();
+				for (int32 Index = 0; Index < ArraySize; Index++)
+				{
+					// remap the parents (-1 === Invalid )
+					if (ParentArray[Index] != -1)
+					{
+						ParentArray[Index] -= Offsets[ParentArray[Index]];
+					}
+					ensure(-1 <= ParentArray[Index] && ParentArray[Index] <= FinalSize);
+
+					// remap children
+					TSet<int32> ChildrenCopy = ChildrenArray[Index];
+					ChildrenArray[Index].Reset();
+					for (const int32 ChildID : ChildrenCopy)
+					{
+						if (0 <= ChildID && ChildID < OffsetsSize)
+						{
+							const int32 NewChildID = ChildID - Offsets[ChildID];
+							if (0 <= NewChildID && NewChildID < FinalSize)
+							{
+								ChildrenArray[Index].Add(NewChildID);
+							}
+						}
+					}
+				}
+			}
+
+		}
+
+		Super::MergeElements(Group, SortedMergeList, MergeRemapIndex, Params);
 	}
 }

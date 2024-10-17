@@ -802,7 +802,7 @@ void FGeometryCollection::ReorderTransformElements(const TArray<int32>& NewOrder
 		// remap the parents (-1 === Invalid )
 		if (Parent[Index] != -1)
 		{
-			Parent[Index] -= NewOrder[Parent[Index]];
+			Parent[Index] = NewOrder[Parent[Index]];
 		}
 
 		// remap children
