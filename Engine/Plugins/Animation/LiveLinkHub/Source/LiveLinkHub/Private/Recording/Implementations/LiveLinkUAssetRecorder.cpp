@@ -203,6 +203,12 @@ bool FLiveLinkUAssetRecorder::GetSavePresetPackageName(FString& OutName)
 
 		NewPackageName = FString::Format(*UserPackageName, FormatArgs);
 
+		{
+			// Ensure we aren't saving over an existing recording as this isn't supported yet... the package isn't saved properly.
+			// todo: We should support saving over/deleting existing recordings. This is simply a low risk fix to a playback crash for 5.5.0.
+			AssetToolsModule.Get().CreateUniqueAssetName(NewPackageName, TEXT(""), NewPackageName, UniqueAssetName);
+		}
+		
 		FText OutError;
 		bFilenameValid = FFileHelper::IsFilenameValidForSaving(NewPackageName, OutError);
 	}

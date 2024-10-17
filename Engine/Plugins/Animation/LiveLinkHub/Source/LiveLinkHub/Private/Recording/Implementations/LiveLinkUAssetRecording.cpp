@@ -223,9 +223,15 @@ bool ULiveLinkUAssetRecording::WaitForBufferedFrames(int32 InMinFrame, int32 InM
 			FPlatformProcess::Sleep(0.002);
 		}
 
+		const int32 MaxFrames = GetMaxFrames();
+		if (MaxFrames <= 0)
+		{
+			return true;
+		}
+		
 		// Clamp the frame range to the max possible range. If the selection range extends the actual frame range
 		// then there would be nothing to load.
-		const int32 EndFrame = RecordingMaxFrames - 1;
+		const int32 EndFrame = MaxFrames - 1;
 		InMinFrame = FMath::Clamp(InMinFrame, 0, EndFrame);
 		InMaxFrame = FMath::Clamp(InMaxFrame, 0, EndFrame);
 
