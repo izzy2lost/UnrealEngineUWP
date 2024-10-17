@@ -149,7 +149,7 @@ namespace UE::Dataflow
 
 	void FGraph::Disconnect(FDataflowOutput* OutputConnection, FDataflowInput* InputConnection)
 	{
-		UE_LOG(LogChaosDataflow, Verbose, TEXT("FGraph::Diconnect(): Disconnecting output [%s:%s] from input [%s:%s]"),
+		UE_LOG(LogChaosDataflow, Verbose, TEXT("FGraph::Disconnect(): Disconnecting output [%s:%s] from input [%s:%s]"),
 			OutputConnection->GetOwningNode() ? *OutputConnection->GetOwningNode()->GetName().ToString() : TEXT("Invalid"),
 			*OutputConnection->GetName().ToString(),
 			InputConnection->GetOwningNode() ? *InputConnection->GetOwningNode()->GetName().ToString() : TEXT("Invalid"),

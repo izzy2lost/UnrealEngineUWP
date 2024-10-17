@@ -700,6 +700,12 @@ void UDataflowEdNode::PostEditUndo()
 	{
 		ParentGraph->NotifyGraphChanged();
 	}
+
+	// Make sure to re-sync the Dataflow connections
+	for (UEdGraphPin* const Pin : GetAllPins())
+	{
+		PinConnectionListChanged(Pin);
+	}
 }
 
 void UDataflowEdNode::HideAllInputPins()
