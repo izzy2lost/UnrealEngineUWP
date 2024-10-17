@@ -48,6 +48,10 @@ namespace MegaLights
 	bool UseInlineHardwareRayTracing(const FSceneViewFamily& ViewFamily);
 	bool ShouldCompileShaders(EShaderPlatform ShaderPlatform);
 
+	bool UseVolume();
+
+	uint32 GetSampleMargin();
+
 	bool HasWarning(const FSceneViewFamily& ViewFamily);
 	void WriteWarnings(const FSceneViewFamily& ViewFamily, FScreenMessageWriter& Writer);
 };

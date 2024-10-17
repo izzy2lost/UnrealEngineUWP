@@ -37,6 +37,7 @@ LightGridInjection.cpp
 #include "RenderUtils.h"
 #include "MegaLights/MegaLights.h"
 #include "LightGridDefinitions.h"
+#include "VolumetricFog.h"
 
 int32 GLightGridPixelSize = 64;
 FAutoConsoleVariableRef CVarLightGridPixelSize(
@@ -276,6 +277,10 @@ public:
 		SHADER_PARAMETER(uint32, MegaLightsSupportedStartIndex)
 
 		SHADER_PARAMETER(uint32, LightGridZSliceScale)
+		SHADER_PARAMETER(uint32, LightGridCullMarginXY)
+		SHADER_PARAMETER(uint32, LightGridCullMarginZ)
+		SHADER_PARAMETER(FVector3f, LightGridCullMarginZParams)
+		SHADER_PARAMETER(uint32, LightGridCullMaxZ)
 
 		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, ParentNumCulledLightsGrid)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, ParentCulledLightDataGrid32Bit)
@@ -554,6 +559,10 @@ FLightGrid LightGridInjection(
 	uint32 ZSliceScale,
 	uint32 MaxNumCells,
 	FVector3f ZParams,
+	uint32 LightGridCullMarginXY,
+	uint32 LightGridCullMarginZ,
+	FVector3f LightGridCullMarginZParams,
+	uint32 LightGridCullMaxZ,
 	uint32 NumLocalLights,
 	uint32 NumReflectionCaptures,
 	uint32 MegaLightsSupportedStartIndex,
@@ -638,6 +647,10 @@ FLightGrid LightGridInjection(
 	PassParameters->NumGridCells = GridSize.X * GridSize.Y * GridSize.Z;
 	PassParameters->LightGridPixelSizeShift = LightGridPixelSizeShift;
 	PassParameters->LightGridZSliceScale = ZSliceScale;
+	PassParameters->LightGridCullMarginXY = LightGridCullMarginXY;
+	PassParameters->LightGridCullMarginZ = LightGridCullMarginZ;
+	PassParameters->LightGridCullMarginZParams = LightGridCullMarginZParams;
+	PassParameters->LightGridCullMaxZ = LightGridCullMaxZ;
 	PassParameters->MegaLightsSupportedStartIndex = MegaLightsSupportedStartIndex;
 
 	PassParameters->ParentNumCulledLightsGrid = ParentNumCulledLightsGridSRV;
@@ -1111,6 +1124,22 @@ FComputeLightGridOutput FSceneRenderer::ComputeLightGrid(FRDGBuilder& GraphBuild
 
 		const int32 MaxNumCells = MaxLightGridSizeXY.X * MaxLightGridSizeXY.Y * GLightGridSizeZ * NumCulledGridPrimitiveTypes;
 
+		uint32 LightGridCullMarginXY = MegaLights::IsEnabled(ViewFamily) ? MegaLights::GetSampleMargin() : 0;
+		uint32 LightGridCullMarginZ = 0;
+		FVector3f LightGridCullMarginZParams = FVector3f::ZeroVector;
+		uint32 LightGridCullMaxZ = 0;
+		if (ShouldRenderVolumetricFog())
+		{
+			uint32 MarginInVolumetricFogGridCells = 1 + (MegaLights::IsEnabled(ViewFamily) && MegaLights::UseVolume() ? MegaLights::GetSampleMargin() : 0);
+			LightGridCullMarginXY = MarginInVolumetricFogGridCells * GetVolumetricFogGridPixelSize();
+			LightGridCullMarginZ = MarginInVolumetricFogGridCells;
+
+			FVolumetricFogGlobalData VolumetricFogParamaters;
+			SetupVolumetricFogGlobalData(View, VolumetricFogParamaters);
+			LightGridCullMarginZParams = VolumetricFogParamaters.GridZParams;
+			LightGridCullMaxZ = VolumetricFogParamaters.ViewGridSize.Z;
+		}
+
 		RDG_EVENT_SCOPE(GraphBuilder, "CullLights %ux%ux%u NumLights %u NumCaptures %u",
 			ForwardLightData->CulledGridSize.X,
 			ForwardLightData->CulledGridSize.Y,
@@ -1135,6 +1164,10 @@ FComputeLightGridOutput FSceneRenderer::ComputeLightGrid(FRDGBuilder& GraphBuild
 				ParentLightGridFactor,
 				MaxNumCells, // TODO: could potentially be reduced on coarse grid
 				ForwardLightData->LightGridZParams,
+				LightGridCullMarginXY,
+				LightGridCullMarginZ,
+				LightGridCullMarginZParams,
+				LightGridCullMaxZ,
 				ForwardLightData->NumLocalLights,
 				ForwardLightData->NumReflectionCaptures,
 				ForwardLightData->MegaLightsSupportedStartIndex,
@@ -1172,6 +1205,10 @@ FComputeLightGridOutput FSceneRenderer::ComputeLightGrid(FRDGBuilder& GraphBuild
 			1,
 			MaxNumCells,
 			ForwardLightData->LightGridZParams,
+			LightGridCullMarginXY,
+			LightGridCullMarginZ,
+			LightGridCullMarginZParams,
+			LightGridCullMaxZ,
 			ForwardLightData->NumLocalLights,
 			ForwardLightData->NumReflectionCaptures,
 			ForwardLightData->MegaLightsSupportedStartIndex,

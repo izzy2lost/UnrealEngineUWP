@@ -161,7 +161,7 @@ static TAutoConsoleVariable<float> CVarVolumetricFogLightSoftFading(
 	TEXT("Enabled when >0, controls the soft fading of spot and rect light edges in order to make them appear smoother, resulting in less flickering. A value of 1 is a good starting point and it means that fading will be applied over the size of 1 froxel on the screen."),
 	ECVF_RenderThreadSafe | ECVF_Scalability);
 
-static int32 GetVolumetricFogGridPixelSize()
+int32 GetVolumetricFogGridPixelSize()
 {
 	return FMath::Max(1, GVolumetricFogGridPixelSize);
 }

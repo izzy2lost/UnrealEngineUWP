@@ -10,6 +10,8 @@
 #include "SceneView.h"
 #include "SceneRendering.h"
 
+extern int32 GetVolumetricFogGridPixelSize();
+
 // Grid size for resource allocation to be independent of dynamic resolution
 extern FIntVector GetVolumetricFogResourceGridSize(const FViewInfo& View, int32& OutVolumetricFogGridPixelSize);
 // Grid size for the view rectangle within the allocated resource
