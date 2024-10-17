@@ -2571,7 +2571,11 @@ bool UEditorEngine::Map_Load(const TCHAR* Str, FOutputDevice& Ar)
 						FSoftObjectPath(*WriteToString<256>(WorldPackage->GetName(), TEXT("."), ShortWorldPackageName))
 					);
 
-					LoadFlags |= LOAD_RegenerateBulkDataGuids;
+					// Add remapping for the _BuiltData.uasset package file as well (assuming that the template has one)
+					FName BuiltDataOriginal = FName(*WriteToString<256>(LongTempFname, TEXT("_BuiltData")));
+					FName BuiltDataRemapped = FName(*WriteToString<256>(WorldPackageFName, TEXT("_BuiltData")));
+					
+					WorldPackageInstancingContext.AddPackageMapping(BuiltDataOriginal, BuiltDataRemapped);
 
 					WorldPackage = LoadPackage( WorldPackage, *LongTempFname, LoadFlags, nullptr /* InReaderOverride */, &WorldPackageInstancingContext);
 					WorldPackage->SetPackageFlags(PKG_NewlyCreated);
