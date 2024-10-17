@@ -196,7 +196,6 @@ UPCGProceduralISMComponent::UPCGProceduralISMComponent(const FObjectInitializer&
 	bAffectDistanceFieldLighting = false;
 	bVisibleInRayTracing = false;
 
-	Mobility = EComponentMobility::Static;
 	BodyInstance.bSimulatePhysics = false;
 	SetGenerateOverlapEvents(false);
 
