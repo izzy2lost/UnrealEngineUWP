@@ -8,6 +8,7 @@
 #include "Templates/RefCounting.h"
 #include "UObject/Field.h"
 #include "UObject/WeakObjectPtr.h"
+#include "UObject/ObjectKey.h"
 
 namespace UE::Net
 {
@@ -66,6 +67,7 @@ private:
 	{
 		TWeakObjectPtr<const UObject> WeakPtrForPruning;
 		FDescriptors Descriptors;
+		FObjectKey OwnerKey;
 	};
 
 	typedef TMap<FFieldVariant, FRegisteredDescriptors> FClassToDescriptorMap;
