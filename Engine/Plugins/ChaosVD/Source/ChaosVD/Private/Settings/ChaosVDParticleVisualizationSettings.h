@@ -54,23 +54,23 @@ struct FChaosDebugDrawColorsByShapeType
 
 	/** Color used for Sphere, Plane, Cube, Capsule, Cylinder, tapered shapes */
 	UPROPERTY(EditAnywhere, Category=DebugDraw)
-	FColor SimpleTypeColor = FColor(0, 255, 0); 
+	FColor SimpleTypeColor = FColor(0, 158, 115); 
 
 	/** Color used for convex shapes */
 	UPROPERTY(EditAnywhere, Category=DebugDraw)
-	FColor ConvexColor = FColor(0, 255, 255);
+	FColor ConvexColor = FColor(240, 228, 66);
 
 	/** Color used for heightfield */
 	UPROPERTY(EditAnywhere, Category=DebugDraw)
-	FColor HeightFieldColor = FColor(0, 0, 255);
+	FColor HeightFieldColor = FColor(86, 180, 233);
 	
 	/** Color used for triangle meshes */
 	UPROPERTY(EditAnywhere, Category=DebugDraw)
-	FColor TriangleMeshColor = FColor(255, 0, 0);
+	FColor TriangleMeshColor = FColor(213, 94, 0);
 
 	/** Color used for triangle LevelSets */
 	UPROPERTY(EditAnywhere, Category=DebugDraw)
-	FColor LevelSetColor = FColor(255, 0, 128);
+	FColor LevelSetColor = FColor(204, 121, 167);
 
 	FColor GetColorFromShapeType(Chaos::EImplicitObjectType ShapeType) const;
 };
@@ -83,11 +83,11 @@ struct FChaosDebugDrawColorsByClientServer
 	
 	/** Color used for server shapes that are not awake or sleeping dynamic */
     UPROPERTY(config, EditAnywhere, Category=DebugDraw)
-    FColor ServerBaseColor = FColor(50, 0, 0);
+    FColor ServerBaseColor = FColor(231, 92, 80);
 
 	/** Color used for server shapes that are not awake or sleeping dynamic */
 	UPROPERTY(config, EditAnywhere, Category=DebugDraw)
-	FColor ClientBaseColor = FColor(0, 0, 50); 
+	FColor ClientBaseColor = FColor(0, 114, 178); 
 
 	FColor GetColorFromState(bool bIsServer, EChaosVDObjectStateType State) const;
 	FColor GetColorAtIntensity(const FColor& InColor, float Intensity) const;
@@ -114,19 +114,19 @@ struct FChaosDebugDrawColorsByState
 
 	/** Color used for dynamic particles */
 	UPROPERTY(config, EditAnywhere, Category=DebugDraw)
-	FColor DynamicColor = FColor(255, 255, 0);
+	FColor DynamicColor = FColor(253, 246, 98);
 	
 	/** Color used for sleeping particles */
 	UPROPERTY(config, EditAnywhere, Category=DebugDraw)
-	FColor SleepingColor = FColor(128, 128, 128);
+	FColor SleepingColor = FColor(231, 92, 80);
 
 	/** Color used for kinematic particles */
 	UPROPERTY(config, EditAnywhere, Category=DebugDraw)
-	FColor KinematicColor = FColor(0, 128, 255);
+	FColor KinematicColor = FColor(0, 114, 178);
 
 	/** Color used for static particles */
 	UPROPERTY(config, EditAnywhere, Category=DebugDraw)
-	FColor StaticColor = FColor(255, 0, 0);
+	FColor StaticColor = FColor(150, 159, 156);
 
 	FColor GetColorFromState(EChaosVDObjectStateType State) const;
 };
@@ -215,7 +215,7 @@ class UChaosVDParticleVisualizationColorSettings : public UChaosVDVisualizationS
 public:
 
 	UPROPERTY(config, EditAnywhere, Category = "Colors Mode")
-	EChaosVDParticleDebugColorMode ParticleColorMode = EChaosVDParticleDebugColorMode::None;
+	EChaosVDParticleDebugColorMode ParticleColorMode = EChaosVDParticleDebugColorMode::State;
 	
 	UPROPERTY(config, EditAnywhere, Category = "Colors By Shape", meta=(EditCondition = "ParticleColorMode == EChaosVDParticleDebugColorMode::ShapeType", EditConditionHides))
 	FChaosDebugDrawColorsByShapeType ColorsByShapeType;
