@@ -42,6 +42,11 @@ float3 LightGridZParams;
 uint LightGridZSliceScale;
 uint LightGridPixelSizeShift;
 
+uint LightGridCullMarginXY;
+uint LightGridCullMarginZ;
+float3 LightGridCullMarginZParams;
+uint LightGridCullMaxZ;
+
 uint MegaLightsSupportedStartIndex;
 
 StructuredBuffer<float4> LightViewSpacePositionAndRadius;
@@ -74,7 +79,7 @@ StructuredBuffer<float4> LightViewSpaceRectPlanes;
 
 float ComputeCellNearViewDepthFromZSlice(uint ZSlice, uint ZSliceScale)
 {
-	float SliceDepth = (exp2(ZSlice * ZSliceScale / LightGridZParams.z) - LightGridZParams.y) / LightGridZParams.x;
+	float SliceDepth = ComputeDepthFromZSlice(LightGridZParams, ZSlice * ZSliceScale);
 
 	if (ZSlice == (uint)CulledGridSize.z)
 	{
@@ -97,15 +102,18 @@ float ComputeCellNearViewDepthFromZSlice(uint ZSlice, uint ZSliceScale)
 }
 
 #if USE_HZB_CULL
-FScreenRect ComputeCellCullRect(uint3 GridCoordinate, float MinTileZ, float MaxTileZ)
+FScreenRect ComputeCellCullRect(uint3 GridCoordinate, float MinTileZ, float MaxTileZ, float MarginPixels)
 {
-	// Compute extent of tiles in clip-space. Note that the last tile may extend a bit outside of view if view size is not evenly divisible tile size.
-	const float2 InvCulledGridSizeF = (1u << LightGridPixelSizeShift) * View.ViewSizeAndInvSize.zw;
-	const float2 TileSize = float2(2.0f, -2.0f) * InvCulledGridSizeF.xy;
-	const float2 UnitPlaneMin = float2(-1.0f, 1.0f);
+	const float2 TileSize = (1u << LightGridPixelSizeShift);
+	const float2 TileMin = (GridCoordinate.xy + 0) * TileSize - MarginPixels;
+	const float2 TileMax = (GridCoordinate.xy + 1) * TileSize + MarginPixels;
 
-	float2 UnitPlaneTileMin = GridCoordinate.xy * TileSize + UnitPlaneMin;
-	float2 UnitPlaneTileMax = (GridCoordinate.xy + 1) * TileSize + UnitPlaneMin;
+	// Compute extent of tiles in clip-space. Note that the last tile may extend a bit outside of view if view size is not evenly divisible tile size.
+	const float2 UnitPlaneScale = float2(2.0f, -2.0f) * View.ViewSizeAndInvSize.zw;
+	const float2 UnitPlaneBias = float2(-1.0f, 1.0f);
+
+	float2 UnitPlaneTileMin = TileMin * UnitPlaneScale + UnitPlaneBias;
+	float2 UnitPlaneTileMax = TileMax * UnitPlaneScale + UnitPlaneBias;
 
 	float MinTileDeviceZ = ConvertToDeviceZ(MinTileZ);
 	float MaxTileDeviceZ = ConvertToDeviceZ(MaxTileZ);
@@ -765,7 +773,22 @@ void LightGridInjectionCS(
 		float MaxTileZ = ComputeCellNearViewDepthFromZSlice(GridCoordinate.z + 1, LightGridZSliceScale);
 
 #if USE_HZB_CULL
-		FScreenRect Rect = ComputeCellCullRect(GridCoordinate, MinTileZ, MaxTileZ);
+		float CullMinTileZ = MinTileZ;
+		float CullMaxTileZ = MaxTileZ;
+		if(LightGridCullMarginZ > 0)
+		{
+			// convert Min/MaxTileZ to volumetric fog grid coordinate
+			int MinCullSlice = (int)floor(ComputeZSliceFromDepth(LightGridCullMarginZParams, MinTileZ));
+			int MaxCullSlice = (int)ceil(ComputeZSliceFromDepth(LightGridCullMarginZParams, MaxTileZ));
+			// add margins
+			MinCullSlice = max(0, MinCullSlice - (int)LightGridCullMarginZ);
+			MaxCullSlice = min(LightGridCullMaxZ, MaxCullSlice + LightGridCullMarginZ);
+			// convert back to Min/MaxTileZ
+			CullMinTileZ = min(CullMinTileZ, ComputeDepthFromZSlice(LightGridCullMarginZParams, MinCullSlice));
+			CullMaxTileZ = max(CullMaxTileZ, ComputeDepthFromZSlice(LightGridCullMarginZParams, MaxCullSlice));
+		}
+
+		FScreenRect Rect = ComputeCellCullRect(GridCoordinate, CullMinTileZ, CullMaxTileZ, LightGridCullMarginXY);
 
  		if (!IsVisibleHZB(Rect, true /*bSample4x4*/))
  		{

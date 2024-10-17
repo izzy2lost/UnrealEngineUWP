@@ -2258,6 +2258,17 @@ float SNorm16ToF32(uint SNorm)
 	return UNorm16ToF32(SNorm) * 2.0f - 1.0f;
 }
 
+float ComputeZSliceFromDepth(float3 GridZParams, float SceneDepth)
+{
+	return log2(SceneDepth * GridZParams.x + GridZParams.y) * GridZParams.z;
+}
+
+float ComputeDepthFromZSlice(float3 GridZParams, float ZSlice)
+{
+	float SliceDepth = (exp2(ZSlice / GridZParams.z) - GridZParams.y) / GridZParams.x;
+	return SliceDepth;
+}
+
 // see PixelShaderOutputCommon
 struct FPixelShaderIn
 {

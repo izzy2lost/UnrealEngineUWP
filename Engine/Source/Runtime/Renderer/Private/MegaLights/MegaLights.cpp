@@ -299,6 +299,11 @@ namespace MegaLights
 		return IsRequested(ViewFamily) && HasRequiredTracingData(ViewFamily);
 	}
 
+	uint32 GetSampleMargin()
+	{
+		return 3;
+	}
+
 	bool UseVolume()
 	{
 		return CVarMegaLightsVolume.GetValueOnRenderThread() != 0;

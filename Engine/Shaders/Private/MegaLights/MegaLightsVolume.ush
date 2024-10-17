@@ -49,14 +49,12 @@ float LightSoftFading;
 
 float ComputeDepthFromZSlice(float ZSlice)
 {
-	float SliceDepth = (exp2(ZSlice / MegaLightsVolumeZParams.z) - MegaLightsVolumeZParams.y) / MegaLightsVolumeZParams.x;
-	return SliceDepth;
+	return ComputeDepthFromZSlice(MegaLightsVolumeZParams, ZSlice);
 }
 
 float ComputeZSliceFromDepth(float SliceDepth)
 {
-	float ZSlice = log2(SliceDepth * MegaLightsVolumeZParams.x + MegaLightsVolumeZParams.y) * MegaLightsVolumeZParams.z;
-	return ZSlice;
+	return ComputeZSliceFromDepth(MegaLightsVolumeZParams, SliceDepth);
 }
 
 float3 ComputeCellTranslatedWorldPosition(uint3 GridCoordinate, float3 CellOffset, out float SceneDepth)
