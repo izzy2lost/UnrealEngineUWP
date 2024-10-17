@@ -610,7 +610,9 @@ bool FDisplayClusterViewport::UpdateFrameContexts(const uint32 InStereoViewIndex
 	// Support custom frustum rendering feature
 	if (!RenderSettings.bDisableCustomFrustumFeature)
 	{
-		FDisplayClusterViewport_CustomFrustumRuntimeSettings::UpdateCustomFrustumSettings(GetId(), RenderSettings.CustomFrustumSettings, CustomFrustumRuntimeSettings, RenderTargetRect);
+		// Creates unique name "DCRA.Viewport"
+		const FString UniqueViewportName = FString::Printf(TEXT("%s.%s"), *Configuration->GetRootActorName(), *GetId());
+		FDisplayClusterViewport_CustomFrustumRuntimeSettings::UpdateCustomFrustumSettings(UniqueViewportName, RenderSettings.CustomFrustumSettings, CustomFrustumRuntimeSettings, RenderTargetRect);
 	}
 
 	FIntPoint ContextSize = RenderTargetRect.Size();

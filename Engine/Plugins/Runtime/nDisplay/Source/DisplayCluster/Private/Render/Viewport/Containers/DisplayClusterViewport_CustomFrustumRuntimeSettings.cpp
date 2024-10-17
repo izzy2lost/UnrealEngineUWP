@@ -106,7 +106,8 @@ void FDisplayClusterViewport_CustomFrustumRuntimeSettings::UpdateCustomFrustumSe
 	const FString& InViewportId,
 	const FDisplayClusterViewport_CustomFrustumSettings& InCustomFrustumSettings,
 	FDisplayClusterViewport_CustomFrustumRuntimeSettings& InOutRuntimeSettings,
-	FIntRect& InOutRenderTargetRect)
+	FIntRect& InOutRenderTargetRect,
+	const TCHAR* InCustomResourceName)
 {
 	using namespace UE::DisplayCluster::Viewport;
 
@@ -166,9 +167,15 @@ void FDisplayClusterViewport_CustomFrustumRuntimeSettings::UpdateCustomFrustumSe
 	// Update RTT size for CustomFrustum when we need to scale target resolution
 	if (InCustomFrustumSettings.bAdaptResolution)
 	{
-		const FIntPoint CustomFrustumSize = Size + InOutRuntimeSettings.CustomFrustumPixels.Size();
-		const FIntPoint ValidCustomFrustumSize = FDisplayClusterViewportHelpers::GetValidViewportRect(FIntRect(FIntPoint(0, 0), CustomFrustumSize), InViewportId, TEXT("CustomFrustum")).Size();
+		const FIntRect NewCustomFrustumRect(
+			FIntPoint(0, 0),
+			Size + InOutRuntimeSettings.CustomFrustumPixels.Size()
+		);
 
-		InOutRenderTargetRect.Max = ValidCustomFrustumSize;
+		// Return new custom frustum rect
+		InOutRenderTargetRect = FDisplayClusterViewportHelpers::GetValidViewportRect(
+			NewCustomFrustumRect,
+			InViewportId,
+			InCustomResourceName ? InCustomResourceName : TEXT("CustomFrustum"));
 	}
 }

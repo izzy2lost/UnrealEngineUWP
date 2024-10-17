@@ -273,12 +273,16 @@ FDisplayClusterShaderParameters_ICVFX::FCameraSettings UDisplayClusterICVFXCamer
 	const FIntPoint CameraFrameSize = GetICVFXCameraFrameSize(InStageSettings, InCameraSettings);
 	const FIntPoint RealInnerFrustumResolution(CameraFrameSize.X * CameraMult, CameraFrameSize.Y * CameraMult);
 
+	// Creates unique name "DCRA.Component"
+	const FString UniqueComponentName = FString::Printf(TEXT("%s.%s"), *GetOwner()->GetName(), *GetName());
+
 	FIntRect RealViewportRect(FIntPoint(0, 0), RealInnerFrustumResolution);
 	FDisplayClusterViewport_CustomFrustumSettings RealFrustumSettings;
 	FDisplayClusterViewport_CustomFrustumRuntimeSettings RealFrustumRuntimeSettings;
 
 	FDisplayClusterViewportConfigurationHelpers_ICVFX::UpdateCameraCustomFrustum(CameraSettings.CustomFrustum, RealFrustumSettings);
-	FDisplayClusterViewport_CustomFrustumRuntimeSettings::UpdateCustomFrustumSettings(GetName(), RealFrustumSettings, RealFrustumRuntimeSettings, RealViewportRect);
+	FDisplayClusterViewport_CustomFrustumRuntimeSettings::UpdateCustomFrustumSettings(
+		UniqueComponentName, RealFrustumSettings, RealFrustumRuntimeSettings, RealViewportRect, TEXT("ShaderParameters CustomFrustum"));
 
 	const FDisplayClusterViewport_CustomFrustumRuntimeSettings::FCustomFrustumPercent& Angles = RealFrustumRuntimeSettings.CustomFrustumPercent;
 
@@ -358,6 +362,9 @@ FIntPoint UDisplayClusterICVFXCameraComponent::GetICVFXCameraFrameSize(const FDi
 	// When no adopt resolution is used we must compensate for the change in aspect ratio caused by overscan.
 	if (InCameraSettings.CustomFrustum.bEnable && !InCameraSettings.CustomFrustum.bAdaptResolution)
 	{
+		// Creates unique name "DCRA.Component"
+		const FString UniqueComponentName = FString::Printf(TEXT("%s.%s"), *GetOwner()->GetName(), *GetName());
+
 		// Overscan should only be used through this api:
 		FDisplayClusterViewport_CustomFrustumSettings CustomFrustumSettings;
 		FDisplayClusterViewport_CustomFrustumRuntimeSettings CustomFrustumRuntimeSettings;
@@ -366,7 +373,8 @@ FIntPoint UDisplayClusterICVFXCameraComponent::GetICVFXCameraFrameSize(const FDi
 
 		FIntPoint DesiredSize = AdaptResolutionToAspectRatio(CameraFrameSize, CroppedSensorAR);
 		FIntRect ViewportRect(FIntPoint(0, 0), DesiredSize);
-		FDisplayClusterViewport_CustomFrustumRuntimeSettings::UpdateCustomFrustumSettings(GetName(), CustomFrustumSettings, CustomFrustumRuntimeSettings, ViewportRect);
+		FDisplayClusterViewport_CustomFrustumRuntimeSettings::UpdateCustomFrustumSettings(
+			UniqueComponentName, CustomFrustumSettings, CustomFrustumRuntimeSettings, ViewportRect, TEXT("CameraFrame Size CustomFrustum"));
 
 		// Overscan without the bAdaptResolution option does not change the RTT aspect ratio.
 		// In this case, the sensor AR must be modified to include CustomFrustumPercent values.
@@ -386,8 +394,10 @@ void UDisplayClusterICVFXCameraComponent::UpdateOverscanEstimatedFrameSize()
 		return;
 	}
 
-	const FDisplayClusterConfigurationICVFX_StageSettings& StageSettings = RootActor->GetStageSettings();
+	// Creates unique name "DCRA.Component"
+	const FString UniqueComponentName = FString::Printf(TEXT("%s.%s"), *GetOwner()->GetName(), *GetName());
 
+	const FDisplayClusterConfigurationICVFX_StageSettings& StageSettings = RootActor->GetStageSettings();
 	{
 		// calculate estimations
 		FDisplayClusterConfigurationICVFX_CameraSettings EstimatedCameraSettings = CameraSettings;
@@ -406,7 +416,8 @@ void UDisplayClusterICVFXCameraComponent::UpdateOverscanEstimatedFrameSize()
 		FDisplayClusterViewport_CustomFrustumRuntimeSettings EstimatedFrustumRuntimeSettings;
 
 		FDisplayClusterViewportConfigurationHelpers_ICVFX::UpdateCameraCustomFrustum(EstimatedCameraSettings.CustomFrustum, EstimatedFrustumSettings);
-		FDisplayClusterViewport_CustomFrustumRuntimeSettings::UpdateCustomFrustumSettings(GetName(), EstimatedFrustumSettings, EstimatedFrustumRuntimeSettings, EstimatedViewportRect);
+		FDisplayClusterViewport_CustomFrustumRuntimeSettings::UpdateCustomFrustumSettings(
+			UniqueComponentName, EstimatedFrustumSettings, EstimatedFrustumRuntimeSettings, EstimatedViewportRect, TEXT("Estimated CustomFrustum"));
 
 		// Assign estimated calculated values
 		CameraSettings.CustomFrustum.EstimatedOverscanResolution = EstimatedViewportRect.Size();
@@ -425,7 +436,8 @@ void UDisplayClusterICVFXCameraComponent::UpdateOverscanEstimatedFrameSize()
 		FDisplayClusterViewport_CustomFrustumRuntimeSettings RealFrustumRuntimeSettings;
 
 		FDisplayClusterViewportConfigurationHelpers_ICVFX::UpdateCameraCustomFrustum(CameraSettings.CustomFrustum, RealFrustumSettings);
-		FDisplayClusterViewport_CustomFrustumRuntimeSettings::UpdateCustomFrustumSettings(GetName(), RealFrustumSettings, RealFrustumRuntimeSettings, RealViewportRect);
+		FDisplayClusterViewport_CustomFrustumRuntimeSettings::UpdateCustomFrustumSettings(
+			UniqueComponentName, RealFrustumSettings, RealFrustumRuntimeSettings, RealViewportRect, TEXT("Real CustomFrustum"));
 
 		// Assign real calculated values
 		CameraSettings.CustomFrustum.InnerFrustumResolution = RealViewportRect.Size();
