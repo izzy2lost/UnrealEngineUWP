@@ -366,7 +366,7 @@ public:
 		bShouldSourceBufferListenerZeroBuffer = bShouldZeroBuffer;
 	}
 
-	int32 GetClosestListenerIndex() const { return ClosestListenerIndex; }
+	ENGINE_API int32 GetClosestListenerIndex() const;
 
 	/** Returns whether or not the active sound can be deleted. */
 	bool CanDelete() const { return !bAsyncOcclusionPending; }
@@ -803,7 +803,7 @@ private:
 	static ENGINE_API FTraceDelegate ActiveSoundTraceDelegate;
 
 	/** Cached index to the closest listener. So we don't have to do the work to find it twice. */
-	int32 ClosestListenerIndex;
+	int32 ClosestListenerIndex = INDEX_NONE;
 
 	/** This is a friend so the audio device can call Stop() on the active sound. */
 	friend class FAudioDevice;

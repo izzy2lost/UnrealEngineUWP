@@ -822,6 +822,17 @@ void FActiveSound::UpdateInterfaceParameters(const TArray<FListener>& InListener
 	InstanceTransmitter->SetParameters(MoveTemp(ParamsToUpdate));
 }
 
+int32 FActiveSound::GetClosestListenerIndex() const
+{
+	// If we haven't cached the cloest listener index, just directly query it from the audio device.
+	// This is cached in UpdateWaveInstances.
+	if (ClosestListenerIndex == INDEX_NONE && AudioDevice)
+	{
+		return AudioDevice->FindClosestListenerIndex(Transform);
+	}
+	return ClosestListenerIndex;
+}
+
 void FActiveSound::UpdateWaveInstances(TArray<FWaveInstance*> &InWaveInstances, const float DeltaTime)
 {
 	// Reset whether or not the active sound is playing audio.
