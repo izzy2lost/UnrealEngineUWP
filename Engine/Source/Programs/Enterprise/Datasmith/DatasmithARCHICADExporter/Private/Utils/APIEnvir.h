@@ -3,7 +3,9 @@
 #pragma once
 
 #include <stddef.h>
+#if PLATFORM_WINDOWS
 #include <strsafe.h>
+#endif
 #include <string>
 
 #include "IDatasmithSceneElements.h"
@@ -20,6 +22,11 @@ THIRD_PARTY_INCLUDES_START
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wcomma"
 #pragma clang diagnostic ignored "-Wdefaulted-function-deleted"
+#pragma clang diagnostic ignored "-Wdeprecated-volatile"
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+#pragma clang diagnostic ignored "-Wenum-compare"
+#pragma clang diagnostic ignored "-Wenum-compare-conditional"
+#pragma clang diagnostic ignored "-Wdeprecated-anon-enum-enum-conversion"
 
 #if (__clang_major__ > 12) || (__clang_major__ == 12 && __clang_minor__ == 0 && __clang_patchlevel__ > 4)
 #pragma clang diagnostic ignored "-Wnon-c-typedef-for-linkage"
