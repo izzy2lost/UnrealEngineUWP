@@ -146,7 +146,7 @@ namespace Metasound::Editor
 
 		/** IMetasoundEditor interface */
 		virtual UObject* GetMetasoundObject() const override;
-		virtual void SetSelection(const TArray<UObject*>& SelectedObjects) override;
+		virtual void SetSelection(const TArray<UObject*>& SelectedObjects, bool bInvokeTabOnSelectionSet = true) override;
 		virtual bool GetBoundsForSelectedNodes(FSlateRect& Rect, float Padding) override;
 
 		/** IToolkit interface */
