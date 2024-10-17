@@ -179,7 +179,7 @@ TSharedPtr<UE::Dataflow::FContext> SDataflowGraphEditor::GetDataflowContext() co
 
 void SDataflowGraphEditor::EvaluateNode()
 {
-	UE_LOG(LogChaosDataflow, Verbose, TEXT("SDataflowGraphEditor::EvaluateNode(): Nodes [%s]"),
+	UE_LOG(LogChaosDataflow, VeryVerbose, TEXT("SDataflowGraphEditor::EvaluateNode(): Nodes [%s]"),
 		*FString::JoinBy(GetSelectedNodes().Array(), TEXT(", "), [](const UObject* SelectedNode)
 			{
 				return Cast<UDataflowEdNode>(SelectedNode) && Cast<UDataflowEdNode>(SelectedNode)->GetDataflowNode() ? 

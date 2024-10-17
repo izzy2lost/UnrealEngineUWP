@@ -119,7 +119,7 @@ namespace UE::Dataflow
 
 	bool FContextSingle::Evaluate(const FDataflowOutput& Connection)
 	{
-		UE_LOG(LogChaosDataflow, Verbose, TEXT("FContextSingle::Evaluate(): Node [%s], Output [%s]"), *Connection.GetOwningNode()->GetName().ToString(), *Connection.GetName().ToString());
+		UE_LOG(LogChaosDataflow, VeryVerbose, TEXT("FContextSingle::Evaluate(): Node [%s], Output [%s]"), *Connection.GetOwningNode()->GetName().ToString(), *Connection.GetName().ToString());
 		return Connection.EvaluateImpl(*this);
 	}
 
@@ -132,7 +132,7 @@ namespace UE::Dataflow
 
 	bool FContextThreaded::Evaluate(const FDataflowOutput& Connection)
 	{
-		UE_LOG(LogChaosDataflow, Verbose, TEXT("FContextThreaded::Evaluate(): Node [%s], Output [%s]"), *Connection.GetOwningNode()->GetName().ToString(), *Connection.GetName().ToString());
+		UE_LOG(LogChaosDataflow, VeryVerbose, TEXT("FContextThreaded::Evaluate(): Node [%s], Output [%s]"), *Connection.GetOwningNode()->GetName().ToString(), *Connection.GetName().ToString());
 		Connection.OutputLock->Lock(); ON_SCOPE_EXIT{ Connection.OutputLock->Unlock(); };
 		return Connection.EvaluateImpl(*this);
 	}

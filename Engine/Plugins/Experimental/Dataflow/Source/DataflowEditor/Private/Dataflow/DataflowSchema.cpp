@@ -344,6 +344,29 @@ void UDataflowSchema::BreakPinLinks(UEdGraphPin& TargetPin, bool bSendsNodeNotif
 	Super::BreakPinLinks(TargetPin, bSendsNodeNotifcation);
 }
 
+bool UDataflowSchema::TryCreateConnection(UEdGraphPin* PinA, UEdGraphPin* PinB) const
+{
+	check(PinA && PinB);
+	UDataflowEdNode* const DataflowEdNodeA = CastChecked<UDataflowEdNode>(PinA->GetOwningNodeUnchecked());
+	UDataflowEdNode* const DataflowEdNodeB = CastChecked<UDataflowEdNode>(PinB->GetOwningNodeUnchecked());
+	if (ensure(DataflowEdNodeA->IsBound() && DataflowEdNodeB->IsBound()))
+	{
+		const TSharedPtr<FDataflowNode> DataflowNodeA = DataflowEdNodeA->GetDataflowNode();
+		const TSharedPtr<FDataflowNode> DataflowNodeB = DataflowEdNodeB->GetDataflowNode();
+		if (ensure(DataflowNodeA && DataflowNodeB))
+		{
+			// Pausing invalidations is a quick hack while sorting the invalidation callbacks that are causing multiple evaluations
+			DataflowNodeA->PauseInvalidations();
+			DataflowNodeB->PauseInvalidations();
+			const bool bModified = Super::TryCreateConnection(PinA, PinB);
+			DataflowNodeA->ResumeInvalidations();
+			DataflowNodeB->ResumeInvalidations();
+			return bModified;
+		}
+	}
+	return Super::TryCreateConnection(PinA, PinB);
+}
+
 FConnectionDrawingPolicy* UDataflowSchema::CreateConnectionDrawingPolicy(int32 InBackLayerID, int32 InFrontLayerID, float InZoomFactor, const FSlateRect& InClippingRect, class FSlateWindowElementList& InDrawElements, class UEdGraph* InGraphObj) const
 {
 	return new FDataflowConnectionDrawingPolicy(InBackLayerID, InFrontLayerID, InZoomFactor, InClippingRect, InDrawElements, InGraphObj);
