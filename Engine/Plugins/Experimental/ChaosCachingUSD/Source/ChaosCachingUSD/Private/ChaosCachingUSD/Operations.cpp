@@ -481,7 +481,7 @@ UE::ChaosCachingUSD::WriteTetMesh(
 	// bool does the same thing.  What's more is that we currently have no consumer for the tet 
 	// topology, so this really doesn't matter.  At least not yet.
 	pxr::UEUsdGeomTetMesh TetMesh = pxr::UEUsdGeomTetMesh::Define(Stage, Path);
-	if (/*TetMesh*/true)
+	if (Tetrahedron->Num())
 	{
 		pxr::UsdPrim Prim = TetMesh.GetPrim();
 
