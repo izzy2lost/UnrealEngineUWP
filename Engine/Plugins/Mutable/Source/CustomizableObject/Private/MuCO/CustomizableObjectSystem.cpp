@@ -131,6 +131,11 @@ static FAutoConsoleVariableRef CVarMutableEnableLODManagmentInEditor(
 	ECVF_Default);
 #endif
 
+TAutoConsoleVariable<bool> CVarEnableReleaseMeshResources(
+	TEXT("mutable.EnableReleaseMeshResources"),
+	true,
+	TEXT("Allow releasing resources when discarding instances."));
+
 int32 UCustomizableObjectSystemPrivate::SkeletalMeshMinLodQualityLevel = -1;
 
 

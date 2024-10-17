@@ -41,6 +41,8 @@ extern TAutoConsoleVariable<bool> CVarEnableRealTimeMorphTargets;
 
 extern TAutoConsoleVariable<bool> CVarRollbackFixModelDiskStreamerDataRace;
 
+extern TAutoConsoleVariable<bool> CVarEnableReleaseMeshResources;
+
 
 #if WITH_EDITOR
 

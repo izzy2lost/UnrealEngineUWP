@@ -2988,6 +2988,8 @@ bool UCustomizableInstancePrivate::IsSelectedParameterProfileDirty() const
 
 void UCustomizableInstancePrivate::DiscardResources()
 {
+	check(IsInGameThread());
+
 	UCustomizableObjectInstance* Instance = Cast<UCustomizableObjectInstance>(GetOuter());
 	if (!Instance)
 	{
@@ -2996,13 +2998,16 @@ void UCustomizableInstancePrivate::DiscardResources()
 
 	if (SkeletalMeshStatus == ESkeletalMeshStatus::Success)
 	{
-		for (const TTuple<FName, TObjectPtr<USkeletalMesh>>& Tuple : SkeletalMeshes)
+		if (CVarEnableReleaseMeshResources.GetValueOnGameThread())
 		{
-			USkeletalMesh* SkeletalMesh = Tuple.Get<1>();
-			
-			if (SkeletalMesh->IsValidLowLevel())
+			for (const TTuple<FName, TObjectPtr<USkeletalMesh>>& Tuple : SkeletalMeshes)
 			{
-				SkeletalMesh->ReleaseResources();
+				USkeletalMesh* SkeletalMesh = Tuple.Get<1>();
+			
+				if (SkeletalMesh->IsValidLowLevel())
+				{
+					SkeletalMesh->ReleaseResources();
+				}
 			}
 		}
 		
