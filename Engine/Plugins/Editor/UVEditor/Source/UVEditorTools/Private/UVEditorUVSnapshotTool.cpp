@@ -25,7 +25,7 @@ using namespace UE::Geometry;
 bool UUVEditorUVSnapshotToolBuilder::CanBuildTool(const FToolBuilderState& SceneState) const
 {
 	// ensure only one target is handled and that source target is valid
-	return Targets && Targets->Num() == 1 && UE::ToolTarget::GetTargetActor((*Targets)[0]->SourceTarget);
+	return Targets && Targets->Num() == 1;
 }
 UInteractiveTool* UUVEditorUVSnapshotToolBuilder::BuildTool(const FToolBuilderState& SceneState) const
 {
@@ -268,7 +268,7 @@ UMaterialInstanceDynamic* UUVEditorUVSnapshotTool::GetMaterialForQuad()
 void UUVEditorUVSnapshotTool::CreateTextureAsset(const TObjectPtr<UTexture2D>& Texture) const
 {
 	bool bCreatedAssetOK = true;
-	const FString ObjName = UE::ToolTarget::GetTargetActor(Target->SourceTarget)->GetActorNameOrLabel();
+	FString ObjName = UE::ToolTarget::GetHumanReadableName(Target->SourceTarget);
 	FString UVLayerAsString = UVShellSettings->UVLayer;
 	UVLayerAsString.RemoveSpacesInline();
 	FString NewAssetName = FString::Printf(TEXT("%s_UVShell_%s"), *ObjName, *UVLayerAsString); // will be something like "Cylinder_UVShell_UV0"
