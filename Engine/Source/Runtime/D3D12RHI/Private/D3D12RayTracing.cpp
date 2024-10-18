@@ -2949,7 +2949,7 @@ void FD3D12RayTracingGeometry::Swap(FD3D12RayTracingGeometry& Other)
 
 	GeometryDescs.SetNumUninitialized(Initializer.Segments.Num());
 	TranslateRayTracingGeometryDescs(Initializer, GeometryDescs);
-
+		
 	FOREACH_GPU(GPUIndex < MAX_NUM_GPUS && GPUIndex < GNumExplicitGPUsForRendering,
 	{
 		RegisterAsRenameListener(GPUIndex);
@@ -2974,9 +2974,12 @@ void FD3D12RayTracingGeometry::ReleaseUnderlyingResource()
 		}
 	});
 
-	// Unregister as dependent resource on vertex and index buffers
+	// Unregister as dependent resource on vertex and index buffers & clear the SRVs
 	FOREACH_GPU(GPUIndex < MAX_NUM_GPUS,
 	{
+		HitGroupSystemIndexBufferSRV[GPUIndex].Reset();
+		HitGroupSystemSegmentVertexBufferSRVs[GPUIndex].Empty();
+
 		UnregisterAsRenameListener(GPUIndex);
 	});
 
