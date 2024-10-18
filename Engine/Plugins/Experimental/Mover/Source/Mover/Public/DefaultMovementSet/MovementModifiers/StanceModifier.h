@@ -65,9 +65,6 @@ public:
 	// Whether expanding should be from the base of the capsule or not
 	virtual bool ShouldExpandingMaintainBase(const UCharacterMoverComponent* MoverComp) const;
 
-	// Gets CDO capsule component - useful for getting original values
-	static const UCapsuleComponent* GetOriginalCapsuleComponent(const UMoverComponent* MoverComp);
-
 protected:
 	// Modifies the updated component casted to a capsule component
 	void AdjustCapsule(UMoverComponent* MoverComp, float OldHalfHeight, float NewHalfHeight, float NewEyeHeight);
