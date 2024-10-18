@@ -127,6 +127,7 @@ protected:
 	const UPCGPin* GetFirstPointOutputPin() const;
 	int GetProcessingElemCountForInputPin(const UPCGPin* InputPin, const UPCGDataBinding* Binding) const;
 	bool AreKernelAttributesValid(FPCGContext* InContext, FText* OutErrorText) const;
+	bool AreAllOutputPinsWritten(FText* OutErrorText) const;
 
 	/** Will the ThreadCountMultiplier value be applied when calculating the dispatch thread count. */
 	bool IsThreadCountMultiplierInUse() const { return KernelType == EPCGKernelType::Custom && DispatchThreadCount != EPCGDispatchThreadCount::Fixed; }
@@ -166,6 +167,10 @@ public:
 #endif
 
 protected:
+	/** Mute uninitialized data warnings. */
+	UPROPERTY(EditAnywhere, Category = "Settings")
+	bool bMuteUnwrittenPinDataErrors = false;
+
 	/** Optional functions that can be called from the source. Intended to be edited using the Node Source Editor window. */
 	UPROPERTY(EditAnywhere, Category = "Settings", AdvancedDisplay, meta = (MultiLine = true))
 	FString ShaderFunctions = "/** CUSTOM SHADER FUNCTIONS **/\n";
