@@ -4460,7 +4460,8 @@ void UWeightToolSelectionIsolator::SetIsolatedTriangles(const TArray<int32>& Tri
 	}
 
 	const FMeshDescription* EditedMesh = WeightTool->GetCurrentlyEditedMeshDescription();
-	if (!ensure(EditedMesh))
+	const FDynamicMesh3* EditedDynaMesh = WeightTool->GetCurrentlyEditedDynamicMesh();
+	if (!ensure(EditedMesh && EditedDynaMesh))
 	{
 		return;
 	}
@@ -4489,13 +4490,50 @@ void UWeightToolSelectionIsolator::SetIsolatedTriangles(const TArray<int32>& Tri
 	SelectionMechanic->GetSelection_AsTriangleTopology(IsolatedSelectionToRestoreFaces);
 
 	// store copy of original FDynamicMesh to restore
-	FDynamicMesh3 DynamicMesh;
-	FMeshDescriptionToDynamicMesh Converter;
-	Converter.Convert(EditedMesh, DynamicMesh);
-	FullDynamicMesh = MoveTemp(DynamicMesh);
+	auto GetIsolatedMesh = [this, EditedDynaMesh](const TArray<int32>& ToIsolate) -> const FDynamicMesh3*
+	{
+		using namespace UE::Geometry;
 
-	// create a submesh from the given triangles
-	PartialSubMesh = UE::Geometry::FDynamicSubmesh3(&FullDynamicMesh, TrianglesToIsolate);
+		// create a sub-mesh from the triangles to isolate
+		PartialSubMesh = FDynamicSubmesh3(EditedDynaMesh, ToIsolate);
+		
+		if (ToIsolate.IsEmpty())
+		{
+			return EditedDynaMesh;
+		}
+
+		FDynamicMesh3& IsolatedMesh = PartialSubMesh.GetSubmesh();
+
+		// remap the non-manifold mapping from full mesh to partial mesh if needed
+		const FNonManifoldMappingSupport OriginalNonManifoldMapping(*EditedDynaMesh);
+		if (OriginalNonManifoldMapping.IsNonManifoldVertexInSource())
+		{
+			TArray<int32> IsolatedMeshVertexToNonManifoldVertexID;
+			IsolatedMeshVertexToNonManifoldVertexID.Reserve(IsolatedMesh.VertexCount());
+			for (int32 IsolatedVertexID = 0; IsolatedVertexID < IsolatedMesh.VertexCount(); ++IsolatedVertexID)
+			{
+				const int32 OrigMeshVertexID = PartialSubMesh.MapVertexToBaseMesh(IsolatedVertexID);
+				const int32 SrcBaseMeshVertexID = OriginalNonManifoldMapping.GetOriginalNonManifoldVertexID(OrigMeshVertexID);
+				int32 SrcSubMeshVertexID = PartialSubMesh.MapVertexToSubmesh(SrcBaseMeshVertexID);
+				if (SrcSubMeshVertexID == INDEX_NONE)
+				{
+					SrcSubMeshVertexID = IsolatedVertexID;
+				}
+				IsolatedMeshVertexToNonManifoldVertexID.Add(SrcSubMeshVertexID);
+			}
+
+			// replace the non-manifold vertex map in the cleaned mesh attributes
+			FNonManifoldMappingSupport CleanedNonManifoldMapping(IsolatedMesh);
+			CleanedNonManifoldMapping.AttachNonManifoldVertexMappingData(IsolatedMeshVertexToNonManifoldVertexID, IsolatedMesh);
+		}
+
+		// copy bone attributes
+		FDynamicMeshAttributeSet* SourceAttributes = IsolatedMesh.Attributes();
+		SourceAttributes->CopyBoneAttributes(*EditedDynaMesh->Attributes());
+		
+		return &IsolatedMesh;
+	};
+	const FDynamicMesh3* IsolatedMesh = GetIsolatedMesh(TrianglesToIsolate);
 
 	// create mesh description for sub-mesh
 	PartialMeshDescription = MakeShared<FMeshDescription>();
@@ -4506,10 +4544,10 @@ void UWeightToolSelectionIsolator::SetIsolatedTriangles(const TArray<int32>& Tri
 	// NOTE: this copies vertex weights to partial mesh description (later used to load weights into the tool)
 	FDynamicMeshToMeshDescription DnyToDescConverter;
 	constexpr bool bCopyTangents = true;
-	DnyToDescConverter.Convert(&PartialSubMesh.GetSubmesh(), *PartialMeshDescription, bCopyTangents);
+	DnyToDescConverter.Convert(IsolatedMesh, *PartialMeshDescription, bCopyTangents);
 	
 	// reinitialize all mesh data structures
-	WeightTool->UpdateCurrentlyEditedMesh(SkeletalMeshComponent, PartialSubMesh.GetSubmesh(), *PartialMeshDescription.Get());
+	WeightTool->UpdateCurrentlyEditedMesh(SkeletalMeshComponent, *IsolatedMesh, *PartialMeshDescription.Get());
 }
 
 void UWeightToolSelectionIsolator::RestoreFullMesh()
@@ -4534,17 +4572,21 @@ void UWeightToolSelectionIsolator::RestoreFullMesh()
 
 	// reinitialize with full mesh
 	FMeshDescription* CurrentlyEditedMesh = WeightTool->GetCurrentlyEditedMeshDescription();
-	WeightTool->UpdateCurrentlyEditedMesh(SkeletalMeshComponent, FullDynamicMesh, *CurrentlyEditedMesh);
+	FDynamicMesh3* CurrentlyEditedDynaMesh = WeightTool->GetCurrentlyEditedDynamicMesh();
+	WeightTool->UpdateCurrentlyEditedMesh(SkeletalMeshComponent, *CurrentlyEditedDynaMesh, *CurrentlyEditedMesh);
 
 	// copy the remapped weights back to the full mesh
 	const FSkeletalMeshConstAttributes MeshAttribs(*PartialMeshDescription.Get());
 	const FName ActiveProfile = WeightTool->GetWeightToolProperties()->GetActiveSkinWeightProfile();
 	const FSkinWeightsVertexAttributesConstRef AllVertexWeights = MeshAttribs.GetVertexSkinWeights(ActiveProfile);
 	const int32 NumVerticesInPartialMesh = PartialMeshDescription.Get()->Vertices().Num();
+	UE::Geometry::FNonManifoldMappingSupport NonManifoldMapping(*CurrentlyEditedDynaMesh);
 	for (int32 VertexIndexPartial = 0; VertexIndexPartial < NumVerticesInPartialMesh; VertexIndexPartial++)
 	{
 		// get the equivalent vertex on the full mesh
-		const int32 VertexIndexFull = PartialSubMesh.MapVertexToBaseMesh(VertexIndexPartial);
+		int32 VertexIndexFull = PartialSubMesh.MapVertexToBaseMesh(VertexIndexPartial);
+		VertexIndexFull = NonManifoldMapping.GetOriginalNonManifoldVertexID(VertexIndexFull);
+
 		// clear all the weights on this vertex
 		Weights.CurrentWeights[VertexIndexFull].Reset();
 		// replace with weights from partial mesh

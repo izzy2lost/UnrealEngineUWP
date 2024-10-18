@@ -654,7 +654,6 @@ private:
 	bool bRestoreFullMeshOnNextTick = false;
 	// isolate selection sub-meshes
 	UE::Geometry::FDynamicSubmesh3 PartialSubMesh;
-	UE::Geometry::FDynamicMesh3 FullDynamicMesh;
 };
 
 class MESHMODELINGTOOLSEDITORONLYEXP_API FIsolateSelectionChange : public FToolCommandChange
