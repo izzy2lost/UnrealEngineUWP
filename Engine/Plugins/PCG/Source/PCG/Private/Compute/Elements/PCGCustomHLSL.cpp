@@ -16,6 +16,7 @@
 #include "Elements/Metadata/PCGMetadataElementCommon.h"
 
 #include "Internationalization/Regex.h"
+#include "Containers/StaticArray.h"
 
 #if WITH_EDITOR
 #include "ScopedTransaction.h"
@@ -1481,6 +1482,15 @@ bool UPCGCustomHLSLSettings::IsKernelValid(FPCGContext* InContext, bool bQuiet) 
 			}
 			return false;
 		}
+
+		if (!bMuteUnwrittenPinDataErrors && !AreAllOutputPinsWritten(ErrorTextPtr))
+		{
+			if (ErrorTextPtr)
+			{
+				PCG_KERNEL_VALIDATION_ERR(InContext, this, bQuiet, *ErrorTextPtr);
+			}
+			return false;
+		}
 	}
 
 	return true;
@@ -1646,6 +1656,60 @@ bool UPCGCustomHLSLSettings::AreKernelAttributesValid(FPCGContext* InContext, FT
 
 				return false;
 			}
+		}
+	}
+
+	return true;
+}
+
+bool UPCGCustomHLSLSettings::AreAllOutputPinsWritten(FText* OutWarningText) const
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(UPCGCustomHLSLSettings::AreAllOutputPinsWritten);
+
+	const UPCGNode* Node = Cast<UPCGNode>(GetOuter());
+	if (!Node)
+	{
+		return true;
+	}
+
+	const FString AllSource = ShaderFunctions + ShaderSource;
+
+	// Non-custom kernels initialize the first output pin data automatically.
+	const UPCGPin* AutomaticallyInitializedPin = (KernelType != EPCGKernelType::Custom) ? GetFirstOutputPin() : nullptr;
+
+	for (const UPCGPin* Pin : Node->GetOutputPins())
+	{
+		if (!Pin || Pin == AutomaticallyInitializedPin || Pin->Properties.Label == NAME_None)
+		{
+			continue;
+		}
+
+		const TStaticArray<FString, 3> WriteStrings = { 
+			Pin->Properties.Label.ToString() + TEXT("_Set"), 
+			Pin->Properties.Label.ToString() + TEXT("_CopyElementFrom_"),
+			Pin->Properties.Label.ToString() + TEXT("_Initialize") };
+
+		bool bFoundDataWrite = false;
+
+		for (const FString& WriteString : WriteStrings)
+		{
+			if (AllSource.Contains(WriteString))
+			{
+				bFoundDataWrite = true;
+				break;
+			}
+		}
+
+		if (!bFoundDataWrite)
+		{
+			if (OutWarningText)
+			{
+				*OutWarningText = FText::Format(
+					LOCTEXT("PinMayNotBeWritten", "Data on pin '{0}' may be uninitialized. Add code to write to this data, or mute this error in the node settings."),
+					{ FText::FromName(Pin->Properties.Label) });
+			}
+
+			return false;
 		}
 	}
 
