@@ -409,6 +409,20 @@ namespace Metasound
 				return;
 			}
 
+			bool bIsTrigger = false;
+			const UMetasoundEditorGraphMember* Member = BoolLiteral->FindMember();
+			if (!Member)
+			{
+				return;
+			}
+
+			// Non-input members don't show any options for inputs, so early out if trigger.
+			bIsTrigger = Member->GetDataType() == Metasound::GetMetasoundDataTypeName<Metasound::FTrigger>();
+			if (bIsTrigger && !Member->IsA<UMetasoundEditorGraphInput>())
+			{
+				return;
+			}
+
 			FMetasoundDefaultLiteralCustomizationBase::CustomizeDefaults(InLiteral, InDetailLayout);
 
 			TAttribute<EVisibility> DefaultVisibility = GetDefaultVisibility();
@@ -431,25 +445,41 @@ namespace Metasound
 
 			if (EditorSettings->bUseAudioMaterialWidgets)
 			{
-				if (const UMetasoundEditorGraphInput* Member = Cast<UMetasoundEditorGraphInput>(InLiteral.FindMember()))
+				if (!bIsTrigger)
 				{
-					if (Member->GetDataType() != GetMetasoundDataTypeName<FTrigger>())
+					if (const UMetasoundEditorGraph* OwningGraph = Member->GetOwningGraph())
 					{
-						if (const UMetasoundEditorGraph* OwningGraph = Member->GetOwningGraph())
-						{
-							bShowWidgetOptions = OwningGraph->IsEditable();
-						}
+						bShowWidgetOptions = OwningGraph->IsEditable();
 					}
 				}
 			}
 
 			if (bShowWidgetOptions)
 			{
-				if (InLiteral.GetDataType() != Metasound::GetMetasoundDataTypeName<Metasound::FTrigger>())
+				AddOptionPropRow(GET_MEMBER_NAME_CHECKED(UMetasoundEditorGraphMemberDefaultBool, WidgetType));
+			}
+		}
+
+		TAttribute<EVisibility> FMetasoundBoolLiteralCustomization::GetDefaultVisibility() const
+		{
+			if (UMetasoundEditorGraphMemberDefaultBool* DefaultBool = BoolLiteral.Pin().Get())
+			{
+				UMetasoundEditorGraphMember* Member = DefaultBool->FindMember();
+				if (Member->IsA<UMetasoundEditorGraphInput>())
 				{
-					AddOptionPropRow(GET_MEMBER_NAME_CHECKED(UMetasoundEditorGraphMemberDefaultBool, WidgetType));
+					return FMetasoundDefaultLiteralCustomizationBase::GetDefaultVisibility();
+				}
+				else
+				{
+					const bool bIsTrigger = Member->GetDataType() == Metasound::GetMetasoundDataTypeName<Metasound::FTrigger>();
+					if (bIsTrigger)
+					{
+						return EVisibility::Collapsed;
+					}
 				}
 			}
+
+			return FMetasoundDefaultLiteralCustomizationBase::GetDefaultVisibility();
 		}
 
 		void FMetasoundObjectArrayLiteralCustomization::CustomizeDefaults(UMetasoundEditorGraphMemberDefaultLiteral& InLiteral, IDetailLayoutBuilder& InDetailLayout)

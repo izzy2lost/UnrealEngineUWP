@@ -858,7 +858,10 @@ TArray<UMetasoundEditorGraphMemberNode*> UMetasoundEditorGraphInput::GetNodes() 
 
 bool UMetasoundEditorGraphInput::IsDefaultPaged() const
 {
-	return true;
+	// Triggers are special and do not show their default value, but are visible
+	// to allow for interact button when auditioning.  Therefore, default paging
+	// is unnecessary.
+	return TypeName != Metasound::GetMetasoundDataTypeName<Metasound::FTrigger>();
 }
 
 bool UMetasoundEditorGraphInput::IsInterfaceMember(FMetasoundFrontendInterface* OutInterface) const
