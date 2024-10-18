@@ -51,7 +51,7 @@ bool IsTexturedLightTileType(uint TileType)
 
 #if DEBUG_MODE
 	#include "../ShaderPrint.ush"
-	#define FontValue FontLightYellow
+	#define FontValue FontWhite
 	#define FontSelected FontRed
 	#define FontTitle FontEmerald
 #endif

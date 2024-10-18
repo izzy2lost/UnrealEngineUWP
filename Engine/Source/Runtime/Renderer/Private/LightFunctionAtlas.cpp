@@ -53,7 +53,7 @@ How to use the Atlas:
 static TAutoConsoleVariable<int32> CVarLightFunctionAtlas(
 	TEXT("r.LightFunctionAtlas"),
 	1,
-	TEXT("Experimental: enable the light function atlas generation at runtime. The atlas will only be generated if other systems are using it at runtime."),
+	TEXT("Enable the light function atlas generation at runtime. The atlas will only be generated if other systems are using it at runtime."),
 	ECVF_RenderThreadSafe);
 
 // We do not dynamically scale allocated slot resolution for now.

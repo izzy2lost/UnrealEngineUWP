@@ -47,7 +47,12 @@ int UseIESProfiles;
 int UseLightFunctionAtlas;
 uint DebugLightId;
 
-void AccumulateLightSample(uint PackedLightSamples[NUM_SAMPLES_PER_PIXEL_1D], inout uint NextLocalLightIndex)
+float GetLightSampleWeightRatio(FLightSample LightSample)
+{
+	return (1.0f / LightSample.Weight) * (LightSample.bGuidedAsPartiallyVisibleLight ? 0.25f : 1.0f);
+}
+
+void FindNextLocalLightIndex(uint PackedLightSamples[NUM_SAMPLES_PER_PIXEL_1D], inout uint NextLocalLightIndex, inout float MissWeightRatioSum)
 {
 	for (uint SampleIndex = 0; SampleIndex < NUM_SAMPLES_PER_PIXEL_1D; ++SampleIndex)
 	{
@@ -56,10 +61,14 @@ void AccumulateLightSample(uint PackedLightSamples[NUM_SAMPLES_PER_PIXEL_1D], in
 		{
 			NextLocalLightIndex = min(NextLocalLightIndex, LightSample.LocalLightIndex);
 		}
+		else if (LightSample.LocalLightIndex != MAX_LOCAL_LIGHT_INDEX)
+		{
+			MissWeightRatioSum += GetLightSampleWeightRatio(LightSample);
+		}
 	}
 }
 
-void AccumulateLightSample(uint PackedLightSamples[NUM_SAMPLES_PER_PIXEL_1D], uint LocalLightIndex, float UpsampleWeight, inout uint NextLocalLightIndex, inout float SampleWeightSum, inout float WeightRatioSum)
+void AccumulateLightSample(uint PackedLightSamples[NUM_SAMPLES_PER_PIXEL_1D], uint LocalLightIndex, inout uint NextLocalLightIndex, inout float SampleWeightSum, inout float WeightRatioSum)
 {
 	for (uint SampleIndex = 0; SampleIndex < NUM_SAMPLES_PER_PIXEL_1D; ++SampleIndex)
 	{
@@ -68,9 +77,8 @@ void AccumulateLightSample(uint PackedLightSamples[NUM_SAMPLES_PER_PIXEL_1D], ui
 		{
 			if (LightSample.LocalLightIndex == LocalLightIndex)
 			{
-				// #ml_todo: fix it and restore
-				SampleWeightSum += LightSample.Weight * UpsampleWeight;// * (LightSample.bGuidedAsVisible ? 1.0f : LightWasHiddenPDFWeightScale);
-				WeightRatioSum += (1.0f / LightSample.Weight) * UpsampleWeight * (LightSample.bGuidedAsPartiallyVisibleLight ? 0.25f : 1.0f);
+				SampleWeightSum += LightSample.Weight;
+				WeightRatioSum += GetLightSampleWeightRatio(LightSample);
 			}
 
 			if (LightSample.LocalLightIndex > LocalLightIndex)
@@ -244,8 +252,10 @@ void ShadeLightSamplesCS(
 					PackedLightSamples[SampleIndex] = LightSamples[LightSampleCoord];
 				}
 
+				float MissWeightRatioSum = 0.0f;
 				uint NextLocalLightIndex = MAX_LOCAL_LIGHT_INDEX;
-				AccumulateLightSample(PackedLightSamples, NextLocalLightIndex);
+				FindNextLocalLightIndex(PackedLightSamples, NextLocalLightIndex, MissWeightRatioSum);
+				WeightRatioSum -= MissWeightRatioSum;
 
 				while (NextLocalLightIndex < MAX_LOCAL_LIGHT_INDEX)
 				{
@@ -254,7 +264,7 @@ void ShadeLightSamplesCS(
 					{
 						NextLocalLightIndex = MAX_LOCAL_LIGHT_INDEX;
 						float SampleWeight = 0.0f;
-						AccumulateLightSample(PackedLightSamples, LocalLightIndex, 1.0f, NextLocalLightIndex, SampleWeight, WeightRatioSum);
+						AccumulateLightSample(PackedLightSamples, LocalLightIndex, NextLocalLightIndex, SampleWeight, WeightRatioSum);
 
 						const FLocalLightData LocalLightData = GetLocalLightDataNonStereo(LocalLightIndex);
 						FDeferredLightData LightData = ConvertToDeferredLight(LocalLightData);
