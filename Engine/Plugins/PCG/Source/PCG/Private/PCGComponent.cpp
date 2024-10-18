@@ -1536,7 +1536,10 @@ void UPCGComponent::BeginPlay()
 		GetSubsystem()->RegisterOrUpdatePCGComponent(this);
 	}
 
-	if (bActivated && !bGenerated && GenerationTrigger == EPCGComponentGenerationTrigger::GenerateOnLoad)
+	// Procedural instances are never persisted so always require generation.
+	const bool bAlreadyGenerated = bGenerated & !bProceduralInstancesInUse;
+
+	if (bActivated && !bAlreadyGenerated && GenerationTrigger == EPCGComponentGenerationTrigger::GenerateOnLoad)
 	{
 		GenerateInternal(/*bForce=*/false, EPCGHiGenGrid::Uninitialized, EPCGComponentGenerationTrigger::GenerateOnLoad, {});
 		bRuntimeGenerated = true;
