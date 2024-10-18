@@ -346,18 +346,11 @@ void UDMXControlConsoleData::Tick(float InDeltaTime)
 
 		OnDMXLibraryReloadedDelegate.Broadcast();
 	}
-		
+
 	if (!bSendDMX)
 	{
 		return;
 	}
-
-#if WITH_EDITOR
-	if (!bSendDMXInEditor && !GIsPlayInEditorWorld)
-	{
-		return;
-	}
-#endif // WITH_EDITOR
 
 	UDMXLibrary* DMXLibrary = GetDMXLibrary();
 	const FName DMXLibraryName = DMXLibrary ? DMXLibrary->GetFName() : "<Invalid DMX Library>";

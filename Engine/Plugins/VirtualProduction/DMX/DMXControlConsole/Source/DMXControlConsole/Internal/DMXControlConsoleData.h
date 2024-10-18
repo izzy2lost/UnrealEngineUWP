@@ -81,11 +81,6 @@ public:
 	/** Gets if DMX data sending is paused or not */
 	bool IsPausedDMX() const { return bPauseDMX; }
 
-#if WITH_EDITOR
-	/** Sets if the console can send DMX in Editor */
-	void SetSendDMXInEditorEnabled(bool bSendDMXInEditorEnabled) { bSendDMXInEditor = bSendDMXInEditorEnabled; }
-#endif // WITH_EDITOR 
-
 	/** Sets the stop DMX mode for this control console */
 	void SetStopDMXMode(EDMXControlConsoleStopDMXMode NewStopDMXMode);
 
@@ -189,9 +184,4 @@ private:
 	/** The stop DMX mode currently in use by the console */
 	UPROPERTY()
 	EDMXControlConsoleStopDMXMode StopDMXMode = EDMXControlConsoleStopDMXMode::DoNotSendValues;
-
-#if WITH_EDITORONLY_DATA
-	/** True if the Control Console ticks in Editor */
-	bool bSendDMXInEditor = true;
-#endif // WITH_EDITORONLY_DATA
 };

@@ -462,12 +462,18 @@ void UDMXControlConsoleFaderGroup::PostLoad()
 {
 	Super::PostLoad();
 
-	CachedWeakFaderGroupController = Cast<UDMXControlConsoleControllerBase>(SoftControllerPtr.ToSoftObjectPath().TryLoad());
-	if (!CachedWeakFaderGroupController.IsValid())
+#if WITH_EDITOR
+	// Only cleanup controllers when not with editor and not PIE or standalone
+	if (GIsEditor)
 	{
-		Destroy();
-		return;
+		CachedWeakFaderGroupController = Cast<UDMXControlConsoleControllerBase>(SoftControllerPtr.ToSoftObjectPath().TryLoad());
+		if (!CachedWeakFaderGroupController.IsValid())
+		{
+			Destroy();
+			return;
+		}
 	}
+#endif // WITH_EDITOR
 
 	if (UDMXEntityFixturePatch* FixturePatch = FixturePatchRef.GetFixturePatch())
 	{
