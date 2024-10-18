@@ -436,7 +436,13 @@ void CullLights_SingleThread(uint GridIndex, FCellBounds CellBounds, uint Parent
 
 #if USE_LINKED_CULL_LIST
 	uint CulledLightDataStart;
+	#if FEATURE_LEVEL == FEATURE_LEVEL_ES3_1
+	// Adreno compiler fails to reg-alloc on 6xx for this shader,
+	// and doesn't support UGPR spilling, so just fails to compile.
+	InterlockedAdd(RWNextCulledLightData[0], NumVisibleLights, CulledLightDataStart);
+	#else
 	WaveInterlockedAdd_(RWNextCulledLightData[0], NumVisibleLights, CulledLightDataStart);
+	#endif
 
 	// Mega Lights are order dependent
 	OutputReversedLinkedList(LinkOffset, NumVisibleLights, CulledLightDataStart);
