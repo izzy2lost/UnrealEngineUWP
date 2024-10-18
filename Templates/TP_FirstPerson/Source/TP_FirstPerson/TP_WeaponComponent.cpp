@@ -80,10 +80,6 @@ bool UTP_WeaponComponent::AttachWeapon(ATP_FirstPersonCharacter* TargetCharacter
 	FAttachmentTransformRules AttachmentRules(EAttachmentRule::SnapToTarget, true);
 	AttachToComponent(Character->GetMesh1P(), AttachmentRules, FName(TEXT("GripPoint")));
 
-	// the weapon component is owned by the Pickup, so we need to 
-	// manually add it to the Character as an Instance Component to hand off ownership
-	Character->AddInstanceComponent(this);
-
 	// Set up action bindings
 	if (APlayerController* PlayerController = Cast<APlayerController>(Character->GetController()))
 	{
