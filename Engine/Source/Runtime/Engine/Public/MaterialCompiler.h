@@ -450,6 +450,8 @@ public:
 	virtual bool GetStaticBoolValue(int32 BoolIndex, bool& bSucceeded) = 0;
 	virtual int32 StaticTerrainLayerWeight(FName ParameterName,int32 Default, bool bTextureArray = false) = 0;
 
+	virtual int32 FontSignedDistanceData() = 0;
+
 	virtual int32 VertexColor() = 0;
 	virtual int32 MeshPaintTextureCoordinateIndex() = 0;
 	virtual int32 MeshPaintTextureDescriptor() = 0;
@@ -1004,6 +1006,8 @@ public:
 	virtual const FMaterialLayersFunctions* GetMaterialLayers() override { return Compiler->GetMaterialLayers(); }
 	virtual bool GetStaticBoolValue(int32 BoolIndex, bool& bSucceeded) override { return Compiler->GetStaticBoolValue(BoolIndex, bSucceeded); }
 	virtual int32 StaticTerrainLayerWeight(FName ParameterName, int32 Default, bool bTextureArray = false) override { return Compiler->StaticTerrainLayerWeight(ParameterName, Default, bTextureArray); }
+
+	virtual int32 FontSignedDistanceData() override { return Compiler->FontSignedDistanceData(); }
 
 	virtual int32 VertexColor() override { return Compiler->VertexColor(); }
 	virtual int32 MeshPaintTextureCoordinateIndex() override { return Compiler->MeshPaintTextureCoordinateIndex(); }

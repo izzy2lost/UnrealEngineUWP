@@ -1119,6 +1119,8 @@ protected:
 
 	virtual int32 StaticTerrainLayerWeight(FName ParameterName, int32 Default, bool bTextureArray = false) override;
 
+	virtual int32 FontSignedDistanceData() override;
+
 	virtual int32 VertexColor() override;
 	virtual int32 MeshPaintTextureCoordinateIndex() override;
 	virtual int32 MeshPaintTextureDescriptor() override;

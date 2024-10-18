@@ -312,6 +312,7 @@ FShapedGlyphSequenceRef FSlateTextShaper::FinalizeTextShaping(TArray<FShapedGlyp
 											TextBaseline, 
 											MaxHeight, 
 											InFontInfo.FontMaterial.Get(),
+											InFontInfo.bMaterialIsStencil,
 											InFontInfo.OutlineSettings,
 											InSourceTextRange);
 }

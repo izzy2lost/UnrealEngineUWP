@@ -568,6 +568,10 @@ struct FMaterialPixelParameters
 	uint WaterWaveParamIndex;
 #endif
 
+#if SHADER_TYPE == ST_GrayscaleFont || SHADER_TYPE == ST_ColorFont || SHADER_TYPE == ST_SdfFont || SHADER_TYPE == ST_MsdfFont
+	float4 FontSignedDistanceData;
+#endif
+
 #if CLOUD_LAYER_PIXEL_SHADER
 	float CloudSampleAltitude;
 	float CloudSampleAltitudeInLayer;
@@ -1950,6 +1954,15 @@ MaterialFloat GetDistanceCullFade()
 	return saturate(ResolvedView.RealTime * PrimitiveFade.FadeTimeScaleBias.x + PrimitiveFade.FadeTimeScaleBias.y);
 #else
     return 1.0f;
+#endif
+}
+
+MaterialFloat4 GetFontSignedDistanceData(FMaterialPixelParameters Parameters)
+{
+#if SHADER_TYPE == ST_GrayscaleFont || SHADER_TYPE == ST_ColorFont || SHADER_TYPE == ST_SdfFont || SHADER_TYPE == ST_MsdfFont
+	return Parameters.FontSignedDistanceData;
+#else
+	return float4(0.0f, 0.0f, 0.0f, 0.0f);
 #endif
 }
 

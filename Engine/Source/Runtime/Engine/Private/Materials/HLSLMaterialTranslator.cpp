@@ -8867,6 +8867,15 @@ int32 FHLSLMaterialTranslator::StaticTerrainLayerWeight(FName LayerName,int32 De
 	}
 }
 
+int32 FHLSLMaterialTranslator::FontSignedDistanceData()
+{
+	if (ShaderFrequency != SF_Pixel)
+	{
+		return Errorf(TEXT("Font Signed Distance node is only available in pixel shader input."));
+	}
+	return AddCodeChunk(MCT_Float4, TEXT("GetFontSignedDistanceData(Parameters)"));
+}
+
 int32 FHLSLMaterialTranslator::VertexColor()
 {
 	bUsesVertexColor |= (ShaderFrequency != SF_Vertex);
