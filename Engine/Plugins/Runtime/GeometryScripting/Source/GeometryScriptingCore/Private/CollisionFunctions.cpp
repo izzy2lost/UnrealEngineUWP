@@ -157,6 +157,10 @@ void ComputeCollisionFromMesh(
 
 static void UpdateStaticMeshCollision(UStaticMesh* StaticMeshAsset, TFunctionRef<bool(UStaticMesh*, UBodySetup*)> ApplyUpdate, bool bEmitTransaction, bool bMarkCollisionAsCustomized = true)
 {
+	if (!ensure(StaticMeshAsset))
+	{
+		return;
+	}
 #if WITH_EDITOR
 	if (bEmitTransaction && GEditor)
 	{
@@ -656,6 +660,11 @@ void UGeometryScriptLibrary_CollisionFunctions::SetSimpleCollisionOfStaticMesh(
 	FGeometryScriptSetStaticMeshCollisionOptions StaticMeshCollisionOptions,
 	UGeometryScriptDebug* Debug)
 {
+	if (StaticMesh == nullptr)
+	{
+		UE::Geometry::AppendError(Debug, EGeometryScriptErrorType::InvalidInputs, LOCTEXT("SetSimpleCollisionOfStaticMesh_InvalidStaticMesh", "SetSimpleCollisionOfStaticMesh: Input Mesh is Null"));
+		return;
+	}
 	UELocal::SetStaticMeshSimpleCollision(StaticMesh, SimpleCollision.AggGeom, Options.bEmitTransaction, StaticMeshCollisionOptions.bMarkAsCustomized);
 }
 
