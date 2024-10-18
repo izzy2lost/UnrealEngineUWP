@@ -1702,20 +1702,26 @@ FWSVector3 TransformLocalPositionToPrevWorld(FMaterialVertexParameters Parameter
 	return WSMultiply(InLocalPosition, GetPrevLocalToWorld(Parameters));
 }
 
+#if MATERIAL_DOMAIN_LIGHTFUNCTION && !LIGHT_ATLAS
+#ifndef CameraRelativeLightPosition
+	float3 CameraRelativeLightPosition;
+#endif
+#endif
+
 /** Return the object's position in world space */
 FWSVector3 GetObjectWorldPosition(FMaterialPixelParameters Parameters)
 {
 #if HAS_PRIMITIVE_UNIFORM_BUFFER
 	return Parameters.LWCData.ObjectWorldPosition;
-#else
+#elif MATERIAL_DOMAIN_LIGHTFUNCTION && !LIGHT_ATLAS
 	/**
-	* Light functions return light position in the Pixel shader only. 
-	* Other material types should not be compiling/reach here, 
-	* but the closest data we have without a primitive buffer is the per pixel position anyway, 
-	* so this is a safe return value if this code is compiled into invalid material domain types.
+	* Light functions return light position in the Pixel shader only.
+	* Light Atlas cannot return positional values, so default to float3(0.0)
 	*/
-	return DFToWS(Parameters.AbsoluteWorldPosition);
-#endif
+	return DFToWS(DFFastSubtract(CameraRelativeLightPosition, PrimaryView.PreViewTranslation));
+#else
+	return WSPromote(float3(0.0f, 0.0f, 0.0f));
+#endif //HAS_PRIMITIVE_UNIFORM_BUFFER
 }
 
 /** Return the object's position in world space. For instanced meshes, this returns the instance position. */
@@ -1723,22 +1729,25 @@ FWSVector3 GetObjectWorldPosition(FMaterialVertexParameters Parameters)
 {
 	return Parameters.LWCData.ObjectWorldPosition;
 }
-
 float3 GetObjectTranslatedWorldPosition(FMaterialPixelParameters Parameters)
 {
-#if !HAS_PRIMITIVE_UNIFORM_BUFFER
-	/**
-	* Light functions return light position in the Pixel shader only. 
-	* Other material types should not be compiling/reach here, 
-	* but the closest data we have without a primitive buffer is the per pixel position anyway, 
-	* so this is a safe return value if this code is compiled into invalid material domain types.
-	*/
-	return Parameters.WorldPosition_CamRelative;	
-#elif PRIMITIVE_HAS_TILEOFFSET_DATA && VIEW_HAS_TILEOFFSET_DATA
+#if HAS_PRIMITIVE_UNIFORM_BUFFER
+
+#if PRIMITIVE_HAS_TILEOFFSET_DATA && VIEW_HAS_TILEOFFSET_DATA
 	return LWCToFloat(LWCAdd(GetPrimitiveData(Parameters).ObjectWorldPositionTO, ResolvedView.TileOffset.PreViewTranslation));
 #else
 	return DFFastToTranslatedWorld(GetPrimitiveData(Parameters).ObjectWorldPosition, ResolvedView.PreViewTranslation);
-#endif
+#endif //PRIMITIVE_HAS_TILEOFFSET_DATA && VIEW_HAS_TILEOFFSET_DATA
+
+#elif MATERIAL_DOMAIN_LIGHTFUNCTION && !LIGHT_ATLAS
+	/**
+	* Light functions return light position in the Pixel shader only.
+	* Light Atlas cannot return positional values, so default to float3(0.0)
+	*/
+	return CameraRelativeLightPosition;
+#else
+	return float3(0.0f, 0.0f, 0.0f);
+#endif //HAS_PRIMITIVE_UNIFORM_BUFFER
 }
 
 float3 GetObjectTranslatedWorldPosition(FMaterialVertexParameters Parameters)

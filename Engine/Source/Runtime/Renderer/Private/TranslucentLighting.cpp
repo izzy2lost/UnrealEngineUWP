@@ -38,6 +38,7 @@
 #include "ClearQuad.h"
 #include "ScenePrivate.h"
 #include "OneColorShader.h"
+#include "LightFunctionRendering.h"
 #include "LightRendering.h"
 #include "ScreenRendering.h"
 #include "AmbientCubemapParameters.h"
@@ -688,6 +689,7 @@ class FTranslucentLightingInjectPS : public FMaterialShader
 		SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FAdaptiveVolumetricShadowMapUniformBufferParameters, AVSM)
 		SHADER_PARAMETER(FMatrix44f, LightFunctionTranslatedWorldToLight)
 		SHADER_PARAMETER(FVector4f, LightFunctionParameters)
+		SHADER_PARAMETER(FVector3f, CameraRelativeLightPosition)
 		SHADER_PARAMETER(float, SpotlightMask)
 		SHADER_PARAMETER(uint32, VolumeCascadeIndex)
 		SHADER_PARAMETER(int32, VirtualShadowMapId)
@@ -1467,6 +1469,8 @@ void InjectTranslucencyLightingVolume(
 				PassParameters->PS.VolumetricCloudShadowEnabled = bCloudShadowEnabled ? 1 : 0;
 
 				PassParameters->PS.AtmospherePerPixelTransmittanceEnabled = IsLightAtmospherePerPixelTransmittanceEnabled(Scene, View, LightSceneInfo);
+
+				PassParameters->PS.CameraRelativeLightPosition = GetCamRelativeLightPosition(View.ViewMatrices, *LightSceneInfo);
 
 				GraphBuilder.AddPass(
 					RDG_EVENT_NAME("InjectTranslucencyLightingVolume(VolumeCascade=%d%s%s%s)",

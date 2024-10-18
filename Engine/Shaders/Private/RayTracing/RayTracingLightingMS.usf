@@ -38,6 +38,7 @@
 #endif
 
 #if SUPPORT_LIGHT_FUNCTION
+#define CameraRelativeLightPosition  RaytracingLightFunctionParameters.CameraRelativeLightPosition
 #include "/Engine/Generated/Material.ush"
 
 // TODO: if we could just bind loose parameters, we could avoid this workaround for getting the shader parameters needed by the routines in LightFunctionCommon.ush
