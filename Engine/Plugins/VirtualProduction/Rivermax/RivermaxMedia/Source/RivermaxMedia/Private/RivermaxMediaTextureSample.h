@@ -136,6 +136,15 @@ namespace UE::RivermaxMedia
 
 		/** Pooled buffer used for gpudirect functionality. Received content will already be on GPU when received from NIC */
 		TRefCountPtr<FRDGPooledBuffer> GPUBuffer;
+
+	private:
+		friend class FRivermaxMediaPlayer;
+
+		/** The start of the reception marked by the first chunk received by rivermax. */
+		FTimespan FrameReceptionStart = 0;
+
+		/** The end of the reception marked by the last processed packet. */
+		FTimespan FrameReceptionEnd = 0;
 	};
 
 	class FRivermaxMediaTextureSamplePool : public TMediaObjectPool<FRivermaxMediaTextureSample> { };

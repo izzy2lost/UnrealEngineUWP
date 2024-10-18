@@ -50,7 +50,9 @@ namespace  UE::RivermaxMedia
 		virtual bool JustInTimeSampleRender_RenderThread(FRHICommandListImmediate& RHICmdList, FTextureRHIRef& InDestinationTexture, TSharedPtr<FMediaIOCoreTextureSampleBase>& JITRProxySample) override;
 	protected:
 		virtual TSharedPtr<FMediaIOCoreTextureSampleBase> PickSampleToRenderFramelocked_RenderThread(const FFrameInfo& InFrameInformation) override;
-
+		
+		/**  Pick sample based on Vsync timecode and Start and End of sample reception. */
+		virtual TSharedPtr<FMediaIOCoreTextureSampleBase> PickSampleToRenderForTimeSynchronized_RenderThread(const FFrameInfo& InFrameInformation) override;
 		//~ End FMediaIOCorePlayerBase interface
 
 	public: 
@@ -120,8 +122,8 @@ namespace  UE::RivermaxMedia
 		TRefCountPtr<FRHITexture> CreateIntermediateRenderTarget(FRHICommandListImmediate& RHICmdList, const FIntPoint& InDim, EPixelFormat InPixelFormat, bool bInSRGB);
 
 	private:
-		/** Size of the sample pool. */
-		static constexpr uint32 kMaxNumVideoFrameBuffer = 5;
+		/** Size of the sample pool. The max number of FrameDelay (4) + 2 frames (to give time to return back to the pool) */
+		static constexpr uint32 kMaxNumVideoFrameBuffer = 6;
 
 		/** Current state of the media player. */
 		EMediaState RivermaxThreadNewState;

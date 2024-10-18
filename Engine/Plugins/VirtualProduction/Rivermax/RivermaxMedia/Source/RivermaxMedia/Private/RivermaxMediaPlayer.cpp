@@ -2,6 +2,7 @@
 
 #include "RivermaxMediaPlayer.h"
 
+#include "Engine/Engine.h"
 #include "IMediaEventSink.h"
 #include "IRivermaxCoreModule.h"
 #include "IRivermaxManager.h"
@@ -19,6 +20,7 @@
 #include "RivermaxPTPUtils.h"
 #include "RivermaxShaders.h"
 #include "RivermaxTracingUtils.h"
+#include "RivermaxTimecodeProvider.h"
 #include "RivermaxTypes.h"
 #include "Stats/Stats2.h"
 #include "Tasks/Task.h"
@@ -71,6 +73,37 @@ namespace UE::RivermaxMedia
 		return (GetFrameNumberWithAcountedLatency(InFrameDelay, FrameNumber)) % InMaxNumVideoFrameBuffer;
 	}
 
+	/** Returns current time. Adjusted to UTC and rolled over at 24 hours. */
+	FTimespan GetCurrentPTPTimeOfDay()
+	{
+		FTimespan CurrentTimespan;
+
+		const int64 NumberOfTicksPerDay = 60 * 60 * 24 * ETimespan::TicksPerSecond;
+
+		IRivermaxCoreModule* RivermaxModule = FModuleManager::GetModulePtr<IRivermaxCoreModule>("RivermaxCore");
+		if (RivermaxModule && RivermaxModule->GetRivermaxManager())
+		{
+			// Converting from nanoseconds to ticks.
+			CurrentTimespan = FTimespan(RivermaxModule->GetRivermaxManager()->GetTime() / ETimespan::NanosecondsPerTick);
+			UTimecodeProvider* Provider = GEngine->GetTimecodeProvider();
+			
+			// Convert from TAI PTP Time to UTC
+			if (Provider && Provider->GetName().Contains("RivermaxTimecodeProvider"))
+			{
+				URivermaxTimecodeProvider* RmaxTimecodeProvider = static_cast<URivermaxTimecodeProvider*>(Provider);
+				CurrentTimespan -= FTimespan(0, 0, RmaxTimecodeProvider->UTCSecondsOffset);
+			}
+			else
+			{
+				UE_CALL_ONCE([&] { UE_LOG(LogRivermaxMedia, Warning, TEXT("Rivermax Timecode provider is required for accurate playback.")); });
+			}
+
+			// Rollover 24 hours.
+			CurrentTimespan = FTimespan(CurrentTimespan.GetTicks() % NumberOfTicksPerDay);
+		}
+
+		return CurrentTimespan;
+	}
 	/* FRivermaxVideoPlayer structors
 	 *****************************************************************************/
 
@@ -241,9 +274,13 @@ namespace UE::RivermaxMedia
 
 			UE_LOG(LogRivermaxMedia, Verbose, TEXT("Starting to receive frame '%u' with timestamp %u"), FrameInfo.FrameNumber, FrameInfo.Timestamp);
 
+			// Until PTP Timecode is available sample records frame reception start time for sample picking.
+			Sample->FrameReceptionStart = GetCurrentPTPTimeOfDay();
+
+			// the following will be restored once we have true PTP timecode support.
+			//const double MediaFrameTimeSecs = UE::RivermaxCore::ConvertRTPTimeStampToSeconds(FrameInfo.Timestamp);
+			//Sample->SetTime(FTimespan::FromSeconds(MediaFrameTimeSecs));
 			Sample->SetFrameNumber(FrameInfo.FrameNumber);
-			const double MediaFrameTimeSecs = UE::RivermaxCore::ConvertRTPTimeStampToSecondsTruncated(FrameInfo.Timestamp);
-			Sample->SetTime(FTimespan::FromSeconds(MediaFrameTimeSecs));
 			Sample->SetReceptionState(IRivermaxVideoSample::ESampleState::ReadyForReception);
 			LastFrameToAttemptReception = FrameInfo.FrameNumber;
 			return Sample;
@@ -272,6 +309,10 @@ namespace UE::RivermaxMedia
 		{
 			Sample->GetSampleReceivedEvent()->Trigger();
 		}
+
+		// Until PTP Timecode is available sample records frame reception start time for sample picking.
+		Sample->FrameReceptionEnd = GetCurrentPTPTimeOfDay();
+		
 	}
 
 	void FRivermaxMediaPlayer::TickInput(FTimespan DeltaTime, FTimespan Timecode)
@@ -415,7 +456,7 @@ namespace UE::RivermaxMedia
 		VideoTextureSamplePool = MakeUnique<FRivermaxMediaTextureSamplePool>();
 		Samples->FlushSamples();
 
-		// We only need to store current and the number we delay by.
+		// Only need to store latest frame and the number of frames delayed by.
 		Samples->SetSampleBufferSize(FrameDelay + 1);
 
 
@@ -716,6 +757,77 @@ namespace UE::RivermaxMedia
 		TSharedPtr<FRivermaxMediaTextureSample> Sample = FrameLockedSamples[TO_EXPECTED_SAMPLE_INDEX(InFrameInformation.FrameNumber)];
 
 		return Sample;
+	}
+
+	TSharedPtr<FMediaIOCoreTextureSampleBase> FRivermaxMediaPlayer::PickSampleToRenderForTimeSynchronized_RenderThread(const FFrameInfo& InFrameInformation)
+	{
+		// Reference time based on evaluation type
+		FTimespan TargetSampleTimespan;
+
+		// Get base uncorrected reference point
+
+		if (EvaluationType == EMediaIOSampleEvaluationType::Timecode && InFrameInformation.RequestedTimecode != FTimecode())
+		{
+			// We'll use timecode data to find a proper sample
+			TargetSampleTimespan = InFrameInformation.RequestedTimecode.ToTimespan(VideoFrameRate);
+		}
+		else
+		{
+			// We'll use platform time to find a proper sample
+			TargetSampleTimespan = InFrameInformation.SampleTimespan;
+		}
+
+		// Apply time correction to the target time
+		const FTimespan RequestedOffsetTimespan = FTimespan::FromSeconds(InFrameInformation.EvaluationOffset);
+
+		// Latency adjusted VSync
+		const FTimespan TargetTimespanCorrected = TargetSampleTimespan - RequestedOffsetTimespan;
+
+		// Go over the sample pool and find a sample closest to the target time
+		int32 ClosestIndex = -1;
+		int64 SmallestInterval(TNumericLimits<int64>::Max());
+
+		// Get all available video samples
+		const TArray<TSharedPtr<IMediaTextureSample>> TextureSamples = Samples->GetVideoSamples();
+		if (TextureSamples.Num() == 0)
+		{
+			return nullptr;
+		}
+
+		for (int32 Index = 0; Index < TextureSamples.Num(); ++Index)
+		{
+			TSharedPtr<FRivermaxMediaTextureSample> Sample = StaticCastSharedPtr<FRivermaxMediaTextureSample>(TextureSamples[Index]);
+
+			// Either closest positive or closest negative
+			const int64 TestInterval = FMath::Abs((Sample->FrameReceptionStart - TargetTimespanCorrected).GetTicks());
+
+			// if VSync is within the time frame of sample's start and end of the reception it is the sample that is returned
+			// otherwise find the sample which began the reception closest to the required VSync.
+			if (TargetTimespanCorrected >= Sample->FrameReceptionStart && TargetTimespanCorrected < Sample->FrameReceptionEnd)
+			{
+				ClosestIndex = Index;
+				break;
+			}
+
+			// '<=' instead of '<' is used here intentionally. Turns out we might have
+			// some samples with the same timecode. To avoid early termination of the search '<=' is used.
+			if (TestInterval <= SmallestInterval)
+			{
+				ClosestIndex = Index;
+				SmallestInterval = TestInterval;
+			}
+			else
+			{
+				// Since our samples are stored in chronological order, it makes no sense
+				// to continue searching. The interval will continue increasing.
+				break;
+			}
+		}
+
+		checkSlow(ClosestIndex >= 0 && ClosestIndex < TextureSamples.Num());
+
+		// Finally, return the closest sample we found
+		return StaticCastSharedPtr<FMediaIOCoreTextureSampleBase, IMediaTextureSample, ESPMode::ThreadSafe>(TextureSamples[ClosestIndex]);
 	}
 
 	void FRivermaxMediaPlayer::PostSampleUsage(FRDGBuilder& GraphBuilder, TSharedPtr<FRivermaxMediaTextureSample> Sample)

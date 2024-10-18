@@ -24,12 +24,6 @@ namespace UE::RivermaxCore
 	 * Returns current frame number for the incoming PTP time for the given frame rate.
 	 */
 	RIVERMAXCORE_API uint64 GetFrameNumber(const uint64 InPTPTimeNanosec, const FFrameRate& InRate);
-
-	/**
-	 * Converts an RTP timestamp in MediaClock period units to seconds
-	 * 2110-20 streams uses a standard media clock rate of 90kHz
-	 */
-	RIVERMAXCORE_API uint64 ConvertRTPTimeStampToSecondsTruncated(const uint64 InTimestamp);
 }
 
 
