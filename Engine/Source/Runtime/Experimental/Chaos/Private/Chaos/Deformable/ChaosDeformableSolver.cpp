@@ -561,8 +561,6 @@ namespace Chaos::Softs
 		if (Property.bEnableKinematics)
 		{
 			GeometryCollection::Facades::FVertexBoneWeightsFacade VertexBoneWeightsFacade(Rest);
-			typedef GeometryCollection::Facades::FKinematicBindingFacade FKinematics;
-			FKinematics Kinematics(Rest);
 			for (int32 VertexIdx = 0; VertexIdx < VertexBoneWeightsFacade.NumVertices(); ++VertexIdx)
 			{
 				if (VertexBoneWeightsFacade.IsKinematicVertex(VertexIdx))
@@ -572,6 +570,40 @@ namespace Chaos::Softs
 					Evolution->Particles().PAndInvM(ParticleIndex).InvM = 0.f;
 				}
 			}
+			//Supports backward compatibility for pre-5.5 nodes that uses bone-based bindings
+			//To be removed post-5.6
+			typedef GeometryCollection::Facades::FKinematicBindingFacade FKinematics;
+			FKinematics Kinematics(Rest);
+			if (Kinematics.IsValid())
+			{
+				// Add Kinematics Node
+				bool bHavePrintedLog = false;
+				for (int i = Kinematics.NumKinematicBindings() - 1; i >= 0; i--)
+				{
+					FKinematics::FBindingKey Key = Kinematics.GetKinematicBindingKey(i);
+
+					int32 BoneIndex = INDEX_NONE;
+					TArray<int32> BoundVerts;
+					TArray<float> BoundWeights;
+					Kinematics.GetBoneBindings(Key, BoneIndex, BoundVerts, BoundWeights);
+
+					for (int32 vdx : BoundVerts)
+					{
+						if (!VertexBoneWeightsFacade.IsKinematicVertex(vdx))
+						{
+							if (!bHavePrintedLog)
+							{
+								bHavePrintedLog = true;
+								UE_LOG(LogChaosDeformableSolver, Warning, TEXT("Detected deprecated kinematic initialization, reevaluate input asset"));
+							}
+							int32 ParticleIndex = Range[0] + vdx;
+							Evolution->Particles().InvM(ParticleIndex) = 0.f;
+							Evolution->Particles().PAndInvM(ParticleIndex).InvM = 0.f;
+						}
+					}
+				}
+			}
+
 		}
 	}
 

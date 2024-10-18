@@ -126,6 +126,19 @@ namespace GeometryCollection::Facades
 		}
 	}
 
+	bool FVertexBoneWeightsFacade::IsKinematicVertex(int32 VertexIndex) const
+	{
+		if (KinematicAttribute.IsValid())
+		{
+			return KinematicAttribute.IsValidIndex(VertexIndex) && KinematicAttribute.Get()[VertexIndex];
+		}
+		else //backward compatibility for KinematicAttribute added in 5.5
+		{
+			return BoneIndexAttribute.IsValid() && BoneIndexAttribute.IsValidIndex(VertexIndex) && BoneIndexAttribute.Get()[VertexIndex].Num()
+				&& BoneWeightAttribute.IsValid() && BoneWeightAttribute.IsValidIndex(VertexIndex) && BoneWeightAttribute.Get()[VertexIndex].Num();
+		}
+	};
+
 	//
 	//  Add Weights from Selection 
 	//

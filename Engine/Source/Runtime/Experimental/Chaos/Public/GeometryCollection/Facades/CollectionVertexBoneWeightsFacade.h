@@ -70,9 +70,7 @@ namespace GeometryCollection::Facades
 		/** Return if the vertex is kinematic
 		Pre 5.5 we did not have per-vertex kinematic attribute. 
 		This supports defining kinematics without per-vertex kinematic attribute. */
-		CHAOS_API bool IsKinematicVertex(int32 VertexIndex) const { return (!KinematicAttribute.IsValid() || (KinematicAttribute.IsValidIndex(VertexIndex) && KinematicAttribute.Get()[VertexIndex]))
-			&& BoneIndexAttribute.IsValid() && BoneIndexAttribute.IsValidIndex(VertexIndex) && BoneIndexAttribute.Get()[VertexIndex].Num()
-			&& BoneWeightAttribute.IsValid() && BoneWeightAttribute.IsValidIndex(VertexIndex) && BoneWeightAttribute.Get()[VertexIndex].Num(); };
+		CHAOS_API bool IsKinematicVertex(int32 VertexIndex) const;
 
 		/** Return number of vertices */
 		CHAOS_API int32 NumVertices() const { return VerticesAttribute.Num(); };

@@ -19,21 +19,13 @@ void FKinematicInitializationDataflowNode::Evaluate(UE::Dataflow::FContext& Cont
 		{
 			if (FindInput(&VertexIndicesIn) && FindInput(&VertexIndicesIn)->GetConnection())
 			{
-				TArray<int32> BoundVerts;
-				TArray<float> BoundWeights;
-
+				GeometryCollection::Facades::FVertexBoneWeightsFacade VertexBoneWeightsFacade(InCollection);
 				for (int32 SelectionIndex : GetValue<TArray<int32>>(Context, &VertexIndicesIn))
 				{
-					if (0 <= SelectionIndex && SelectionIndex < Vertices->Num())
+					if (Vertices->IsValidIndex(SelectionIndex))
 					{
-						BoundVerts.Add(SelectionIndex);
+						VertexBoneWeightsFacade.SetVertexKinematic(SelectionIndex);
 					}
-				}
-				if (BoundVerts.Num())
-				{
-					BoundWeights.Init(1.0, BoundVerts.Num());
-					GeometryCollection::Facades::FKinematicBindingFacade Kinematics(InCollection);
-					Kinematics.AddKinematicBinding(Kinematics.SetBoneBindings(INDEX_NONE, BoundVerts, BoundWeights));
 				}
 			}
 			else if (TObjectPtr<USkeletalMesh> SkeletalMesh = GetValue<TObjectPtr<USkeletalMesh>>(Context, &SkeletalMeshIn))
