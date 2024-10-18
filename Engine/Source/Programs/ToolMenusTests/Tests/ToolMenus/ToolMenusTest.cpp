@@ -418,5 +418,5 @@ TEST_CASE("Developer::ToolMenus::GenerateWidget can handle simultaneous AddRefer
 		UToolMenus::AddReferencedObjects(ToolMenus, Finder);
 	}));
 
-	ToolMenus->GenerateWidget("MyMenu", FToolMenuContext());
+	ToolMenus->GenerateWidget("ToolMenusTest_MyMenu", FToolMenuContext());
 }
