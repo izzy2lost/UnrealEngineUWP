@@ -395,9 +395,15 @@ namespace Metasound::Editor
 					}
 					else
 					{
+						TSharedRef<IPropertyHandle> PagedDefaultProperty = ElementProperty;
+						uint32 NumChildren = 0;
+						if (ElementProperty->GetNumChildren(NumChildren) == FPropertyAccess::Result::Success && NumChildren > 0)
+						{
+							PagedDefaultProperty = ElementProperty->GetChildHandle(0).ToSharedRef();
+						}
 						(*ValueRow.CustomNameWidget())
 						[
-							ElementProperty->CreatePropertyNameWidget()
+							PagedDefaultProperty->CreatePropertyNameWidget()
 						];
 					}
 					ValueRow.ShowPropertyButtons(false);

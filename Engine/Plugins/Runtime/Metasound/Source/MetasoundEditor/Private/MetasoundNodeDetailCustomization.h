@@ -200,6 +200,7 @@ namespace Metasound
 			virtual ~FMetasoundBoolLiteralCustomization();
 
 			virtual void CustomizeDefaults(UMetasoundEditorGraphMemberDefaultLiteral& InLiteral, IDetailLayoutBuilder& InDetailLayout) override;
+			virtual TAttribute<EVisibility> GetDefaultVisibility() const override;
 		};
 
 		// Customization to support drag-and-drop of Proxy UObject types on underlying members that are structs.
