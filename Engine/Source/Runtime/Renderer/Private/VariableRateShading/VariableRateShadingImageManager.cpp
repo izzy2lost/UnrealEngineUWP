@@ -518,7 +518,7 @@ FRDGTextureRef FVariableRateShadingImageManager::GetVariableRateShadingImage(FRD
 	}
 }
 
-void FVariableRateShadingImageManager::PrepareImageBasedVRS(FRDGBuilder& GraphBuilder, const FSceneViewFamily& ViewFamily, const FMinimalSceneTextures& SceneTextures)
+void FVariableRateShadingImageManager::PrepareImageBasedVRS(FRDGBuilder& GraphBuilder, const FSceneViewFamily& ViewFamily, const FMinimalSceneTextures& SceneTextures, bool bLumenEnabled)
 {
 	EShaderPlatform ShaderPlatform = ViewFamily.Scene->GetShaderPlatform();
 	static const auto CVarLocalNaniteSoftwareVRS = IConsoleManager::Get().FindConsoleVariable(TEXT("r.Nanite.SoftwareVRS")); // "CVarNaniteSoftwareVRS" would shadow the static declaration in NaniteShading.cpp
@@ -531,7 +531,10 @@ void FVariableRateShadingImageManager::PrepareImageBasedVRS(FRDGBuilder& GraphBu
 		CVarEnableVRSSoftwareImage.GetValueOnRenderThread() > 0 &&
 		CVarLocalNaniteSoftwareVRS->GetInt() > 0 &&
 		!Substrate::IsSubstrateEnabled() &&
-		IsFeatureLevelSupported(ShaderPlatform, ERHIFeatureLevel::SM6);
+		IsFeatureLevelSupported(ShaderPlatform, ERHIFeatureLevel::SM6)
+		// VRS breaks Lumen denoising, as Lumen is very sensitive to velocity buffer precision
+		// This can be visualized with DEBUG_VISUALIZE_PROBE_WORLD_SPEED 1 in LumenScreenProbeGather.usf
+		&& !bLumenEnabled;
 
 	if (!IsVRSEnabledForFrame())
 	{

@@ -90,7 +90,7 @@ public:
 	 * Prepare VRS images and store them for later access.
 	 * Should be run exactly once in Render(), before attempting to get any VRS images for that frame.
 	 */
-	void PrepareImageBasedVRS(FRDGBuilder& GraphBuilder, const FSceneViewFamily& ViewFamily, const FMinimalSceneTextures& SceneTextures);
+	void PrepareImageBasedVRS(FRDGBuilder& GraphBuilder, const FSceneViewFamily& ViewFamily, const FMinimalSceneTextures& SceneTextures, bool bLumenEnabled = false);
 
 	/**
 	 * Returns true if any generator among the given types is enabled, false otherwise.
