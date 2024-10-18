@@ -230,4 +230,8 @@ public:
 	/** Overrides the tooltip on the pause button. The default is empty, which will use the default tooltip then. */
 	UPROPERTY(EditAnywhere, config, Category = "Editor Performance", meta = (MultiLine = true, DisplayName = "Overrides default tooltip on the pause button", EditCondition = "bShowPauseButton", EditConditionHides))
 	FString OverridePausedButtonTooltip = FString();
+
+	/** Target number of points when trying to debug volume data or landscape data, to avoid exploding the number of points if the volume/landscape is big, and to have a good representation if the volume/landscape is small. */
+	UPROPERTY(EditAnywhere, config, Category = "Editor Performance")
+	int32 TargetNumPointsForDebug = 64000;
 };
