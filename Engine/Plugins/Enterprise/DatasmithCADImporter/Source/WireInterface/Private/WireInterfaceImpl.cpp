@@ -1180,7 +1180,7 @@ namespace UE_DATASMITHWIRETRANSLATOR_NAMESPACE
 
 					Mesh->transform(AlMatrix);
 
-					const FString SlotMaterialName = DatasmithMeshHelper::DefaultSlotName(SlotIndex).ToString();
+					const FString SlotMaterialName = DatasmithMeshHelper::DefaultSlotName(SlotIndex++).ToString();
 
 					OpenModelUtils::TransferAlMeshToMeshDescription(*Mesh, *SlotMaterialName, MeshDescription, OutMeshParameters, bMerge);
 				}
