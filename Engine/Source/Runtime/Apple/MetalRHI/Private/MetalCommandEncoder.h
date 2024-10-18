@@ -171,9 +171,14 @@ public:
 	void StartCommandBuffer(void);
 	
 	/**
+	 * Will deprecate in 5.6, splits the command buffer into chunks, required for profiling until we switch to encoder counter buffers
+	 */
+	void EndCommandBuffer();
+	
+	/**
 	 * Commit the existing command buffer if there is one & optionally waiting for completion, if there isn't a current command buffer this is a no-op.
  	 */
-	FMetalCommandBuffer* Finalize();
+	TArray<FMetalCommandBuffer*> Finalize();
 
 #pragma mark - Public Command Buffer Accessors -
 	
@@ -505,6 +510,11 @@ public:
 	 */
 	FMetalSubBufferRing& GetRingBuffer(void);
 	
+	/**
+	 * Splits the current command buffer
+	 */
+	void SplitCommandBuffers();
+	
 #pragma mark - Public Resource query Access -
 	
 private:
@@ -596,6 +606,8 @@ public:
     MTL::RenderPassDescriptor* RenderPassDesc = nullptr;
 	
     FMetalCommandBuffer* CommandBuffer = nullptr;
+	TArray<FMetalCommandBuffer*> CommandBuffers;
+	
     MTLRenderCommandEncoderPtr RenderCommandEncoder;
     MTLComputeCommandEncoderPtr ComputeCommandEncoder;
     MTLBlitCommandEncoderPtr BlitCommandEncoder;

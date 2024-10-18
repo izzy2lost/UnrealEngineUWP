@@ -208,14 +208,11 @@ void FMetalCommandList::HandleMetalCommandBufferFailure(MTL::CommandBuffer* Comp
 void FMetalCommandList::FinalizeCommandBuffer(FMetalCommandBuffer* Buffer, TArray<FMetalCommandBufferCompletionHandler> CompletionHandlers)
 {
 	check(Buffer);
-
-	// The lifetime of this should be for the entire game
-	if (!LastCompletedBufferTiming.IsValid())
-	{
-		LastCompletedBufferTiming = MakeShared<FMetalCommandBufferTiming, ESPMode::ThreadSafe>();
-	}
-    
-    MTL::HandlerFunction CompletionHandler = [CompletionHandlers, &InDevice = CommandQueue.GetDevice(), FrameBufferTimingsLocal = FMetalGPUProfiler::GetFrameBufferTimings(), LastCompletedBufferTimingLocal = LastCompletedBufferTiming, Buffer](MTL::CommandBuffer* CompletedBuffer)
+	
+	FMetalCommandBufferTimer& Timer = FMetalGPUProfiler::GetFrameBufferTimer();
+	Timer.Submit();
+	
+	MTL::HandlerFunction CompletionHandler = [CompletionHandlers, &InDevice = CommandQueue.GetDevice(), &FrameBufferTimer = Timer, Buffer](MTL::CommandBuffer* CompletedBuffer)
 	{
 		if (CompletedBuffer->status() == MTL::CommandBufferStatusError)
 		{
@@ -231,19 +228,13 @@ void FMetalCommandList::FinalizeCommandBuffer(FMetalCommandBuffer* Buffer, TArra
 
 		if (CompletedBuffer->status() == MTL::CommandBufferStatusCompleted)
 		{
-			FrameBufferTimingsLocal->Add({CompletedBuffer->GPUStartTime(), CompletedBuffer->GPUEndTime()});
-		}
-
-		// If this is the last reference, then it is the last command buffer to return, so record the frame
-		if (FrameBufferTimingsLocal.IsUnique())
-		{
-			FMetalGPUProfiler::RecordFrame(*FrameBufferTimingsLocal, *LastCompletedBufferTimingLocal);
+			FrameBufferTimer.AddTiming({CompletedBuffer->GPUStartTime(), CompletedBuffer->GPUEndTime()});
 		}
 		
 		InDevice.RemoveInflightCommandBuffer(CompletedBuffer);
 	};
-    
-    Buffer->GetMTLCmdBuffer()->addCompletedHandler(CompletionHandler);
+	
+	Buffer->GetMTLCmdBuffer()->addCompletedHandler(CompletionHandler);
 	
 	CommandQueue.GetDevice().AddInflightCommandBuffer(Buffer->GetMTLCmdBuffer().get());
 }

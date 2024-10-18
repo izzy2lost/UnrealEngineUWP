@@ -259,12 +259,12 @@ void FMetalCommandEncoder::StartCommandBuffer(void)
 	}
 }
 	
-FMetalCommandBuffer* FMetalCommandEncoder::Finalize()
+void FMetalCommandEncoder::EndCommandBuffer()
 {
 	check(CommandBuffer);
 	check(IsRenderCommandEncoderActive() == false
-          && IsComputeCommandEncoderActive() == false
-          && IsBlitCommandEncoderActive() == false
+		  && IsComputeCommandEncoderActive() == false
+		  && IsBlitCommandEncoderActive() == false
 #if METAL_RHI_RAYTRACING
 		  && IsAccelerationStructureCommandEncoderActive() == false
 #endif // METAL_RHI_RAYTRACING
@@ -276,39 +276,46 @@ FMetalCommandBuffer* FMetalCommandEncoder::Finalize()
 	}
 	
 	RingBuffer.Commit(CommandBuffer);
-    
+	
 #if METAL_DEBUG_OPTIONS
-    if(Device.GetRuntimeDebuggingLevel() >= EMetalDebugLevelValidation)
-    {
-        for (FMetalBufferPtr Buffer : ActiveBuffers)
-        {
-            Device.AddActiveBuffer(Buffer->GetMTLBuffer(), Buffer->GetRange());
-        }
-        
-        TSet<FMetalBufferPtr> NewActiveBuffers = MoveTemp(ActiveBuffers);
-        
-        FMetalCommandBufferCompletionHandler CompletionHander;
-        CompletionHander.BindLambda([&InDevice = Device, NewActiveBuffers](MTL::CommandBuffer*)
-        {
-            for (FMetalBufferPtr Buffer : NewActiveBuffers)
-            {
+	if(Device.GetRuntimeDebuggingLevel() >= EMetalDebugLevelValidation)
+	{
+		for (FMetalBufferPtr Buffer : ActiveBuffers)
+		{
+			Device.AddActiveBuffer(Buffer->GetMTLBuffer(), Buffer->GetRange());
+		}
+		
+		TSet<FMetalBufferPtr> NewActiveBuffers = MoveTemp(ActiveBuffers);
+		
+		FMetalCommandBufferCompletionHandler CompletionHander;
+		CompletionHander.BindLambda([&InDevice = Device, NewActiveBuffers](MTL::CommandBuffer*)
+		{
+			for (FMetalBufferPtr Buffer : NewActiveBuffers)
+			{
 				InDevice.RemoveActiveBuffer(Buffer->GetMTLBuffer(), Buffer->GetRange());
-            }
-        });
-        
-        AddCompletionHandler(CompletionHander);
-    }
+			}
+		});
+		
+		AddCompletionHandler(CompletionHander);
+	}
 #endif
 #if ENABLE_METAL_GPUPROFILE
 	CommandBufferStats->End(CommandBuffer->GetMTLCmdBuffer());
 	CommandBufferStats = nullptr;
 #endif
-
+	
 	CommandList.FinalizeCommandBuffer(CommandBuffer, MoveTemp(CompletionHandlers));
-	FMetalCommandBuffer* Output = CommandBuffer;
+	CommandBuffers.Add(CommandBuffer);
 	
 	CommandBuffer = nullptr;
 	EncoderNum = 0;
+}
+
+TArray<FMetalCommandBuffer*> FMetalCommandEncoder::Finalize()
+{
+	EndCommandBuffer();
+	
+	TArray<FMetalCommandBuffer*> Output = MoveTemp(CommandBuffers);
 	
 	return Output;
 }
@@ -411,7 +418,7 @@ void FMetalCommandEncoder::BeginRenderCommandEncoding(void)
 	
 	if(GetEmitDrawEvents())
 	{
-        Label = FStringToNSString(FString::Printf(TEXT("RenderEncoder: %s"), DebugGroups.Num() > 0 ? *NSStringToFString(DebugGroups.Last()) : TEXT("InitialPass")));
+		Label = FStringToNSString(FString::Printf(TEXT("RenderEncoder: %s"), DebugGroups.Num() > 0 ? *NSStringToFString(DebugGroups.Last()) : TEXT("InitialPass")));
 		RenderCommandEncoder->setLabel(Label);
 		
         for (NS::String* Group : DebugGroups)
@@ -532,6 +539,16 @@ void FMetalCommandEncoder::BeginAccelerationStructureCommandEncoding(void)
 	EncoderFence = CommandList.GetCommandQueue().CreateFence(Label);
 }
 #endif // METAL_RHI_RAYTRACING
+
+void FMetalCommandEncoder::SplitCommandBuffers()
+{
+	if(IsAnyCommandEncoderActive())
+	{
+		EndEncoding();
+	}
+	EndCommandBuffer();
+	StartCommandBuffer();	
+}
 
 TRefCountPtr<FMetalFence> FMetalCommandEncoder::EndEncoding(void)
 {

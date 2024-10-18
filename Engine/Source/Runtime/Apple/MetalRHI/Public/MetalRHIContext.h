@@ -192,7 +192,7 @@ public:
 	bool PrepareToDraw(uint32 PrimitiveType);
 	void PrepareToDispatch();
 
-	FMetalCommandBuffer* Finalize();
+	TArray<FMetalCommandBuffer*> Finalize();
 	
 	void InsertCommandBufferFence(TSharedPtr<FMetalCommandBufferFence, ESPMode::ThreadSafe>& Fence, FMetalCommandBufferCompletionHandler Handler);
 	
@@ -262,6 +262,14 @@ public:
 	inline bool IsInsideRenderPass() const
 	{
 		return bWithinRenderPass;
+	}
+	
+	void SplitCommandBuffers()
+	{
+		if(!bWithinRenderPass)
+		{
+			CurrentEncoder.SplitCommandBuffers();
+		}
 	}
 	
 protected:

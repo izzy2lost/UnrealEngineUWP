@@ -1186,7 +1186,9 @@ FMetalDynamicRHI::FMetalDynamicRHI(ERHIFeatureLevel::Type RequestedFeatureLevel)
 	ImmediateContext.SetProfiler(Profiler);
 	
 	if (Profiler)
+	{
 		Profiler->BeginFrame();
+	}
 #endif
 
 #if METAL_USE_METAL_SHADER_CONVERTER
@@ -1198,13 +1200,6 @@ FMetalDynamicRHI::FMetalDynamicRHI(ERHIFeatureLevel::Type RequestedFeatureLevel)
 	{
 		FMetalBindlessDescriptorManager* BindlessDescriptorManager = Device->GetBindlessDescriptorManager();
 		BindlessDescriptorManager->Init();
-	}
-#endif
-	
-#if ENABLE_METAL_GPUPROFILE
-	if (Profiler)
-	{
-		Profiler->EndFrame();
 	}
 #endif
 }
@@ -1254,6 +1249,8 @@ void FMetalDynamicRHI::RHIEndFrame_RenderThread(FRHICommandListImmediate& RHICmd
 	{
 		MTL_SCOPED_AUTORELEASE_POOL;
 
+		FMetalGPUProfiler::ResetFrameBufferTimings();
+		
 #if ENABLE_METAL_GPUPROFILE
 		Contexts[ERHIPipeline::Graphics]->GetProfiler()->EndFrame();
 #endif
@@ -1662,8 +1659,7 @@ void FMetalDynamicRHI::RHIFinalizeContext(FRHIFinalizeContextArgs&& Args, TRHIPi
 		
 		if(!CmdContext->IsInsideRenderPass())
 		{
-			FMetalCommandBuffer* CmdBuffer = CmdContext->Finalize();
-			PlatformCmdList->CommandBuffers.Add(CmdBuffer);
+			PlatformCmdList->CommandBuffers.Append(CmdContext->Finalize());
 
 			CmdContext->ResetContext();
 			if(GRHISupportsParallelRHIExecute)

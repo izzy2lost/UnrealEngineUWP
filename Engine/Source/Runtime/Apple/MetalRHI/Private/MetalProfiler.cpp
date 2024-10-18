@@ -2,6 +2,7 @@
 
 #include "MetalProfiler.h"
 #include "MetalRHIPrivate.h"
+#include "MetalDynamicRHI.h"
 #include "EngineGlobals.h"
 #include "StaticBoundShaderState.h"
 #include "MetalCommandBuffer.h"
@@ -111,8 +112,10 @@ FMetalCommandBufferCompletionHandler FMetalEventNode::Start(void)
 		const double CyclesPerSecond = 1.0 / FPlatformTime::GetSecondsPerCycle();
 		StartTime = GpuTimeSeconds * CyclesPerSecond;
 	});
+	
     return Block;
 }
+
 
 void FMetalEventNode::StopTiming()
 {
@@ -128,14 +131,6 @@ FMetalCommandBufferCompletionHandler FMetalEventNode::Stop(void)
 		const CFTimeInterval GpuTimeSeconds = CompletedBuffer->GPUEndTime();
 		const double CyclesPerSecond = 1.0 / FPlatformTime::GetSecondsPerCycle();
 		EndTime = GpuTimeSeconds * CyclesPerSecond;
-		
-		if(bRoot)
-		{
-			if(!bFullProfiling)
-			{
-				delete this;
-			}
-		}
 	});
 	return Block;
 }
@@ -178,7 +173,38 @@ FGPUProfilerEventNode* FMetalGPUProfiler::CreateEventNode(const TCHAR* InName, F
 #endif
 }
 
-TSharedPtr<TArray<FMetalCommandBufferTiming>, ESPMode::ThreadSafe> FMetalGPUProfiler::FrameBufferTimings;
+void FMetalCommandBufferTimer::AddTiming(FMetalCommandBufferTiming Timing)
+{
+	FScopeLock Lock(&Mutex);
+	Counter--;
+	Timings.Add(Timing);
+	
+	if(Counter == 0 && bFrameEnded)
+	{
+		RecordFrame();
+	}
+}
+
+void FMetalCommandBufferTimer::FrameEnd()
+{
+	FScopeLock Lock(&Mutex);
+	
+	bFrameEnded = true;
+	
+	if(Counter == 0)
+	{
+		RecordFrame();
+	}
+}
+
+void FMetalCommandBufferTimer::RecordFrame()
+{
+	Timings.Sort();
+	FMetalProfiler* Profiler = FMetalProfiler::GetProfiler();
+	Profiler->RecordFrame(*this);
+}
+
+FMetalCommandBufferTimer* FMetalGPUProfiler::Timer = nullptr;
 
 void FMetalGPUProfiler::Cleanup()
 {
@@ -206,57 +232,56 @@ TGlobalResource<FTexture> GMetalLongTaskRT;
 
 void FMetalGPUProfiler::BeginFrame()
 {
-	if(!CurrentEventNodeFrame)
+	if(GTriggerGPUProfile)
+	{
+		bTrackingEvents = true;
+		bLatchedGProfilingGPU = true;
+		GTriggerGPUProfile = false;
+	}
+	
+	if (bLatchedGProfilingGPU)
 	{
 		// Start tracking the frame
 		CurrentEventNodeFrame = new FMetalEventNodeFrame(Context, GTriggerGPUProfile);
 		CurrentEventNodeFrame->StartFrame();
-		
-		if(GTriggerGPUProfile)
-		{
-			bTrackingEvents = true;
-			bLatchedGProfilingGPU = true;
-			GTriggerGPUProfile = false;
-		}
 	}
-	NumNestedFrames++;
 }
 
 void FMetalGPUProfiler::EndFrame()
 {
-	if(--NumNestedFrames == 0)
-	{
-		dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
+	dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
 #if PLATFORM_MAC
-			FPlatformMisc::UpdateDriverMonitorStatistics(Context.GetDevice().GetDeviceIndex());
+	FPlatformMisc::UpdateDriverMonitorStatistics(Context.GetDevice().GetDeviceIndex());
 #endif
-		});
+	});
+	
 #if STATS
-		SET_CYCLE_COUNTER(STAT_MetalTexturePageOnTime, GMetalTexturePageOnTime);
-		GMetalTexturePageOnTime = 0;
-		
-		SET_CYCLE_COUNTER(STAT_MetalGPUIdleTime, GMetalGPUIdleTime);
-		SET_CYCLE_COUNTER(STAT_MetalGPUWorkTime, GMetalGPUWorkTime);
-		SET_CYCLE_COUNTER(STAT_MetalPresentTime, GMetalPresentTime);
+	SET_CYCLE_COUNTER(STAT_MetalTexturePageOnTime, GMetalTexturePageOnTime);
+	GMetalTexturePageOnTime = 0;
+	
+	SET_CYCLE_COUNTER(STAT_MetalGPUIdleTime, GMetalGPUIdleTime);
+	SET_CYCLE_COUNTER(STAT_MetalGPUWorkTime, GMetalGPUWorkTime);
+	SET_CYCLE_COUNTER(STAT_MetalPresentTime, GMetalPresentTime);
 #endif
+	
+	if(CurrentEventNodeFrame)
+	{
+		Context.GetDevice().WaitForGPUIdle();
 		
-		if(CurrentEventNodeFrame)
+		CurrentEventNodeFrame->EndFrame();
+		
+		if(bLatchedGProfilingGPU)
 		{
-			CurrentEventNodeFrame->EndFrame();
-			
-			if(bLatchedGProfilingGPU)
-			{
-				bTrackingEvents = false;
-				bLatchedGProfilingGPU = false;
-			
-				UE_LOG(LogRHI, Warning, TEXT(""));
-				UE_LOG(LogRHI, Warning, TEXT(""));
-				CurrentEventNodeFrame->DumpEventTree();
-			}
-			
-			delete CurrentEventNodeFrame;
-			CurrentEventNodeFrame = NULL;
+			bTrackingEvents = false;
+			bLatchedGProfilingGPU = false;
+		
+			UE_LOG(LogRHI, Warning, TEXT(""));
+			UE_LOG(LogRHI, Warning, TEXT(""));
+			CurrentEventNodeFrame->DumpEventTree();
 		}
+		
+		delete CurrentEventNodeFrame;
+		CurrentEventNodeFrame = NULL;
 	}
 }
 
@@ -264,35 +289,26 @@ void FMetalGPUProfiler::EndFrame()
 // All these recording functions MUST be called from within scheduled/completion handlers.
 // Ordering is enforced by libdispatch so calling these outside of that context WILL result in
 // incorrect values.
-void FMetalGPUProfiler::RecordFrame(TArray<FMetalCommandBufferTiming>& CommandBufferTimings, FMetalCommandBufferTiming& LastBufferTiming)
+void FMetalGPUProfiler::RecordFrame(FMetalCommandBufferTimer& InTimer)
 {
+	FMetalCommandBufferTiming LastBufferTiming;
 	const double CyclesPerSecond = 1.0 / FPlatformTime::GetSecondsPerCycle();
 
 	double RunningFrameTimeSeconds = 0.0;
 	uint64 FrameStartGPUCycles = 0;
 	uint64 FrameEndGPUCycles = 0;
 
-	// Sort the timings
-	CommandBufferTimings.Sort();
+	const TArray<FMetalCommandBufferTiming>& Timings = InTimer.GetTimings();
 
 	CFTimeInterval FirstStartTime = 0.0;
 
-	double FrameStartTime = DBL_MAX;
-	double FrameEndTime = 0.0;
-	
-	for (const FMetalCommandBufferTiming& Timing : CommandBufferTimings)
-	{
-		FrameStartTime = FMath::Min(FrameStartTime, Timing.StartTime);
-		FrameEndTime = FMath::Max(FrameStartTime, Timing.EndTime);
-	}
-	double FrameTime = FrameEndTime - FrameStartTime;
-	
 	// Add the timings excluding any overlapping time
-	for (const FMetalCommandBufferTiming& Timing : CommandBufferTimings)
+	for (const FMetalCommandBufferTiming& Timing : Timings)
 	{
 		if (FirstStartTime == 0.0)
 		{
 			FirstStartTime = Timing.StartTime;
+			LastBufferTiming = Timing;
 		}
 		
 		// Only process if the previous buffer finished before the end of this one
@@ -313,7 +329,7 @@ void FMetalGPUProfiler::RecordFrame(TArray<FMetalCommandBufferTiming>& CommandBu
 			LastBufferTiming = Timing;
 		}
 	}
-    
+	
 	FrameStartGPUCycles = FirstStartTime * CyclesPerSecond;
 	FrameEndGPUCycles = LastBufferTiming.EndTime * CyclesPerSecond;
     
@@ -339,19 +355,27 @@ void FMetalGPUProfiler::RecordPresent(MTL::CommandBuffer* CommandBuffer)
 }
 // END WARNING
 
+
 void FMetalGPUProfiler::ResetFrameBufferTimings()
 {
-	FrameBufferTimings = MakeShared<TArray<FMetalCommandBufferTiming>, ESPMode::ThreadSafe>();
+	if(Timer)
+	{
+		Timer->FrameEnd();
+		FMetalDynamicRHI::Get().DeferredDelete([InTimer=Timer](){
+			delete InTimer;
+		});
+	}
+	
+	Timer = new FMetalCommandBufferTimer();
 }
 
-TSharedPtr<TArray<FMetalCommandBufferTiming>, ESPMode::ThreadSafe> FMetalGPUProfiler::GetFrameBufferTimings()
+FMetalCommandBufferTimer& FMetalGPUProfiler::GetFrameBufferTimer()
 {
-	if(!FrameBufferTimings)
+	if(!Timer)
 	{
-		ResetFrameBufferTimings();
+		Timer = new FMetalCommandBufferTimer();
 	}
-		
-	return FrameBufferTimings;
+	return *Timer;
 }
 
 IMetalStatsScope::~IMetalStatsScope()

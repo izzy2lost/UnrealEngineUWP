@@ -339,8 +339,11 @@ void FMetalRHIRenderQuery::End(FMetalRHICommandContext* Context)
 				this->Release();
 			});
 
-            Context->InsertCommandBufferFence(CommandBufferFence, Handler);
+			Context->InsertCommandBufferFence(CommandBufferFence, Handler);
 			Buffer.CommandBufferFence = CommandBufferFence;
+			
+			Context->SplitCommandBuffers();
+            
 			break;
 		}
 		default:
