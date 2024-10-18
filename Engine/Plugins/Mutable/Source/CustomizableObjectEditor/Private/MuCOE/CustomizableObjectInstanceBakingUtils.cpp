@@ -434,10 +434,11 @@ bool BakeCustomizableObjectInstance(
 	}
 	
 	
-	const int32 NumComponents = InInstance.GetNumComponents();
+	const int32 NumComponents = InstanceCO->GetComponentCount();
 	for (int32 ComponentIndex = 0; ComponentIndex < NumComponents; ++ComponentIndex)
 	{
-		USkeletalMesh* Mesh = InInstance.GetSkeletalMesh(ComponentIndex);
+		const FName ComponentName = InstanceCO->GetComponentName(ComponentIndex);
+		USkeletalMesh* Mesh = InInstance.GetComponentMeshSkeletalMesh(ComponentName);
 
 		if (!Mesh)
 		{
@@ -797,7 +798,7 @@ bool BakeCustomizableObjectInstance(
 
 			// Add Instance Info in a custom AssetUserData
 			{
-				const FCustomizableInstanceComponentData* ComponentData = InInstance.GetPrivate()->GetComponentData(ComponentIndex);
+				const FCustomizableInstanceComponentData* ComponentData = InInstance.GetPrivate()->GetComponentData(ComponentName);
 				check(ComponentData);
 				
 				if (InInstance.GetAnimationGameplayTags().Num() ||
