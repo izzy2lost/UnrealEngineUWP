@@ -1773,7 +1773,7 @@ void FReplicationReader::ResolveAndDispatchUnresolvedReferencesForObject(FNetSer
 		{
 			// $IRIS: $TODO: Figure out how to handle this, currently we do not crash but we probably want to
 			// handle this properly by accumulating changemask for later instantiation
-			UE_LOG(LogIris, Warning, TEXT("Cannot dispatch state data for not instantiated %s"), *ObjectData.RefHandle.ToString());
+			UE_LOG(LogIris, Verbose, TEXT("Cannot dispatch state data for not instantiated %s"), *ObjectData.RefHandle.ToString());
 		}
 	}
 
@@ -1994,7 +1994,7 @@ void FReplicationReader::DispatchStateData(FNetSerializationContext& Context)
 			{
 				// $IRIS: $TODO: Figure out how to handle this, currently we do not crash but we probably want to
 				// handle this properly by accumulating changemask for later instantiation
-				UE_LOG(LogIris, Warning, TEXT("Cannot dispatch state data for not instantiated %s"), *(ObjectData.RefHandle.ToString()));
+				UE_LOG(LogIris, Verbose, TEXT("Cannot dispatch state data for not instantiated %s"), *(ObjectData.RefHandle.ToString()));
 			}
 		}
 
