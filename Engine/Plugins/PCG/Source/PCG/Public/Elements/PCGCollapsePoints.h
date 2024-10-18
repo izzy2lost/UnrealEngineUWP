@@ -21,6 +21,13 @@ enum class EPCGCollapseMode : uint8
 };
 
 UENUM(BlueprintType)
+enum class EPCGCollapseComparisonMode : uint8
+{
+	Position UMETA(Tooltip="Uses point position only for distance testing, regardless of bounds."),
+	Center UMETA(Tooltip="Uses point centers (e.g. center of bounds) for distance testing, and ignore bounds otherwise."),
+};
+
+UENUM(BlueprintType)
 enum class EPCGCollapseVisitOrder : uint8
 {
 	Ordered UMETA(Tooltip="Will create pairs based on original point order."),
@@ -60,6 +67,9 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Settings, meta = (PCG_Overridable))
 	EPCGCollapseMode Mode = EPCGCollapseMode::PairwiseClosest;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Settings, meta = (PCG_Overridable))
+	EPCGCollapseComparisonMode ComparisonMode = EPCGCollapseComparisonMode::Position;
 
 	/** Determines order in which we will collapse points pair-wise. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Settings, meta = (EditCondition="Mode == EPCGCollapseMode::PairwiseClosest", EditConditionHides, PCG_Overridable))
@@ -119,6 +129,15 @@ namespace PCGCollapsePoints
 
 		using MergeSelectionFuncType = void(*)(FPCGContext* /*InContext*/, const FCollapsePointsSettings& /*Settings*/, FCollapsePointsState& /*OutState*/);
 		MergeSelectionFuncType MergeSelectionFunc = nullptr;
+
+		using GetPositionFuncType = FVector(*)(const FPCGPoint&);
+		GetPositionFuncType GetPositionFunc = nullptr;
+
+		using GetPointRefFuncType = FPCGPointRef(*)(const FPCGPoint&);
+		GetPointRefFuncType GetPointRefFunc = nullptr;
+
+		using GetSearchBoundsFuncType = FBoxCenterAndExtent(*)(const FPCGPoint&, const double&);
+		GetSearchBoundsFuncType GetSearchBoundsFunc = nullptr;
 
 		double DistanceThreshold = 0.0;
 	};
