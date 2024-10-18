@@ -48,7 +48,7 @@ FString UPCGFilterByTagSettings::GetAdditionalTitleInformation() const
 		: PCGHelpers::GetStringArrayFromCommaSeparatedList(SelectedTags);
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
-	const FString Prefix = (Operation == EPCGFilterByTagOperation::KeepTagged ? TEXT("Tag (Keep):") : TEXT("Tag (Remove):"));
+	const FString Prefix = (Operation == EPCGFilterByTagOperation::KeepTagged ? LOCTEXT("FilteredTagKeep", "Tag (Keep):") : LOCTEXT("FilteredTagRemove", "Tag (Remove):")).ToString();
 
 	if (Tags.IsEmpty())
 	{
@@ -60,7 +60,8 @@ FString UPCGFilterByTagSettings::GetAdditionalTitleInformation() const
 	}
 	else
 	{
-		return FString::Printf(TEXT("%s (multiple)"), *Prefix);
+		const FText MultipleEntriesIndicator = LOCTEXT("FilterMultipleTags", "(multiple)");
+		return FString::Printf(TEXT("%s %s"), *Prefix, *MultipleEntriesIndicator.ToString());
 	}
 }
 

@@ -46,17 +46,11 @@ FString UPCGReplaceTagsSettings::GetAdditionalTitleInformation() const
 		: PCGHelpers::GetStringArrayFromCommaSeparatedList(ReplacedTags);
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
-	if (TagsToReplace.Num() == 1 && TagsToProcess.Num() == 1)
+	const FText MultipleEntry = LOCTEXT("MultipleEntry", "Multiple");
+
+	if(TagsToReplace.Num() >= 1 && TagsToProcess.Num() >= 1)
 	{
-		return FString::Printf(TEXT("%s -> %s"), *TagsToReplace[0], *TagsToProcess[0]);
-	}
-	else if (TagsToReplace.Num() > 1 && TagsToProcess.Num() == 1)
-	{
-		return FString::Printf(TEXT("Multiple -> %s"), *TagsToProcess[0]);
-	}
-	else if (TagsToReplace.Num() > 1 && TagsToProcess.Num() > 1)
-	{
-		return FString(TEXT("Multiple -> Multiple"));
+		return FString::Printf(TEXT("%s -> %s"), (TagsToReplace.Num() > 1 ? *MultipleEntry.ToString() : *TagsToReplace[0]), (TagsToProcess.Num() > 1 ? *MultipleEntry.ToString() : *TagsToProcess[0]));
 	}
 	else
 	{

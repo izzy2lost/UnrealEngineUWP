@@ -522,7 +522,7 @@ FString UPCGCustomHLSLSettings::GetAdditionalTitleInformation() const
 {
 	if (const UEnum* EnumPtr = StaticEnum<EPCGKernelType>())
 	{
-		return EnumPtr->GetNameStringByValue(static_cast<int>(KernelType));
+		return EnumPtr->GetDisplayNameTextByValue(static_cast<int64>(KernelType)).ToString();
 	}
 
 	return FString();

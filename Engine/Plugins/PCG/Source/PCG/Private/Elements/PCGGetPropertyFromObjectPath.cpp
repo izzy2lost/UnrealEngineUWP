@@ -87,7 +87,7 @@ FString UPCGGetPropertyFromObjectPathSettings::GetAdditionalTitleInformation() c
 		else if (ObjectPathsToExtract.Num() == 1)
 		{
 			Path = ObjectPathsToExtract[0].ToString();
-			Path = !Path.IsEmpty() ? Path : TEXT("None");
+			Path = !Path.IsEmpty() ? Path : LOCTEXT("EmptyString", "None").ToString();
 		}
 		else
 		{

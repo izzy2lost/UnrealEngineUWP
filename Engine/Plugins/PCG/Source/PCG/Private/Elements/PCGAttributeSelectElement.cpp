@@ -213,7 +213,7 @@ FString UPCGAttributeSelectSettings::GetAdditionalTitleInformation() const
 	{
 		if (const UEnum* EnumAxisPtr = StaticEnum<EPCGAttributeSelectAxis>())
 		{
-			const FString OperationName = EnumOpPtr->GetNameStringByValue(static_cast<int>(Operation));
+			const FText OperationName = EnumOpPtr->GetDisplayNameTextByValue(static_cast<int64>(Operation));
 			FString AxisName;
 			if (Axis == EPCGAttributeSelectAxis::CustomAxis)
 			{
@@ -221,7 +221,7 @@ FString UPCGAttributeSelectSettings::GetAdditionalTitleInformation() const
 			}
 			else
 			{
-				AxisName = EnumAxisPtr->GetNameStringByValue(static_cast<int>(Axis));
+				AxisName = EnumAxisPtr->GetDisplayNameTextByValue(static_cast<int64>(Axis)).ToString();
 			}
 
 			FName InputAttributeName = InputSource.GetName();
@@ -232,11 +232,11 @@ FString UPCGAttributeSelectSettings::GetAdditionalTitleInformation() const
 
 			if (InputAttributeName != OutputAttributeName && OutputAttributeName != NAME_None)
 			{
-				return FString::Printf(TEXT("Select %s to %s: %s on %s"), *InputAttributeName.ToString(), *OutputAttributeName.ToString(), *OperationName, *AxisName);
+				return FText::Format(LOCTEXT("SelectInputToOutputWithOperationAndAxis", "Select {0} to {1}: {2} on {3}"), FText::FromName(InputAttributeName), FText::FromName(OutputAttributeName), OperationName, FText::FromString(AxisName)).ToString();
 			}
 			else
 			{
-				return FString::Printf(TEXT("Select %s: %s on %s"), *InputAttributeName.ToString(), *OperationName, *AxisName);
+				return FText::Format(LOCTEXT("SelectWithOperationAndAxis", "Select {0}: {1} on {2}"), FText::FromName(InputAttributeName), OperationName, FText::FromString(AxisName)).ToString();
 			}
 		}
 	}
