@@ -1,10 +1,11 @@
 #!/bin/sh
 
 ConfigPath=`dirname "$0"`
-projectPath=$ConfigPath/..
-
-RelativeEnginePath=$projectPath/../../../../../../../Engine
-EnginePath=`python -c "import os; print(os.path.realpath('$RelativeEnginePath'))"`
+pushd $ConfigPath/..
+projectPath=`pwd`
+cd ../../../../../..
+EnginePath=`pwd`
+popd
 
 echo "Renaming *.app to *.bundle"
 pushd $EnginePath/Binaries/Mac/DatasmithARCHICADExporter
