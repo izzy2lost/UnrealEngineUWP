@@ -323,18 +323,6 @@ void FD3D12View::UpdateView(FD3D12ContextArray const& Contexts, const FResourceI
 	UpdateBindlessSlot(Contexts);
 }
 
-void FD3D12View::ResourceRenamed(FD3D12ContextArray const& Contexts, FD3D12BaseShaderResource* InRenamedResource, FD3D12ResourceLocation* InNewResourceLocation)
-{
-	// Can only be called if the base shader resource is not null.
-	check(ResourceInfo.BaseResource == InRenamedResource && ResourceInfo.ResourceLocation == InNewResourceLocation);
-
-	// Update the cached resource pointers
-	ResourceInfo = InRenamedResource;
-
-	UpdateDescriptor();
-	UpdateBindlessSlot(Contexts);
-}
-
 
 
 // -----------------------------------------------------------------------------------------------------
