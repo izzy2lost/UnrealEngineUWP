@@ -9,8 +9,6 @@
 #include "DefaultMovementSet/InstantMovementEffects/BasicInstantMovementEffects.h"
 #include "DefaultMovementSet/Settings/StanceSettings.h"
 #include "Engine/Blueprint.h"
-#include "Engine/SCS_Node.h"
-#include "Engine/SimpleConstructionScript.h"
 #include "GameFramework/Pawn.h"
 #include "MoveLibrary/MovementUtils.h"
 
@@ -69,7 +67,7 @@ void FStanceModifier::OnEnd(UMoverComponent* MoverComp, const FMoverTimeStep& Ti
 
 	if (UCapsuleComponent* CapsuleComponent = Cast<UCapsuleComponent>(MoverComp->GetUpdatedComponent()))
 	{
-		if (const UCapsuleComponent* OriginalCapsule = GetOriginalCapsuleComponent(MoverComp))
+		if (const UCapsuleComponent* OriginalCapsule = UMovementUtils::GetOriginalComponentType<UCapsuleComponent>(MoverComp->GetOwner()))
 		{
 			if (const APawn* OwnerCDOAsPawn = Cast<APawn>(OwnerCDO))
 			{
@@ -131,7 +129,7 @@ bool FStanceModifier::CanExpand(const UCharacterMoverComponent* MoverComp) const
 	USceneComponent* UpdatedComponent = MoverComp->GetUpdatedComponent();
 	UPrimitiveComponent* UpdatedCompAsPrimitive = Cast<UPrimitiveComponent>(UpdatedComponent);
 	
-	if (const UCapsuleComponent* OriginalCapsule = GetOriginalCapsuleComponent(MoverComp))
+	if (const UCapsuleComponent* OriginalCapsule = UMovementUtils::GetOriginalComponentType<UCapsuleComponent>(MoverComp->GetOwner()))
 	{
 		StandingHalfHeight = OriginalCapsule->GetScaledCapsuleHalfHeight();
 	}
@@ -185,48 +183,6 @@ bool FStanceModifier::ShouldExpandingMaintainBase(const UCharacterMoverComponent
 	}
 
 	return false;
-}
-
-const UCapsuleComponent* FStanceModifier::GetOriginalCapsuleComponent(const UMoverComponent* MoverComp)
-{
-	const UCapsuleComponent* OriginalCapsule = nullptr;
-
-	if (const AActor* OwnerCDO = Cast<AActor>(MoverComp->GetOwner()->GetClass()->GetDefaultObject()))
-	{
-		// Check if native CDO has Capsule component
-		OriginalCapsule = OwnerCDO->FindComponentByClass<UCapsuleComponent>();
-		
-		// check if it comes from a BP
-		if (!OriginalCapsule)
-		{
-			if (const UBlueprintGeneratedClass* OwnerClassAsBP = Cast<UBlueprintGeneratedClass>(OwnerCDO->GetClass()))
-			{
-				TArray<const UBlueprintGeneratedClass*> BlueprintClasses;
-				UBlueprintGeneratedClass::GetGeneratedClassesHierarchy(OwnerClassAsBP, BlueprintClasses);
-				for (const UBlueprintGeneratedClass* BlueprintClass : BlueprintClasses)
-				{
-					if (BlueprintClass->SimpleConstructionScript)
-					{
-						// Check Simple construction script
-						const TArray<USCS_Node*>& SCSNodes = BlueprintClass->SimpleConstructionScript->GetAllNodes();
-						for (USCS_Node* SCSNode : SCSNodes)
-						{
-							if (SCSNode)
-							{
-								if (const UCapsuleComponent* BPComponent = Cast<UCapsuleComponent>(SCSNode->ComponentTemplate))
-								{
-									OriginalCapsule = BPComponent;
-									break;
-								}
-							}
-						}
-					}
-				}
-			}
-		}
-	}
-
-	return OriginalCapsule;
 }
 
 void FStanceModifier::AdjustCapsule(UMoverComponent* MoverComp, float OldHalfHeight, float NewHalfHeight, float NewEyeHeight)
@@ -293,14 +249,16 @@ void FStanceModifier::ApplyMovementSettings(UMoverComponent* MoverComp)
 
 void FStanceModifier::RevertMovementSettings(UMoverComponent* MoverComp)
 {
-	const AActor* OwnerCDO = Cast<AActor>(MoverComp->GetOwner()->GetClass()->GetDefaultObject());
-	const UMoverComponent* CDOMoverComp = OwnerCDO->FindComponentByClass<UMoverComponent>();
-	const UCommonLegacyMovementSettings* OriginalMovementSettings = CDOMoverComp->FindSharedSettings<UCommonLegacyMovementSettings>();
-	
-	// Revert movement settings back to original settings
-	if (UCommonLegacyMovementSettings* MovementSettings = MoverComp->FindSharedSettings_Mutable<UCommonLegacyMovementSettings>())
+	if (const UMoverComponent* CDOMoverComp = UMovementUtils::GetOriginalComponentType<UMoverComponent>(MoverComp->GetOwner()))
 	{
-		MovementSettings->Acceleration = OriginalMovementSettings->Acceleration;
-		MovementSettings->MaxSpeed = OriginalMovementSettings->MaxSpeed;
+		const UCommonLegacyMovementSettings* OriginalMovementSettings = CDOMoverComp->FindSharedSettings<UCommonLegacyMovementSettings>();
+		UCommonLegacyMovementSettings* MovementSettings = MoverComp->FindSharedSettings_Mutable<UCommonLegacyMovementSettings>();
+		
+		// Revert movement settings back to original settings
+		if (MovementSettings && OriginalMovementSettings)
+		{
+			MovementSettings->Acceleration = OriginalMovementSettings->Acceleration;
+			MovementSettings->MaxSpeed = OriginalMovementSettings->MaxSpeed;
+		}
 	}
 }
