@@ -139,7 +139,7 @@ class UVEDITORTOOLS_API UUVEditorBakeUVShellProperties : public UInteractiveTool
 	GENERATED_BODY()
 public:
 	/** The source mesh UV Layer to sample. */
-	UPROPERTY(EditAnywhere, Category = "UV Snapshot Output", meta = (DisplayName = "UV Layer", GetOptions = GetTargetUVLayerNamesFunc))
+	UPROPERTY(meta = (DisplayName = "UV Layer", GetOptions = GetTargetUVLayerNamesFunc, NoResetToDefault))
 	FString UVLayer;
 
 	/** The thickness of the wireframe in pixels. */
