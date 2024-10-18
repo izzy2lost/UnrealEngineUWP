@@ -2354,6 +2354,9 @@ void UNiagaraScript::PostLoad()
 			UsageBitmask |= (1 << SimulationStageIndex);
 		}
 	}
+
+	const bool bRequestHierarchyRootMigration = bMigrateParameterDataToHierarchyRoot;
+	bMigrateParameterDataToHierarchyRoot = false;
 	
 	VersionedScriptAdapters.Reserve(VersionData.Num());
 	for (FVersionedNiagaraScriptData& Data : VersionData)
@@ -2363,10 +2366,9 @@ void UNiagaraScript::PostLoad()
 		{
 			Source->ConditionalPostLoad();
 
-			if (bMigrateParameterDataToHierarchyRoot)
+			if (bRequestHierarchyRootMigration)
 			{
 				Source->MigrateParameterDataToHierarchyRoot(Data);
-				bMigrateParameterDataToHierarchyRoot = false;
 			}
 
 			// Synchronize with Definitions after source scripts have been postloaded.
