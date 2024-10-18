@@ -921,7 +921,7 @@ void FDataflowEditorToolkit::OnNodeSelectionChanged(const TSet<UObject*>& InNewS
 			}
 
 			// Something new has been selected.
-			if (NewlySelectedNodes.Num() == 1)
+			if (NewlySelectedNodes.Num() >= 1)
 			{
 				PrimarySelection = Cast< UDataflowEdNode>(NewlySelectedNodes.Array()[0]);
 				ResetListeners(PrimarySelection);
