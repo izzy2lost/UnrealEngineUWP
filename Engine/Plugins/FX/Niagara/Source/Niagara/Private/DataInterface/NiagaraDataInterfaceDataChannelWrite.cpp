@@ -1042,6 +1042,7 @@ void UNiagaraDataInterfaceDataChannelWrite::Write(FVectorVMExternalFunctionConte
 
 				if(!bEmit)
 				{
+					VariadicInputs.Advance(1);
 					if (OutSuccess.IsValid())
 					{
 						OutSuccess.SetAndAdvance(false);
