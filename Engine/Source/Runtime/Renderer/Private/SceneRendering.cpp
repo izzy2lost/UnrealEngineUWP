@@ -1617,16 +1617,18 @@ void FViewInfo::SetupUniformBufferParameters(
 
 	SetupDefaultGlobalDistanceFieldUniformBufferParameters(ViewUniformShaderParameters);
 
+	int32 VolumetricFogViewGridPixelSize;
+	int32 VolumetricFogResourceGridPixelSize;
+	const FIntVector VolumetricFogResourceGridSize = GetVolumetricFogResourceGridSize(*this, VolumetricFogResourceGridPixelSize);
+	const FIntVector VolumetricFogViewGridSize = GetVolumetricFogViewGridSize(*this, VolumetricFogViewGridPixelSize);
+	const FVector2f ViewRectSize = FVector2f(ViewRect.Size());
+
 	SetupVolumetricFogUniformBufferParameters(ViewUniformShaderParameters);
 	ViewUniformShaderParameters.VolumetricFogViewGridUVToPrevViewRectUV = FVector2f::One();
 	ViewUniformShaderParameters.VolumetricFogPrevViewGridRectUVToResourceUV = FVector2f::One();
 	ViewUniformShaderParameters.VolumetricFogPrevUVMax = FVector2f::One();
 	ViewUniformShaderParameters.VolumetricFogPrevUVMaxForTemporalBlend = FVector2f::One();
-	int32 VolumetricFogViewGridPixelSize;
-	int32 VolumetricFogResourceGridPixelSize;
-	const FIntVector VolumetricFogResourceGridSize = GetVolumetricFogResourceGridSize(*this, VolumetricFogViewGridPixelSize);
-	const FIntVector VolumetricFogViewGridSize = GetVolumetricFogViewGridSize(*this, VolumetricFogResourceGridPixelSize);
-	const FVector2f ViewRectSize = FVector2f(ViewRect.Size());
+	ViewUniformShaderParameters.VolumetricFogPrevResourceGridSize = FVector3f(VolumetricFogResourceGridSize);
 	if (ViewState)
 	{
 		// Compute LightScatteringViewGridUVToViewRectVolumeUV, for the current frame resolution and volume texture resolution according to grid size.
@@ -1639,6 +1641,7 @@ void FViewInfo::SetupUniformBufferParameters(
 		ViewUniformShaderParameters.VolumetricFogPrevViewGridRectUVToResourceUV = ViewState->VolumetricFogPrevViewGridRectUVToResourceUV;
 		ViewUniformShaderParameters.VolumetricFogPrevUVMax = ViewState->VolumetricFogPrevUVMax;
 		ViewUniformShaderParameters.VolumetricFogPrevUVMaxForTemporalBlend = ViewState->VolumetricFogPrevUVMaxForTemporalBlend;
+		ViewUniformShaderParameters.VolumetricFogPrevResourceGridSize = FVector3f(ViewState->VolumetricFogPrevResourceGridSize);
 	}
 	ViewUniformShaderParameters.VolumetricFogScreenToResourceUV = ViewRectSize / (FVector2f(VolumetricFogResourceGridSize.X, VolumetricFogResourceGridSize.Y) * VolumetricFogResourceGridPixelSize);
 	ViewUniformShaderParameters.VolumetricFogUVMax = GetVolumetricFogUVMaxForSampling(ViewRectSize, VolumetricFogResourceGridSize, VolumetricFogResourceGridPixelSize);
