@@ -162,8 +162,8 @@ namespace UE::PixelStreaming2
 		return false;
 	}
 
-	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMultipleSignallingConnectionsTest, "System.Plugins.PixelStreaming2.MultipleSignallingConnectionsTest", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ClientContext | EAutomationTestFlags::ProductFilter);
-	bool FMultipleSignallingConnectionsTest::RunTest(const FString& Parameters)
+	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FPS2MultipleSignallingConnectionsTest, "System.Plugins.PixelStreaming2.MultipleSignallingConnectionsTest", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ClientContext | EAutomationTestFlags::ProductFilter);
+	bool FPS2MultipleSignallingConnectionsTest::RunTest(const FString& Parameters)
 	{
 		UE_LOG(LogPixelStreaming2, Log, TEXT("----------- ConnectAndDisconnectMultipleStreamersEmbeddedCirrus -----------"));
 

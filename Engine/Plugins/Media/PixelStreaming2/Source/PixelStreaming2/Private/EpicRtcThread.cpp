@@ -34,7 +34,8 @@ namespace UE::PixelStreaming2
 			{
 				Tick();
 
-				FPlatformProcess::Sleep(0.f);
+				// Sleep 1ms
+				FPlatformProcess::Sleep(0.001f);
 			}
 
 			return 0;

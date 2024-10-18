@@ -988,39 +988,6 @@ namespace UE::PixelStreaming2
 		TRefCountPtr<EpicRtcConnectionInterface> ParticipantConnection = Participant->GetConnection();
 		ParticipantConnection->SetManualNegotiation(true);
 
-		const bool bTransmitUEAudio = !UPixelStreaming2PluginSettings::CVarWebRTCDisableTransmitAudio.GetValueOnAnyThread();
-		const bool bReceiveBrowserAudio = !UPixelStreaming2PluginSettings::CVarWebRTCDisableReceiveAudio.GetValueOnAnyThread();
-		if (bTransmitUEAudio || bReceiveBrowserAudio)
-		{
-			EpicRtcMediaSourceDirection AudioDirection;
-			if (bTransmitUEAudio && bReceiveBrowserAudio)
-			{
-				AudioDirection = EpicRtcMediaSourceDirection::SendRecv;
-			}
-			else if (bTransmitUEAudio)
-			{
-				AudioDirection = EpicRtcMediaSourceDirection::SendOnly;
-			}
-			else if (bReceiveBrowserAudio)
-			{
-				AudioDirection = EpicRtcMediaSourceDirection::RecvOnly;
-			}
-			else
-			{
-				AudioDirection = EpicRtcMediaSourceDirection::RecvOnly;
-			}
-
-			FUtf8String		   AudioStreamID = GetAudioStreamID();
-			EpicRtcAudioSource AudioSource = {
-				._streamId = ToEpicRtcStringView(AudioStreamID),
-				._bitrate = 510000,
-				._channels = 2,
-				._direction = AudioDirection
-			};
-
-			ParticipantConnection->AddAudioSource(AudioSource);
-		}
-
 		const EVideoCodec SelectedCodec = GetEnumFromCVar<EVideoCodec>(UPixelStreaming2PluginSettings::CVarEncoderCodec);
 		const bool		  bNegotiateCodecs = UPixelStreaming2PluginSettings::CVarWebRTCNegotiateCodecs.GetValueOnAnyThread();
 		const bool		  bTransmitUEVideo = !UPixelStreaming2PluginSettings::CVarWebRTCDisableTransmitVideo.GetValueOnAnyThread();
@@ -1105,6 +1072,39 @@ namespace UE::PixelStreaming2
 			};
 
 			ParticipantConnection->AddVideoSource(VideoSource);
+		}
+
+		const bool bTransmitUEAudio = !UPixelStreaming2PluginSettings::CVarWebRTCDisableTransmitAudio.GetValueOnAnyThread();
+		const bool bReceiveBrowserAudio = !UPixelStreaming2PluginSettings::CVarWebRTCDisableReceiveAudio.GetValueOnAnyThread();
+		if (bTransmitUEAudio || bReceiveBrowserAudio)
+		{
+			EpicRtcMediaSourceDirection AudioDirection;
+			if (bTransmitUEAudio && bReceiveBrowserAudio)
+			{
+				AudioDirection = EpicRtcMediaSourceDirection::SendRecv;
+			}
+			else if (bTransmitUEAudio)
+			{
+				AudioDirection = EpicRtcMediaSourceDirection::SendOnly;
+			}
+			else if (bReceiveBrowserAudio)
+			{
+				AudioDirection = EpicRtcMediaSourceDirection::RecvOnly;
+			}
+			else
+			{
+				AudioDirection = EpicRtcMediaSourceDirection::RecvOnly;
+			}
+
+			FUtf8String		   AudioStreamID = GetAudioStreamID();
+			EpicRtcAudioSource AudioSource = {
+				._streamId = ToEpicRtcStringView(AudioStreamID),
+				._bitrate = 510000,
+				._channels = 2,
+				._direction = AudioDirection
+			};
+
+			ParticipantConnection->AddAudioSource(AudioSource);
 		}
 
 		if (IsSFU(ParticipantId))

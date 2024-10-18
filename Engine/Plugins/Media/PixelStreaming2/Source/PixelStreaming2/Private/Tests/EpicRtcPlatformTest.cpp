@@ -11,8 +11,8 @@
 
 namespace UE::PixelStreaming2
 {
-	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FEpicRtcPlatformCreateTest, "System.Plugins.PixelStreaming2.FPS2EpicRtcPlatformCreateTest", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ClientContext | EAutomationTestFlags::ProductFilter)
-	bool FEpicRtcPlatformCreateTest::RunTest(const FString& Parameters)
+	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FPS2EpicRtcPlatformCreateTest, "System.Plugins.PixelStreaming2.FPS2EpicRtcPlatformCreateTest", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ClientContext | EAutomationTestFlags::ProductFilter)
+	bool FPS2EpicRtcPlatformCreateTest::RunTest(const FString& Parameters)
 	{
 		EpicRtcErrorCode Result;
 
@@ -26,8 +26,8 @@ namespace UE::PixelStreaming2
 		return true;
 	}
 
-	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FEpicRtcPlatformLifetimeTest, "System.Plugins.PixelStreaming2.FPS2EpicRtcPlatformLifetimeTest", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ClientContext | EAutomationTestFlags::ProductFilter)
-	bool FEpicRtcPlatformLifetimeTest::RunTest(const FString& Parameters)
+	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FPS2EpicRtcPlatformLifetimeTest, "System.Plugins.PixelStreaming2.FPS2EpicRtcPlatformLifetimeTest", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ClientContext | EAutomationTestFlags::ProductFilter)
+	bool FPS2EpicRtcPlatformLifetimeTest::RunTest(const FString& Parameters)
 	{
 		EpicRtcPlatformInterface* PlatformPtr;
 		uint32 CreationCount;
@@ -56,8 +56,8 @@ namespace UE::PixelStreaming2
 		return true;
 	}
 
-	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FEpicRtcPlatformGetTest, "System.Plugins.PixelStreaming2.FPS2EpicRtcPlatformGetTest", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ClientContext | EAutomationTestFlags::ProductFilter)
-	bool FEpicRtcPlatformGetTest::RunTest(const FString& Parameters)
+	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FPS2EpicRtcPlatformGetTest, "System.Plugins.PixelStreaming2.FPS2EpicRtcPlatformGetTest", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ClientContext | EAutomationTestFlags::ProductFilter)
+	bool FPS2EpicRtcPlatformGetTest::RunTest(const FString& Parameters)
 	{
 		EpicRtcErrorCode Result;
 

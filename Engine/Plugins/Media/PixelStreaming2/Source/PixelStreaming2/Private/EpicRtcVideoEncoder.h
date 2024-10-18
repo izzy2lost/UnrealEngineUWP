@@ -5,6 +5,7 @@
 #include "AVConstants.h"
 #include "EpicRtcVideoCommon.h"
 #include "HAL/PlatformFileManager.h"
+#include "IPixelCaptureOutputFrame.h"
 #include "Video/Encoders/Configs/VideoEncoderConfigAV1.h"
 #include "Video/Encoders/Configs/VideoEncoderConfigH264.h"
 #include "Video/Encoders/Configs/VideoEncoderConfigVP8.h"
@@ -59,8 +60,14 @@ namespace UE::PixelStreaming2
 		void	 MaybeDumpFrame(EpicRtcEncodedVideoFrame const& EncodedImage);
 		uint32_t SumAndResetBitrates();
 
+		void UpdateFrameMetadataPreEncode(IPixelCaptureOutputFrame& Frame);
+		void UpdateFrameMetadataPostEncode(IPixelCaptureOutputFrame& Frame);
+		void UpdateFrameMetadataPrePacketization(IPixelCaptureOutputFrame& Frame);
+		void UpdateFrameMetadataPostPacketization(IPixelCaptureOutputFrame& Frame);
+
 		void OnEncoderDebugDumpFrameChanged(IConsoleVariable* Var);
 		void CreateDumpFile();
+
 		FDelegateHandle DelegateHandle;
 
 	public:

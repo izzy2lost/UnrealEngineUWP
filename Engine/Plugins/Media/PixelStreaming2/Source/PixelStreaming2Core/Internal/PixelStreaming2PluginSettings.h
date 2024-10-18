@@ -357,8 +357,7 @@ public:
 		DisplayName = "Disable Audio/Video track sychronisation",
 		ToolTip = "Disables the synchronization of audio and video tracks in WebRTC. This can be useful in low latency usecases where synchronization is not required."
 		))
-	// TODO (Migration): Set to true once RTCP-6584 is fixed
-	bool WebRTCDisableAudioSync = false;
+	bool WebRTCDisableAudioSync = true;
 
 	static TAutoConsoleVariable<bool> CVarWebRTCEnableFlexFec;
 	UPROPERTY(config, EditAnywhere, Category = "WebRtcSettings", meta = (
