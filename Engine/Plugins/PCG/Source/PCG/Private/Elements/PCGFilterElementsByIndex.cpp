@@ -100,10 +100,10 @@ FString UPCGFilterElementsByIndexSettings::GetAdditionalTitleInformation() const
 		return Super::GetAdditionalTitleInformation();
 	}
 
-	FString NodeName = TEXT("Indices: ");
+	FString NodeName = LOCTEXT("ListOfIndices", "Indices: ").ToString();
 	if (SelectedIndices == FString(TEXT(":")))
 	{
-		NodeName += TEXT("All");
+		NodeName += LOCTEXT("AllIndicesSelected", "All").ToString();
 	}
 	else
 	{

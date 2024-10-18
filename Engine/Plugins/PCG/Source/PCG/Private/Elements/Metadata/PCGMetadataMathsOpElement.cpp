@@ -281,7 +281,7 @@ FString UPCGMetadataMathsSettings::GetAdditionalTitleInformation() const
 {
 	if (const UEnum* EnumPtr = StaticEnum<EPCGMetadataMathsOperation>())
 	{
-		return EnumPtr->GetNameStringByValue(static_cast<int>(Operation));
+		return EnumPtr->GetDisplayNameTextByValue(static_cast<int64>(Operation)).ToString();
 	}
 	else
 	{

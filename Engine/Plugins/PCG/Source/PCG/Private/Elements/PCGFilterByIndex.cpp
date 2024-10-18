@@ -36,7 +36,7 @@ FText UPCGFilterByIndexSettings::GetNodeTooltipText() const
 
 FString UPCGFilterByIndexSettings::GetAdditionalTitleInformation() const
 {
-	FString NodeName = TEXT("Indices: ");
+	FString NodeName = LOCTEXT("FilterIndices", "Indices: ").ToString();
 	NodeName += SelectedIndices.Len() <= PCGFilterByIndexConstants::IndexExpressionTruncation
 		? SelectedIndices
 		: SelectedIndices.Left(PCGFilterByIndexConstants::IndexExpressionTruncation - 3) + TEXT("...");

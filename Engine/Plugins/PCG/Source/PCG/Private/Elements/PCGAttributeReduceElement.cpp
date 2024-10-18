@@ -214,7 +214,7 @@ FString UPCGAttributeReduceSettings::GetAdditionalTitleInformation() const
 {
 	if (const UEnum* EnumPtr = StaticEnum<EPCGAttributeReduceOperation>())
 	{
-		const FString OperationName = EnumPtr->GetNameStringByValue(static_cast<int>(Operation));
+		const FText OperationName = EnumPtr->GetDisplayNameTextByValue(static_cast<int64>(Operation));
 
 		FName InputAttributeName = InputSource.GetName();
 		if (InputAttributeName == NAME_None)
@@ -224,11 +224,11 @@ FString UPCGAttributeReduceSettings::GetAdditionalTitleInformation() const
 
 		if (InputAttributeName != OutputAttributeName && OutputAttributeName != NAME_None)
 		{
-			return FString::Printf(TEXT("Reduce %s to %s: %s"), *InputAttributeName.ToString(), *OutputAttributeName.ToString(), *OperationName);
+			return FText::Format(LOCTEXT("ReduceInputToOutputWithOperation", "Reduce {0} to {1}: {2}"), FText::FromName(InputAttributeName), FText::FromName(OutputAttributeName), OperationName).ToString();
 		}
 		else
 		{
-			return FString::Printf(TEXT("Reduce %s: %s"), *InputAttributeName.ToString(), *OperationName);
+			return FText::Format(LOCTEXT("ReduceInplaceWithOperation", "Reduce {0}: {1}"), FText::FromName(InputAttributeName), OperationName).ToString();
 		}
 	}
 	else

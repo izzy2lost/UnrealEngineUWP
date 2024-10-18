@@ -96,7 +96,7 @@ FString UPCGDifferenceSettings::GetAdditionalTitleInformation() const
 	{
 		if (const UEnum* EnumPtr = StaticEnum<EPCGDifferenceDensityFunction>())
 		{
-			return EnumPtr->GetNameStringByValue(static_cast<int>(DensityFunction));
+			return EnumPtr->GetDisplayNameTextByValue(static_cast<int64>(DensityFunction)).ToString();
 		}
 		else
 		{

@@ -507,11 +507,11 @@ FText FPCGActorSelectorSettings::GetTaskNameSuffix() const
 	{
 		if (ActorSelection == EPCGActorSelection::ByClass)
 		{
-			return FText::Format(FText::FromString(TEXT("Class: {0}")), (ActorSelectionClass.Get() ? ActorSelectionClass->GetDisplayNameText() : FText::FromName(NAME_None)));
+			return FText::Format(NSLOCTEXT("PCGActorSelectorSettings", "ClassLabel", "Class: {0}"), (ActorSelectionClass.Get() ? ActorSelectionClass->GetDisplayNameText() : FText::FromName(NAME_None)));
 		}
 		else if (ActorSelection == EPCGActorSelection::ByTag)
 		{
-			return FText::Format(FText::FromString(TEXT("Tag: {0}")), FText::FromName(ActorSelectionTag));
+			return FText::Format(NSLOCTEXT("PCGActorSelectorSettings", "TagLabel", "Tag: {0}"), FText::FromName(ActorSelectionTag));
 		}
 	}
 	else if(const UEnum* EnumPtr = StaticEnum<EPCGActorFilter>())
