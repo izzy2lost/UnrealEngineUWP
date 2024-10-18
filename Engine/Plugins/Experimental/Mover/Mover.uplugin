@@ -3,7 +3,7 @@
 	"Version": 1,
 	"VersionName": "1.0",
 	"FriendlyName": "Mover",
-	"Description": "Mover is an Unreal Engine plugin to support movement of actors with rollback networking.",
+	"Description": "Mover is an Unreal Engine plugin to support movement of actors with rollback networking.\nPlease refer to the README document for information about getting started, an overview of concepts, and known issues.",
 	"Category": "Gameplay",
 	"CreatedBy": "Epic Games, Inc.",
 	"CreatedByURL": "https://epicgames.com",
