@@ -755,7 +755,7 @@ void UPCGCustomHLSLSettings::UpdateInputDeclarations()
 			"uint {0}_GetNumElements();\n"
 			"uint {0}_GetNumElements(uint DataIndex);\n"
 			"\n"
-			"// Valid types: bool, int, float, float2, float3, float4, Rotator (float3), Quat (float4), Transform (float4x4), StringKey (int)\n"
+			"// Valid types: bool, int, float, float2, float3, float4, Rotator (float3), Quat (float4), Transform (float4x4), StringKey (int), Name (uint2)\n"
 			"\n"
 			"<type> {0}_Get<type>(uint DataIndex, uint ElementIndex, int AttributeId);\n"
 			"<type> {0}_Get<type>(uint DataIndex, uint ElementIndex, 'AttributeName');\n"),
@@ -891,7 +891,7 @@ void UPCGCustomHLSLSettings::UpdateOutputDeclarations()
 		}
 
 		OutputDeclarations += FString::Format(TEXT(
-			"// Valid types: bool, int, float, float2, float3, float4, Rotator (float3), Quat (float4), Transform (float4x4), StringKey (int)\n"
+			"// Valid types: bool, int, float, float2, float3, float4, Rotator (float3), Quat (float4), Transform (float4x4), StringKey (int), Name (uint2)\n"
 			"\n"
 			"void {0}_Set<type>(uint DataIndex, uint ElementIndex, int AttributeId, <type> Value);\n"
 			"void {0}_Set<type>(uint DataIndex, uint ElementIndex, 'AttributeName', <type> Value);\n"),

@@ -163,7 +163,7 @@ void SetAsExecutedInternal_{DataInterfaceName}()
 bool GetBool_{DataInterfaceName}(uint DataIndex, uint ElementIndex, int AttributeId)
 {
 	const uint AttributeAddress = GetFirstElementAddressInternal_{DataInterfaceName}(DataIndex, AttributeId);
-	return asbool({DataInterfaceName}_DataCollectionBuffer.Load(AttributeAddress + ElementIndex * 1 * 4));
+	return {DataInterfaceName}_DataCollectionBuffer.Load(AttributeAddress + ElementIndex * 1 * 4) != 0;
 }
 
 int GetInt_{DataInterfaceName}(uint DataIndex, uint ElementIndex, int AttributeId)
@@ -214,10 +214,30 @@ float4 GetQuat_{DataInterfaceName}(uint DataIndex, uint ElementIndex, int Attrib
 	return asfloat({DataInterfaceName}_DataCollectionBuffer.Load4(AttributeAddress + ElementIndex * 4 * 4));
 }
 
+float4x4 GetTransform_{DataInterfaceName}(uint DataIndex, uint ElementIndex, int AttributeId)
+{
+	const uint AttributeAddress = GetFirstElementAddressInternal_{DataInterfaceName}(DataIndex, AttributeId);
+	const uint StartAddress = ElementIndex * 16 * 4 + AttributeAddress;
+
+	return float4x4(
+		asfloat({DataInterfaceName}_DataCollectionBuffer.Load4(StartAddress)),
+		asfloat({DataInterfaceName}_DataCollectionBuffer.Load4(StartAddress + 4 * 4)),
+		asfloat({DataInterfaceName}_DataCollectionBuffer.Load4(StartAddress + 8 * 4)),
+		asfloat({DataInterfaceName}_DataCollectionBuffer.Load4(StartAddress + 12 * 4))
+	);
+}
+
 int GetStringKey_{DataInterfaceName}(uint DataIndex, uint ElementIndex, int AttributeId)
 {
 	// String keys are represented as ints.
 	return GetInt_{DataInterfaceName}(DataIndex, ElementIndex, AttributeId);
+}
+
+uint2 GetName_{DataInterfaceName}(uint DataIndex, uint ElementIndex, int AttributeId)
+{
+	// Names are composed of 2 uints.
+	const uint AttributeAddress = GetFirstElementAddressInternal_{DataInterfaceName}(DataIndex, AttributeId);
+	return {DataInterfaceName}_DataCollectionBuffer.Load2(AttributeAddress + ElementIndex * 2 * 4);
 }
 
 // #################### ATTRIBUTE SETTERS ##########################
@@ -225,7 +245,7 @@ int GetStringKey_{DataInterfaceName}(uint DataIndex, uint ElementIndex, int Attr
 void SetBool_{DataInterfaceName}(uint DataIndex, uint ElementIndex, int AttributeId, bool Value)
 {
 	const uint AttributeAddress = GetFirstElementAddressInternal_{DataInterfaceName}(DataIndex, AttributeId);
-	{DataInterfaceName}_DataCollectionBuffer.Store(AttributeAddress + ElementIndex * 1 * 4, asuint(Value));
+	{DataInterfaceName}_DataCollectionBuffer.Store(AttributeAddress + ElementIndex * 1 * 4, Value ? 1u : 0u);
 }
 
 void SetInt_{DataInterfaceName}(uint DataIndex, uint ElementIndex, int AttributeId, int Value)
@@ -276,10 +296,27 @@ void SetQuat_{DataInterfaceName}(uint DataIndex, uint ElementIndex, int Attribut
 	{DataInterfaceName}_DataCollectionBuffer.Store4(AttributeAddress + ElementIndex * 4 * 4, asuint(Value));
 }
 
+void SetTransform_{DataInterfaceName}(uint DataIndex, uint ElementIndex, int AttributeId, float4x4 Value)
+{
+	const uint AttributeAddress = GetFirstElementAddressInternal_{DataInterfaceName}(DataIndex, AttributeId);
+	const uint StartAddress = ElementIndex * 16 * 4 + AttributeAddress;
+	{DataInterfaceName}_DataCollectionBuffer.Store4(StartAddress, asuint(Value[0]));
+	{DataInterfaceName}_DataCollectionBuffer.Store4(StartAddress + 4 * 4, asuint(Value[1]));
+	{DataInterfaceName}_DataCollectionBuffer.Store4(StartAddress + 8 * 4, asuint(Value[2]));
+	{DataInterfaceName}_DataCollectionBuffer.Store4(StartAddress + 12 * 4, asuint(Value[3]));
+}
+
 void SetStringKey_{DataInterfaceName}(uint DataIndex, uint ElementIndex, int AttributeId, int Value)
 {
 	// String keys are represented as ints.
 	SetInt_{DataInterfaceName}(DataIndex, ElementIndex, AttributeId, Value);
+}
+
+void SetName_{DataInterfaceName}(uint DataIndex, uint ElementIndex, int AttributeId, uint2 Value)
+{
+	// Names are composed of 2 uints.
+	const uint AttributeAddress = GetFirstElementAddressInternal_{DataInterfaceName}(DataIndex, AttributeId);
+	{DataInterfaceName}_DataCollectionBuffer.Store2(AttributeAddress + ElementIndex * 2 * 4, Value);
 }
 
 // #################### POINT ATTRIBUTE GETTERS ##########################

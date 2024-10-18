@@ -62,9 +62,11 @@ namespace PCGDataForGPUHelpers
 		case EPCGMetadataTypes::Transform:
 			return EPCGKernelAttributeType::Transform;
 		case EPCGMetadataTypes::SoftObjectPath:
+		case EPCGMetadataTypes::SoftClassPath:
 		case EPCGMetadataTypes::String:
 			return EPCGKernelAttributeType::StringKey;
-		case EPCGMetadataTypes::SoftClassPath:
+		case EPCGMetadataTypes::Name:
+			return EPCGKernelAttributeType::Name;
 		default:
 			return EPCGKernelAttributeType::Invalid;
 		}
@@ -80,6 +82,7 @@ namespace PCGDataForGPUHelpers
 		case EPCGKernelAttributeType::StringKey:
 			return 4;
 		case EPCGKernelAttributeType::Float2:
+		case EPCGKernelAttributeType::Name:
 			return 8;
 		case EPCGKernelAttributeType::Float3:
 		case EPCGKernelAttributeType::Rotator:
@@ -238,6 +241,28 @@ namespace PCGDataForGPUHelpers
 			OutPackedDataCollection[InOutAddressUints++] = Value;
 			break;
 		}
+		case PCG::Private::MetadataTypes<FSoftClassPath>::Id:
+		{
+			// SCP path string stored as an integer for reading/writing in kernel, and accompanying string table in data description.
+			const FPCGMetadataAttribute<FSoftClassPath>* Attribute = static_cast<const FPCGMetadataAttribute<FSoftClassPath>*>(InAttributeBase);
+			const int32 Value = InStringTable.IndexOfByKey(Attribute->GetValue(ValueKey).ToString());
+			check(StrideBytes == 4);
+			OutPackedDataCollection[InOutAddressUints++] = Value;
+			break;
+		}
+		case PCG::Private::MetadataTypes<FName>::Id:
+        {
+        	// FName are defined with 2 int32, so packed them both.
+        	const FPCGMetadataAttribute<FName>* Attribute = static_cast<const FPCGMetadataAttribute<FName>*>(InAttributeBase);
+        	FName Value = Attribute->GetValue(ValueKey);
+        	check(StrideBytes == 8);
+			const FNameEntryId NameEntry = Value.GetDisplayIndex();
+			const uint32 Number = Value.GetNumber();
+
+        	OutPackedDataCollection[InOutAddressUints++] = NameEntry.ToUnstableInt();
+        	OutPackedDataCollection[InOutAddressUints++] = Number;
+        	break;
+        }
 		default:
 			return false;
 		}
@@ -288,6 +313,10 @@ namespace PCGDataForGPUHelpers
 		case EPCGKernelAttributeType::StringKey:
 		{
 			return Metadata->FindOrCreateAttribute<FString>(AttributeDesc.Name);
+		}
+		case EPCGKernelAttributeType::Name:
+		{
+			return Metadata->FindOrCreateAttribute<FName>(AttributeDesc.Name);
 		}
 		default:
 			return nullptr;
@@ -417,6 +446,20 @@ namespace PCGDataForGPUHelpers
 			if (InStringTable.IsValidIndex(StringKey))
 			{
 				Attribute->SetValue(EntryKey, InStringTable[StringKey]);
+			}
+			break;
+		}
+		case EPCGKernelAttributeType::Name:
+		{
+			FPCGMetadataAttribute<FName>* Attribute = static_cast<FPCGMetadataAttribute<FName>*>(AttributeBase);
+
+			const FNameEntryId NameEntryId = FNameEntryId::FromUnstableInt(DataAsInt[ElementIndex]);
+			const uint32 Number = DataAsInt[ElementIndex + 1];
+			// Names need some validation
+			const FName Value = FName::CreateFromDisplayId(NameEntryId, Number);
+			if (Value.IsValid())
+			{
+				Attribute->SetValue(EntryKey, Value);
 			}
 			break;
 		}
@@ -637,6 +680,10 @@ void FPCGDataDesc::InitializeAttributeDescs(const UPCGData* InData, const TMap<F
 						{
 							StringTableIndex = InStringTable.IndexOfByKey(static_cast<const FPCGMetadataAttribute<FString>*>(AttributeBase)->GetValue(ValueKey));
 						}
+						else if (AttributeBase->GetTypeId() == PCG::Private::MetadataTypes<FSoftClassPath>::Id)
+                        {
+                        	StringTableIndex = InStringTable.IndexOfByKey(static_cast<const FPCGMetadataAttribute<FSoftClassPath>*>(AttributeBase)->GetValue(ValueKey).ToString());
+                        }
 						else
 						{
 							// Should not get here if attribute type is string key.
@@ -665,6 +712,10 @@ void FPCGDataDesc::InitializeAttributeDescs(const UPCGData* InData, const TMap<F
 						{
 							StringTableIndex = InStringTable.IndexOfByKey(static_cast<const FPCGMetadataAttribute<FString>*>(AttributeBase)->GetValue(MetadataKey));
 						}
+						else if (AttributeBase->GetTypeId() == PCG::Private::MetadataTypes<FSoftClassPath>::Id)
+                        {
+                        	StringTableIndex = InStringTable.IndexOfByKey(static_cast<const FPCGMetadataAttribute<FSoftClassPath>*>(AttributeBase)->GetValue(MetadataKey).ToString());
+                        }
 						else
 						{
 							// Should not get here if attribute type is string key.

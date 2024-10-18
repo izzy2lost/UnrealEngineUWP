@@ -125,6 +125,10 @@ void UPCGDataBinding::BuildStringTable()
 					{
 						StringTable.AddUnique(static_cast<const FPCGMetadataAttribute<FString>*>(AttributeBase)->GetValue(InValueKey));
 					}
+					else if (AttributeBase->GetTypeId() == PCG::Private::MetadataTypes<FSoftClassPath>::Id)
+                    {
+                    	StringTable.AddUnique(static_cast<const FPCGMetadataAttribute<FSoftClassPath>*>(AttributeBase)->GetValue(InValueKey).ToString());
+                    }
 					else
 					{
 						checkNoEntry();
