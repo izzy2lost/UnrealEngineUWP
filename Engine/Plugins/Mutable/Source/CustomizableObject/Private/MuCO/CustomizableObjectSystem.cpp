@@ -1778,9 +1778,10 @@ namespace impl
 	{
 		MUTABLE_CPUPROFILER_SCOPE(Subtask_Mutable_PrepareSkeletonData);
 
-		OperationData->InstanceUpdateData.Skeletons.SetNum(OperationData->NumObjectComponents);
+		int32 NumInstanceComponents = OperationData->InstanceUpdateData.Components.Num();
+		OperationData->InstanceUpdateData.Skeletons.SetNum(NumInstanceComponents);
 
-		for (int32 ComponentIndex = 0; ComponentIndex<OperationData->InstanceUpdateData.Components.Num(); ++ComponentIndex)
+		for (int32 ComponentIndex = 0; ComponentIndex< NumInstanceComponents; ++ComponentIndex)
 		{
 			const FInstanceUpdateData::FComponent& Component = OperationData->InstanceUpdateData.Components[ComponentIndex];
 

@@ -235,7 +235,20 @@ mu::Ptr<mu::NodeComponent> GenerateMutableSourceComponent(const UEdGraphPin* Pin
 
 		// Create the component node
 		mu::Ptr<mu::NodeComponentNew> ComponentNode = new mu::NodeComponentNew;
-		ComponentNode->Id = GenerationContext.ComponentNames.Find(TypedComponentPassthroughMesh->ComponentName);
+		if (GenerationContext.ComponentNames.Contains(TypedComponentPassthroughMesh->ComponentName))
+		{
+			FString Msg = FString::Printf(TEXT("More than one component with the same name [%s] have been found. This is not supported."), *TypedComponentPassthroughMesh->ComponentName.ToString());
+			GenerationContext.Log(FText::FromString(Msg), TypedComponentPassthroughMesh, EMessageSeverity::Warning);
+		}
+		ComponentNode->Id = GenerationContext.ComponentNames.Add(TypedComponentPassthroughMesh->ComponentName);
+
+		// While we don't handle the LODs per component, make sure we have some LODs for the passthrough mesh to appear.
+		if (GenerationContext.NumLODsInRoot == 0)
+		{
+			GenerationContext.NumLODsInRoot = SkeletalMesh->GetLODNum();
+			GenerationContext.NumMaxLODsToStream = FMath::Clamp(GenerationContext.NumMaxLODsToStream, 0, GenerationContext.NumLODsInRoot - 1);
+			GenerationContext.FirstLODAvailable = FMath::Clamp(GenerationContext.FirstLODAvailable, 0, GenerationContext.NumLODsInRoot - 1);
+		}
 
 		// Create a LOD for each pass-through mesh LOD.
 		const FSkeletalMeshModel* Model = SkeletalMesh->GetImportedModel();
