@@ -4,7 +4,6 @@
 
 #include "Misc/FrameRate.h"
 #include "RivermaxTypes.h"
-#include "RivermaxUtils.h"
 
 namespace UE::RivermaxCore
 {
@@ -64,10 +63,5 @@ namespace UE::RivermaxCore
 		FractionalFrames = FractionalFrames / (InRate.Denominator * NanoScale);
 
 		return FSec + FNanoSec + FractionalFrames;
-	}
-
-	RIVERMAXCORE_API uint64 ConvertRTPTimeStampToSecondsTruncated(const uint64 InTimestamp)
-	{
-		return InTimestamp / UE::RivermaxCore::Private::Utils::MediaClockSampleRate;
 	}
 }
