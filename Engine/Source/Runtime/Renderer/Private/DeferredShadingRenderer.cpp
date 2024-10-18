@@ -2261,7 +2261,7 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 	}
 	else
 	{
-		GVRSImageManager.PrepareImageBasedVRS(GraphBuilder, ViewFamily, SceneTextures);
+		GVRSImageManager.PrepareImageBasedVRS(GraphBuilder, ViewFamily, SceneTextures, bAnyLumenEnabled);
 
 		if (!IsForwardShadingEnabled(ShaderPlatform))
 		{
