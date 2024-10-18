@@ -595,8 +595,6 @@ void FMetalViewport::Present(FMetalCommandQueue& CommandQueue, bool bLockToVsync
 		Block(0, 0.0, 0.0);
 	}
 	
-	FMetalGPUProfiler::ResetFrameBufferTimings();
-	
 	if (!(GRHISupportsRHIThread && IsRunningRHIInSeparateThread()))
 	{
 		Swap();

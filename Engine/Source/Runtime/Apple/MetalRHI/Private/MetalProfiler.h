@@ -118,10 +118,8 @@ public:
 	
 	virtual ~FMetalEventNodeFrame()
 	{
-        if(bFullProfiling)
-        {
-            delete RootNode;
-        }
+        delete RootNode;
+		RootNode = nullptr;
 	}
 	
 	/** Start this frame of per tracking */
@@ -251,6 +249,31 @@ struct FMetalCommandBufferTiming
 	}
 };
 
+class FMetalCommandBufferTimer
+{
+public:
+	void Submit()
+	{
+		FScopeLock Lock(&Mutex);
+		Counter++;
+	}
+	
+	void AddTiming(FMetalCommandBufferTiming Timing);
+	void FrameEnd();
+	void RecordFrame();
+	
+	const TArray<FMetalCommandBufferTiming>& GetTimings()
+	{
+		return Timings;
+	}
+	
+private:
+	bool bFrameEnded;
+	uint32_t Counter = 0;
+	TArray<FMetalCommandBufferTiming> Timings;
+	FCriticalSection Mutex;
+};
+
 class FMetalRHICommandContext;
 
 /**
@@ -266,7 +289,6 @@ struct FMetalGPUProfiler : public FGPUProfiler
 	:	FGPUProfiler()
 	,	TimingSupport(InContext)
 	,	Context(InContext)
-	,   NumNestedFrames(0)
 	{}
 	
 	virtual ~FMetalGPUProfiler() {}
@@ -284,18 +306,17 @@ struct FMetalGPUProfiler : public FGPUProfiler
 	// WARNING:
 	// These functions MUST be called from within Metal scheduled/completion handlers
 	// since they depend on libdispatch to enforce ordering.
-	static void RecordFrame(TArray<FMetalCommandBufferTiming>& CommandBufferTimings, FMetalCommandBufferTiming& LastPresentBufferTiming);
+	static void RecordFrame(FMetalCommandBufferTimer& Timer);
 	static void RecordPresent(MTL::CommandBuffer* CommandBuffer);
 	// END WARNING
 	
 	static void ResetFrameBufferTimings();
-	static TSharedPtr<TArray<FMetalCommandBufferTiming>, ESPMode::ThreadSafe> GetFrameBufferTimings();
+	static FMetalCommandBufferTimer& GetFrameBufferTimer();
 	
 	FMetalGPUTiming TimingSupport;
 	FMetalRHICommandContext& Context;
-	int32 NumNestedFrames;
 	
-	static TSharedPtr<TArray<FMetalCommandBufferTiming>, ESPMode::ThreadSafe> FrameBufferTimings;
+	static FMetalCommandBufferTimer* Timer;
 };
 
 class FMetalProfiler : public FMetalGPUProfiler

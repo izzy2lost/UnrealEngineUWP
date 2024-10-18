@@ -447,7 +447,7 @@ void FMetalRHICommandContext::CopyFromBufferToBuffer(FMetalBufferPtr SourceBuffe
 	EndBlitEncoder();
 }
 
-FMetalCommandBuffer* FMetalRHICommandContext::Finalize()
+TArray<FMetalCommandBuffer*> FMetalRHICommandContext::Finalize()
 {
 	GetQueryBufferPool()->ReleaseCurrentQueryBuffer();
 	
@@ -456,13 +456,14 @@ FMetalCommandBuffer* FMetalRHICommandContext::Finalize()
 		CurrentEncoderFence = CurrentEncoder.EndEncoding();
 	}
 	
+	TArray<FMetalCommandBuffer*> CommandBuffers;
+	
 	if (CurrentEncoder.GetCommandBuffer())
 	{
-		FMetalCommandBuffer* CommandBuffer = CurrentEncoder.Finalize();
-		return CommandBuffer;
+		CommandBuffers = CurrentEncoder.Finalize();
 	}
 	
-	return nullptr;
+	return CommandBuffers;
 }
 
 void FMetalRHICommandContext::InsertCommandBufferFence(TSharedPtr<FMetalCommandBufferFence, ESPMode::ThreadSafe>& Fence, FMetalCommandBufferCompletionHandler Handler)
@@ -493,6 +494,11 @@ void FMetalRHICommandContext::StartTiming(class FMetalEventNode* EventNode)
 		if (bHasCurrentCommandBuffer)
 		{
 			CurrentEncoder.AddCompletionHandler(Handler);
+		}
+		
+		if(!bWithinRenderPass)
+		{
+			CurrentEncoder.SplitCommandBuffers();
 		}
 	}
 	
@@ -584,13 +590,13 @@ TArray<FMetalCommandBuffer*>* FMetalRHIUploadContext::Finalize()
 	
 	TArray<FMetalCommandBuffer*>* CommandBuffers = new TArray<FMetalCommandBuffer*>();
 	
-	CommandBuffers->Add(UploadContext->Finalize());
+	CommandBuffers->Append(UploadContext->Finalize());
 	
 	UploadFunctions.Reset();
 	UploadContext->ResetContext();
 	
 	WaitContext->WaitForEvent(UploadSyncEvent, UploadSyncCounter);
-	CommandBuffers->Add(WaitContext->Finalize());
+	CommandBuffers->Append(WaitContext->Finalize());
 	
 	WaitContext->ResetContext();
 	
