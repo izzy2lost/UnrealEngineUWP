@@ -45,7 +45,7 @@ struct FDataflowInput : public FDataflowConnection
 
 	friend struct FDataflowConnection;
 
-	FDataflowOutput* Connection;
+	FDataflowOutput* Connection = nullptr ;
 
 protected:
 	friend struct FDataflowOutput;
