@@ -107,6 +107,7 @@
 #include "Materials/MaterialExpressionFloor.h"	
 #include "Materials/MaterialExpressionFloatToUInt.h"	
 #include "Materials/MaterialExpressionFmod.h"
+#include "Materials/MaterialExpressionFontSignedDistance.h"
 #include "Materials/MaterialExpressionFontSample.h"
 #include "Materials/MaterialExpressionFontSampleParameter.h"
 #include "Materials/MaterialExpressionFrac.h"
@@ -11675,6 +11676,51 @@ int32 UMaterialExpressionVertexColor::Compile(class FMaterialCompiler* Compiler,
 void UMaterialExpressionVertexColor::GetCaption(TArray<FString>& OutCaptions) const
 {
 	OutCaptions.Add(TEXT("Vertex Color"));
+}
+#endif // WITH_EDITOR
+
+UMaterialExpressionFontSignedDistance::UMaterialExpressionFontSignedDistance(const FObjectInitializer& ObjectInitializer)
+	: Super(ObjectInitializer)
+{
+#if WITH_EDITORONLY_DATA
+	// Structure to hold one-time initialization
+	struct FConstructorStatics
+	{
+		FText NAME_Constants;
+		FConstructorStatics()
+			: NAME_Constants(LOCTEXT("Constants", "Constants"))
+		{
+		}
+	};
+	static FConstructorStatics ConstructorStatics;
+
+	MenuCategories.Add(ConstructorStatics.NAME_Constants);
+
+	Outputs.Reset();
+	Outputs.Add(FExpressionOutput(TEXT("Signed Distance"), 1, 1, 0, 0, 0));
+	Outputs.Add(FExpressionOutput(TEXT("Smooth Signed Distance"), 1, 0, 1, 0, 0));
+	Outputs.Add(FExpressionOutput(TEXT("Pixel Distance Factor"), 1, 0, 0, 1, 0));
+	Outputs.Add(FExpressionOutput(TEXT("Implicit Opacity"), 1, 0, 0, 0, 1));
+
+	bShowOutputNameOnPin = true;
+	bShowMaskColorsOnPin = false;
+#endif
+}
+
+#if WITH_EDITOR
+int32 UMaterialExpressionFontSignedDistance::Compile(class FMaterialCompiler* Compiler, int32 OutputIndex)
+{
+	if(!Material || Material->MaterialDomain != MD_UI)
+	{
+		return Compiler->Errorf(TEXT("Font Signed Distance node is only compatible with UI materials"));
+	}
+
+	return Compiler->FontSignedDistanceData();
+}
+
+void UMaterialExpressionFontSignedDistance::GetCaption(TArray<FString>& OutCaptions) const
+{
+	OutCaptions.Add(TEXT("Font Signed Distance"));
 }
 #endif // WITH_EDITOR
 

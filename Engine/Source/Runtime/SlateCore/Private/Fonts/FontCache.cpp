@@ -174,10 +174,11 @@ FSdfGlyphTaskKey::FSdfGlyphTaskKey(const FSdfGlyphEntryKey& InSdfGlyphEntryKey, 
 * 
 */
 
-FShapedGlyphSequence::FShapedGlyphSequence(TArray<FShapedGlyphEntry> InGlyphsToRender, const int16 InTextBaseline, const uint16 InMaxTextHeight, const UObject* InFontMaterial, const FFontOutlineSettings& InOutlineSettings, const FSourceTextRange& InSourceTextRange)
+FShapedGlyphSequence::FShapedGlyphSequence(TArray<FShapedGlyphEntry> InGlyphsToRender, const int16 InTextBaseline, const uint16 InMaxTextHeight, const UObject* InFontMaterial, const bool InMaterialIsStencil, const FFontOutlineSettings& InOutlineSettings, const FSourceTextRange& InSourceTextRange)
 	: GlyphsToRender(MoveTemp(InGlyphsToRender))
 	, TextBaseline(InTextBaseline)
 	, MaxTextHeight(InMaxTextHeight)
+	, bMaterialIsStencil(InMaterialIsStencil)
 	, FontMaterial(InFontMaterial)
 	, OutlineSettings(InOutlineSettings)
 	, SequenceWidth(0)
@@ -507,7 +508,7 @@ FShapedGlyphSequencePtr FShapedGlyphSequence::GetSubSequence(const int32 InStart
 
 	if (EnumerateVisualGlyphsInSourceRange(InStartIndex, InEndIndex, GlyphCallback) == EEnumerateGlyphsResult::EnumerationComplete)
 	{
-		return MakeShared<FShapedGlyphSequence>(MoveTemp(SubGlyphsToRender), TextBaseline, MaxTextHeight, FontMaterial, OutlineSettings, SubSequenceRange);
+		return MakeShared<FShapedGlyphSequence>(MoveTemp(SubGlyphsToRender), TextBaseline, MaxTextHeight, FontMaterial, bMaterialIsStencil, OutlineSettings, SubSequenceRange);
 	}
 
 	return nullptr;

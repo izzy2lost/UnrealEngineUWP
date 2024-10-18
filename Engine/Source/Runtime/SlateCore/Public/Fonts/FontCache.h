@@ -349,6 +349,7 @@ public:
 		: GlyphsToRender()
 		, TextBaseline(0)
 		, MaxTextHeight(0)
+		, bMaterialIsStencil(false)
 		, FontMaterial(nullptr)
 		, OutlineSettings()
 		, SequenceWidth(0)
@@ -361,6 +362,7 @@ public:
 						 const int16 InTextBaseline,
 						 const uint16 InMaxTextHeight,
 						 const UObject* InFontMaterial,
+						 const bool InMaterialIsStencil,
 						 const FFontOutlineSettings& InOutlineSettings,
 						 const FSourceTextRange& InSourceTextRange);
 	SLATECORE_API ~FShapedGlyphSequence();
@@ -390,6 +392,12 @@ public:
 	const UObject* GetFontMaterial() const
 	{
 		return FontMaterial;
+	}
+
+	/** Get "Material is stencil" flag */
+	bool IsMaterialStencil() const
+	{
+		return bMaterialIsStencil;
 	}
 
 	/** Get the font outline settings to use when rendering these glyphs */
@@ -579,6 +587,8 @@ private:
 	int16 TextBaseline;
 	/** The maximum height of any glyph in the font we're using */
 	uint16 MaxTextHeight;
+	/** Toggles between stenciling text onto material output (false) or filling entire quads with material (true) */
+	bool bMaterialIsStencil;
 	/** The material to use when rendering these glyphs */
 	TObjectPtr<const UObject> FontMaterial;
 	/** Outline settings to use when rendering these glyphs */

@@ -3295,8 +3295,10 @@ int32 FSlateElementBatcher::BuildShapedTextSequence(const FShapedTextBuildContex
 	bool bNeedSpaceForEllipsis = false;
 	const bool bNonZeroSkew = !FMath::IsNearlyEqual(GlyphSequenceToRender->GetFontSkew(), 0.f);
 	bool bPrevSdfGlyph = false;
+	float SdfEmSpread = 0;
 	float SdfPixelSpread = 0;
 	float SdfBias = 0;
+	const bool bMaterialIsStencil = GlyphSequenceToRender->IsMaterialStencil();
 	// For left to right overflow direction - Sum of total whitespace we're currently advancing through. Once a non-whitespace glyph is detected this will return to 0
 	// For right to left this value is unused. We just skip all leading whitespace
 	float PreviousWhitespaceAdvance = 0;
@@ -3371,6 +3373,7 @@ int32 FSlateElementBatcher::BuildShapedTextSequence(const FShapedTextBuildContex
 		{
 			// Get Sizing and atlas info
 			int8 NextAtlasDataTextureIndex = -1;
+			float NextSdfEmSpread = 0;
 			float NextSdfPixelSpread = 0;
 			float NextSdfBias = 0;
 
@@ -3395,7 +3398,8 @@ int32 FSlateElementBatcher::BuildShapedTextSequence(const FShapedTextBuildContex
 					// SdfGlyphAtlasData.Metrics values assume this operation, so QuadMeshSize already accounts for this
 					SpriteSize = FVector2f(SdfGlyphAtlasData.USize-1, SdfGlyphAtlasData.VSize-1);
 					SpriteOffset = FVector2f(SdfGlyphAtlasData.StartU+.5f, SdfGlyphAtlasData.StartV+.5f);
-					NextSdfPixelSpread = (SdfGlyphAtlasData.EmInnerSpread+SdfGlyphAtlasData.EmOuterSpread)*float(GlyphToRender.FontFaceData->SdfPpem);
+					NextSdfEmSpread = SdfGlyphAtlasData.EmInnerSpread + SdfGlyphAtlasData.EmOuterSpread;
+					NextSdfPixelSpread = NextSdfEmSpread * float(GlyphToRender.FontFaceData->SdfPpem);
 					// Value representing zero distance
 					NextSdfBias = (SdfGlyphAtlasData.EmOuterSpread-EmOutlineSize)/(SdfGlyphAtlasData.EmInnerSpread+SdfGlyphAtlasData.EmOuterSpread);
 				}
@@ -3441,7 +3445,7 @@ int32 FSlateElementBatcher::BuildShapedTextSequence(const FShapedTextBuildContex
 
 				// Initiate new render batch for first glyph and whenever texture / shader / shader parameters change between previous and current glyph
 				check(NextAtlasDataTextureIndex >= 0);
-				if (FontAtlasTexture == nullptr || NextAtlasDataTextureIndex != FontTextureIndex || bIsSdfGlyph != bPrevSdfGlyph || (bIsSdfGlyph && (NextSdfPixelSpread != SdfPixelSpread || NextSdfBias != SdfBias)))
+				if (FontAtlasTexture == nullptr || NextAtlasDataTextureIndex != FontTextureIndex || bIsSdfGlyph != bPrevSdfGlyph || (bIsSdfGlyph && (NextSdfEmSpread != SdfEmSpread || NextSdfPixelSpread != SdfPixelSpread || NextSdfBias != SdfBias)))
 				{
 					// Font has a new texture for this glyph or shader parameters changed. Refresh the batch we use and the index we are currently using
 					FontTextureIndex = NextAtlasDataTextureIndex;
@@ -3486,6 +3490,7 @@ int32 FSlateElementBatcher::BuildShapedTextSequence(const FShapedTextBuildContex
 					FShaderParams ShaderParams;
 					if (bIsSdfGlyph)
 					{
+						SdfEmSpread = NextSdfEmSpread;
 						SdfPixelSpread = NextSdfPixelSpread;
 						SdfBias = NextSdfBias;
 						// Note - it would be much better to pass the SDF shader params as per-vertex attributes instead to avoid having to switch batches too often
@@ -3495,9 +3500,18 @@ int32 FSlateElementBatcher::BuildShapedTextSequence(const FShapedTextBuildContex
 							.5f*InvTextureSizeY*SdfPixelSpread,
 							// Signed distance sample bias, the color value (between 0 to 1) representing zero distance
 							SdfBias,
-							// The last parameter needs to be 0 for alpha texture single-channel SDF, 1 for BGRA/RGBA MTSDF
-							ContentType == ESlateFontAtlasContentType::Msdf ? 1.f : 0.f
+							// Signed distance spread in em
+							SdfEmSpread
+						), FVector4f(
+							// This parameter needs to be 0 for alpha texture single-channel SDF, 1 for BGRA/RGBA MTSDF
+							ContentType == ESlateFontAtlasContentType::Msdf ? 1.f : 0.f,
+							bMaterialIsStencil ? 1.f : 0.f,
+							0.f, 0.f
 						));
+					}
+					else
+					{
+						ShaderParams = FShaderParams::MakePixelShaderParams(FVector4f(), FVector4f(0.f, bMaterialIsStencil ? 1.f : 0.f, 0.f, 0.f));
 					}
 
 					RenderBatch = &CreateRenderBatch(Context.LayerId,

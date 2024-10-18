@@ -189,6 +189,10 @@ struct FSlateFontInfo
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=SlateStyleRules, meta=(DisplayName="Monospacing"))
 	bool bForceMonospaced = false;
 
+	/** When enabled, whole quads are filled by the material without automatically stenciling the text - this needs to be done within the material (using Font Signed Distance node). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=SlateStyleRules)
+	bool bMaterialIsStencil = false;
+
 	/** The uniform width to apply to all characters when bForceMonospaced is enabled, proportional of the font Size. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=SlateStyleRules, meta=(ClampMin=0, EditCondition = "bForceMonospaced==true", EditConditionHides))
 	float MonospacedWidth = 1.0f;
