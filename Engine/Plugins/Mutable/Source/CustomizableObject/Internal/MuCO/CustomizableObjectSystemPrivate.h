@@ -450,8 +450,7 @@ struct FInstanceUpdateData
 		TMap<mu::FBoneName, TPair<FName, uint16>> BoneInfoMap;
 	};
 
-	// Access by object component index
-	// \TODO: somewhat wasteful, since instances may have less components
+	// Access by instance component index
 	TArray<FSkeletonData> Skeletons;
 
 	struct FNamedExtensionData

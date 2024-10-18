@@ -1976,7 +1976,14 @@ bool UCustomizableInstancePrivate::DoComponentsNeedUpdate(UCustomizableObjectIns
 	{
 		const FInstanceUpdateData::FComponent& Component = OperationData->InstanceUpdateData.Components[InstanceComponentIndex];
 		const int32 ObjectComponentIndex = Component.Id;
-		const FName ComponentName = OperationData->Instance->GetCustomizableObject()->GetPrivate()->GetModelResources().ComponentNames[ObjectComponentIndex];
+
+		if (!CustomizableObject->GetPrivate()->GetModelResources().ComponentNames.IsValidIndex(ObjectComponentIndex))
+		{
+			ensure(false);
+			continue;
+		}
+
+		const FName ComponentName = CustomizableObject->GetPrivate()->GetModelResources().ComponentNames[ObjectComponentIndex];
 
 		if (OperationData->bUseMeshCache)
 		{
@@ -2234,7 +2241,6 @@ bool UCustomizableInstancePrivate::UpdateSkeletalMesh_PostBeginUpdate0(UCustomiz
 	{
 		const FInstanceUpdateData::FComponent& Component = OperationData->InstanceUpdateData.Components[InstanceComponentIndex];
 		const int32 ObjectComponentIndex = Component.Id;
-		const FName ComponentName = OperationData->Instance->GetCustomizableObject()->GetPrivate()->GetModelResources().ComponentNames[ObjectComponentIndex];
 
 		if (!ComponentsData.IsValidIndex(ObjectComponentIndex))
 		{
@@ -2243,7 +2249,9 @@ bool UCustomizableInstancePrivate::UpdateSkeletalMesh_PostBeginUpdate0(UCustomiz
 			InvalidateGeneratedData();
 			return false;
 		}
-		
+
+		const FName ComponentName = OperationData->Instance->GetCustomizableObject()->GetPrivate()->GetModelResources().ComponentNames[ObjectComponentIndex];
+
 		// If the component doesn't need an update copy the previously generated mesh.
 		if (!OperationData->MeshChanged[InstanceComponentIndex])
 		{
@@ -5278,7 +5286,6 @@ UE::Tasks::FTask UCustomizableInstancePrivate::LoadAdditionalAssetsAndData(
 		FCustomizableInstanceComponentData* ComponentData = GetComponentData(ObjectComponentIndex);
 		if (!ComponentData)
 		{
-			check(false);
 			continue;
 		}
 
