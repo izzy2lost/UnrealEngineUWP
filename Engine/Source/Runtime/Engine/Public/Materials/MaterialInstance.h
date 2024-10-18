@@ -893,6 +893,7 @@ public:
 	ENGINE_API virtual bool IsMasked() const override;
 	ENGINE_API virtual bool WritesToRuntimeVirtualTexture() const override;
 	ENGINE_API virtual bool HasMeshPaintTexture() const override;
+	ENGINE_API virtual bool HasCustomPrimitiveData() const override;
 	ENGINE_API virtual FDisplacementScaling GetDisplacementScaling() const override;
 	ENGINE_API virtual bool IsDisplacementFadeEnabled() const override;
 	ENGINE_API virtual FDisplacementFadeRange GetDisplacementFadeRange() const override;

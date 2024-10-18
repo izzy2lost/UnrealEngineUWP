@@ -113,8 +113,6 @@
 #define NANITE_VIEW_FLAG_REVERSE_CULLING					0x10
 #define NANITE_VIEW_MIN_SCREEN_RADIUS_CULL					0x20
 
-#define NANITE_MAX_STATE_BUCKET_ID							((1 << 14) - 1)
-
 #define NANITE_CLUSTER_FLAG_ROOT_LEAF						0x1		// Cluster is leaf when only root pages are streamed in
 #define NANITE_CLUSTER_FLAG_STREAMING_LEAF					0x2		// Cluster is a leaf in the current streaming state
 #define NANITE_CLUSTER_FLAG_FULL_LEAF						0x4		// Cluster is a leaf when fully streamed in
@@ -201,9 +199,10 @@
 #define NANITE_MATERIAL_FLAG_SPLINE_MESH					0x10
 #define NANITE_MATERIAL_FLAG_SKINNED_MESH					0x20
 #define NANITE_MATERIAL_FLAG_TWO_SIDED						0x40
-#define NANITE_MATERIAL_FLAG_NO_DERIVATIVE_OPS				0x80
-#define NANITE_MATERIAL_FLAG_CAST_SHADOW					0x100
-#define NANITE_MATERIAL_FLAG_VERTEX_UVS						0x200
+#define NANITE_MATERIAL_FLAG_ALLOW_VRS						0x80
+#define NANITE_MATERIAL_FLAG_NO_DERIVATIVE_OPS				0x100
+#define NANITE_MATERIAL_FLAG_CAST_SHADOW					0x200
+#define NANITE_MATERIAL_FLAG_VERTEX_UVS						0x400
 
 #define NANITE_TRANSCODE_PASS_INDEPENDENT					0
 #define NANITE_TRANSCODE_PASS_PARENT_DEPENDENT				1
@@ -328,6 +327,7 @@ struct FNaniteMaterialFlags
 	bool bSplineMesh;
 	bool bSkinnedMesh;
 	bool bTwoSided;
+	bool bAllowVRS;
 	bool bNoDerivativeOps;
 	bool bCastShadow;
 	bool bVertexUVs;
@@ -346,6 +346,7 @@ INLINE_ATTR FNaniteMaterialFlags UnpackNaniteMaterialFlags(UINT_TYPE Packed)
 	MaterialFlags.bSplineMesh = (Packed & NANITE_MATERIAL_FLAG_SPLINE_MESH) != 0u;
 	MaterialFlags.bSkinnedMesh = (Packed & NANITE_MATERIAL_FLAG_SKINNED_MESH) != 0u;
 	MaterialFlags.bTwoSided = (Packed & NANITE_MATERIAL_FLAG_TWO_SIDED) != 0u;
+	MaterialFlags.bAllowVRS = (Packed & NANITE_MATERIAL_FLAG_ALLOW_VRS) != 0u;
 	MaterialFlags.bNoDerivativeOps = (Packed & NANITE_MATERIAL_FLAG_NO_DERIVATIVE_OPS) != 0u;
 	MaterialFlags.bCastShadow = (Packed & NANITE_MATERIAL_FLAG_CAST_SHADOW) != 0u;
 	MaterialFlags.bVertexUVs = (Packed & NANITE_MATERIAL_FLAG_VERTEX_UVS) != 0u;
@@ -406,6 +407,11 @@ INLINE_ATTR UINT_TYPE PackNaniteMaterialBitFlags(FNaniteMaterialFlags Flags)
 	if (Flags.bTwoSided)
 	{
 		MaterialBitFlags |= NANITE_MATERIAL_FLAG_TWO_SIDED;
+	}
+
+	if (Flags.bAllowVRS)
+	{
+		MaterialBitFlags |= NANITE_MATERIAL_FLAG_ALLOW_VRS;
 	}
 
 	if (Flags.bNoDerivativeOps)

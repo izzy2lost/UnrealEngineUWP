@@ -7095,6 +7095,26 @@ bool UMaterial::HasCustomizedUVs() const
 	return GetCachedExpressionData().bHasCustomizedUVs;
 }
 
+bool UMaterial::HasCustomPrimitiveData() const
+{
+	const FMaterialCachedExpressionData& CachedData = GetCachedExpressionData();
+	for (int32 Index : CachedData.ScalarPrimitiveDataIndexValues)
+	{
+		if (Index != INDEX_NONE)
+		{
+			return true;
+		}
+	}
+	for (int32 Index : CachedData.VectorPrimitiveDataIndexValues)
+	{
+		if (Index != INDEX_NONE)
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
 USubsurfaceProfile* UMaterial::GetSubsurfaceProfile_Internal() const
 {
 	checkSlow(IsInGameThread());

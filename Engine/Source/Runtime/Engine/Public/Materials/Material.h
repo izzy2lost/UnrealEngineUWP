@@ -1226,6 +1226,7 @@ public:
 	ENGINE_API virtual bool HasCustomizedUVs() const override;
 	ENGINE_API virtual bool WritesToRuntimeVirtualTexture() const override;
 	ENGINE_API virtual bool HasMeshPaintTexture() const override;
+	ENGINE_API virtual bool HasCustomPrimitiveData() const override;
 
 	ENGINE_API virtual FGraphEventArray PrecachePSOs(const FPSOPrecacheVertexFactoryDataList& VertexFactoryDataList, const FPSOPrecacheParams& PreCacheParams, EPSOPrecachePriority Priority, TArray<FMaterialPSOPrecacheRequestID>& OutMaterialPSORequestIDs) override;
 

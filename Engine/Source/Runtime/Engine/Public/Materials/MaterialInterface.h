@@ -945,6 +945,7 @@ public:
 	ENGINE_API virtual bool IsPostProcessMaterial() const;
 	ENGINE_API virtual bool WritesToRuntimeVirtualTexture() const;
 	ENGINE_API virtual bool HasMeshPaintTexture() const;
+	ENGINE_API virtual bool HasCustomPrimitiveData() const;
 	ENGINE_API virtual FDisplacementScaling GetDisplacementScaling() const;
 	ENGINE_API virtual bool IsDisplacementFadeEnabled() const;
 	ENGINE_API virtual FDisplacementFadeRange GetDisplacementFadeRange() const;
