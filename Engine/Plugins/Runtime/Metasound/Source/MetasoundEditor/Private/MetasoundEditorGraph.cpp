@@ -1293,6 +1293,7 @@ void UMetasoundEditorGraphOutput::UpdateFrontendDefaultLiteral(bool bPostTransac
 		return;
 	}
 
+	// Use the default page ID here as output defaults do *not* support paged defaults (they exist per paged graph on the singleton output node)
 	FMetasoundFrontendLiteral DefaultLiteral;
 	if (ensure(Literal->TryFindDefault(DefaultLiteral)))
 	{
@@ -1819,20 +1820,26 @@ bool UMetasoundEditorGraphVariable::Synchronize()
 	using namespace Metasound;
 
 	bool bModified = Super::Synchronize();
-
 	FMetaSoundFrontendDocumentBuilder& Builder = GetFrontendBuilderChecked();
 	const FMetasoundFrontendGraph& Graph = Builder.FindConstBuildGraphChecked();
 	const FName MemberName = GetMemberName();
-	auto IsVariable = [&MemberName] (const FMetasoundFrontendVariable& Var) { return Var.Name == MemberName; };
-	if (const FMetasoundFrontendVariable* Variable = Graph.Variables.FindByPredicate(IsVariable))
+	if (const FMetasoundFrontendVariable* Variable = Builder.FindGraphVariable(MemberName))
 	{
+		if (TypeName != Variable->TypeName)
+		{
+			bModified = true;
+			TypeName = Variable->TypeName;
+
+			InitializeLiteral();
+		}
+
 		if (ensure(Literal))
 		{
 			TOptional<FMetasoundFrontendLiteral> NewDefault;
-			if (const FMetasoundFrontendNode* MutatorNode = Builder.FindNode(Variable->MutatorNodeID); ensure(MutatorNode))
+			FMetasoundFrontendLiteral DefaultLiteral;
+			Literal->TryFindDefault(DefaultLiteral);
+			if (const FMetasoundFrontendNode* MutatorNode = Builder.FindNode(Variable->MutatorNodeID))
 			{
-				FMetasoundFrontendLiteral DefaultLiteral;
-				Literal->TryFindDefault(DefaultLiteral);
 				if (!MutatorNode->InputLiterals.IsEmpty())
 				{
 					const FMetasoundFrontendVertexLiteral& VertexLiteral = MutatorNode->InputLiterals.Last();
@@ -1850,6 +1857,10 @@ bool UMetasoundEditorGraphVariable::Synchronize()
 						NewDefault = TypeDefault;
 					}
 				}
+			}
+			else if (!Variable->Literal.IsEqual(DefaultLiteral))
+			{
+				NewDefault = Variable->Literal;
 			}
 
 			if (NewDefault.IsSet())
@@ -1886,13 +1897,16 @@ void UMetasoundEditorGraphVariable::UpdateFrontendDefaultLiteral(bool bPostTrans
 	const FScopedTransaction Transaction(LOCTEXT("Set Variable Default", "Set MetaSound Variable Default"), bPostTransaction);
 	Builder.CastDocumentObjectChecked<UObject>().Modify();
 
+	// Use the default page ID here as variables do *not* support paged defaults
+	// (they, as well as their mutator node which has a matching default, exist in each paged graph).
 	FMetasoundFrontendLiteral DefaultLiteral;
-	Literal->TryFindDefault(DefaultLiteral, &Builder.GetBuildPageID());
+	Literal->TryFindDefault(DefaultLiteral);
 
-	// Swap once variable support is added to document builder API
-	Builder.SetGraphVariableDefault(GetMemberName(), DefaultLiteral);
+	// Page ID is passed along to the builder from here because the builder needs the current BuildPageID to access the appropriate in-graph variable
+	// (variables can have the same IDs/names in different paged graphs).
+	Builder.SetGraphVariableDefault(GetMemberName(), DefaultLiteral, InPageID);
 
-	if (const FMetasoundFrontendNode* MutatorNode = Builder.FindNode(Variable->MutatorNodeID))
+	if (const FMetasoundFrontendNode* MutatorNode = Builder.FindNode(Variable->MutatorNodeID, InPageID))
 	{
 		const FMetasoundFrontendVertex* Input = MutatorNode->Interface.Inputs.FindByPredicate([](const FMetasoundFrontendVertex& Vertex) { return Vertex.Name == METASOUND_GET_PARAM_NAME(InputData); });
 		if (ensure(Input))

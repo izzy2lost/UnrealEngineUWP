@@ -2122,7 +2122,7 @@ const TArray<FMetasoundFrontendClassInputDefault>* FMetaSoundFrontendDocumentBui
 					const Frontend::FNodeRegistryKey Key = Frontend::FNodeRegistryKey(Class->Metadata);
 					const Frontend::INodeTemplate* Template = Frontend::INodeTemplateRegistry::Get().FindTemplate(Key);
 					check(Template);
-					const FGuid PageID = InPageID ? *InPageID : Frontend::DefaultPageID;
+					const FGuid PageID = InPageID ? *InPageID : BuildPageID;
 					return Template->FindNodeClassInputDefaults(*this, PageID, InNodeID, InVertexName);
 				}
 				break;
@@ -4019,7 +4019,7 @@ bool FMetaSoundFrontendDocumentBuilder::SetGraphInputDefault(FName InputName, FM
 		FMetasoundFrontendClassInput& Input = Inputs[Index];
 		if (Frontend::IDataTypeRegistry::Get().IsLiteralTypeSupported(Input.TypeName, InDefaultLiteral.GetType()))
 		{
-			const FGuid PageID = InPageID ? *InPageID : Frontend::DefaultPageID;
+			const FGuid PageID = InPageID ? *InPageID : BuildPageID;
 			bool bFound = false;
 			Input.IterateDefaults([&bFound, &PageID, &InDefaultLiteral](const FGuid& InputPageID, FMetasoundFrontendLiteral& InputLiteral)
 			{
@@ -4339,7 +4339,7 @@ bool FMetaSoundFrontendDocumentBuilder::SetGraphVariableDefault(FName VariableNa
 {
 	using namespace Metasound;
 
-	const FGuid PageID = InPageID ? *InPageID : Frontend::DefaultPageID;
+	const FGuid PageID = InPageID ? *InPageID : BuildPageID;
 	FMetasoundFrontendDocument& Document = GetDocumentChecked();
 	FMetasoundFrontendGraph& Graph = Document.RootGraph.FindGraphChecked(PageID);
 

@@ -2763,6 +2763,11 @@ namespace Metasound
 				}
 			}
 
+			for (TObjectPtr<UMetasoundEditorGraphVariable> Variable : OutGraph.Variables)
+			{
+				bEditorGraphModified |= Variable->Synchronize();
+			}
+
 			// Remove empty entries
 			bEditorGraphModified |= OutGraph.Inputs.RemoveAllSwap([](const TObjectPtr<UMetasoundEditorGraphInput>& Input) { return !Input; }) > 0;
 			bEditorGraphModified |= OutGraph.Outputs.RemoveAllSwap([](const TObjectPtr<UMetasoundEditorGraphOutput>& Output) { return !Output; }) > 0;
