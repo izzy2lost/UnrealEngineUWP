@@ -53,6 +53,9 @@ struct FPCGAsyncState
 	/** True if currently inside a PCGAsync scope - will prevent further async processing. */
 	bool bIsRunningAsyncCall = false;
 
+	/** True if the async process will call BP functions, which will require a BP context reset. */
+	bool bIsCallingBlueprint = false;
+
 	/** True if we can run out of tick */
 	bool bIsRunningOutOfTick = false;
 

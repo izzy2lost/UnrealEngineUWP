@@ -70,6 +70,7 @@ namespace FPCGAsync
 		// Setup [current, last, nb points] data per dispatch
 		TArray<UE::Tasks::TTask<int32>> AsyncTasks;
 		AsyncTasks.Reserve(NumFutures);
+		const bool bInitBPContext = (AsyncState && AsyncState->bIsCallingBlueprint);
 
 		// Launch the async tasks
 		for (int32 TaskIndex = 0; TaskIndex < NumFutures; ++TaskIndex)
@@ -77,8 +78,13 @@ namespace FPCGAsync
 			const int32 StartIndex = TaskIndex * IterationsPerTask;
 			const int32 EndIndex = StartIndex + IterationsPerTask;
 
-			AsyncTasks.Emplace(UE::Tasks::Launch(UE_SOURCE_LOCATION, [&IterationInnerLoop, StartIndex, EndIndex]()
+			AsyncTasks.Emplace(UE::Tasks::Launch(UE_SOURCE_LOCATION, [&IterationInnerLoop, StartIndex, EndIndex, bInitBPContext]()
 			{
+				if (bInitBPContext)
+				{
+					GInitRunaway(); // Reset counter as threads can run multiple workloads and might not be properly reset.
+				}
+
 				return IterationInnerLoop(StartIndex, EndIndex);
 			}));
 		}
@@ -171,6 +177,7 @@ namespace FPCGAsync
 
 		TArray<UE::Tasks::TTask<TArray<FPCGPoint>>> AsyncTasks;
 		AsyncTasks.Reserve(NumFutures);
+		const bool bInitBPContext = (AsyncState && AsyncState->bIsCallingBlueprint);
 
 		// Launch the async tasks
 		for (int32 TaskIndex = 0; TaskIndex < NumFutures; ++TaskIndex)
@@ -178,8 +185,13 @@ namespace FPCGAsync
 			const int32 StartIndex = TaskIndex * IterationsPerTask;
 			const int32 EndIndex = StartIndex + IterationsPerTask;
 
-			AsyncTasks.Emplace(UE::Tasks::Launch(UE_SOURCE_LOCATION, [&IterationInnerLoop, StartIndex, EndIndex]() -> TArray<FPCGPoint>
+			AsyncTasks.Emplace(UE::Tasks::Launch(UE_SOURCE_LOCATION, [&IterationInnerLoop, StartIndex, EndIndex, bInitBPContext]() -> TArray<FPCGPoint>
 			{
+				if (bInitBPContext)
+				{
+					GInitRunaway(); // Reset counter as threads can run multiple workloads and might not be properly reset.
+				}
+
 				return IterationInnerLoop(StartIndex, EndIndex);
 			}));
 		}
@@ -243,6 +255,7 @@ namespace FPCGAsync
 		// Setup [current, last, nb points] data per dispatch
 		TArray<UE::Tasks::TTask<TPair<int32, int32>>> AsyncTasks;
 		AsyncTasks.Reserve(NumFutures);
+		const bool bInitBPContext = (AsyncState && AsyncState->bIsCallingBlueprint);
 
 		// Launch the async tasks
 		for (int32 TaskIndex = 0; TaskIndex < NumFutures; ++TaskIndex)
@@ -250,8 +263,13 @@ namespace FPCGAsync
 			const int32 StartIndex = TaskIndex * IterationsPerTask;
 			const int32 EndIndex = StartIndex + IterationsPerTask;
 
-			AsyncTasks.Emplace(UE::Tasks::Launch(UE_SOURCE_LOCATION, [&IterationInnerLoop, StartIndex, EndIndex]() -> TPair<int32, int32>
+			AsyncTasks.Emplace(UE::Tasks::Launch(UE_SOURCE_LOCATION, [&IterationInnerLoop, StartIndex, EndIndex, bInitBPContext]() -> TPair<int32, int32>
 			{
+				if (bInitBPContext)
+				{
+					GInitRunaway(); // Reset counter as threads can run multiple workloads and might not be properly reset.
+				}
+
 				return IterationInnerLoop(StartIndex, EndIndex);
 			}));
 		}
