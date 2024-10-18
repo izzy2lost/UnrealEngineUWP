@@ -285,10 +285,11 @@ namespace Metasound::Engine
 
 			if (InArchive.IsLoading())
 			{
+				const bool bIsTransacting = InArchive.IsTransacting();
 				TStrongObjectPtr<UMetaSoundBuilderBase> Builder;
 				{
 					FGCScopeGuard ScopeGuard;
-					Builder.Reset(&FDocumentBuilderRegistry::GetChecked().FindOrBeginBuilding(InMetaSound));
+					Builder.Reset(&FDocumentBuilderRegistry::GetChecked().FindOrBeginBuilding(InMetaSound, bIsTransacting));
 				}
 
 				{
