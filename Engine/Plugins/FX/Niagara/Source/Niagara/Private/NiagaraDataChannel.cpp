@@ -551,6 +551,7 @@ void FNiagaraDataChannelDataProxy::BeginFrame(FNiagaraGpuComputeDispatchInterfac
 
 	if(InstancesToAllocate == 0)
 	{
+		CurrFrameData = nullptr;
 		return;
 	}
 
