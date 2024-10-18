@@ -134,5 +134,6 @@ namespace UE::Niagara::Wizard
 			}
 		}
 		NIAGARAEDITOR_API void SetDefaultBinding(UNiagaraGraph* Graph, const FName& VarName, const FName& DefaultBinding);
+		NIAGARAEDITOR_API void SetTooltip(UNiagaraGraph* Graph, const FName& VarName, const FText& Tooltip);
 	}
 }

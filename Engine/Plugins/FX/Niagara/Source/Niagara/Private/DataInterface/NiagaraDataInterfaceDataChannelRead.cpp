@@ -99,7 +99,7 @@ namespace NDIDataChannelReadLocal
 		{
 			Sig.Name = TEXT("Num");
 #if WITH_EDITORONLY_DATA
-			Sig.Description = LOCTEXT("NumFunctionDescription", "Returns the current number of DataChannel accessible by this interface.");
+			Sig.Description = LOCTEXT("NumFunctionDescription", "Returns the current number of elements in the Data Channel being read.");
 			NIAGARA_ADD_FUNCTION_SOURCE_INFO(Sig)
 #endif
 			Sig.bMemberFunction = true;
@@ -116,7 +116,7 @@ namespace NDIDataChannelReadLocal
 		{
 			Sig.Name = NDIDataChannelUtilities::GetNDCSpawnDataName;
 #if WITH_EDITORONLY_DATA
-			Sig.Description = LOCTEXT("GetNDCSpawnInfoFunctionDescription", "Returns useful data in relation the the NDC item that spawned this particle.");
+			Sig.Description = LOCTEXT("GetNDCSpawnInfoFunctionDescription", "Returns data in relation the the NDC item that spawned this particle. Only valid for particles spawned from NDC and only on the frame in which they're spawned.");
 			NIAGARA_ADD_FUNCTION_SOURCE_INFO(Sig)
 #endif		
 			Sig.bMemberFunction = true;
@@ -124,8 +124,8 @@ namespace NDIDataChannelReadLocal
 			Sig.AddInput(FNiagaraVariable(FNiagaraTypeDefinition(UNiagaraDataInterfaceDataChannelRead::StaticClass()), TEXT("DataChannel interface")));
 			Sig.AddInputWithoutDefault(FNiagaraVariable(FNiagaraTypeDefinition(FNiagaraEmitterID::StaticStruct()), TEXT("Emitter ID")), LOCTEXT("EmitterIDDesc", "ID of the emitter we'd like to spawn into. This can be obtained from Engine.Emitter.ID."));
 			Sig.AddInputWithDefault(FNiagaraVariable(FNiagaraTypeDefinition::GetIntDef(), TEXT("Spawned Particle Exec Index")), 0, LOCTEXT("GetNDCSpawnData_InExecIndexDesc","The execution index of the spawned particle."));
-			Sig.AddOutput(FNiagaraVariable(FNiagaraTypeDefinition::GetIntDef(), TEXT("NDC Index")), LOCTEXT("GetNDCSpawnData_OutNDCIndexDesc","Index of the NDC item that spawned this particle."));
-			Sig.AddOutput(FNiagaraVariable(FNiagaraTypeDefinition::GetIntDef(), TEXT("NDC Spawn Index")), LOCTEXT("GetNDCSpawnData_OutNDCSpawnIndexDesc","The index of this particle in relation to all the particle spawned by the same NDC item."));
+			Sig.AddOutput(FNiagaraVariable(FNiagaraTypeDefinition::GetIntDef(), TEXT("NDC Index")), LOCTEXT("GetNDCSpawnData_OutNDCIndexDesc","Index of the NDC item that spawned this particle. Can be used to read the NDC data and initialize the spawning particle with data from the NDC."));
+			Sig.AddOutput(FNiagaraVariable(FNiagaraTypeDefinition::GetIntDef(), TEXT("NDC Spawn Index")), LOCTEXT("GetNDCSpawnData_OutNDCSpawnIndexDesc","The index of this particle in relation to all the particle spawned by the same NDC item. Similar to Exec Index but for particles spawned by the same NDC item."));
 			Sig.AddOutput(FNiagaraVariable(FNiagaraTypeDefinition::GetIntDef(), TEXT("NDC Spawn Count")), LOCTEXT("GetNDCSpawnData_OutNDCSpawnCountDesc","The number of particles spawned by the same NDC item."));
 		}
 		return Sig;
@@ -138,7 +138,7 @@ namespace NDIDataChannelReadLocal
 		{
 			Sig.Name = TEXT("Read");
 #if WITH_EDITORONLY_DATA
-			Sig.Description = LOCTEXT("ReadFunctionDescription", "Reads DataChannel data at a specific index. Any values we read that are not in the DataChannel data are set to their default values. Returns success if there was a valid DataChannel to read from.");
+			Sig.Description = LOCTEXT("ReadFunctionDescription", "Reads Data Channel data at a specific index. Any values we read that are not in the Data Channel data are set to their default values. Returns success if there was a valid Data Channel entry to read from at the given index.");
 			NIAGARA_ADD_FUNCTION_SOURCE_INFO(Sig)
 #endif
 			Sig.bMemberFunction = true;
@@ -158,15 +158,15 @@ namespace NDIDataChannelReadLocal
 		{
 			Sig.Name = TEXT("Consume");
 #if WITH_EDITORONLY_DATA
-			Sig.Description = LOCTEXT("ConsumeFunctionDescription", "Consumes an DataChannel from the end of the DataChannel array and reads the specified values. Any values we read that are not in the DataChannel data are set to their default values. Returns success if an DataChannel was available to pop.");
+			Sig.Description = LOCTEXT("ConsumeFunctionDescription", "Consumes an item from the Data Channel and reads the specified values. Any values we read that are not in the Data Channel data are set to their default values. Returns success if an entry was available to be consumed in the Data Channel.");
 			NIAGARA_ADD_FUNCTION_SOURCE_INFO(Sig)
 #endif
 			Sig.bMemberFunction = true;
 			Sig.bReadFunction = true;
 			Sig.AddInput(FNiagaraVariable(FNiagaraTypeDefinition(UNiagaraDataInterfaceDataChannelRead::StaticClass()), TEXT("DataChannel interface")));
-			Sig.AddInputWithDefault(FNiagaraVariable(FNiagaraTypeDefinition::GetBoolDef(), TEXT("Consume")), FNiagaraBool(true), LOCTEXT("ConsumeInputDesc", "True if this instance (particle/emitter etc) should consume data from the data channel in this call."));
+			Sig.AddInputWithDefault(FNiagaraVariable(FNiagaraTypeDefinition::GetBoolDef(), TEXT("Consume")), FNiagaraBool(true), LOCTEXT("ConsumeInputDesc", "True if this instance (particle/emitter etc) should consume data from the Data Channel in this call."));
 			Sig.AddOutput(FNiagaraVariable(FNiagaraTypeDefinition::GetBoolDef(), TEXT("Success")), LOCTEXT("ConsumeSuccessOutputDesc", "True if all reads succeeded."));
-			Sig.AddOutput(FNiagaraVariable(FNiagaraTypeDefinition::GetIntDef(), TEXT("Index")), LOCTEXT("ConsumeIndexOutputDesc", "The index we actually read from. If reading failed this can be -1. This allows subsequent reads of the data channel at this index."));
+			Sig.AddOutput(FNiagaraVariable(FNiagaraTypeDefinition::GetIntDef(), TEXT("Index")), LOCTEXT("ConsumeIndexOutputDesc", "The index we actually read from. If reading failed this can be -1. This allows subsequent reads of the Data Channel at this index."));
 			Sig.RequiredOutputs = IntCastChecked<int16>(Sig.Outputs.Num()); //The user defines what we read in the graph.			
 		}
 		return Sig;
@@ -186,10 +186,10 @@ namespace NDIDataChannelReadLocal
 			Sig.Name = TEXT("SpawnConditional");
 #if WITH_EDITORONLY_DATA
 			NIAGARA_ADD_FUNCTION_SOURCE_INFO(Sig)
-			Sig.Description = LOCTEXT("SpawnCustomFunctionDescription", "Will Spawn particles into the bound Emitter between Min and Max counts for every element in the bound Data Channel.\n\
-		Can take optional additional parameters as conditions on spawning that will be compared against the contents of each data channel element.\n\
-		For example you could spawn only for a particular value of an enum.\n\
-		For compound data types that contain multiple component floats or ints, comparissons are done on a per component basis.\n\
+			Sig.Description = LOCTEXT("SpawnCustomFunctionDescription", "Will Spawn particles into the given Emitter between Min and Max counts for every element in the Data Channel.\n\
+		Can take optional additional parameters as conditions on spawning. The data passed into the function will be compared against the contents of each Data Channel element.\n\
+		For example, you could spawn only for NDC items that match a particular value of an enum.\n\
+		For compound data types that contain multiple component floats or ints, comparisons are done on a per component basis.\n\
 		For example if you add a Vector condition parameter it will be compared against each component of the corresponding Vector in the Data Channel.\n\
 		Result = (Param.X == ChannelValue.X) && (Param.Y == ChannelValue.Y) && (Param.Z == ChannelValue.Z)");
 			Sig.FunctionVersion = static_cast<uint32>(FunctionVersion_SpawnConditional::EmitterIDParameter);
@@ -198,12 +198,12 @@ namespace NDIDataChannelReadLocal
 			Sig.bRequiresExecPin = true;
 			Sig.ModuleUsageBitmask = ENiagaraScriptUsageMask::Emitter | ENiagaraScriptUsageMask::System;
 			Sig.AddInput(FNiagaraVariable(FNiagaraTypeDefinition(UNiagaraDataInterfaceDataChannelRead::StaticClass()), TEXT("DataChannel interface")));
-			Sig.AddInputWithDefault(FNiagaraVariable(FNiagaraTypeDefinition::GetBoolDef(), TEXT("Enable")), FNiagaraBool(true), LOCTEXT("SpawnEnableInputDesc", "Enable or disable this function call. If false, this call with have no effetcs."));
+			Sig.AddInputWithDefault(FNiagaraVariable(FNiagaraTypeDefinition::GetBoolDef(), TEXT("Enable")), FNiagaraBool(true), LOCTEXT("SpawnEnableInputDesc", "Enable or disable this function call. If false, this call with have no effect."));
 			Sig.AddInputWithoutDefault(FNiagaraVariable(FNiagaraTypeDefinition(FNiagaraEmitterID::StaticStruct()), TEXT("Emitter ID")), LOCTEXT("EmitterIDDesc", "ID of the emitter we'd like to spawn into. This can be obtained from Engine.Emitter.ID."));
-			Sig.AddInput(FNiagaraVariable(StaticEnum<ENDIDataChannelSpawnMode>(), TEXT("Mode")), LOCTEXT("SpawnCondModeInputDesc", "A mode switch that controls how this funciton will behave and interact with other calls to spawn functions."));
-			Sig.AddInput(FNiagaraVariable(StaticEnum<ENiagaraConditionalOperator>(), TEXT("Operator")), LOCTEXT("SpawnCondOpInputDesc", "The comparison operator to use when comparing values in the data channel to conditional parameters."));
-			Sig.AddInputWithDefault(FNiagaraVariable(FNiagaraTypeDefinition::GetIntDef(), TEXT("Min Spawn Count")), 1, LOCTEXT("MinSpawnCountInputDesc", "Minimum number of particles to spawn for each element in the data channel."));
-			Sig.AddInputWithDefault(FNiagaraVariable(FNiagaraTypeDefinition::GetIntDef(), TEXT("Max Spawn Count")), 1, LOCTEXT("MaxSpawnCountInputDesc", "Maximum number of particles to spawn for each element in the data channel."));
+			Sig.AddInput(FNiagaraVariable(StaticEnum<ENDIDataChannelSpawnMode>(), TEXT("Mode")), LOCTEXT("SpawnCondModeInputDesc", "Controls how this function will interact with other calls to spawn functions. Spawn counts for each NDC can be accumulated or overwritten."));
+			Sig.AddInput(FNiagaraVariable(StaticEnum<ENiagaraConditionalOperator>(), TEXT("Operator")), LOCTEXT("SpawnCondOpInputDesc", "Compare the input against the Data Channel value:\n\n[Input] [Condition] [Data Channel Value]\n\nFor example:\nSpawn if [100] is [greater than] [Data Channel 'Height' Variable]"));
+			Sig.AddInputWithDefault(FNiagaraVariable(FNiagaraTypeDefinition::GetIntDef(), TEXT("Min Spawn Count")), 1, LOCTEXT("MinSpawnCountInputDesc", "Minimum number of particles to spawn for each element in the Data Channel."));
+			Sig.AddInputWithDefault(FNiagaraVariable(FNiagaraTypeDefinition::GetIntDef(), TEXT("Max Spawn Count")), 1, LOCTEXT("MaxSpawnCountInputDesc", "Maximum number of particles to spawn for each element in the Data Channel."));
 			Sig.RequiredInputs = IntCastChecked<int16>(Sig.Inputs.Num());
 		}
 		return Sig;
@@ -216,7 +216,7 @@ namespace NDIDataChannelReadLocal
 		{
 			Sig.Name = TEXT("SpawnDirect");
 #if WITH_EDITORONLY_DATA
-			Sig.Description = LOCTEXT("SpawnDirectFunctionDescription", "Spawns particles into a given emitter for each entry in the bound NDC. Spawn count is determined directly from a value in the NDC. Additional per NDC random scale and a clamp is available.");
+			Sig.Description = LOCTEXT("SpawnDirectFunctionDescription", "Spawns particles into a given emitter for each entry in the Data Channel. Spawn count is determined directly from a value in the Data Channel. Additional per NDC item random scale and a clamp is available.");
 			NIAGARA_ADD_FUNCTION_SOURCE_INFO(Sig)
 #endif
 			Sig.FunctionSpecifiers.Add(VarNameKey);
@@ -225,13 +225,13 @@ namespace NDIDataChannelReadLocal
 			Sig.bRequiresExecPin = true;
 			Sig.ModuleUsageBitmask = ENiagaraScriptUsageMask::Emitter | ENiagaraScriptUsageMask::System;
 			Sig.AddInput(FNiagaraVariable(FNiagaraTypeDefinition(UNiagaraDataInterfaceDataChannelRead::StaticClass()), TEXT("DataChannel interface")));
-			Sig.AddInputWithDefault(FNiagaraVariable(FNiagaraTypeDefinition::GetBoolDef(), TEXT("Enable")), FNiagaraBool(true), LOCTEXT("SpawnEnableInputDesc", "Enable or disable this function call. If false, this call with have no effetcs."));
+			Sig.AddInputWithDefault(FNiagaraVariable(FNiagaraTypeDefinition::GetBoolDef(), TEXT("Enable")), FNiagaraBool(true), LOCTEXT("SpawnEnableInputDesc", "Enable or disable this function call. If false, this call with have no effect."));
 			Sig.AddInputWithoutDefault(FNiagaraVariable(FNiagaraTypeDefinition(FNiagaraEmitterID::StaticStruct()), TEXT("Emitter ID")), LOCTEXT("EmitterIDDesc", "ID of the emitter we'd like to spawn into. This can be obtained from Engine.Emitter.ID."));
-			Sig.AddInput(FNiagaraVariable(StaticEnum<ENDIDataChannelSpawnMode>(), TEXT("Mode")), LOCTEXT("SpawnCondModeInputDesc", "A mode switch that controls how this funciton will behave and interact with other calls to spawn functions."));			
+			Sig.AddInput(FNiagaraVariable(StaticEnum<ENDIDataChannelSpawnMode>(), TEXT("Mode")), LOCTEXT("SpawnCondModeInputDesc", "Controls how this function will interact with other calls to spawn functions. Spawn counts for each NDC can be accumulated or overwritten."));		
 			Sig.AddInputWithDefault(FNiagaraVariable(FNiagaraTypeDefinition::GetFloatDef(), TEXT("RandomScaleMin")), 1.0f, LOCTEXT("SpawnDirectRandomScaleMinInputDesc", "Minimum value for an additional random scale applied to each NDC spawn count."));
 			Sig.AddInputWithDefault(FNiagaraVariable(FNiagaraTypeDefinition::GetFloatDef(), TEXT("RandomScaleMax")), 1.0f, LOCTEXT("SpawnDirectRandomScaleMaxInputDesc", "Maximum value for an additional random scale applied to each NDC spawn count."));
 			Sig.AddInputWithDefault(FNiagaraVariable(FNiagaraTypeDefinition::GetIntDef(), TEXT("ClampMin")), 0, LOCTEXT("SpawnDirectClampMinInputDesc", "Minimum Spawn Count to use after random scale is applied."));
-			Sig.AddInputWithDefault(FNiagaraVariable(FNiagaraTypeDefinition::GetIntDef(), TEXT("ClampMax")), 1, LOCTEXT("SpawnDirectClampMaxInputDesc", "Minimum Spawn Count to use after random scale is applied. If < 0, No max clamp is applied."));
+			Sig.AddInputWithDefault(FNiagaraVariable(FNiagaraTypeDefinition::GetIntDef(), TEXT("ClampMax")), 1, LOCTEXT("SpawnDirectClampMaxInputDesc", "Maximum Spawn Count to use after random scale is applied. If < 0, No max clamp is applied."));
 		}
 		return Sig;
 	}
@@ -243,7 +243,7 @@ namespace NDIDataChannelReadLocal
 		{
 			Sig.Name = TEXT("ScaleSpawnCount");
 #if WITH_EDITORONLY_DATA
-			Sig.Description = LOCTEXT("ScaleSpawnCountFunctionDescription", "Applies a scaling value for each NDC spawn based on some element in the NDC data. Optional additional random scale and clamp operations to the value read from each NDC entry.");
+			Sig.Description = LOCTEXT("ScaleSpawnCountFunctionDescription", "Applies a scaling value for each NDC Item spawn count based on a variable in the NDC data. Optional additional random scale and clamp operations to the value read from each NDC entry.");
 			NIAGARA_ADD_FUNCTION_SOURCE_INFO(Sig)
 #endif
 			Sig.FunctionSpecifiers.Add(VarNameKey);
@@ -252,7 +252,7 @@ namespace NDIDataChannelReadLocal
 			Sig.bRequiresExecPin = true;
 			Sig.ModuleUsageBitmask = ENiagaraScriptUsageMask::Emitter | ENiagaraScriptUsageMask::System;
 			Sig.AddInput(FNiagaraVariable(FNiagaraTypeDefinition(UNiagaraDataInterfaceDataChannelRead::StaticClass()), TEXT("DataChannel interface")));
-			Sig.AddInputWithDefault(FNiagaraVariable(FNiagaraTypeDefinition::GetBoolDef(), TEXT("Enable")), FNiagaraBool(true), LOCTEXT("SpawnEnableInputDesc", "Enable or disable this function call. If false, this call with have no effetcs."));
+			Sig.AddInputWithDefault(FNiagaraVariable(FNiagaraTypeDefinition::GetBoolDef(), TEXT("Enable")), FNiagaraBool(true), LOCTEXT("SpawnEnableInputDesc", "Enable or disable this function call. If false, this call with have no effects."));
 			Sig.AddInputWithoutDefault(FNiagaraVariable(FNiagaraTypeDefinition(FNiagaraEmitterID::StaticStruct()), TEXT("Emitter ID")), LOCTEXT("EmitterIDDesc", "ID of the emitter we'd like to spawn into. This can be obtained from Engine.Emitter.ID."));
 			Sig.AddInput(FNiagaraVariable(StaticEnum<ENDIDataChannelSpawnScaleMode>(), TEXT("Mode")), LOCTEXT("SpawnScaleModeInputDesc", "Control whether to override or combine this scale with previously set scales when calling this function multiple times."));
 			Sig.AddInputWithDefault(FNiagaraVariable(FNiagaraTypeDefinition::GetFloatDef(), TEXT("RandomScaleMin")), 1.0f, LOCTEXT("ScaleSpawnCountRandomScaleMinInputDesc", "Minimum value for a random additional scale applied to each NDC spawn."));
@@ -554,7 +554,7 @@ bool FNDIDataChannelReadInstanceData::Tick(UNiagaraDataInterfaceDataChannelRead*
 
 	if (!DataChannel.IsValid() /*&& !SourceDI.IsValid()*/)//TODO: Local reads
 	{
-		UE_LOG(LogNiagara, Warning, TEXT("Niagara Data Channel Reader Interface could not find a valid data channel.\nData Channel: %s\nSystem: %s\nComponent:%s\n")
+		UE_LOG(LogNiagara, Warning, TEXT("Niagara Data Channel Reader Interface could not find a valid Data Channel.\nData Channel: %s\nSystem: %s\nComponent:%s\n")
 			, Interface->Channel ? *Interface->Channel->GetName() : TEXT("None")
 			, *Instance->GetSystem()->GetPathName()
 			, *Instance->GetAttachComponent()->GetPathName());
@@ -1019,7 +1019,7 @@ void UNiagaraDataInterfaceDataChannelRead::GetFeedback(UNiagaraSystem* InAsset, 
 	{
 		if (const UNiagaraDataChannel* DataChannel = RuntimeReadDI->Channel->Get())
 		{
-			//Ensure the data channel contains all the parameters this function is requesting.
+			//Ensure the Data Channel contains all the parameters this function is requesting.
 			TConstArrayView<FNiagaraDataChannelVariable> ChannelVars = DataChannel->GetVariables();
 			for (const FNDIDataChannelFunctionInfo& FuncInfo : RuntimeReadDI->GetCompiledData().GetFunctionInfo())
 			{
@@ -1098,7 +1098,7 @@ void UNiagaraDataInterfaceDataChannelRead::ValidateFunction(const FNiagaraFuncti
 {
 	Super::ValidateFunction(Function, OutValidationErrors);
 
-	//It would be great to be able to validate the parameters on the function calls here but this is only called on the DI CDO. We don't have the context of which data channel we'll be accessing.
+	//It would be great to be able to validate the parameters on the function calls here but this is only called on the DI CDO. We don't have the context of which Data Channel we'll be accessing.
 	//The translator should have all the required data to use the actual DIs when validating functions. We just need to do some wrangling to pull it from the pre compiled data correctly.
 	//This would probably also allow us to actually call hlsl generation functions on the actual DIs rather than their CDOs. Which would allow for a bunch of better optimized code gen for things like fluids.
 	//TODO!!!
@@ -1756,7 +1756,7 @@ void UNiagaraDataInterfaceDataChannelRead::SpawnConditional(FVectorVMExternalFun
 		int32 SpawnMin = FMath::Max(0, InSpawnMin.GetAndAdvance());
 		int32 SpawnMax = FMath::Max(0, InSpawnMax.GetAndAdvance());
 
-		//Each data channel element has an additional spawn entry which accumulates across all spawning calls and can be nulled independently by a suppression call.
+		//Each Data Channel element has an additional spawn entry which accumulates across all spawning calls and can be nulled independently by a suppression call.
 		FNDIDataChannelRead_EmitterInstanceData& EmitterInstData = InstData->EmitterInstanceData.FindOrAdd(EmitterInst);
 		TArray<FNDIDataChannelRead_EmitterSpawnInfo>& EmitterConditionalSpawns = EmitterInstData.NDCSpawnCounts;
 		EmitterConditionalSpawns.SetNum(NumDataChannelInstances);
@@ -1907,7 +1907,7 @@ void UNiagaraDataInterfaceDataChannelRead::SpawnDirect(FVectorVMExternalFunction
 		int32 ClampMax = InClampMax.GetAndAdvance();
 		ClampMax = ClampMax < 0 ? INT_MAX : ClampMax;
 
-		//Each data channel element has an additional spawn entry which accumulates across all spawning calls and can be nulled independently by a suppression call.
+		//Each Data Channel element has an additional spawn entry which accumulates across all spawning calls and can be nulled independently by a suppression call.
 		FNDIDataChannelRead_EmitterInstanceData& EmitterInstData = InstData->EmitterInstanceData.FindOrAdd(EmitterInst);
 		TArray<FNDIDataChannelRead_EmitterSpawnInfo>& EmitterConditionalSpawns = EmitterInstData.NDCSpawnCounts;
 		EmitterConditionalSpawns.SetNum(NumDataChannelInstances);
@@ -1983,7 +1983,7 @@ void UNiagaraDataInterfaceDataChannelRead::ScaleSpawnCount(FVectorVMExternalFunc
 		float ClampMax = InClampMax.GetAndAdvance();
 		ClampMax = ClampMax < 0.0f ? FLT_MAX : ClampMax;
 
-		//Each data channel element has an additional spawn entry which accumulates across all spawning calls and can be nulled independently by a suppression call.
+		//Each Data Channel element has an additional spawn entry which accumulates across all spawning calls and can be nulled independently by a suppression call.
 		FNDIDataChannelRead_EmitterInstanceData& EmitterInstData = InstData->EmitterInstanceData.FindOrAdd(EmitterInst);
 		TArray<FNDIDataChannelRead_EmitterSpawnInfo>& EmitterConditionalSpawns = EmitterInstData.NDCSpawnCounts;
 		EmitterConditionalSpawns.SetNumZeroed(NumDataChannelInstances);

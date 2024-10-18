@@ -74,7 +74,7 @@ namespace NDIDataChannelWriteLocal
 			Sig.Name = TEXT("Num");
 #if WITH_EDITORONLY_DATA
 			NIAGARA_ADD_FUNCTION_SOURCE_INFO(Sig)
-			Sig.Description = LOCTEXT("NumFunctionDescription", "Returns the number of instances allocated for writing in the bound NDC buffer. Writes at an index beyond this will fail.");
+			Sig.Description = LOCTEXT("NumFunctionDescription", "Returns the number of instances allocated for writing into the Data Channel from this interface. Writes at an index beyond this will fail.");
 #endif
 			Sig.bMemberFunction = true;
 			Sig.AddInput(FNiagaraVariable(FNiagaraTypeDefinition(UNiagaraDataInterfaceDataChannelWrite::StaticClass()), TEXT("DataChannel interface")));
@@ -116,14 +116,14 @@ namespace NDIDataChannelWriteLocal
 			Sig.Name = TEXT("Write");
 #if WITH_EDITORONLY_DATA
 			NIAGARA_ADD_FUNCTION_SOURCE_INFO(Sig)
-			Sig.Description = LOCTEXT("WriteFunctionDescription", "Writes DataChannel data at a specific index.  Values in the DataChannel that are not written here are set to their defaults. Returns success if an DataChannel was written to.");
+			Sig.Description = LOCTEXT("WriteFunctionDescription", "Writes data into the Data Channel at a specific index.  Values in the DataChannel that are not written here are set to their defaults. Returns success if the index was valid and data was written into the Data Channel.");
 #endif
 			Sig.bMemberFunction = true;
 			Sig.bRequiresExecPin = true;
 			Sig.bWriteFunction = true;
 			Sig.bSupportsGPU = false;//Cannot use direct index writes on GPU as we write into one shared buffer with all DIs using the same NDC data.
 			Sig.AddInput(FNiagaraVariable(FNiagaraTypeDefinition(UNiagaraDataInterfaceDataChannelWrite::StaticClass()), TEXT("DataChannel interface")));
-			Sig.AddInput(EmitVar, LOCTEXT("ExecuteAppendFlagTooltip", "If true then the append is executed, if false then the append call is skipped"));
+			Sig.AddInput(EmitVar, LOCTEXT("ExecuteWriteFlagTooltip", "If true then the write is executed, if false then this call is ignored and no write occurs."));
 			Sig.AddInput(FNiagaraVariable(FNiagaraTypeDefinition::GetIntDef(), TEXT("Index")));
 			Sig.AddOutput(FNiagaraVariable(FNiagaraTypeDefinition::GetBoolDef(), TEXT("Success")));
 			Sig.RequiredInputs = IntCastChecked<int16>(Sig.Inputs.Num());//The user defines what we write in the graph.
@@ -148,7 +148,7 @@ namespace NDIDataChannelWriteLocal
 			Sig.bRequiresExecPin = true;
 			Sig.bWriteFunction = true;
 			Sig.AddInput(FNiagaraVariable(FNiagaraTypeDefinition(UNiagaraDataInterfaceDataChannelWrite::StaticClass()), TEXT("DataChannel interface")));
-			Sig.AddInput(EmitVar, LOCTEXT("ExecuteAppendFlagTooltip", "If true then the append is executed, if false then the append call is skipped"));
+			Sig.AddInput(EmitVar, LOCTEXT("ExecuteAppendFlagTooltip", "If true then the append is executed, if false then this call is skipped and no append occurs."));
 			Sig.AddOutput(FNiagaraVariable(FNiagaraTypeDefinition::GetBoolDef(), TEXT("Success")));
 			Sig.RequiredInputs = IntCastChecked<int16>(Sig.Inputs.Num());//The user defines what we write in the graph.
 		}

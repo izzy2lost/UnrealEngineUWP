@@ -242,4 +242,16 @@ void Utilities::SetDefaultBinding(UNiagaraGraph* Graph, const FName& VarName, co
 	}
 }
 
+void Utilities::SetTooltip(UNiagaraGraph* Graph, const FName& VarName, const FText& Tooltip)
+{
+	if (Graph)
+	{
+		if (UNiagaraScriptVariable* ScriptVariable = Graph->GetScriptVariable(VarName))
+		{
+			ScriptVariable->Metadata.Description = Tooltip;
+			Graph->ScriptVariableChanged(ScriptVariable->Variable);
+		}
+	}
+}
+
 #undef LOCTEXT_NAMESPACE
