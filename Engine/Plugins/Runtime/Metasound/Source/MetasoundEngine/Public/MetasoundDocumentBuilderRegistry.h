@@ -70,10 +70,19 @@ namespace Metasound::Engine
 		}
 
 #if WITH_EDITORONLY_DATA
+		// Find or begin building a MetaSound asset.  Optionally, provide
+		// whether or not the builder is being accessed during a transaction.
+		// If false, enforces MetaSound being built is an asset.  If true, does
+		// not enforce (transactions may result in assets being moved and becoming
+		// transient wherein the builder can and should be valid to act on the
+		// transient UObject in these rare cases).
 		template <typename BuilderClass = UMetaSoundBuilderBase>
-		BuilderClass& FindOrBeginBuilding(UObject& InMetaSoundObject) const
+		BuilderClass& FindOrBeginBuilding(UObject& InMetaSoundObject, bool bIsTransacting = false) const
 		{
-			check(InMetaSoundObject.IsAsset());
+			if (!bIsTransacting)
+			{
+				check(InMetaSoundObject.IsAsset());
+			}
 
 			TScriptInterface<IMetaSoundDocumentInterface> DocInterface = &InMetaSoundObject;
 			check(DocInterface.GetObject());
