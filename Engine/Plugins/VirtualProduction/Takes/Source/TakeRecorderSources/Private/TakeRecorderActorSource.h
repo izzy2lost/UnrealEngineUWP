@@ -129,6 +129,11 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Take Recorder")
 	static void RemoveActorFromSources(AActor* InActor, UTakeRecorderSources* InSources);
 
+	/*
+	 * External Sequencers can set whether spawnables are allowed for this Take Recorder 
+	 */
+	static bool AllowsSpawnableObjects();
+	static void SetAllowsSpawnableObjects(bool bInAllowsSpawnableObjects);
 
 public:
 	UTakeRecorderActorSource(const FObjectInitializer& ObjInit);

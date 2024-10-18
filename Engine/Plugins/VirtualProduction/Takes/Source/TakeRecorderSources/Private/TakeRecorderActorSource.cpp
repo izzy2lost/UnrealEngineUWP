@@ -187,6 +187,14 @@ void UTakeRecorderActorSource::RemoveActorFromSources(AActor* InActor, UTakeReco
 	}
 }
 
+namespace TakeRecorderActorSource
+{
+static bool bAllowsSpawnableObjects = true;
+}
+
+bool UTakeRecorderActorSource::AllowsSpawnableObjects() { return TakeRecorderActorSource::bAllowsSpawnableObjects; }
+void UTakeRecorderActorSource::SetAllowsSpawnableObjects(bool bInAllowsSpawnableObjects) { TakeRecorderActorSource::bAllowsSpawnableObjects  = bInAllowsSpawnableObjects; }
+
 UTakeRecorderActorSource::UTakeRecorderActorSource(const FObjectInitializer& ObjInit)
 	: Super(ObjInit)
 {
@@ -1685,12 +1693,15 @@ void UTakeRecorderActorSource::SetSourceActor(TSoftObjectPtr<AActor> InTarget)
 
 bool UTakeRecorderActorSource::GetRecordToPossessable() const
 {
-#if WITH_EDITOR
-	if (!UMovieScene::IsTrackClassAllowed(UMovieSceneSpawnTrack::StaticClass()))
+	if (TargetLevelSequence && !TargetLevelSequence->AllowsSpawnableObjects())
 	{
 		return true;
 	}
-#endif
+	
+	if (!AllowsSpawnableObjects())
+	{
+		return true;
+	}
 
 	if (RecordType == ETakeRecorderActorRecordType::ProjectDefault)
 	{
