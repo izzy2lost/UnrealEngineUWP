@@ -124,6 +124,15 @@ void ADMXControlConsoleActor::ResetToZero()
 #endif // WITH_EDITOR
 }
 
+void ADMXControlConsoleActor::PostLoad()
+{
+	Super::PostLoad();
+
+#if WITH_EDITOR
+	ApplySendDMXInEditorState();
+#endif // WITH_EDITOR
+}
+
 void ADMXControlConsoleActor::BeginPlay()
 {
 	Super::BeginPlay();
@@ -132,13 +141,22 @@ void ADMXControlConsoleActor::BeginPlay()
 	{
 		StartSendingDMX();
 	}
+
+#if WITH_EDITOR
+	bIsPlayInWorld = true;
+#endif 
 }
 
 void ADMXControlConsoleActor::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
 	Super::EndPlay(EndPlayReason);
 
+#if WITH_EDITOR
+	bIsPlayInWorld = false;
+	ApplySendDMXInEditorState();
+#else
 	StopSendingDMX();
+#endif
 }
 
 #if WITH_EDITOR
@@ -147,10 +165,28 @@ void ADMXControlConsoleActor::PostEditChangeProperty(FPropertyChangedEvent& Prop
 	Super::PostEditChangeProperty(PropertyChangedEvent);
 
 	const FName PropertyName = PropertyChangedEvent.GetPropertyName();
-	if (PropertyName == GET_MEMBER_NAME_CHECKED(ADMXControlConsoleActor, bSendDMXInEditor) &&
-		ControlConsoleData)
+	if (PropertyName == GET_MEMBER_NAME_CHECKED(ADMXControlConsoleActor, bSendDMXInEditor) ||
+		PropertyName == GET_MEMBER_NAME_CHECKED(ADMXControlConsoleActor, bAutoActivate))
 	{
-		ControlConsoleData->SetSendDMXInEditorEnabled(bSendDMXInEditor);
+		ApplySendDMXInEditorState();
+	}
+}
+#endif // WITH_EDITOR
+
+#if WITH_EDITOR
+void ADMXControlConsoleActor::ApplySendDMXInEditorState()
+{
+	if (ControlConsoleData)
+	{
+		const bool bShouldSendDMX = bAutoActivate && (bIsPlayInWorld || bSendDMXInEditor);
+		if (bShouldSendDMX)
+		{
+			ControlConsoleData->StartSendingDMX();
+		}
+		else
+		{
+			ControlConsoleData->StopSendingDMX();
+		}
 	}
 }
 #endif // WITH_EDITOR
