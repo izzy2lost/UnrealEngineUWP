@@ -32,6 +32,9 @@ namespace Metasound::Editor
 	{
 		SVerticalBox::Construct(SVerticalBox::FArguments());
 
+		DisplayedPageID = Metasound::Frontend::DefaultPageID;
+		DisplayedPageName = Metasound::Frontend::DefaultPageName;
+
 		AddSlot().HAlign(HAlign_Left)
 		[
 			SAssignNew(AuditionPageTextWidget, STextBlock)
@@ -103,6 +106,19 @@ namespace Metasound::Editor
 			GraphPageTextWidget->SetText(PageInfo);
 			GraphPageTextWidget->SetColorAndOpacity(ActiveColor ? *ActiveColor : StatsPrivate::BaseTextColor);
 		}
+
+		DisplayedPageID = GraphPageSettings ? GraphPageSettings->UniqueId : Metasound::Frontend::DefaultPageID;
+		DisplayedPageName = GraphPageSettings ? GraphPageSettings->Name : Metasound::Frontend::DefaultPageName;
+	}
+
+	const FGuid& SPageStats::GetDisplayedPageID() const
+	{
+		return DisplayedPageID;
+	}
+
+	FName SPageStats::GetDisplayedPageName() const
+	{
+		return DisplayedPageName;
 	}
 
 	void SRenderStats::Construct(const FArguments& InArgs)
@@ -128,7 +144,6 @@ namespace Metasound::Editor
 		AddTextWidgetSlot(AuditionPageWidget);
 		AddTextWidgetSlot(AuditionPlatformWidget);
 	}
-
 
 	void SRenderStats::Update(bool bIsPlaying, double InDeltaTime, const UMetaSoundSource* InSource)
 	{

@@ -30,10 +30,16 @@ namespace Metasound::Editor
 		void SetExecVisibility(TAttribute<EVisibility> InVisibility);
 		void Update(const FMetaSoundPageSettings* AuditionPageSettings, const FMetaSoundPageSettings* GraphPageSettings, const FSlateColor* ActiveColor);
 
+		const FGuid& GetDisplayedPageID() const;
+		FName GetDisplayedPageName() const;
+
 	private:
 		TSharedPtr<SImage> ExecImageWidget;
 		TSharedPtr<STextBlock> GraphPageTextWidget;
 		TSharedPtr<STextBlock> AuditionPageTextWidget;
+
+		FGuid DisplayedPageID;
+		FName DisplayedPageName;
 	};
 
 
