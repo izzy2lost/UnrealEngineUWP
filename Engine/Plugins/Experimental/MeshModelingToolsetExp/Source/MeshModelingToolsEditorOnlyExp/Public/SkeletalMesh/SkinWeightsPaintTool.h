@@ -615,7 +615,7 @@ public:
 	void InitialSetup(USkinWeightsPaintTool* InTool);
 
 	// call every tick to apply deferred changes to mesh
-	void OnTick(float DeltaTime);
+	void UpdateIsolatedSelection();
 
 	// returns true if any triangles are currently isolated
 	bool IsSelectionIsolated() const;
@@ -627,7 +627,7 @@ public:
 	void UnIsolateSelectionAsTransaction();
 
 	// isolate the array of triangles
-	void SetIsolatedTriangles(const TArray<int32>& TrianglesToIsolate);
+	void SetTrianglesToIsolate(const TArray<int32>& TrianglesToIsolate);
 	
 	// restores the whole mesh
 	void RestoreFullMesh();
@@ -640,6 +640,8 @@ public:
 	int32 FullToPartialMeshVertexIndex(int32 FullMeshVertexIndex) const;
 
 private:
+
+	void CreatePartialMesh();
 	
 	UPROPERTY()
 	TObjectPtr<USkinWeightsPaintTool> WeightTool;
@@ -651,7 +653,7 @@ private:
 	UE::Geometry::FGeometrySelection IsolatedSelectionToRestoreVertices;
 	UE::Geometry::FGeometrySelection IsolatedSelectionToRestoreEdges;
 	UE::Geometry::FGeometrySelection IsolatedSelectionToRestoreFaces;
-	bool bRestoreFullMeshOnNextTick = false;
+	bool bIsolatedMeshNeedsUpdated = false;
 	// isolate selection sub-meshes
 	UE::Geometry::FDynamicSubmesh3 PartialSubMesh;
 };
