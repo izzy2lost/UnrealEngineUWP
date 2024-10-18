@@ -77,16 +77,6 @@ public class DownloadDescription
 	{
 		boolean bSucceeded = true;
 		
-		//Generate our JSON output for the file
-		org.json.JSONArray DescriptionJsonArray = new org.json.JSONArray();
-		{
-			for (int DescriptionIndex = 0; DescriptionIndex < DownloadDescriptions.size(); ++DescriptionIndex)
-			{
-				DownloadDescription Description = DownloadDescriptions.get(DescriptionIndex);
-				DescriptionJsonArray.put(Description.ToJSON());
-			}
-		}
-		
 		//Attempt to write out JSONArray string to file
 		FileWriter JsonFile = null;
 		{
@@ -110,9 +100,23 @@ public class DownloadDescription
 				JsonFile = new FileWriter(NewFile, false);
 				
 				//Can actually write the json array out to the file now
-				JsonFile.write(DescriptionJsonArray.toString());
+				JsonFile.write("[");
+				for (int DescriptionIndex = 0; DescriptionIndex < DownloadDescriptions.size(); ++DescriptionIndex)
+				{
+					if (DescriptionIndex > 0) {
+						JsonFile.write(",\n");
+					}
+					DownloadDescription Description = DownloadDescriptions.get(DescriptionIndex);
+					JsonFile.write(Description.ToJSON().toString());
+				}
+				JsonFile.write("]\n");
 			}
 			catch (IOException e)
+			{
+				bSucceeded = false;
+				e.printStackTrace();
+			}
+			catch (Exception e)
 			{
 				bSucceeded = false;
 				e.printStackTrace();
