@@ -79,7 +79,7 @@ TAutoConsoleVariable<bool> CVarMutableUseBulkData(
 
 TAutoConsoleVariable<int32> CVarMutableDerivedDataCacheUsage(
 	TEXT("mutable.DerivedDataCacheUsage"),
-	2,
+	0,
 	TEXT("Derived data cache access for cooked data.")
 	TEXT("0 - None. Disables access to the cache.")
 	TEXT("1 - Local. Allow cache requests to query and store records and values in local caches.")
