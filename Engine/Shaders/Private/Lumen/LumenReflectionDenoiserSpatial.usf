@@ -29,7 +29,7 @@ float3 InverseTonemapLighting(float3 TonemappedLighting, float DisocclusionFacto
 }
 
 // Workaround for Substrate fetching invalid value at tile border
-bool IsLightingValidForDenoiser(float In)
+bool IsLightingValidForDenoiser(float3 In)
 {
 #if SUBSTRATE_ENABLED
 	return all(In < INVALID_LIGHTING);
