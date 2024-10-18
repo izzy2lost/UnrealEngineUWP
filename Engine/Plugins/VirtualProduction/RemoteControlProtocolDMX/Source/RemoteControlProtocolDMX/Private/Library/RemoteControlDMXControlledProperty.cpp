@@ -104,7 +104,9 @@ namespace UE::RemoteControl::DMX
 								VectorComponent += TEXT("Z");
 							}
 
-							return FString::Printf(TEXT("%s_%s"), *FieldPathInfo, *VectorComponent);
+							return VectorComponent.IsEmpty() ? 
+								*FieldPathInfo :
+								FString::Printf(TEXT("%s_%s"), *FieldPathInfo, *VectorComponent);
 						}
 						else if (Entities.Num() <= 3 && 
 							FieldPathInfo.Contains(TEXT("Rotation")))
@@ -126,7 +128,9 @@ namespace UE::RemoteControl::DMX
 								VectorComponent += TEXT("Yaw");
 							}
 
-							return FString::Printf(TEXT("%s_%s"), *FieldPathInfo, *VectorComponent);
+							return VectorComponent.IsEmpty() ?
+								*FieldPathInfo : 
+								FString::Printf(TEXT("%s_%s"), *FieldPathInfo, *VectorComponent);
 						}
 						else if (Entities.Num() <= 4 &&
 							FieldPathInfo.Contains(TEXT("Color")))
@@ -154,7 +158,9 @@ namespace UE::RemoteControl::DMX
 								ColorComponent += TEXT("A");
 							}
 
-							return FString::Printf(TEXT("%s_%s"), *FieldPathInfo, *ColorComponent);
+							return ColorComponent.IsEmpty() ?
+								*FieldPathInfo : 
+								FString::Printf(TEXT("%s_%s"), *FieldPathInfo, *ColorComponent);
 						}
 						else
 						{
