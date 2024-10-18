@@ -91,6 +91,7 @@ struct FNiagaraDataChannelDataProxy : public TSharedFromThis<FNiagaraDataChannel
 	int32 CurrBufferAccessCounts = 0;
 
 	#if !UE_BUILD_SHIPPING
+	bool bWarnedAboutSameStageRW = false;
 	FNiagaraGpuComputeDispatchInterface* DispatchInterfaceForDebuggingOnly = nullptr;
 	
 	FString DebugName;

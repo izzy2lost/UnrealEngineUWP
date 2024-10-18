@@ -64,6 +64,10 @@ enum class ENDIDataChannelSpawnScaleMode
 	Max UMETA(Hidden),
 };
 
+/**
+The Data Channel Reader Data Interface allows us to read from a Niagara Data Channel.
+It also allows us to spawn particles into emitters in this system based upon the entries in a Niagara Data Channel.
+*/
 UCLASS(EditInlineNew, Category = "Data Channels", CollapseCategories, meta = (DisplayName = "Data Channel Reader"), MinimalAPI)
 class UNiagaraDataInterfaceDataChannelRead : public UNiagaraDataInterfaceRWBase
 {
@@ -85,18 +89,26 @@ public:
 	UPROPERTY(EditAnywhere, Category="Data Channel")
 	TObjectPtr<UNiagaraDataChannelAsset> Channel;
 	
-	/** True if this reader will read the current frame's data. If false, we read the previous frame.
-	* Reading the current frame introduces a tick order dependency but allows for zero latency reads. Any data channel elements that are generated after this reader is used are missed.
-	* Reading the previous frame's data introduces a frame of latency but ensures we never miss any data as we have access to the whole frame.
+	/** 
+	* If this interface should read the current frame's data from the Data Channel. If false, the interface will read from the previous frame if it's available.
+	* 
+	* Reading the current frame allows us to use the most current data and have the least possible latency from the source.
+	* However, it introduces a tick order dependency between this read and the Blueprints, Game Code or other Niagara Systems writing into this Data Channel.
+	* If this interface reads data before those writing to the Data Channel have executed, then that data will be missed.
+	* 
+	* Reading the previous frame allows us to avoid this tick order dependency.
+	* We can be sure we are reading all data that is written to the Data Channel, regardless of when the writes happened in the frame.
+	* However it does introduce a 1 frame delay in the data being read and so can cause latency/lag.
 	*/
 	UPROPERTY(EditAnywhere, Category = "Data Channel", AdvancedDisplay)
 	bool bReadCurrentFrame = false;
 
 	/**
-	Whether this DI should request updated source data from the Data Channel each tick.
-	Some Data Channels have multiple separate source data elements for things such as spatial subdivision. 
+	The source Data Channel data for this interface will be refreshed every frame.
+	Some Data Channels have multiple separate data elements for things such as spatial subdivision. 
 	Each DI will request the correct one for it's owning system instance from the data channel. 
-	Depending on the data channel this could be an expensive search so we should avoid doing this every tick if possible.
+	Depending on the Data Channel this could be an expensive search so we should avoid doing this every tick if possible.
+	However it may be required. For example if the Niagara System is moving and reading from a spatially sub-divided NDC such as the Islands type.
 	*/
 	UPROPERTY(EditAnywhere, Category = "Data Channel", AdvancedDisplay)
 	bool bUpdateSourceDataEveryTick = true;
@@ -109,7 +121,7 @@ public:
 	It will also mean that Exec Index will be correct on a per NDC Entry level. 
 	Without this settings ExecIndex will be 0...TotalSpawnCount-1. With this it will be 0...SpawnCount for each NDC item individually.
 	Unless absolutely needed this is discouraged as it comes at significant performance cost when spawning and GPU emitters can currently only handle 8 individual spawns per frame.
-	Calling GetNDCSpawnInfo() in the particle spawn script to get the spawning NDC Index is prefered.
+	Calling GetNDCSpawnInfo() in the particle spawn script to get the spawning NDC Index is preferred.
 	*/
 	UPROPERTY(EditAnywhere, Category = "Spawning", AdvancedDisplay)
 	bool bOverrideSpawnGroupToDataChannelIndex = false;

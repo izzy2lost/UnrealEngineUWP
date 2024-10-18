@@ -357,7 +357,7 @@ namespace UE::Niagara::Wizard::DataChannel
 		{
 			if (PreviousPage->Data->SpawnMode == ENiagaraDataChanneSpawnModuleMode::ConditionalSpawn)
 			{
-				return LOCTEXT("SpawnConditionalPageHeader", "Please select which data channel variables should be used as conditions to spawn particles. This is optional!\nFor example, if you select a vector and integer parameter in the data channel they will be compared against the corresponding module inputs.\nResult = (InputA == ChannelValue.A) && (InputB == ChannelValue.B)");
+				return LOCTEXT("SpawnConditionalPageHeader", "OPTIONAL:\nSelect which data channel variables should be used as conditions to spawn particles.\nModule inputs will be created for all selected variables.\nParticles will only be spawned if the data channel variables match the module input values.");
 			}
 			return LOCTEXT("SpawnDirectPageHeader", "Please select which data channel variable should be used as particle spawn count. This needs to be an integer parameter in the data channel.");
 		}
@@ -954,6 +954,7 @@ TSharedRef<FModuleWizardModel> DataChannel::CreateSpawnNDCModuleWizardModel()
 					{
 						UEdGraphPin* EnablePin = Utilities::AddReadParameterPin(FNiagaraTypeDefinition::GetBoolDef(), FName("Spawn Enabled"), MapGetNode);
 						Utilities::SetDefaultValue(Graph, EnablePin->PinName, FNiagaraTypeDefinition::GetBoolDef(), true);
+						Utilities::SetTooltip(Graph, EnablePin->PinName, SpawnFunction->Signature.InputDescriptions[FNiagaraVariable(FNiagaraTypeDefinition::GetBoolDef(), EnableInput->PinName)]);
 						GraphSchema->TryCreateConnection(EnablePin, EnableInput);
 					}
 					if (UEdGraphPin* EmitterIDInput = SpawnFunction->FindPin(FName("Emitter ID"), EGPD_Input))
@@ -961,20 +962,24 @@ TSharedRef<FModuleWizardModel> DataChannel::CreateSpawnNDCModuleWizardModel()
 						UEdGraphPin* EmitterIDPin = Utilities::AddReadParameterPin(FNiagaraTypeDefinition(FNiagaraEmitterID::StaticStruct()), FName("Emitter ID"), MapGetNode);
 						GraphSchema->TryCreateConnection(EmitterIDInput, EmitterIDPin);
 						Utilities::SetDefaultBinding(Graph, EmitterIDPin->PinName, SYS_PARAM_ENGINE_EMITTER_ID.GetName());
+						Utilities::SetTooltip(Graph, EmitterIDPin->PinName, SpawnFunction->Signature.InputDescriptions[FNiagaraVariable(FNiagaraTypeDefinition(FNiagaraEmitterID::StaticStruct()), EmitterIDInput->PinName)]);
 					}
 					if (UEdGraphPin* ModeInput = SpawnFunction->FindPin(FName("Mode"), EGPD_Input))
 					{
 						UEdGraphPin* SpawnModePin = Utilities::AddReadParameterPin(FNiagaraTypeDefinition(StaticEnum<ENDIDataChannelSpawnMode>()), FName("Spawn Mode"), MapGetNode);
 						GraphSchema->TryCreateConnection(ModeInput, SpawnModePin);
+						Utilities::SetTooltip(Graph, SpawnModePin->PinName, SpawnFunction->Signature.InputDescriptions[FNiagaraVariable(FNiagaraTypeDefinition(StaticEnum<ENDIDataChannelSpawnMode>()), ModeInput->PinName)]);
 					}
 					if (UEdGraphPin* OperatorInput = SpawnFunction->FindPin(FName("Operator"), EGPD_Input))
 					{
 						UEdGraphPin* OperatorPin = Utilities::AddReadParameterPin(FNiagaraTypeDefinition(StaticEnum<ENiagaraConditionalOperator>()), FName("Comparison Operator"), MapGetNode);
 						GraphSchema->TryCreateConnection(OperatorInput, OperatorPin);
+						Utilities::SetTooltip(Graph, OperatorPin->PinName, SpawnFunction->Signature.InputDescriptions[FNiagaraVariable(FNiagaraTypeDefinition(StaticEnum<ENiagaraConditionalOperator>()), OperatorInput->PinName)]);
 					}
 					if (UEdGraphPin* MinInput = SpawnFunction->FindPin(FName(SpawnMode == ENiagaraDataChanneSpawnModuleMode::ConditionalSpawn ? "Min Spawn Count" : "ClampMin"), EGPD_Input))
 					{
 						UEdGraphPin* SpawnMinPin = Utilities::AddReadParameterPin(FNiagaraTypeDefinition::GetIntDef(), FName("Min Count"), MapGetNode);
+						Utilities::SetTooltip(Graph, SpawnMinPin->PinName, SpawnFunction->Signature.InputDescriptions[FNiagaraVariable(FNiagaraTypeDefinition::GetIntDef(), MinInput->PinName)]);
 						int32 Default = SpawnMode == ENiagaraDataChanneSpawnModuleMode::ConditionalSpawn ? 1 : -1;//Default to -1 for spawn direct as this is a clamp. aka, no clamp by default.
 						Utilities::SetDefaultValue(Graph, SpawnMinPin->PinName, FNiagaraTypeDefinition::GetIntDef(), Default);
 						GraphSchema->TryCreateConnection(MinInput, SpawnMinPin);
@@ -982,6 +987,7 @@ TSharedRef<FModuleWizardModel> DataChannel::CreateSpawnNDCModuleWizardModel()
 					if (UEdGraphPin* MaxInput = SpawnFunction->FindPin(FName(SpawnMode == ENiagaraDataChanneSpawnModuleMode::ConditionalSpawn ? "Max Spawn Count" : "ClampMax"), EGPD_Input))
 					{
 						UEdGraphPin* SpawnMaxPin = Utilities::AddReadParameterPin(FNiagaraTypeDefinition::GetIntDef(), FName("Max Count"), MapGetNode);
+						Utilities::SetTooltip(Graph, SpawnMaxPin->PinName, SpawnFunction->Signature.InputDescriptions[FNiagaraVariable(FNiagaraTypeDefinition::GetIntDef(), MaxInput->PinName)]);
 						int32 Default = SpawnMode == ENiagaraDataChanneSpawnModuleMode::ConditionalSpawn ? 1 : -1;//Default to -1 for spawn direct as this is a clamp. aka, no clamp by default.
 						Utilities::SetDefaultValue(Graph, SpawnMaxPin->PinName, FNiagaraTypeDefinition::GetIntDef(), Default);
 						GraphSchema->TryCreateConnection(MaxInput, SpawnMaxPin);
@@ -992,12 +998,14 @@ TSharedRef<FModuleWizardModel> DataChannel::CreateSpawnNDCModuleWizardModel()
 						{
 							UEdGraphPin* ScaleMinPin = Utilities::AddReadParameterPin(FNiagaraTypeDefinition::GetFloatDef(), FName("Random Scale Min"), MapGetNode);
 							Utilities::SetDefaultValue(Graph, ScaleMinPin->PinName, FNiagaraTypeDefinition::GetFloatDef(), 1.0f);
+							Utilities::SetTooltip(Graph, ScaleMinPin->PinName, SpawnFunction->Signature.InputDescriptions[FNiagaraVariable(FNiagaraTypeDefinition::GetFloatDef(), ScaleMinInput->PinName)]);
 							GraphSchema->TryCreateConnection(ScaleMinInput, ScaleMinPin);
 						}
 						if (UEdGraphPin* ScaleMaxInput = SpawnFunction->FindPin(FName("RandomScaleMax"), EGPD_Input))
 						{
 							UEdGraphPin* ScaleMaxPin = Utilities::AddReadParameterPin(FNiagaraTypeDefinition::GetFloatDef(), FName("Random Scale Max"), MapGetNode);
 							Utilities::SetDefaultValue(Graph, ScaleMaxPin->PinName, FNiagaraTypeDefinition::GetFloatDef(), 1.0f);
+							Utilities::SetTooltip(Graph, ScaleMaxPin->PinName, SpawnFunction->Signature.InputDescriptions[FNiagaraVariable(FNiagaraTypeDefinition::GetFloatDef(), ScaleMaxInput->PinName)]);
 							GraphSchema->TryCreateConnection(ScaleMaxInput, ScaleMaxPin);
 						}
 

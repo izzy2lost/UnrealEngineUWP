@@ -650,7 +650,14 @@ FNiagaraDataBufferRef FNiagaraDataChannelDataProxy::PrepareForWriteAccess(FRDGBu
 		if (CurrBufferAccessCounts > 0)
 		{
 #if !UE_BUILD_SHIPPING
-			UE_LOG(LogNiagara, Warning, TEXT("Attempting to write to a Niagara Data Channel in the same stage in which it's being read. {%s}"), *DebugName);
+			if(!bWarnedAboutSameStageRW)
+			{
+				bWarnedAboutSameStageRW = true;
+				UE_LOG(LogNiagara, Warning, TEXT("Attempting to write to a Niagara Data Channel in the same stage in which it's being read. {%s}\n\
+				This is most often caused by an NDC reading the current frame data and the same NDC being written to in PostRenderOpaque.\n\
+				A possible fix is to read the previous frames data rather than the current frame.\n\
+				Another is to ensure writes to the NDC are done earlier. Things such as Depth/GBuffer reads can make the writing system tick late in the frame."), *DebugName);
+			}
 #endif
 			return nullptr;
 		}
@@ -693,7 +700,14 @@ FNiagaraDataBufferRef FNiagaraDataChannelDataProxy::PrepareForReadAccess(FRDGBui
 			if (CurrBufferAccessCounts < 0)
 			{
 #if !UE_BUILD_SHIPPING
-				UE_LOG(LogNiagara, Warning, TEXT("Attempting to read from a Niagara Data Channel in the same stage in which it's being written. {%s}"), *DebugName);
+				if (!bWarnedAboutSameStageRW)
+				{
+					bWarnedAboutSameStageRW = true;
+					UE_LOG(LogNiagara, Warning, TEXT("Attempting to read from a Niagara Data Channel in the same stage in which it's being written. {%s}\n\
+					This is most often caused by an NDC reading the current frame data and the same NDC being written to in PostRenderOpaque.\n\
+					A possible fix is to read the previous frame data rather than the current frame.\n\
+					Another is to ensure writes to the NDC are done earlier. Things such as Depth/GBuffer reads can make the writing system tick late in the frame."), *DebugName);
+				}
 #endif
 				return nullptr;
 			}
@@ -1174,7 +1188,7 @@ void FNiagaraDataChannelData::CreateRenderThreadProxy(UNiagaraDataChannelHandler
 		RTProxy->Owner = this->AsWeak();
 		RTProxy->LayoutInfo = LayoutInfo;//Keep our own ref to the layout info as the NDCData may die on the GT before the proxy.
 #if !UE_BUILD_SHIPPING
-		RTProxy->DebugName = FString::Printf(TEXT("%s__GPUData"), *DataChannel->GetName());
+		RTProxy->DebugName = FString::Printf(TEXT("%s__GPUData"), *GetNameSafe(DataChannel->GetAsset()));
 		RTProxy->DispatchInterfaceForDebuggingOnly = ComputeDispatchInterface;
 #endif
 		ENQUEUE_RENDER_COMMAND(FNiagaraDataChannelDataProxyInit) (
