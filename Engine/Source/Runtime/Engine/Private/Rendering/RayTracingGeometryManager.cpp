@@ -472,7 +472,7 @@ void FRayTracingGeometryManager::RefreshRegisteredGeometry(RayTracingGeometryHan
 
 			if (NumRemoved > 0)
 			{
-				TotalResidentSize -= RegisteredGeometry.Size;
+				TotalResidentSize -= OldSize;
 			}
 
 			EvictableGeometries.Remove(Handle);
