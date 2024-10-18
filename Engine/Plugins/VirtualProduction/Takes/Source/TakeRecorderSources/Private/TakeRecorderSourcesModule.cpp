@@ -55,6 +55,8 @@
 #include "ISequencerModule.h"
 #include "ILevelSequenceEditorToolkit.h"
 
+#include "Bindings/MovieSceneSpawnableActorBinding.h"
+
 #define LOCTEXT_NAMESPACE "TakeRecorderSources"
 
 namespace TakeRecorderSources
@@ -816,6 +818,17 @@ public:
 
 	void OnSequencerCreated(TSharedRef<ISequencer> Sequencer)
 	{
+		bool bSupportsSpawnableActorBinding = false;
+		for (const TSubclassOf<UMovieSceneCustomBinding>& SupportedCustomBindingType : Sequencer->GetSupportedCustomBindingTypes())
+		{
+			if (SupportedCustomBindingType && SupportedCustomBindingType->IsChildOf(UMovieSceneSpawnableActorBinding::StaticClass()))
+			{
+				bSupportsSpawnableActorBinding = true;
+			}
+		}
+
+		UTakeRecorderActorSource::SetAllowsSpawnableObjects(bSupportsSpawnableActorBinding);
+
 		Sequencer->OnGetCanRecord().BindLambda([this] (FText& OutInfoText)
 		{
 			if (UTakeRecorderBlueprintLibrary::IsRecording())
