@@ -4769,7 +4769,7 @@ void FFXSystem::SimulateGPUParticles(
 
 
 #if WITH_MGPU
-	TArray<FTransferResourceParams, TFixedAllocator<4>> CrossGPUTransferResources;
+	TArray<FTransferResourceParams, TInlineAllocator<4>> CrossGPUTransferResources;
 	const bool bCrossTransferEnabled = GNumExplicitGPUsForRendering > 1;
 	auto AddCrossGPUTransferResource =
 		[&](FRHITexture* TextureToTransfer)
