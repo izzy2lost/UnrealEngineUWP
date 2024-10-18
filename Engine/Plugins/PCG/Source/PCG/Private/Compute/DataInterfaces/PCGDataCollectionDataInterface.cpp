@@ -152,6 +152,13 @@ void UPCGDataCollectionDataInterface::GetSupportedInputs(TArray<FShaderFunctionD
 			.AddParam(EShaderFundamentalType::Uint) // DataIndex
 			.AddParam(EShaderFundamentalType::Uint) // ElementIndex
 			.AddParam(EShaderFundamentalType::Uint); // AttributeId
+
+		OutFunctions.AddDefaulted_GetRef()
+			.SetName(TEXT("GetName"))
+			.AddReturnType(EShaderFundamentalType::Uint, 2) // Name represented by 2 uints
+			.AddParam(EShaderFundamentalType::Uint) // DataIndex
+			.AddParam(EShaderFundamentalType::Uint) // ElementIndex
+			.AddParam(EShaderFundamentalType::Uint); // AttributeId
 	}
 
 	// Attribute Setters
@@ -225,6 +232,13 @@ void UPCGDataCollectionDataInterface::GetSupportedInputs(TArray<FShaderFunctionD
 			.AddParam(EShaderFundamentalType::Uint) // ElementIndex
 			.AddParam(EShaderFundamentalType::Uint) // AttributeId
 			.AddParam(EShaderFundamentalType::Int); // String key represented by int
+		
+		OutFunctions.AddDefaulted_GetRef()
+			.SetName(TEXT("SetName"))
+			.AddParam(EShaderFundamentalType::Uint) // DataIndex
+			.AddParam(EShaderFundamentalType::Uint) // ElementIndex
+			.AddParam(EShaderFundamentalType::Uint) // AttributeId
+			.AddParam(EShaderFundamentalType::Uint, 2); // Name represented by 2 uints
 	}
 
 	// Point Attribute Getters

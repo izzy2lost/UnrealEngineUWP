@@ -34,6 +34,7 @@ enum class EPCGKernelAttributeType : uint8
 	Quat,
 	Transform,
 	StringKey,
+	Name,
 
 	Invalid = std::numeric_limits<uint8>::max()
 };
