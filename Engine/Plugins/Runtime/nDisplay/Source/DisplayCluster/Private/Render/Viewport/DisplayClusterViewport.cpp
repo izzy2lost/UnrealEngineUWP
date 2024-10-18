@@ -321,11 +321,14 @@ void FDisplayClusterViewport::SetupSceneView(uint32 ContextNum, class UWorld* Wo
 		return;
 	}
 
-	if (OpenColorIO.IsValid())
+	// Always modify rendering parameters if valid OCIO transformation is configured
+	if (OpenColorIO.IsValid() && OpenColorIO->GetConversionSettings().IsValid())
 	{
 		OpenColorIO->SetupSceneView(InOutViewFamily, InOutView);
 	}
-	// When capturing with late OCIO, we also need to modify some OCIO specific parameters
+	// When capturing with late OCIO enabled, we still need to modify the OCIO related
+	// rendering parameters even though OCIO is not set. The receivers might have valid OCIO
+	// transformations configured therefore should get a proper input texture.
 	else if (RenderSettings.HasAnyMediaStates(EDisplayClusterViewportMediaState::CaptureLateOCIO))
 	{
 		FOpenColorIORendering::PrepareView(InOutViewFamily, InOutView);
