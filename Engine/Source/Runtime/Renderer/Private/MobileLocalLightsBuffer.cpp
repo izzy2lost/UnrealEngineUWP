@@ -116,6 +116,7 @@ class FMobileLocalLightFunctionPS : public FMaterialShader
 		SHADER_PARAMETER(FMatrix44f, SvPositionToLight)
 		SHADER_PARAMETER(FVector4f, LightFunctionParameters)
 		SHADER_PARAMETER(FVector2f, LightFunctionParameters2)
+		SHADER_PARAMETER(FVector3f, CameraRelativeLightPosition)
 		SHADER_PARAMETER_STRUCT_REF(FDeferredLightUniformStruct, DeferredLightUniforms)
 	END_SHADER_PARAMETER_STRUCT()
 
@@ -151,6 +152,7 @@ public:
 		FParameters PS;
 		
 		LightFunctionSvPositionToLightTransform(PS.SvPositionToLight, View, *LightSceneInfo);
+		PS.CameraRelativeLightPosition = GetCamRelativeLightPosition(View.ViewMatrices, *LightSceneInfo);
 		PS.LightFunctionParameters = FLightFunctionSharedParameters::GetLightFunctionSharedParameters(LightSceneInfo, FadeAlpha);
 		PS.LightFunctionParameters2 = FVector2f(LightSceneInfo->Proxy->GetLightFunctionFadeDistance(), LightSceneInfo->Proxy->GetLightFunctionDisabledBrightness());
 		PS.DeferredLightUniforms = TUniformBufferRef<FDeferredLightUniformStruct>::CreateUniformBufferImmediate(GetDeferredLightParameters(View, *LightSceneInfo), EUniformBufferUsage::UniformBuffer_SingleFrame);

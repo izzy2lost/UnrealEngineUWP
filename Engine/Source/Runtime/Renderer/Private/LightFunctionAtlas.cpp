@@ -183,6 +183,13 @@ class FLightFunctionAtlasSlotPS : public FMaterialShader
 		return Parameters.MaterialParameters.MaterialDomain == MD_LightFunction;
 	}
 
+	static void ModifyCompilationEnvironment(const FMaterialShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
+	{
+		FMaterialShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
+
+		OutEnvironment.SetDefine(TEXT("LIGHT_ATLAS"), 1);
+	}
+
 	void SetParameters(FRHIBatchedShaderParameters& BatchedParameters, const FSceneView& View, const FMaterialRenderProxy* MaterialProxy)
 	{
 		const FMaterial& Material = MaterialProxy->GetMaterialWithFallback(View.GetFeatureLevel(), MaterialProxy);

@@ -14825,6 +14825,32 @@ void UMaterialExpressionObjectPositionWS::GetCaption(TArray<FString>& OutCaption
 		}
 	}
 }
+
+void UMaterialExpressionObjectPositionWS::GetExpressionToolTip(TArray<FString>& OutToolTip)
+{
+	FString ToolTipText;
+	switch(Material->MaterialDomain)
+	{
+		case MD_LightFunction:
+		{
+			ToolTipText += "Gets the local position of the light, based on the selected Local Origin.\n";
+			ToolTipText += "Note: Light Atlas cannot resolve positional data, so will always return 0.0f";
+			break;
+		}
+		case MD_PostProcess:
+		{
+			ToolTipText += "PostProcess materials cannot resolve positional data, so will always return 0.0f";
+			break;
+		}
+		default:
+		{
+			ToolTipText += "Gets the local position of the mesh, based on the selected Local Origin.\n";
+			ToolTipText += "Note: Returns 0 if primitive data is not available to the material.";
+			break;
+		}
+	}
+	ConvertToMultilineToolTip(*ToolTipText, 40, OutToolTip);
+}
 #endif // WITH_EDITOR
 
 ///////////////////////////////////////////////////////////////////////////////

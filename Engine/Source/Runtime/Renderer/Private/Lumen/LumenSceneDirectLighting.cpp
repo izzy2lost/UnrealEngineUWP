@@ -13,6 +13,7 @@
 #include "VolumetricCloudRendering.h"
 #include "LumenTracingUtils.h"
 #include "LightFunctionAtlas.h"
+#include "LightFunctionRendering.h"
 #include "Containers/StaticBitArray.h"
 
 CSV_DEFINE_CATEGORY(LumenSceneDirectLighting, true);
@@ -762,6 +763,7 @@ BEGIN_SHADER_PARAMETER_STRUCT(FLightFunctionParameters, )
 	SHADER_PARAMETER(FVector4f, LightFunctionParameters)
 	SHADER_PARAMETER(FMatrix44f, LightFunctionTranslatedWorldToLight)
 	SHADER_PARAMETER(FVector3f, LightFunctionParameters2)
+	SHADER_PARAMETER(FVector3f, CameraRelativeLightPosition)
 END_SHADER_PARAMETER_STRUCT()
 
 class FLumenDirectLightingShadowMaskFromLightAttenuationWithLightFunctionCS : public FMaterialShader
@@ -953,6 +955,8 @@ void SetupLightFunctionParameters(const FViewInfo& View, const FLightSceneInfo* 
 		LightSceneInfo->Proxy->GetLightFunctionFadeDistance(),
 		LightSceneInfo->Proxy->GetLightFunctionDisabledBrightness(),
 		PreviewShadowsMask);
+
+	OutParameters.CameraRelativeLightPosition = GetCamRelativeLightPosition(View.ViewMatrices, *LightSceneInfo);
 
 	OutParameters.PrimitiveUniformBuffer = GIdentityPrimitiveUniformBuffer.GetUniformBufferRef();
 }

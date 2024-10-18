@@ -6378,12 +6378,6 @@ int32 FHLSLMaterialTranslator::WorldPosition(EWorldPositionIncludedOffsets World
 
 int32 FHLSLMaterialTranslator::ObjectWorldPosition(EPositionOrigin OriginType)
 {
-	EMaterialDomain Domain = Material->GetMaterialDomain();
-	if (Domain != MD_LightFunction && Domain != MD_DeferredDecal && !CheckPrimitivePropertyCompatibity(ANSI_TO_TCHAR(__FUNCTION__)))
-	{
-		return INDEX_NONE;
-	}
-
 	if (OriginType == EPositionOrigin::CameraRelative)
 	{
 		return AddInlinedCodeChunkZeroDeriv(MCT_Float3,TEXT("GetObjectTranslatedWorldPosition(Parameters)"));

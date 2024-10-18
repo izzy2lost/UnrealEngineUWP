@@ -69,6 +69,7 @@
 #include "Materials/MaterialExpressionFunctionOutput.h"
 #include "Materials/MaterialExpressionMaterialAttributeLayers.h"
 #include "Materials/MaterialExpressionParameter.h"
+#include "Materials/MaterialExpressionObjectPositionWS.h"
 #include "Materials/MaterialExpressionPinBase.h"
 #include "Materials/MaterialExpressionTextureBase.h"
 #include "Materials/MaterialExpressionTextureSample.h"
@@ -3400,13 +3401,48 @@ void FMaterialEditor::UpdateMaterialinfoList_Old()
 				PreshaderCountLine->AddToken(FTextToken::Create(FText::FromString(PreshaderCountString)));
 				Messages.Add(PreshaderCountLine);
 
-				if (MaterialResource->GetMaterialDomain() == MD_LightFunction)
+				const EMaterialDomain Domain = MaterialResource->GetMaterialDomain();
+				if (Domain == MD_LightFunction || Domain == MD_PostProcess)
 				{
-					const bool bIsCompatibleWithLightFunctionAtlas = ShaderMap->IsLightFunctionAtlasCompatible();
-					FString LightFunctionAtlasStr = FString::Printf(TEXT("Light function material%s compatible with the light function atlas for fast batched deferred light shading."), bIsCompatibleWithLightFunctionAtlas ? TEXT(" IS") : TEXT(" IS NOT"));
-					TSharedRef<FTokenizedMessage> LightFunctionAtlasCountLine = FTokenizedMessage::Create(EMessageSeverity::Info);
-					LightFunctionAtlasCountLine->AddToken(FTextToken::Create(FText::FromString(LightFunctionAtlasStr)));
-					Messages.Add(LightFunctionAtlasCountLine);
+					if(Domain == MD_LightFunction)
+					{
+						const bool bIsCompatibleWithLightFunctionAtlas = ShaderMap->IsLightFunctionAtlasCompatible();
+						FString LightFunctionAtlasStr = FString::Printf(TEXT("Light function material%s compatible with the light function atlas for fast batched deferred light shading."), bIsCompatibleWithLightFunctionAtlas ? TEXT(" IS") : TEXT(" IS NOT"));
+						TSharedRef<FTokenizedMessage> LightFunctionAtlasCountLine = FTokenizedMessage::Create(EMessageSeverity::Info);
+						LightFunctionAtlasCountLine->AddToken(FTextToken::Create(FText::FromString(LightFunctionAtlasStr)));
+						Messages.Add(LightFunctionAtlasCountLine);
+					}
+
+					for (UMaterialExpression* MaterialExpression : Material->GetExpressions())
+					{
+						if (MaterialExpression->IsA(UMaterialExpressionObjectPositionWS::StaticClass()))
+						{
+							FString PrependString;
+							switch (Domain)
+							{
+								case MD_LightFunction:
+								{
+									PrependString += "Although Light Functions are compatible with the ObjectPosition node, Light atlases";
+									break;
+								}
+								case MD_PostProcess:
+								{
+									PrependString += "Post Process Materials";
+									break;
+								}
+								default:break;
+							}
+							if (PrependString.IsEmpty())
+							{
+								break;
+							}
+							FString ObjectPositionWarning = FString::Printf(TEXT("Note: %s cannot resolve position from the ObjectPosition node, will always return 0."), *PrependString);
+							TSharedRef<FTokenizedMessage> LightFunctionAtlasCountLine = FTokenizedMessage::Create(EMessageSeverity::Info);
+							LightFunctionAtlasCountLine->AddToken(FTextToken::Create(FText::FromString(ObjectPositionWarning)));
+							Messages.Add(LightFunctionAtlasCountLine);
+							break;
+						}
+					}
 				}
 			}
 		}

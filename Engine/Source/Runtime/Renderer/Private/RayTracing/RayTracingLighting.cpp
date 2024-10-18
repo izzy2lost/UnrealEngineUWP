@@ -6,6 +6,7 @@
 
 #if RHI_RAYTRACING
 
+#include "LightFunctionRendering.h"
 #include "LightRendering.h"
 #include "LightSceneProxy.h"
 #include "SceneRendering.h"
@@ -426,6 +427,7 @@ BEGIN_GLOBAL_SHADER_PARAMETER_STRUCT(FLightFunctionParametersRayTracing, )
 	SHADER_PARAMETER(FMatrix44f, LightFunctionTranslatedWorldToLight)
 	SHADER_PARAMETER(FVector4f, LightFunctionParameters)
 	SHADER_PARAMETER(FVector3f, LightFunctionParameters2)
+	SHADER_PARAMETER(FVector3f, CameraRelativeLightPosition)
 END_GLOBAL_SHADER_PARAMETER_STRUCT()
 
 IMPLEMENT_GLOBAL_SHADER_PARAMETER_STRUCT(FLightFunctionParametersRayTracing, "RaytracingLightFunctionParameters");
@@ -460,6 +462,8 @@ static TUniformBufferRef<FLightFunctionParametersRayTracing> CreateLightFunction
 		LightSceneInfo->Proxy->GetLightFunctionFadeDistance(),
 		LightSceneInfo->Proxy->GetLightFunctionDisabledBrightness(),
 		bRenderingPreviewShadowIndicator ? 1.0f : 0.0f);
+
+	LightFunctionParameters.CameraRelativeLightPosition = GetCamRelativeLightPosition(View.ViewMatrices, *LightSceneInfo);
 
 	return CreateUniformBufferImmediate(LightFunctionParameters, Usage);
 }

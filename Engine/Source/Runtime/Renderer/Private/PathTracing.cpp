@@ -37,6 +37,7 @@ TAutoConsoleVariable<int32> CVarPathTracing(
 #include "PathTracingSpatialTemporalDenoising.h"
 #include "PostProcess/DiaphragmDOF.h"
 #include "EnvironmentComponentsFlags.h"
+#include "LightFunctionRendering.h"
 #include <limits>
 
 TAutoConsoleVariable<bool> CVarPathTracingExperimental(
@@ -1805,6 +1806,7 @@ BEGIN_GLOBAL_SHADER_PARAMETER_STRUCT(FLightFunctionParametersPathTracing, )
 	SHADER_PARAMETER(FMatrix44f, LightFunctionTranslatedWorldToLight)
 	SHADER_PARAMETER(FVector4f, LightFunctionParameters)
 	SHADER_PARAMETER(FVector3f, LightFunctionParameters2)
+	SHADER_PARAMETER(FVector3f, CameraRelativeLightPosition)
 	SHADER_PARAMETER(int32    , EnableColoredLightFunctions)
 END_GLOBAL_SHADER_PARAMETER_STRUCT()
 
@@ -1838,6 +1840,8 @@ static TUniformBufferRef<FLightFunctionParametersPathTracing> CreateLightFunctio
 		LightSceneInfo->Proxy->GetLightFunctionFadeDistance(),
 		LightSceneInfo->Proxy->GetLightFunctionDisabledBrightness(),
 		bRenderingPreviewShadowIndicator ? 1.0f : 0.0f);
+
+	LightFunctionParameters.CameraRelativeLightPosition = GetCamRelativeLightPosition(View.ViewMatrices, *LightSceneInfo);
 
 	LightFunctionParameters.EnableColoredLightFunctions = CVarPathTracingLightFunctionColor.GetValueOnRenderThread();
 

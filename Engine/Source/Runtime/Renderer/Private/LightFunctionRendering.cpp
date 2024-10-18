@@ -109,6 +109,18 @@ void LightFunctionSvPositionToLightTransform(FMatrix44f& OutMatrix, const FViewI
 	OutMatrix = FMatrix44f(SvPositionToLightValue);
 }
 
+FVector3f GetCamRelativeLightPosition(const FViewMatrices& ViewMatrices, const FLightSceneInfo& LightSceneInfo)
+{
+	if (LightSceneInfo.Type == LightType_Directional)
+	{
+		return FVector3f::Zero();
+	}
+
+	FVector CameraPosition = ViewMatrices.GetViewOrigin();
+	FVector LightOrigin = LightSceneInfo.Proxy->GetOrigin();
+	return FVector3f(LightOrigin - CameraPosition);
+}
+
 /**
  * A pixel shader for projecting a light function onto the scene.
  */
@@ -141,6 +153,7 @@ public:
 		LightFunctionParameters.Bind(Initializer.ParameterMap);
 		LightFunctionParameters2.Bind(Initializer.ParameterMap,TEXT("LightFunctionParameters2"));
 		HairOnlyDepthTexture.Bind(Initializer.ParameterMap, TEXT("HairOnlyDepthTexture"));
+		CameraRelativeLightPosition.Bind(Initializer.ParameterMap, TEXT("CameraRelativeLightPosition"));
 	}
 
 	void SetParameters(FRHIBatchedShaderParameters& BatchedParameters, const FViewInfo& View, const FLightSceneInfo* LightSceneInfo, const FMaterialRenderProxy* MaterialProxy, const FMaterial& Material, bool bRenderingPreviewShadowIndicator, float ShadowFadeFraction, bool bUseHairStrands, FRHITexture* InHairOnlyDepthTexture)
@@ -169,6 +182,11 @@ public:
 			SetTextureParameter(BatchedParameters, HairOnlyDepthTexture, InHairOnlyDepthTexture);
 		}
 
+		if (CameraRelativeLightPosition.IsBound())
+		{
+			SetShaderValue(BatchedParameters, CameraRelativeLightPosition, GetCamRelativeLightPosition(View.ViewMatrices, *LightSceneInfo));
+		}
+
 		auto DeferredLightParameter = GetUniformBufferParameter<FDeferredLightUniformStruct>();
 		if (DeferredLightParameter.IsBound())
 		{
@@ -181,6 +199,7 @@ private:
 	LAYOUT_FIELD(FLightFunctionSharedParameters, LightFunctionParameters);
 	LAYOUT_FIELD(FShaderParameter, LightFunctionParameters2);
 	LAYOUT_FIELD(FShaderResourceParameter, HairOnlyDepthTexture);
+	LAYOUT_FIELD(FShaderParameter, CameraRelativeLightPosition);
 };
 
 IMPLEMENT_MATERIAL_SHADER_TYPE(,FLightFunctionPS,TEXT("/Engine/Private/LightFunctionPixelShader.usf"),TEXT("Main"),SF_Pixel);

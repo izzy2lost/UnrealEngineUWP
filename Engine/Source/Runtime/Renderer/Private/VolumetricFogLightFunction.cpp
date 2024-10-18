@@ -8,6 +8,7 @@
 #include "RendererPrivate.h"
 #include "ScenePrivate.h"
 #include "SceneUtils.h"
+#include "LightFunctionRendering.h"
 #include "LightRendering.h"
 #include "PostProcess/SceneFilterRendering.h"
 #include "PostProcess/PostProcessing.h"
@@ -42,6 +43,7 @@ class FVolumetricFogLightFunctionPS : public FMaterialShader
 		SHADER_PARAMETER(FVector3f, LightFunctionParameters2)
 		SHADER_PARAMETER(FVector3f, LightTranslatedWorldPosition)
 		SHADER_PARAMETER(FVector2f, LightFunctionTexelSize)
+		SHADER_PARAMETER(FVector3f, CameraRelativeLightPosition)
 	END_SHADER_PARAMETER_STRUCT()
 
 	FVolumetricFogLightFunctionPS() {}
@@ -96,6 +98,7 @@ class FVolumetricFogLightFunctionPS : public FMaterialShader
 		PS.LightFunctionTexelSize = FVector2f(LightFunctionTexelSizeValue);
 		PS.ShadowToTranslatedWorld = ShadowToTranslatedWorldValue;
 		PS.LightTranslatedWorldPosition = FVector4f(LightSceneInfo->Proxy->GetPosition() + View.ViewMatrices.GetPreViewTranslation());
+		PS.CameraRelativeLightPosition = GetCamRelativeLightPosition(View.ViewMatrices, *LightSceneInfo);
 
 		return PS;
 	}
