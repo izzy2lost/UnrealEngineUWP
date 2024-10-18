@@ -908,15 +908,14 @@ void UNiagaraComponent::TickComponent(float DeltaSeconds, enum ELevelTick TickTy
 		{
 			float AgeDiff = FMath::Max(DesiredAge, 0.0f) - SystemInstanceController->GetAge();
 			int32 TicksToProcess = 0;
-
-			if (AgeDiff < 0.0f)
-			{
-				SystemInstanceController->Reset(FNiagaraSystemInstance::EResetMode::ResetAll);
-				AgeDiff = DesiredAge - SystemInstanceController->GetAge();
-			}
-
 			if (FMath::Abs(AgeDiff) >= UE_KINDA_SMALL_NUMBER)
 			{
+				if (AgeDiff < 0.0f)
+				{
+					SystemInstanceController->Reset(FNiagaraSystemInstance::EResetMode::ResetAll);
+					AgeDiff = DesiredAge - SystemInstanceController->GetAge();
+				}
+
 				FNiagaraSystemSimulation* SystemSim = SystemInstanceController->GetSoloSystemSimulation().Get();
 				if (SystemSim)
 				{
