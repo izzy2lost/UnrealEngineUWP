@@ -418,7 +418,7 @@ void FRayTracingDynamicGeometryCollection::AddDynamicMeshBatchForGeometryUpdate(
 BEGIN_SHADER_PARAMETER_STRUCT(FRayTracingDynamicGeometryUpdatePassParams, )
 	RDG_BUFFER_ACCESS(DynamicGeometryScratchBuffer, ERHIAccess::UAVCompute)
 
-	SHADER_PARAMETER_STRUCT_REF(FViewUniformShaderParameters, View)
+	SHADER_PARAMETER_STRUCT_INCLUDE(FViewShaderParameters, View)
 	SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FSceneUniformParameters, Scene)
 END_SHADER_PARAMETER_STRUCT()
 
@@ -559,7 +559,7 @@ void FRayTracingDynamicGeometryCollection::AddDynamicGeometryUpdatePass(const FV
 	}
 
 	FRayTracingDynamicGeometryUpdatePassParams* PassParams = GraphBuilder.AllocParameters<FRayTracingDynamicGeometryUpdatePassParams>();
-	PassParams->View = View.ViewUniformBuffer;
+	PassParams->View = View.GetShaderParameters();
 	PassParams->Scene = View.GetSceneUniforms().GetBuffer(GraphBuilder);
 	PassParams->DynamicGeometryScratchBuffer = OutDynamicGeometryScratchBuffer;	
 
