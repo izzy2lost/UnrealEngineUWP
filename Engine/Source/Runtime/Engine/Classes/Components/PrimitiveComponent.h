@@ -124,6 +124,16 @@ enum class ERayTracingGroupCullingPriority : uint8
 	CP_8_QUICKLY_CULL UMETA(DisplayName = "8 - Quickly cull")
 };
 
+/** Determines how a primitive interacts with first person rendering. */
+UENUM()
+enum class EFirstPersonPrimitiveType : uint8
+{
+	/** Primitive does not interact with first person rendering. */
+	None UMETA(DisplayName = "None"),
+	/** Primitive is rendered as first person and affected by first person properties on the camera. */
+	FirstPerson UMETA(DisplayName = "First Person"),
+};
+
 /** Converts a stencil mask from the editor's USTRUCT version to the version the renderer uses. */
 struct FRendererStencilMaskEvaluation
 {
@@ -648,9 +658,9 @@ public:
 	UPROPERTY()
 	uint8 bRayTracingFarField : 1;
 
-	/** If this is true, the camera FirstPersonFieldOfView and FirstPersonScale parameters will be used on this component. These parameters can be used to render the component with a different field of view and a smaller depth range such that clipping with the scene can be avoided. This is useful for rendering first person view geometry. */
-	UPROPERTY(EditAnywhere, AdvancedDisplay, BlueprintReadWrite, Category = Rendering)
-	uint8 bIsFirstPerson : 1;
+	/** If this is set to FirstPerson, the camera FirstPersonFieldOfView and FirstPersonScale parameters will be used on this component. These parameters can be used to render the component with a different field of view and a smaller depth range such that clipping with the scene can be avoided. This is useful for rendering first person view geometry. */
+	UPROPERTY(EditAnywhere, AdvancedDisplay, BlueprintReadOnly, Category = Rendering)
+	EFirstPersonPrimitiveType FirstPersonPrimitiveType;
 
 protected:
 	/** Result of last call to AreAllCollideableDescendantsRelative(). */
@@ -1971,9 +1981,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Rendering")
 	ENGINE_API void SetHiddenInSceneCapture(bool bValue);
 
-	/** Sets bIsFirstPerson property and marks the render state dirty. */
+	/** Sets FirstPersonPrimitiveType property and marks the render state dirty. */
 	UFUNCTION(BlueprintCallable, Category = "Rendering")
-	ENGINE_API void SetIsFirstPerson(bool bValue);
+	ENGINE_API void SetFirstPersonPrimitiveType(EFirstPersonPrimitiveType Value);
 
 	/**
 	 * Count of all component overlap events (begin or end) ever generated for any components.

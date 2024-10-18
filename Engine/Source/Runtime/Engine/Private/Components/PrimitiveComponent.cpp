@@ -408,7 +408,7 @@ UPrimitiveComponent::UPrimitiveComponent(const FObjectInitializer& ObjectInitial
 	bVisibleInSceneCaptureOnly = false;
 	bHiddenInSceneCapture = false;
 
-	bIsFirstPerson = false;
+	FirstPersonPrimitiveType = EFirstPersonPrimitiveType::None;
 }
 
 bool UPrimitiveComponent::UsesOnlyUnlitMaterials() const
@@ -1216,7 +1216,7 @@ void UPrimitiveComponent::PostEditChangeProperty(FPropertyChangedEvent& Property
 		}
 
 		// bIsFirstPerson can be toggled at runtime and needs to propagate to the scene proxy.
-		if (PropertyName == GET_MEMBER_NAME_CHECKED(UPrimitiveComponent, bIsFirstPerson))
+		if (PropertyName == GET_MEMBER_NAME_CHECKED(UPrimitiveComponent, FirstPersonPrimitiveType))
 		{
 			MarkRenderStateDirty();
 		}
@@ -4603,11 +4603,11 @@ void UPrimitiveComponent::SetHiddenInSceneCapture(bool bValue)
 	}
 }
 
-void UPrimitiveComponent::SetIsFirstPerson(bool bValue)
+void UPrimitiveComponent::SetFirstPersonPrimitiveType(EFirstPersonPrimitiveType Value)
 {
-	if (bIsFirstPerson != bValue)
+	if (FirstPersonPrimitiveType != Value)
 	{
-		bIsFirstPerson = bValue;
+		FirstPersonPrimitiveType = Value;
 		MarkRenderStateDirty();
 	}
 }
