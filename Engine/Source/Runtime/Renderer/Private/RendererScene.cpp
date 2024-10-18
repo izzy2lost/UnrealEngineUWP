@@ -5758,11 +5758,18 @@ void FScene::Update(FRDGBuilder& GraphBuilder, const FUpdateParameters& Paramete
 				LumenRemovePrimitive(PrimitiveSceneInfo, PrimitiveIndex);
 
 #if RHI_RAYTRACING
-				if (SceneProxy->IsNaniteMesh() && SceneProxy->HasRayTracingRepresentation())
+				if (SceneProxy->HasRayTracingRepresentation())
 				{
-					((FRayTracingGeometryManager*)GRayTracingGeometryManager)->UnregisterProxyWithCachedRayTracingState(SceneProxy, SceneProxy->GetRayTracingGeometryGroupHandle());
+					RayTracing::GeometryGroupHandle RayTracingGeometryGroupHandle = SceneProxy->GetRayTracingGeometryGroupHandle();
+					if (RayTracingGeometryGroupHandle != INDEX_NONE)
+					{
+						((FRayTracingGeometryManager*)GRayTracingGeometryManager)->UnregisterProxyWithCachedRayTracingState(SceneProxy, RayTracingGeometryGroupHandle);
+					}
 
-					Nanite::GRayTracingManager.Remove(PrimitiveSceneInfo);
+					if (SceneProxy->IsNaniteMesh())
+					{
+						Nanite::GRayTracingManager.Remove(PrimitiveSceneInfo);
+					}
 				}
 #endif
 
@@ -6084,11 +6091,19 @@ void FScene::Update(FRDGBuilder& GraphBuilder, const FUpdateParameters& Paramete
 				LumenAddPrimitive(PrimitiveSceneInfo);
 
 #if RHI_RAYTRACING
-				if (SceneProxy->IsNaniteMesh() && SceneProxy->HasRayTracingRepresentation())
+				if (SceneProxy->HasRayTracingRepresentation())
 				{
-					((FRayTracingGeometryManager*)GRayTracingGeometryManager)->RegisterProxyWithCachedRayTracingState(SceneProxy, SceneProxy->GetRayTracingGeometryGroupHandle());
+					// TODO: investigate registering proxy when data is actually cached (for example, in FPrimitiveSceneInfo::CacheRayTracingPrimitives(...))
+					RayTracing::GeometryGroupHandle RayTracingGeometryGroupHandle = SceneProxy->GetRayTracingGeometryGroupHandle();
+					if (RayTracingGeometryGroupHandle != INDEX_NONE)
+					{
+						((FRayTracingGeometryManager*)GRayTracingGeometryManager)->RegisterProxyWithCachedRayTracingState(SceneProxy, RayTracingGeometryGroupHandle);
+					}
 
-					Nanite::GRayTracingManager.Add(PrimitiveSceneInfo);
+					if (SceneProxy->IsNaniteMesh())
+					{
+						Nanite::GRayTracingManager.Add(PrimitiveSceneInfo);
+					}
 				}
 #endif
 
