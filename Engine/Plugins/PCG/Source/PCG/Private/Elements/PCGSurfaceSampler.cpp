@@ -46,12 +46,12 @@ namespace PCGSurfaceSampler
 
 	bool FSurfaceSamplerData::Initialize(const FPCGContext* Context, const FBox& InEffectiveGridBounds, const FTransform& InSurfaceTransform)
 	{
-		if (!Context || !InEffectiveGridBounds.IsValid)
+		if (!InEffectiveGridBounds.IsValid)
 		{
 			return false;
 		}
 
-		Seed = Context->GetSeed();
+		Seed = Context ? Context->GetSeed() : 42;
 
 		// Conceptually, we will break down the surface bounds in a N x M grid
 		InterstitialDistance = Params.PointExtents * 2;
