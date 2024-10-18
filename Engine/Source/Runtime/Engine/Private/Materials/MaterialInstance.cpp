@@ -2026,6 +2026,11 @@ bool UMaterialInstance::HasMeshPaintTexture() const
 	return Parent ? Parent->HasMeshPaintTexture() : false;
 }
 
+bool UMaterialInstance::HasCustomPrimitiveData() const
+{
+	return Parent ? Parent->HasCustomPrimitiveData() : false;
+}
+
 const FMaterialResource* UMaterialInstance::GetMaterialResource(ERHIFeatureLevel::Type InFeatureLevel, EMaterialQualityLevel::Type QualityLevel) const
 {
 	return const_cast<UMaterialInstance*>(this)->GetMaterialResource(InFeatureLevel, QualityLevel);

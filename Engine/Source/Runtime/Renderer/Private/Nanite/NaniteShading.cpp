@@ -570,6 +570,7 @@ uint32 PackMaterialBitFlags(const FMaterial& Material, uint32 BoundTargetMask, b
 	Flags.bPixelDiscard = Material.IsMasked();
 	Flags.bPixelDepthOffset = Material.MaterialUsesPixelDepthOffset_RenderThread();
 	Flags.bWorldPositionOffset = Material.MaterialUsesWorldPositionOffset_RenderThread();
+	Flags.bAllowVRS = Material.IsVariableRateShadingAllowed();
 	Flags.bDisplacement = UseNaniteTessellation() && Material.MaterialUsesDisplacement_RenderThread();
 	Flags.bNoDerivativeOps = bNoDerivativeOps;
 	Flags.bTwoSided = Material.IsTwoSided();

@@ -516,11 +516,6 @@ float4 LoadNaniteMaterialOverlayColor(uint InPrimitiveIndex)
 	return PrimitiveData.OverlayColor;
 }
 
-uint GetMaterialBucketIdFromDepth(float Depth)
-{
-	return (uint)(Depth * NANITE_MAX_STATE_BUCKET_ID);
-}
-
 float3 UnpackTangentX(float3 TangentZ, uint TangentAngleBits, uint NumTangentBits)
 {
 	const bool bSwapXZ = (abs(TangentZ.z) > abs(TangentZ.x));

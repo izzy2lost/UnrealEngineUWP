@@ -1451,6 +1451,11 @@ bool UMaterialInterface::HasMeshPaintTexture() const
 	return false;
 }
 
+bool UMaterialInterface::HasCustomPrimitiveData() const
+{
+	return false;
+}
+
 FMaterialShadingModelField UMaterialInterface::GetShadingModels() const
 {
 	return MSM_DefaultLit;
