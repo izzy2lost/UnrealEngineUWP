@@ -62,6 +62,9 @@ bool FAndroidTargetPlatformSettings::SupportsFeature(ETargetPlatformFeatures Fea
 	case ETargetPlatformFeatures::DeviceOutputLog:
 		return true;
 
+	case ETargetPlatformFeatures::ShowAggregateDevice:
+		return false;
+	
 	case ETargetPlatformFeatures::LowQualityLightmaps:
 	case ETargetPlatformFeatures::MobileRendering:
 		return SupportsES31() || SupportsVulkan();

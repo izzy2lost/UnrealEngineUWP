@@ -509,13 +509,36 @@ public class AndroidPlatform : Platform
 
 		return bHaveAndroidStudio;
 	}
-
-
-
-
-
-
-
+	
+	public override DeviceInfo[] GetDevices()
+	{
+		List<DeviceInfo> Devices = new List<DeviceInfo>();
+		
+		List<string> ConnectedDevices;
+		GetConnectedDevices(null, out ConnectedDevices);
+		
+		foreach (string ConnectedDeviceName in ConnectedDevices)
+		{
+			DeviceInfo CurrentDevice = new DeviceInfo(TargetPlatformType);
+			// GetConnectedDevices returns valid device names with an '@' in front
+			CurrentDevice.Name = ConnectedDeviceName.StartsWith("@") ? ConnectedDeviceName.Remove(0, 1) : ConnectedDeviceName; 
+			
+			CurrentDevice.Id = CurrentDevice.Name;
+			CurrentDevice.bCanConnect = ConnectedDeviceName.StartsWith("@");
+			
+			// Instead, we return the SDK Version, and other parts of the code were adjusted
+			string GetPropCommand = "shell getprop";
+			string SDKVersionCommand = $"{GetPropCommand} ro.build.version.sdk";
+			IProcessResult Result = RunAdbCommand(CurrentDevice.Name, SDKVersionCommand);
+			if (Result.Output.Length > 0)
+			{
+				CurrentDevice.SoftwareVersion = Result.Output.Trim();
+			}
+						
+			Devices.Add(CurrentDevice);
+		}
+		return Devices.ToArray();
+	}
 
 
 

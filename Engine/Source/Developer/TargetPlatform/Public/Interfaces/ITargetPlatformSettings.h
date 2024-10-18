@@ -106,8 +106,8 @@ enum class ETargetPlatformFeatures
 	/** The platform supports Luminance + Alpha encoding mode for normalmaps */
 	NormalmapLAEncodingMode,
 
-	/** All devices of this platform should be grouped under one platform group */
-	ShowAsPlatformGroup,
+	/** Should the Aggregate Device be shown for this platform (ex: All_Android_on_...) */
+	ShowAggregateDevice,
 
 	/** Does the platform allow various connection types to be used (ie: wifi and usb) */
 	SupportsMultipleConnectionTypes,

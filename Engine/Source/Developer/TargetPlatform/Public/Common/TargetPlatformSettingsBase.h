@@ -114,6 +114,9 @@ public:
 		case ETargetPlatformFeatures::CanCookPackages:
 			return false;
 
+		case ETargetPlatformFeatures::ShowAggregateDevice:
+			return true;
+
 		case ETargetPlatformFeatures::TextureStreaming:
 			return TPlatformProperties::SupportsTextureStreaming();
 		case ETargetPlatformFeatures::MeshLODStreaming:
