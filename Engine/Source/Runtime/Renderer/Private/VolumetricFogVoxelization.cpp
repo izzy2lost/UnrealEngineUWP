@@ -683,7 +683,7 @@ void VoxelizeVolumePrimitive(FVoxelizeVolumeMeshProcessor& PassMeshProcessor,
 }
 
 BEGIN_SHADER_PARAMETER_STRUCT(FVoxelizeVolumePassParameters, )
-	SHADER_PARAMETER_STRUCT_REF(FViewUniformShaderParameters, View)
+	SHADER_PARAMETER_STRUCT_INCLUDE(FViewShaderParameters, View)
 	SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FSceneUniformParameters, Scene)
 	SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FVoxelizeVolumePassUniformParameters, Pass)
 	SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FInstanceCullingGlobalUniforms, InstanceCulling)
@@ -726,7 +726,8 @@ void FSceneRenderer::VoxelizeFogVolumePrimitives(
 				View.PrevViewInfo.ViewMatrices
 			);
 
-			PassParameters->View = TUniformBufferRef<FViewUniformShaderParameters>::CreateUniformBufferImmediate(ViewVoxelizeParameters, UniformBuffer_SingleFrame);
+			PassParameters->View.View = TUniformBufferRef<FViewUniformShaderParameters>::CreateUniformBufferImmediate(ViewVoxelizeParameters, UniformBuffer_SingleFrame);;
+			PassParameters->View.InstancedView = View.GetInstancedViewUniformBuffer();
 		}
 		PassParameters->Scene = GetSceneUniforms().GetBuffer(GraphBuilder);
 
