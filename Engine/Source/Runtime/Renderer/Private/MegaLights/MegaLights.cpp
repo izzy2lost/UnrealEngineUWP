@@ -74,6 +74,20 @@ static TAutoConsoleVariable<int32> CVarMegaLightsTemporal(
 	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 
+static TAutoConsoleVariable<int32> CVarMegaLightsTemporalMinFramesAccumulatedForHistoryMiss(
+	TEXT("r.MegaLights.Temporal.MinFramesAccumulatedForHistoryMiss"),
+	1,
+	TEXT("Minimal amount of history length when reducing history length due to a history miss. Higher values than 1 soften and slowdown transitions."),
+	ECVF_Scalability | ECVF_RenderThreadSafe
+);
+
+static TAutoConsoleVariable<int32> CVarMegaLightsTemporalMinFramesAccumulatedForHighConfidence(
+	TEXT("r.MegaLights.Temporal.MinFramesAccumulatedForHighConfidence"),
+	2,
+	TEXT("Minimal amount of history length when reducing history length due to a high confidence. Higher values than 1 soften image, but reduce noise in high confidence areas."),
+	ECVF_Scalability | ECVF_RenderThreadSafe
+);
+
 static TAutoConsoleVariable<int32> CVarMegaLightsTemporalMaxFramesAccumulated(
 	TEXT("r.MegaLights.Temporal.MaxFramesAccumulated"),
 	12,
@@ -987,6 +1001,8 @@ class FDenoiserTemporalCS : public FGlobalShader
 		SHADER_PARAMETER(FVector4f, HistoryUVMinMax)
 		SHADER_PARAMETER(FVector4f, HistoryGatherUVMinMax)
 		SHADER_PARAMETER(float, PrevSceneColorPreExposureCorrection)
+		SHADER_PARAMETER(float, MinFramesAccumulatedForHistoryMiss)
+		SHADER_PARAMETER(float, MinFramesAccumulatedForHighConfidence)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float4>, RWDiffuseLightingAndSecondMoment)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float4>, RWSpecularLightingAndSecondMoment)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<UNORM float>, RWNumFramesAccumulated)
@@ -1789,6 +1805,8 @@ void FDeferredShadingSceneRenderer::RenderMegaLights(FRDGBuilder& GraphBuilder, 
 			PassParameters->MegaLightsDepthHistory = SceneDepthHistory;
 			PassParameters->MegaLightsNormalAndShading = SceneNormalAndShadingHistory;
 			PassParameters->PrevSceneColorPreExposureCorrection = View.PreExposure / View.PrevViewInfo.SceneColorPreExposure;
+			PassParameters->MinFramesAccumulatedForHistoryMiss = FMath::Clamp(CVarMegaLightsTemporalMinFramesAccumulatedForHistoryMiss.GetValueOnRenderThread(), 1.0f, MegaLights::GetTemporalMaxFramesAccumulated());
+			PassParameters->MinFramesAccumulatedForHighConfidence = FMath::Clamp(CVarMegaLightsTemporalMinFramesAccumulatedForHighConfidence.GetValueOnRenderThread(), 1.0f, MegaLights::GetTemporalMaxFramesAccumulated());
 			PassParameters->HistoryScreenPositionScaleBias = HistoryScreenPositionScaleBias;
 			PassParameters->HistoryUVMinMax = HistoryUVMinMax;
 			PassParameters->HistoryGatherUVMinMax = HistoryGatherUVMinMax;

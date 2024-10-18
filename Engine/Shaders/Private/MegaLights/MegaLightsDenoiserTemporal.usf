@@ -26,6 +26,8 @@ float4 HistoryScreenPositionScaleBias;
 float4 HistoryUVMinMax;
 float4 HistoryGatherUVMinMax;
 float PrevSceneColorPreExposureCorrection;
+float MinFramesAccumulatedForHistoryMiss;
+float MinFramesAccumulatedForHighConfidence;
 float TemporalMaxFramesAccumulated;
 float TemporalNeighborhoodClampScale;
 
@@ -375,18 +377,17 @@ void DenoiserTemporalCS(
 						float ClampedHistoryDiffuseSecondMoment = max(HistoryDiffuseSecondMoment, 0.0f);
 						float ClampedHistorySpecularSecondMoment = max(HistorySpecularSecondMoment, 0.0f);
 
-						// Blend a bit of history even when we have low confidence in order to smoothen transitions
-						DiffuseConfidence = 0.75f * DiffuseConfidence + 0.25f;
-						SpecularConfidence = 0.75f * SpecularConfidence + 0.25f;
-
 						// Reproject and rescale normalized NumFramesAccumulated
 						float NumFramesAccumulatedHistory = 0.0f;
 						NumFramesAccumulatedHistory = UnpackNumFramesAccumulated(dot(NumFramesAccumulatedHistoryTexture.GatherRed(GlobalPointClampedSampler, HistoryGatherUV).wzxy, HistoryWeights) / dot(HistoryWeights, 1.0f));
 						
+						float MaxConfidenceFrames = lerp(MinFramesAccumulatedForHighConfidence, TemporalMaxFramesAccumulated, ShadingConfidenceWeight(ShadingConfidence));
+						float MaxDiffuseFrames = min(lerp(MinFramesAccumulatedForHistoryMiss, TemporalMaxFramesAccumulated, DiffuseConfidence), MaxConfidenceFrames);
+						float MaxSpecularFrames = min(lerp(MinFramesAccumulatedForHistoryMiss, TemporalMaxFramesAccumulated, SpecularConfidence), MaxConfidenceFrames);
+
 						// Advance the frame counter
-						float MaxFrames = ShadingConfidenceWeight(ShadingConfidence) * (TemporalMaxFramesAccumulated - 1.0f) + 1.0f;
-						float DiffuseNumFramesAccumulated = min(NumFramesAccumulatedHistory * DiffuseConfidence + 1.0f, MaxFrames);
-						float SpecularNumFramesAccumulated = min(NumFramesAccumulatedHistory * SpecularConfidence + 1.0f, MaxFrames);
+						float DiffuseNumFramesAccumulated = min(NumFramesAccumulatedHistory + 1.0f, MaxDiffuseFrames);
+						float SpecularNumFramesAccumulated = min(NumFramesAccumulatedHistory + 1.0f, MaxSpecularFrames);
 						NumFramesAccumulated = lerp(DiffuseNumFramesAccumulated, SpecularNumFramesAccumulated, 0.5f);
 
 						// Blend history with new samples
@@ -419,12 +420,10 @@ void DenoiserTemporalCS(
 							Newline(Debug.Context);
 							Print(Debug.Context, TEXT("Diffuse             : "));
 							Print(Debug.Context, DiffuseLighting, FontValue);
+							Print(Debug.Context, Luminance(DiffuseLighting), FontValue);
 							Newline(Debug.Context);
 							Print(Debug.Context, TEXT("Specular            : "));
 							Print(Debug.Context, SpecularLighting, FontValue);
-							Newline(Debug.Context);
-							Print(Debug.Context, TEXT("Luminance           : "));
-							Print(Debug.Context, Luminance(DiffuseLighting), FontValue);
 							Print(Debug.Context, Luminance(SpecularLighting), FontValue);
 							Newline(Debug.Context);
 							Print(Debug.Context, TEXT("Confidence          : "));
