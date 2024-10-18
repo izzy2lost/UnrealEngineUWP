@@ -1704,7 +1704,7 @@ bool UPCGCustomHLSLSettings::GetGeneratedFunctions(FString* OutFunctions, FText*
 #if PCG_KERNEL_LOGGING_ENABLED
 			if (OutErrorText)
 			{
-				*OutErrorText = LOCTEXT("InvalidCopyTargetPin", "CopyFromElement only allowed across pins of matching type.");
+				*OutErrorText = LOCTEXT("InvalidCopyPinTypes", "CopyFromElement only allowed across pins of matching type.");
 			}
 #endif
 			return false;
