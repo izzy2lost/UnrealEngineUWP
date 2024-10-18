@@ -85,14 +85,6 @@ int32 RunLiveLinkHub(const TCHAR* CommandLine)
 	// Used by Live Coding, among other things.
 	FPlatformMisc::SetUBTTargetName(TEXT("LiveLinkHub"));
 
-	// We need to specify this manually, because it isn't inferred from the command line.
-	// But we can't set it too early, because LaunchSetGameName clears it.
-	FCoreDelegates::OnInit.AddStatic([]()
-	{
-		// Required for OpenXR instance registration.
-		FApp::SetProjectName(TEXT("LiveLinkHub"));
-	});
-
 	// Plugin directory config save/load
 	FCoreDelegates::TSConfigReadyForUse().AddStatic(LiveLinkHub::PluginHelpers::RestoreSavedPluginDirectories);
 	FCoreDelegates::OnAllModuleLoadingPhasesComplete.AddLambda([&bPendingRestart]()
@@ -115,7 +107,9 @@ int32 RunLiveLinkHub(const TCHAR* CommandLine)
 
 	// Start up the main loop, adding some extra command line arguments:
 #if !IS_PROGRAM
-	int32 Result = GEngineLoop.PreInit(*FString::Printf(TEXT("%s %s"), CommandLine, TEXT("-xrtrackingonly")));
+	const TCHAR* const ExtraArgs = TEXT("-xrtrackingonly");
+	int32 Result = GEngineLoop.PreInit(*FString::Printf(TEXT("%s %s %s"),
+		*FPaths::GetProjectFilePath(), CommandLine, ExtraArgs));
 #else
 	int32 Result = GEngineLoop.PreInit(*FString::Printf(TEXT("%s %s"), CommandLine, TEXT("-RUN=LiveLinkHubCommandlet -Messaging -DDC=NoShared -NoShaderCompile")));
 #endif
