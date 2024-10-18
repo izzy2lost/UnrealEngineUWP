@@ -1005,15 +1005,6 @@ void FPCGActorAndComponentMapping::RegisterTracking(UPCGComponent* InComponent)
 	AlwaysTrackedKeysToComponentsMap.FindOrAdd(FPCGSelectionKey(EPCGActorFilter::Self)).Add(InComponent);
 
 	UpdateTracking(InComponent, /*bInShouldDirtyActors=*/ false);
-
-	// Add tracking for when the graph was generated/cleaned, only once
-	if (!InComponent->OnPCGGraphGeneratedDelegate.IsBoundToObject(this))
-	{
-		InComponent->OnPCGGraphGeneratedDelegate.AddRaw(this, &FPCGActorAndComponentMapping::OnPCGGraphGeneratedOrCleaned);
-		InComponent->OnPCGGraphCleanedDelegate.AddRaw(this, &FPCGActorAndComponentMapping::OnPCGGraphGeneratedOrCleaned);
-		InComponent->OnPCGGraphStartGeneratingDelegate.AddRaw(this, &FPCGActorAndComponentMapping::OnPCGGraphStartsGenerating);
-		InComponent->OnPCGGraphCancelledDelegate.AddRaw(this, &FPCGActorAndComponentMapping::OnPCGGraphCancelled);
-	}
 }
 
 void FPCGActorAndComponentMapping::UpdateTracking(UPCGComponent* InComponent, bool bInShouldDirtyActors, const TArray<FPCGSelectionKey>* ChangedKeys)
@@ -1109,24 +1100,6 @@ void FPCGActorAndComponentMapping::RemapTracking(const UPCGComponent* InOldCompo
 	{
 		It.Value.RemoveSwap(InOldComponent);
 	}
-
-	// Old component will probably die, but we'll force removing the delegates even if it is const.
-	if (UPCGComponent* MutableOldComponent = const_cast<UPCGComponent*>(InOldComponent))
-	{
-		MutableOldComponent->OnPCGGraphGeneratedDelegate.RemoveAll(this);
-		MutableOldComponent->OnPCGGraphCleanedDelegate.RemoveAll(this);
-		MutableOldComponent->OnPCGGraphStartGeneratingDelegate.RemoveAll(this);
-		MutableOldComponent->OnPCGGraphCancelledDelegate.RemoveAll(this);
-	}
-
-	// And just making sure we are not registering multiple times
-	if (!InNewComponent->OnPCGGraphGeneratedDelegate.IsBoundToObject(this))
-	{
-		InNewComponent->OnPCGGraphGeneratedDelegate.AddRaw(this, &FPCGActorAndComponentMapping::OnPCGGraphGeneratedOrCleaned);
-		InNewComponent->OnPCGGraphCleanedDelegate.AddRaw(this, &FPCGActorAndComponentMapping::OnPCGGraphGeneratedOrCleaned);
-		InNewComponent->OnPCGGraphStartGeneratingDelegate.AddRaw(this, &FPCGActorAndComponentMapping::OnPCGGraphStartsGenerating);
-		InNewComponent->OnPCGGraphCancelledDelegate.AddRaw(this, &FPCGActorAndComponentMapping::OnPCGGraphCancelled);
-	}
 }
 
 void FPCGActorAndComponentMapping::UnregisterTracking(UPCGComponent* InComponent, const TSet<FPCGSelectionKey>* OptionalKeysToUntrack)
@@ -1190,11 +1163,6 @@ void FPCGActorAndComponentMapping::UnregisterTracking(UPCGComponent* InComponent
 	}
 
 	UnregisterTracking(InComponent, nullptr);
-
-	InComponent->OnPCGGraphGeneratedDelegate.RemoveAll(this);
-	InComponent->OnPCGGraphCleanedDelegate.RemoveAll(this);
-	InComponent->OnPCGGraphStartGeneratingDelegate.RemoveAll(this);
-	InComponent->OnPCGGraphCancelledDelegate.RemoveAll(this);
 }
 
 bool FPCGActorAndComponentMapping::IsKeyTracked(const FPCGSelectionKey& InKey) const
@@ -1293,23 +1261,6 @@ void FPCGActorAndComponentMapping::UnregisterDelegates()
 		if (ULevelInstanceSubsystem* LevelInstanceSubsystem = UWorld::GetSubsystem<ULevelInstanceSubsystem>(World))
 		{
 			LevelInstanceSubsystem->OnLevelInstancesUpdated().RemoveAll(this);
-		}
-	}
-
-	TSet<UPCGComponent*> StillRegisteredComponents = GetAllRegisteredComponents();
-	// FIXME: When the changes to unregister will go in, we can enable this ensure. At the moment, we didn't unregister when the world is shutdown
-	// because the subsystem is dead before we destroy the component. So it is expected to have still all of those components registered at that point.
-	//if (!ensureMsgf(StillRegisteredComponents.IsEmpty(), TEXT("Found components not unregistered during PCG subsystem shutdown.")))
-	{
-		for (UPCGComponent* Component : StillRegisteredComponents)
-		{
-			if (IsValid(Component))
-			{
-				Component->OnPCGGraphGeneratedDelegate.RemoveAll(this);
-				Component->OnPCGGraphCleanedDelegate.RemoveAll(this);
-				Component->OnPCGGraphStartGeneratingDelegate.RemoveAll(this);
-				Component->OnPCGGraphCancelledDelegate.RemoveAll(this);
-			}
 		}
 	}
 }

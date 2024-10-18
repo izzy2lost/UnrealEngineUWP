@@ -1853,6 +1853,26 @@ TSet<TObjectPtr<APCGPartitionActor>> UPCGSubsystem::GetPCGComponentPartitionActo
 	return ActorAndComponentMapping.GetPCGComponentPartitionActorMappings(InComponent); 
 }
 
+void UPCGSubsystem::OnPCGGraphCancelled(UPCGComponent* InComponent)
+{
+	ActorAndComponentMapping.OnPCGGraphCancelled(InComponent);
+}
+
+void UPCGSubsystem::OnPCGGraphStartGenerating(UPCGComponent* InComponent)
+{
+	ActorAndComponentMapping.OnPCGGraphStartsGenerating(InComponent);
+}
+
+void UPCGSubsystem::OnPCGGraphGenerated(UPCGComponent* InComponent)
+{
+	ActorAndComponentMapping.OnPCGGraphGeneratedOrCleaned(InComponent);
+}
+
+void UPCGSubsystem::OnPCGGraphCleaned(UPCGComponent* InComponent)
+{
+	ActorAndComponentMapping.OnPCGGraphGeneratedOrCleaned(InComponent);
+}
+
 #endif // WITH_EDITOR
 
 UPCGData* UPCGSubsystem::GetPCGData(FPCGTaskId InGraphExecutionTaskId)

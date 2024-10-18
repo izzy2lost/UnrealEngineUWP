@@ -468,6 +468,10 @@ FPCGTaskId UPCGComponent::GenerateInternal(bool bForce, EPCGHiGenGrid Grid, EPCG
 	if (CurrentGenerationTask != InvalidPCGTaskId)
 	{
 #if WITH_EDITOR
+		// Notify Subsystem first
+		GetSubsystem()->OnPCGGraphStartGenerating(this);
+		
+		// Notify Delegate next
 		OnPCGGraphStartGeneratingDelegate.Broadcast(this);
 #endif // WITH_EDITOR
 
@@ -640,8 +644,13 @@ void UPCGComponent::PostProcessGraph(const FBox& InNewBounds, bool bInGenerated,
 		bForceGenerateOnBPAddedToWorld = false;
 
 		bDirtyGenerated = false;
-		OnPCGGraphGeneratedDelegate.Broadcast(this);
 
+		// Notify Subsystem first
+		GetSubsystem()->OnPCGGraphGenerated(this);
+
+		// Notify Delegate next
+		OnPCGGraphGeneratedDelegate.Broadcast(this);
+		
 		UpdateDynamicTracking();
 #endif // WITH_EDITOR
 
@@ -738,6 +747,13 @@ void UPCGComponent::PostCleanupGraph()
 	GeneratedGraphOutput.Reset();
 
 #if WITH_EDITOR
+	// Notify Subsystem first
+	if (UPCGSubsystem* Subsystem = GetSubsystem())
+	{
+		Subsystem->OnPCGGraphCleaned(this);
+	}
+
+	// Notify Delegate next
 	OnPCGGraphCleanedDelegate.Broadcast(this);
 	bDirtyGenerated = false;
 
@@ -780,9 +796,13 @@ void UPCGComponent::OnProcessGraphAborted(bool bQuiet, bool bCleanupUnusedResour
 
 	StopGenerationInProgress();
 
+	// Notify Subsystem first
+	UPCGSubsystem* Subsystem = GetSubsystem();
+	Subsystem->OnPCGGraphCancelled(this);
+
+	// Notify Delegate next
 	OnPCGGraphCancelledDelegate.Broadcast(this);
 
-	UPCGSubsystem* Subsystem = GetSubsystem();
 	Subsystem->OnPCGComponentGenerationDone.Broadcast(Subsystem, this, EPCGGenerationStatus::Aborted);
 #endif
 

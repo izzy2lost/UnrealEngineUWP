@@ -357,6 +357,11 @@ private:
 		Generate
 	};
 
+	void OnPCGGraphCancelled(UPCGComponent* InComponent);
+	void OnPCGGraphStartGenerating(UPCGComponent* InComponent);
+	void OnPCGGraphGenerated(UPCGComponent* InComponent);
+	void OnPCGGraphCleaned(UPCGComponent* InComponent);
+
 	void CreatePartitionActorsWithinBounds(UPCGComponent* InComponent, const FBox& InBounds, const PCGHiGenGrid::FSizeArray& InGridSizes);
 	void UpdateMappingPCGComponentPartitionActor(UPCGComponent* InComponent);
 	TSet<TObjectPtr<APCGPartitionActor>> GetPCGComponentPartitionActorMappings(UPCGComponent* InComponent) const;
