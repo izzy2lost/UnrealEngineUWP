@@ -47,6 +47,7 @@
 #include "Widgets/Layout/SScaleBox.h"
 #include "Widgets/Layout/SSpacer.h"
 #include "AssetThumbnail.h"
+#include "Framework/Application/SlateApplication.h"
 
 #define LOCTEXT_NAMESPACE "NiagaraOverviewStackNode"
 
@@ -414,6 +415,12 @@ void SNiagaraOverviewStackNode::Tick(const FGeometry& AllottedGeometry, const do
 {
 	if (OverviewStackNode != nullptr)
 	{
+		// To support drag & drop indicators, we mark the prepass as dirty. This will cause the invalidation widget to render using the slow path, updating the drag & drop indicators properly
+		if(FSlateApplication::Get().IsDragDropping())
+		{
+			ContentAreaWidget->MarkPrepassAsDirty();
+		}
+		
 		if (OverviewStackNode->IsRenamePending() && !SGraphNode::IsRenamePending())
 		{
 			SGraphNode::RequestRename();
