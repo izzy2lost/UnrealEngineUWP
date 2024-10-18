@@ -12,8 +12,8 @@
 
 namespace UE::PixelStreaming2
 {
-	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDataChannelEchoTest, "System.Plugins.PixelStreaming2.FPS2DataChannelEchoTest", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ClientContext | EAutomationTestFlags::ProductFilter)
-	bool FDataChannelEchoTest::RunTest(const FString& Parameters)
+	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FPS2DataChannelEchoTest, "System.Plugins.PixelStreaming2.FPS2DataChannelEchoTest", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ClientContext | EAutomationTestFlags::ProductFilter)
+	bool FPS2DataChannelEchoTest::RunTest(const FString& Parameters)
 	{
 		// need to be able to accept codec to handshake otherwise setting local description fails when generating an answer
 		SetCodec(EVideoCodec::VP8);

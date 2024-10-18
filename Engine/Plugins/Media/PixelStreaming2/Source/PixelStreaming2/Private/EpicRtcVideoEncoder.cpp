@@ -11,6 +11,7 @@
 #include "PixelCaptureOutputFrameI420.h"
 #include "PixelCaptureOutputFrameRHI.h"
 #include "PixelStreaming2PluginSettings.h"
+#include "Stats.h"
 #include "UtilsString.h"
 #include "UtilsVideo.h"
 
@@ -377,8 +378,9 @@ namespace UE::PixelStreaming2
 		// Update the encoding config using the incoming frame resolution (required for dynamic res support)
 		UpdateConfig(Width, Height);
 
-		TSharedPtr<TVideoResource> VideoResource;
+		UpdateFrameMetadataPreEncode(*AdaptedLayer);
 
+		TSharedPtr<TVideoResource> VideoResource;
 		if constexpr (std::is_same_v<TVideoResource, FVideoResourceRHI>)
 		{
 			const FPixelCaptureOutputFrameRHI& RHILayer = StaticCast<const FPixelCaptureOutputFrameRHI&>(*AdaptedLayer);
@@ -417,6 +419,8 @@ namespace UE::PixelStreaming2
 
 		// Encode
 		Encoder->SendFrame(VideoResource, VideoFrame._timestampUs, bKeyFrame);
+
+		UpdateFrameMetadataPostEncode(*AdaptedLayer);
 
 		FVideoPacket Packet;
 		while (Encoder->ReceivePacket(Packet))
@@ -524,7 +528,10 @@ namespace UE::PixelStreaming2
 
 			MaybeDumpFrame(EncodedFrame);
 
+			UpdateFrameMetadataPrePacketization(*AdaptedLayer);
 			EpicRtcVideoEncodedResult Result = VideoEncoderCallback->Encoded(EncodedFrame, CodecSpecificInfo);
+			UpdateFrameMetadataPostPacketization(*AdaptedLayer);
+
 			if (Result._error)
 			{
 				UE_LOGFMT(LogPixelStreaming2, Error, "PixelStreamingVideoEncoder: Failed to push encoded frame");
@@ -736,6 +743,47 @@ namespace UE::PixelStreaming2
 		}
 
 		return SumBps;
+	}
+
+	template <std::derived_from<FVideoResource> TVideoResource>
+	void TEpicRtcVideoEncoder<TVideoResource>::UpdateFrameMetadataPreEncode(IPixelCaptureOutputFrame& Frame)
+	{
+		FPixelCaptureFrameMetadata& FrameMetadata = Frame.Metadata;
+		FrameMetadata.UseCount++;
+		FrameMetadata.LastEncodeStartTime = FPlatformTime::ToMilliseconds64(FPlatformTime::Cycles64());
+		if (FrameMetadata.UseCount == 1)
+		{
+			FrameMetadata.FirstEncodeStartTime = FrameMetadata.LastEncodeStartTime;
+		}
+	}
+
+	template <std::derived_from<FVideoResource> TVideoResource>
+	void TEpicRtcVideoEncoder<TVideoResource>::UpdateFrameMetadataPostEncode(IPixelCaptureOutputFrame& Frame)
+	{
+		FPixelCaptureFrameMetadata& FrameMetadata = Frame.Metadata;
+		FrameMetadata.LastEncodeEndTime = FPlatformTime::ToMilliseconds64(FPlatformTime::Cycles64());
+
+		FStats::Get()->AddFrameTimingStats(FrameMetadata);
+	}
+
+	template <std::derived_from<FVideoResource> TVideoResource>
+	void TEpicRtcVideoEncoder<TVideoResource>::UpdateFrameMetadataPrePacketization(IPixelCaptureOutputFrame& Frame)
+	{
+		FPixelCaptureFrameMetadata& FrameMetadata = Frame.Metadata;
+		FrameMetadata.LastPacketizationStartTime = FPlatformTime::ToMilliseconds64(FPlatformTime::Cycles64());
+		if (FrameMetadata.UseCount == 1)
+		{
+			FrameMetadata.FirstPacketizationStartTime = FrameMetadata.LastPacketizationStartTime;
+		}
+	}
+
+	template <std::derived_from<FVideoResource> TVideoResource>
+	void TEpicRtcVideoEncoder<TVideoResource>::UpdateFrameMetadataPostPacketization(IPixelCaptureOutputFrame& Frame)
+	{
+		FPixelCaptureFrameMetadata& FrameMetadata = Frame.Metadata;
+		FrameMetadata.LastPacketizationEndTime = FPlatformTime::ToMilliseconds64(FPlatformTime::Cycles64());
+
+		FStats::Get()->AddFrameTimingStats(FrameMetadata);
 	}
 
 	// Explicit specialisation

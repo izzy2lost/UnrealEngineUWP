@@ -135,8 +135,8 @@ namespace UE::PixelStreaming2Servers
 		}
 	}
 
-	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLaunchEmbeddedCirrusTest, "System.Plugins.PixelStreaming2.LaunchEmbeddedCirrus", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ClientContext | EAutomationTestFlags::ProductFilter)
-	bool FLaunchEmbeddedCirrusTest::RunTest(const FString& Parameters)
+	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FPS2LaunchEmbeddedCirrus, "System.Plugins.PixelStreaming2.FPS2LaunchEmbeddedCirrus", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ClientContext | EAutomationTestFlags::ProductFilter)
+	bool FPS2LaunchEmbeddedCirrus::RunTest(const FString& Parameters)
 	{
 		UE_LOG(LogPixelStreaming2Servers, Log, TEXT("----------- LaunchEmbeddedCirrusTest -----------"));
 
@@ -185,8 +185,8 @@ namespace UE::PixelStreaming2Servers
 		return true;
 	}
 
-	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FTwoWebsocketToEmbeddedCirrusTest, "System.Plugins.PixelStreaming2.TwoWebsocketToEmbeddedCirrus", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ClientContext | EAutomationTestFlags::ProductFilter)
-	bool FTwoWebsocketToEmbeddedCirrusTest::RunTest(const FString& Parameters)
+	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FPS2TwoWebsocketToEmbeddedCirrusTest, "System.Plugins.PixelStreaming2.FPS2TwoWebsocketToEmbeddedCirrusTest", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ClientContext | EAutomationTestFlags::ProductFilter)
+	bool FPS2TwoWebsocketToEmbeddedCirrusTest::RunTest(const FString& Parameters)
 	{
 		UE_LOG(LogPixelStreaming2Servers, Log, TEXT("----------- TwoWebsocketToEmbeddedCirrus -----------"));
 

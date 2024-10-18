@@ -7,16 +7,16 @@
 
 namespace UE::PixelStreaming2
 {
-	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVP8FrameReceivedTest, "System.Plugins.PixelStreaming2.FPS2VP8FrameReceivedTest", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ClientContext | EAutomationTestFlags::ProductFilter)
-	bool FVP8FrameReceivedTest::RunTest(const FString& Parameters)
+	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FPS2VP8FrameReceivedTest, "System.Plugins.PixelStreaming2.FPS2VP8FrameReceivedTest", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ClientContext | EAutomationTestFlags::ProductFilter)
+	bool FPS2VP8FrameReceivedTest::RunTest(const FString& Parameters)
 	{
 		SetCodec(EVideoCodec::VP8);
 		DoFrameReceiveTest();
 		return true;
 	}
 
-	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVP8FrameResizeTest, "System.Plugins.PixelStreaming2.FPS2VP8FrameResizeTest", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ClientContext | EAutomationTestFlags::ProductFilter)
-	bool FVP8FrameResizeTest::RunTest(const FString& Parameters)
+	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FPS2VP8FrameResizeTest, "System.Plugins.PixelStreaming2.FPS2VP8FrameResizeTest", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ClientContext | EAutomationTestFlags::ProductFilter)
+	bool FPS2VP8FrameResizeTest::RunTest(const FString& Parameters)
 	{
 		SetCodec(EVideoCodec::VP8);
 		DoFrameResizeMultipleTimesTest();
