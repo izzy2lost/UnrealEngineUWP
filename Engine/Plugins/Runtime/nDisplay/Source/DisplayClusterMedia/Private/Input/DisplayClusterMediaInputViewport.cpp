@@ -72,7 +72,7 @@ void FDisplayClusterMediaInputViewport::OnPreSubmitViewFamilies(TArray<FSceneVie
 			FOpenColorIOColorConversionSettings OCIOConversionSettings;
 
 			const bool bSettingsAvailable = Viewport->GetOCIOConversionSettings(OCIOConversionSettings);
-			if (bSettingsAvailable)
+			if (bSettingsAvailable && OCIOConversionSettings.IsValid())
 			{
 				const UWorld* const CurrentWorld = ViewportMgr->GetConfiguration().GetCurrentWorld();
 
@@ -82,14 +82,16 @@ void FDisplayClusterMediaInputViewport::OnPreSubmitViewFamilies(TArray<FSceneVie
 
 				// Get OCIO render pass resources
 				FOpenColorIORenderPassResources OCIOPassResources = FOpenColorIORendering::GetRenderPassResources(OCIOConversionSettings, FeatureLevel);
-
-				// And push it to the rendering thread
-				ENQUEUE_RENDER_COMMAND(DCMediaInputUpdateOCIOResources)(
-					[this, InOCIOPassResources = MoveTemp(OCIOPassResources)](FRHICommandListImmediate& RHICmdList)
-					{
-						OCIOPassResources_RT = InOCIOPassResources;
-					}
-				);
+				if (OCIOPassResources.IsValid())
+				{
+					// And push it to the rendering thread
+					ENQUEUE_RENDER_COMMAND(DCMediaInputUpdateOCIOResources)(
+						[this, InOCIOPassResources = MoveTemp(OCIOPassResources)](FRHICommandListImmediate& RHICmdList)
+						{
+							OCIOPassResources_RT = InOCIOPassResources;
+						}
+					);
+				}
 			}
 		}
 	}
