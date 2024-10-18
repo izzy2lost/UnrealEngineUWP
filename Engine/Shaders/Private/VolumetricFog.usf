@@ -685,6 +685,73 @@ float3 MobileDirectionalLightDirection;
 Texture3D<float> RaytracedShadowsVolume;
 Texture3D<float3> MegaLightsVolume;
 
+// Modify UV used to sample LightScatteringHistory to avoid cells that were occluded last frame
+float2 FixupHistoryUV(float2 UV, float2 Size, float PrevCellNDCPositionZ, out bool bHasValidHistory)
+{
+	float2 FullResUV = UV * Size;
+
+	uint2 ScreenCoord = floor(FullResUV - 0.5f);
+	float2 BilinearWeights = frac(FullResUV - 0.5f);
+	float2 GatherUV = (ScreenCoord + 1.0f) / Size;
+
+	float2 FullResOffset = FullResUV - ScreenCoord;
+
+	const float2 PrevConservativeDepthGatherUV = GatherUV / (PrimaryView.VolumetricFogViewGridUVToPrevViewRectUV.xy * PrimaryView.VolumetricFogPrevViewGridRectUVToResourceUV.xy);
+	const float4 PrevSceneDepths = PrevConservativeDepthTexture.Gather(LightScatteringHistorySampler, PrevConservativeDepthGatherUV);
+	const bool4 ValidSamples = PrevSceneDepths < PrevCellNDCPositionZ;
+	
+	bHasValidHistory = true;
+
+	if (all(ValidSamples))
+	{
+		return UV;
+	}
+	
+	// Gather pattern:
+    // wz
+    // xy
+	
+	if (all(ValidSamples.wz))
+	{
+		return (ScreenCoord + float2(FullResOffset.x, 0.5f)) / Size;
+	}
+	if (all(ValidSamples.xy))
+	{
+		return (ScreenCoord + float2(FullResOffset.x, 1.5f)) / Size;
+	}
+	if (all(ValidSamples.wx))
+	{
+		return (ScreenCoord + float2(0.5f, FullResOffset.y)) / Size;
+	}
+	if (all(ValidSamples.zy))
+	{
+		return (ScreenCoord + float2(1.5f, FullResOffset.y)) / Size;
+	}
+
+	if (ValidSamples.x)
+	{
+		return (ScreenCoord + float2(0.5f, 1.5f)) / Size;
+	}
+
+	if (ValidSamples.y)
+	{
+		return (ScreenCoord + float2(1.5f, 1.5f)) / Size;
+	}
+
+	if (ValidSamples.w)
+	{
+		return (ScreenCoord + float2(0.5f, 0.5f)) / Size;
+	}
+
+	if (ValidSamples.z)
+	{
+		return (ScreenCoord + float2(1.5f, 0.5f)) / Size;
+	}
+
+	bHasValidHistory = false;
+	return UV;
+}
+
 #ifdef LightScatteringCS
 [numthreads(THREADGROUP_SIZE_X, THREADGROUP_SIZE_Y, THREADGROUP_SIZE_Z)]
 void LightScatteringCS(
@@ -696,11 +763,16 @@ void LightScatteringCS(
 	float3 LightScattering = 0;
 	uint NumSuperSamples = 1;
 
+#if USE_TEMPORAL_REPROJECTION
+	float3 HistoryUV = ComputeHistoryVolumeUV_DEPRECATED(ComputeCellTranslatedWorldPosition(GridCoordinate, .5f), UnjitteredPrevTranslatedWorldToClip);
+	bool bHasValidHistory = true;
+#endif
+
 	// If the froxel is behind front depth, do not evaluate any lighting.
-	bool CellWasOccluded = false;
 	if (UseConservativeDepthTexture > 0)
 	{
-		const float3 FarDepthOffset = float3(0.5f, 0.5f, -1.0f);
+		// expand by half voxel towards the camera to support bilinear filtering
+		const float3 FarDepthOffset = float3(0.5f, 0.5f, -0.5f);
 		float3 CellTranslatedWorldPosition = ComputeCellTranslatedWorldPosition(GridCoordinate, FarDepthOffset);
 
 		float4 CellNDCPosition = mul(float4(CellTranslatedWorldPosition, 1), PrimaryView.TranslatedWorldToClip);
@@ -715,23 +787,22 @@ void LightScatteringCS(
 			return;
 		}
 
+#if USE_TEMPORAL_REPROJECTION
+		// TODO: investigate whether using CellTranslatedWorldPosition (which is biased towards camera) is correct here
+		// it might be more accurate to transform unbiased translated world position to previous frame clip space and apply bias towards camera in that space?
 		float4 PrevCellNDCPosition = mul(float4(CellTranslatedWorldPosition, 1), UnjitteredPrevTranslatedWorldToClip);
 		PrevCellNDCPosition.xyz /= PrevCellNDCPosition.w;
-		float2 PrevUVs = PrevCellNDCPosition.xy * float2(0.5f, -0.5f) + 0.5f;
-		const float PrevSceneDepth = PrevConservativeDepthTexture.Load(uint3(PrevConservativeDepthTextureSize * PrevUVs, 0));
-		if (PrevSceneDepth > CellNDCPosition.z)
-		{
-			CellWasOccluded = true;
-		}
+
+		HistoryUV.xy = FixupHistoryUV(HistoryUV.xy, View.VolumetricFogPrevResourceGridSize.xy, PrevCellNDCPosition.z, bHasValidHistory);
+#endif
 	}
 
 #if USE_TEMPORAL_REPROJECTION
-	float3 HistoryUV = ComputeHistoryVolumeUV_DEPRECATED(ComputeCellTranslatedWorldPosition(GridCoordinate, .5f), UnjitteredPrevTranslatedWorldToClip);
 	float HistoryAlpha = HistoryWeight;
 
 	// We need to test with View.VolumetricFogPrevUVMaxForTemporalBlend for HistoryUV because that is what we clamp with in ComputeHistoryVolumeUV_DEPRECATED.
 	FLATTEN
-	if (any(HistoryUV < 0) || any(HistoryUV >= float3(View.VolumetricFogPrevUVMaxForTemporalBlend, 1.0f)) || CellWasOccluded)
+	if (any(HistoryUV < 0) || any(HistoryUV >= float3(View.VolumetricFogPrevUVMaxForTemporalBlend, 1.0f)) || !bHasValidHistory)
 	{
 		HistoryAlpha = 0;
 	}
@@ -978,6 +1049,14 @@ void LightScatteringCS(
 		PreExposedScatteringAndExtinction = lerp(PreExposedScatteringAndExtinction, PreExposedHistoryScatteringAndExtinction, HistoryAlpha);
 	}
 	
+#endif
+
+	// Visualize history rejection for debugging purposes
+#if 0 && USE_TEMPORAL_REPROJECTION
+	if (HistoryAlpha < 0.001f)
+	{
+		PreExposedScatteringAndExtinction = float4(View.PreExposure * float3(1,0,0), Extinction);
+	}
 #endif
 
 	if (all(int3(GridCoordinate) < VolumetricFog.ResourceGridSizeInt))

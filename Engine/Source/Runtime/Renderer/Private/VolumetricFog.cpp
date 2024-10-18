@@ -131,7 +131,7 @@ FAutoConsoleVariableRef CVarVolumetricRectLightTexture(
 	ECVF_RenderThreadSafe
 );
 
-int32 GVolumetricFogConservativeDepth = 0;
+int32 GVolumetricFogConservativeDepth = 1;
 FAutoConsoleVariableRef CVarVolumetricFogConservativeDepth(
 	TEXT("r.VolumetricFog.ConservativeDepth"),
 	GVolumetricFogConservativeDepth,
@@ -1359,6 +1359,9 @@ void FSceneRenderer::SetupVolumetricFog()
 				View.ViewState->VolumetricFogPrevViewGridRectUVToResourceUV = FVector2f::One();
 				View.ViewState->VolumetricFogPrevUVMax = FVector2f::One();
 				View.ViewState->VolumetricFogPrevUVMaxForTemporalBlend = FVector2f::One();
+
+				int32 VolumetricFogResourceGridPixelSize;
+				View.ViewState->VolumetricFogPrevResourceGridSize = GetVolumetricFogResourceGridSize(View, VolumetricFogResourceGridPixelSize);
 			}
 		}
 	}
@@ -1877,6 +1880,7 @@ void FSceneRenderer::ComputeVolumetricFog(FRDGBuilder& GraphBuilder,
 			View.ViewState->VolumetricFogPrevViewGridRectUVToResourceUV = FVector2f(VolumetricFogViewGridSize.X, VolumetricFogViewGridSize.Y) / FVector2f(VolumetricFogResourceGridSize.X, VolumetricFogResourceGridSize.Y);
 			View.ViewState->VolumetricFogPrevUVMax = GetVolumetricFogUVMaxForSampling(ViewRectSize, VolumetricFogResourceGridSize, VolumetricFogGridPixelSize);
 			View.ViewState->VolumetricFogPrevUVMaxForTemporalBlend = GetVolumetricFogPrevUVMaxForTemporalBlend(ViewRectSize, VolumetricFogResourceGridSize, VolumetricFogGridPixelSize);
+			View.ViewState->VolumetricFogPrevResourceGridSize = VolumetricFogResourceGridSize;
 		}
 		else if (View.ViewState)
 		{
@@ -1886,6 +1890,7 @@ void FSceneRenderer::ComputeVolumetricFog(FRDGBuilder& GraphBuilder,
 			View.ViewState->VolumetricFogPrevViewGridRectUVToResourceUV = FVector2f::One();
 			View.ViewState->VolumetricFogPrevUVMax = FVector2f::One();
 			View.ViewState->VolumetricFogPrevUVMaxForTemporalBlend = FVector2f::One();
+			View.ViewState->VolumetricFogPrevResourceGridSize = VolumetricFogResourceGridSize;
 		}
 
 		if (bUseTemporalReprojection && GVolumetricFogConservativeDepth > 0)

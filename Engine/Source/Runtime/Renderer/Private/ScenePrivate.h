@@ -1103,6 +1103,7 @@ public:
 	FVector2f VolumetricFogPrevViewGridRectUVToResourceUV;
 	FVector2f VolumetricFogPrevUVMax;
 	FVector2f VolumetricFogPrevUVMaxForTemporalBlend;
+	FIntVector VolumetricFogPrevResourceGridSize;
 	TRefCountPtr<IPooledRenderTarget> LightScatteringHistory;
 	TRefCountPtr<IPooledRenderTarget> PrevLightScatteringConservativeDepthTexture;
 
