@@ -1292,7 +1292,7 @@ TSharedPtr<FMediaIOCoreTextureSampleBase> FMediaIOCorePlayerBase::PickSampleToRe
 
 	// Apply time correction to the target time
 	const FTimespan RequestedOffsetTimespan = FTimespan::FromSeconds(InFrameInformation.EvaluationOffset);
-	const FTimespan TargetTimespanCorrected = TargetSampleTimespan + RequestedOffsetTimespan;
+	const FTimespan TargetTimespanCorrected = TargetSampleTimespan - RequestedOffsetTimespan;
 
 	// Go over the sample pool and find a sample closest to the target time
 	int32 ClosestIndex = -1;
