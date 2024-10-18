@@ -801,7 +801,7 @@ namespace EpicGames.Core
 
 			// convert it to an integer
 			ulong IntVersion;
-			if (!TryConvertVersionToInt(Version, out IntVersion))
+			if (!TryConvertVersionToInt(Version, out IntVersion, VersionInfo.Name))
 			{
 				return false;
 			}

@@ -141,6 +141,16 @@ namespace UnrealBuildTool
 			// convert r<num>[letter] to hex
 			if (!String.IsNullOrEmpty(StringValue))
 			{
+				if (String.Compare(Hint, "Software", true) == 0)
+				{
+					// returning a version with a format similar to the ndk version.
+					string VersionString = String.Format("{0}{1:00}{2:00}", StringValue, 0, 0);
+					if (UInt64.TryParse(VersionString, out OutValue))
+					{
+						return true;
+					}
+				}
+				
 				Match Result = Regex.Match(StringValue, @"^r(\d*)([a-z])?");
 
 				if (Result.Success)

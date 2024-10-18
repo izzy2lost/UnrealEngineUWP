@@ -99,9 +99,6 @@ bool FIOSTargetPlatformSettings::SupportsFeature( ETargetPlatformFeatures Featur
 			return bUsesARMCompressor;
 		}
 
-		case ETargetPlatformFeatures::ShowAsPlatformGroup:
-			return false;
-
 		case ETargetPlatformFeatures::SupportsMultipleConnectionTypes:
 			return true;
 
