@@ -2428,7 +2428,7 @@ void USkinWeightsPaintTool::OnTick(float DeltaTime)
 {
 	if (SelectionIsolator)
 	{
-		SelectionIsolator->OnTick(DeltaTime);
+		SelectionIsolator->UpdateIsolatedSelection();
 	}
 	
 	if (bStampPending)
@@ -2540,7 +2540,7 @@ void FIsolateSelectionChange::Apply(UObject* Object)
 	USkinWeightsPaintTool* Tool = Cast<USkinWeightsPaintTool>(Object);
 	if (Tool)
 	{
-		Tool->GetSelectionIsolator()->SetIsolatedTriangles(IsolatedTrianglesAfter);
+		Tool->GetSelectionIsolator()->SetTrianglesToIsolate(IsolatedTrianglesAfter);
 	}	
 }
 
@@ -2549,7 +2549,7 @@ void FIsolateSelectionChange::Revert(UObject* Object)
 	USkinWeightsPaintTool* Tool = Cast<USkinWeightsPaintTool>(Object);
 	if (Tool)
 	{
-		Tool->GetSelectionIsolator()->SetIsolatedTriangles(IsolatedTrianglesBefore);
+		Tool->GetSelectionIsolator()->SetTrianglesToIsolate(IsolatedTrianglesBefore);
 	}
 }
 
@@ -4382,13 +4382,21 @@ void UWeightToolSelectionIsolator::InitialSetup(USkinWeightsPaintTool* InTool)
 	WeightTool = InTool;
 }
 
-void UWeightToolSelectionIsolator::OnTick(float DeltaTime)
+void UWeightToolSelectionIsolator::UpdateIsolatedSelection()
 {
-	if (bRestoreFullMeshOnNextTick)
+	// this is queued to run on Tick() because modifying the mesh from other threads can cause the tool's Render() to be out of sync
+	if (bIsolatedMeshNeedsUpdated)
 	{
-		// this is queued to run on Tick() because modifying the mesh from other threads can cause the tool's Render() to be out of sync
-		RestoreFullMesh();
-		bRestoreFullMeshOnNextTick = false;
+		if (CurrentlyIsolatedTriangles.IsEmpty())
+		{
+			RestoreFullMesh();	
+		}
+		else
+		{
+			CreatePartialMesh();
+		}
+		
+		bIsolatedMeshNeedsUpdated = false;
 	}
 }
 
@@ -4405,7 +4413,8 @@ void UWeightToolSelectionIsolator::IsolateSelectionAsTransaction()
 	ActiveChange->IsolatedTrianglesBefore = GetIsolatedTriangles();
 	WeightTool->GetMainMeshSelector()->GetSelectedTriangles(ActiveChange->IsolatedTrianglesAfter);
 
-	SetIsolatedTriangles(ActiveChange->IsolatedTrianglesAfter);
+	UpdateIsolatedSelection();
+	SetTrianglesToIsolate(ActiveChange->IsolatedTrianglesAfter);
 	
 	UInteractiveToolManager* ToolManager = WeightTool->GetToolManager();
 	ToolManager->BeginUndoTransaction(TransactionLabel);
@@ -4421,7 +4430,8 @@ void UWeightToolSelectionIsolator::UnIsolateSelectionAsTransaction()
 	ActiveChange->IsolatedTrianglesBefore = GetIsolatedTriangles();
 	ActiveChange->IsolatedTrianglesAfter = {};
 
-	SetIsolatedTriangles(ActiveChange->IsolatedTrianglesAfter);
+	UpdateIsolatedSelection();
+	SetTrianglesToIsolate(ActiveChange->IsolatedTrianglesAfter);
 	
 	UInteractiveToolManager* ToolManager = WeightTool->GetToolManager();
 	ToolManager->BeginUndoTransaction(TransactionLabel);
@@ -4429,125 +4439,19 @@ void UWeightToolSelectionIsolator::UnIsolateSelectionAsTransaction()
 	ToolManager->EndUndoTransaction();
 }
 
-void UWeightToolSelectionIsolator::SetIsolatedTriangles(const TArray<int32>& TrianglesToIsolate)
+void UWeightToolSelectionIsolator::SetTrianglesToIsolate(const TArray<int32>& TrianglesToIsolate)
 {
-	// if we are turning off an isolated selection, we must queue the Tick() to update the full mesh
-	if (TrianglesToIsolate.IsEmpty() && PartialMeshDescription.IsValid())
+	if (bIsolatedMeshNeedsUpdated)
 	{
-		bRestoreFullMeshOnNextTick = true;
+		// cannot queue up multiple changes
+		// we must allow previous selection isolations to be applied to keep the weight buffer in-sync
 		return;
 	}
 	
-	if (PartialMeshDescription.IsValid())
-	{
-		// should be reset to null
-		// NOTE: we do not support isolating the selection twice in a row
-		// ie. you must isolate the selection, then un-isolate it before isolating it again
-		ensure(false); 
-		return;
-	}
-	
-	UPolygonSelectionMechanic* SelectionMechanic = WeightTool->GetMainMeshSelector()->GetSelectionMechanic();
-	if (!ensure(SelectionMechanic))
-	{
-		return;
-	}
-
-	const USkeletalMeshComponent* SkeletalMeshComponent = GetSkeletalMeshComponent(WeightTool->GetTarget());
-	if (!ensure(SkeletalMeshComponent))
-	{
-		return;
-	}
-
-	const FMeshDescription* EditedMesh = WeightTool->GetCurrentlyEditedMeshDescription();
-	const FDynamicMesh3* EditedDynaMesh = WeightTool->GetCurrentlyEditedDynamicMesh();
-	if (!ensure(EditedMesh && EditedDynaMesh))
-	{
-		return;
-	}
-
-	// record the triangles we are isolating
+	// record the triangles we are isolating (if empty, this will restore the full mesh)
 	CurrentlyIsolatedTriangles = TrianglesToIsolate;
-
-	// get the weights
-	FSkinToolWeights& Weights = WeightTool->GetWeights();
-
-	// apply previous changes
-	Weights.ApplyCurrentWeightsToMeshDescription(WeightTool->GetCurrentlyEditedMeshDescription());
-	
-	// put into ref pose, BEFORE copying the mesh, so that submesh deformer initializes with vertices in ref pose
-	Weights.Deformer.SetToRefPose(WeightTool);
-
-	// store selection to be restored
-	IsolatedSelectionToRestoreVertices.Reset();
-	IsolatedSelectionToRestoreEdges.Reset();
-	IsolatedSelectionToRestoreFaces.Reset();
-	IsolatedSelectionToRestoreVertices.ElementType = UE::Geometry::EGeometryElementType::Vertex;
-	IsolatedSelectionToRestoreEdges.ElementType = UE::Geometry::EGeometryElementType::Edge;
-	IsolatedSelectionToRestoreFaces.ElementType = UE::Geometry::EGeometryElementType::Face;
-	SelectionMechanic->GetSelection_AsTriangleTopology(IsolatedSelectionToRestoreVertices);
-	SelectionMechanic->GetSelection_AsTriangleTopology(IsolatedSelectionToRestoreEdges);
-	SelectionMechanic->GetSelection_AsTriangleTopology(IsolatedSelectionToRestoreFaces);
-
-	// store copy of original FDynamicMesh to restore
-	auto GetIsolatedMesh = [this, EditedDynaMesh](const TArray<int32>& ToIsolate) -> const FDynamicMesh3*
-	{
-		using namespace UE::Geometry;
-
-		// create a sub-mesh from the triangles to isolate
-		PartialSubMesh = FDynamicSubmesh3(EditedDynaMesh, ToIsolate);
-		
-		if (ToIsolate.IsEmpty())
-		{
-			return EditedDynaMesh;
-		}
-
-		FDynamicMesh3& IsolatedMesh = PartialSubMesh.GetSubmesh();
-
-		// remap the non-manifold mapping from full mesh to partial mesh if needed
-		const FNonManifoldMappingSupport OriginalNonManifoldMapping(*EditedDynaMesh);
-		if (OriginalNonManifoldMapping.IsNonManifoldVertexInSource())
-		{
-			TArray<int32> IsolatedMeshVertexToNonManifoldVertexID;
-			IsolatedMeshVertexToNonManifoldVertexID.Reserve(IsolatedMesh.VertexCount());
-			for (int32 IsolatedVertexID = 0; IsolatedVertexID < IsolatedMesh.VertexCount(); ++IsolatedVertexID)
-			{
-				const int32 OrigMeshVertexID = PartialSubMesh.MapVertexToBaseMesh(IsolatedVertexID);
-				const int32 SrcBaseMeshVertexID = OriginalNonManifoldMapping.GetOriginalNonManifoldVertexID(OrigMeshVertexID);
-				int32 SrcSubMeshVertexID = PartialSubMesh.MapVertexToSubmesh(SrcBaseMeshVertexID);
-				if (SrcSubMeshVertexID == INDEX_NONE)
-				{
-					SrcSubMeshVertexID = IsolatedVertexID;
-				}
-				IsolatedMeshVertexToNonManifoldVertexID.Add(SrcSubMeshVertexID);
-			}
-
-			// replace the non-manifold vertex map in the cleaned mesh attributes
-			FNonManifoldMappingSupport CleanedNonManifoldMapping(IsolatedMesh);
-			CleanedNonManifoldMapping.AttachNonManifoldVertexMappingData(IsolatedMeshVertexToNonManifoldVertexID, IsolatedMesh);
-		}
-
-		// copy bone attributes
-		FDynamicMeshAttributeSet* SourceAttributes = IsolatedMesh.Attributes();
-		SourceAttributes->CopyBoneAttributes(*EditedDynaMesh->Attributes());
-		
-		return &IsolatedMesh;
-	};
-	const FDynamicMesh3* IsolatedMesh = GetIsolatedMesh(TrianglesToIsolate);
-
-	// create mesh description for sub-mesh
-	PartialMeshDescription = MakeShared<FMeshDescription>();
-	// registering skeletal mesh attributes is required to create room to copy attributes during conversion from dynamic mesh
-	FSkeletalMeshAttributes Attributes(*PartialMeshDescription);
-	Attributes.Register();
-	// convert the partial dynamic mesh to a mesh description
-	// NOTE: this copies vertex weights to partial mesh description (later used to load weights into the tool)
-	FDynamicMeshToMeshDescription DnyToDescConverter;
-	constexpr bool bCopyTangents = true;
-	DnyToDescConverter.Convert(IsolatedMesh, *PartialMeshDescription, bCopyTangents);
-	
-	// reinitialize all mesh data structures
-	WeightTool->UpdateCurrentlyEditedMesh(SkeletalMeshComponent, *IsolatedMesh, *PartialMeshDescription.Get());
+	// queue an update for next tick
+	bIsolatedMeshNeedsUpdated = true;
 }
 
 void UWeightToolSelectionIsolator::RestoreFullMesh()
@@ -4637,6 +4541,108 @@ int32 UWeightToolSelectionIsolator::FullToPartialMeshVertexIndex(int32 FullMeshV
 	}
 
 	return PartialSubMesh.MapVertexToSubmesh(FullMeshVertexIndex);
+}
+
+void UWeightToolSelectionIsolator::CreatePartialMesh()
+{
+	UPolygonSelectionMechanic* SelectionMechanic = WeightTool->GetMainMeshSelector()->GetSelectionMechanic();
+	if (!ensure(SelectionMechanic))
+	{
+		return;
+	}
+
+	const USkeletalMeshComponent* SkeletalMeshComponent = GetSkeletalMeshComponent(WeightTool->GetTarget());
+	if (!ensure(SkeletalMeshComponent))
+	{
+		return;
+	}
+
+	const FMeshDescription* EditedMesh = WeightTool->GetCurrentlyEditedMeshDescription();
+	const FDynamicMesh3* EditedDynaMesh = WeightTool->GetCurrentlyEditedDynamicMesh();
+	if (!ensure(EditedMesh && EditedDynaMesh))
+	{
+		return;
+	}
+	
+	// get the weights
+	FSkinToolWeights& Weights = WeightTool->GetWeights();
+
+	// apply previous changes
+	Weights.ApplyCurrentWeightsToMeshDescription(WeightTool->GetCurrentlyEditedMeshDescription());
+	
+	// put into ref pose, BEFORE copying the mesh, so that submesh deformer initializes with vertices in ref pose
+	Weights.Deformer.SetToRefPose(WeightTool);
+
+	// store selection to be restored
+	IsolatedSelectionToRestoreVertices.Reset();
+	IsolatedSelectionToRestoreEdges.Reset();
+	IsolatedSelectionToRestoreFaces.Reset();
+	IsolatedSelectionToRestoreVertices.ElementType = UE::Geometry::EGeometryElementType::Vertex;
+	IsolatedSelectionToRestoreEdges.ElementType = UE::Geometry::EGeometryElementType::Edge;
+	IsolatedSelectionToRestoreFaces.ElementType = UE::Geometry::EGeometryElementType::Face;
+	SelectionMechanic->GetSelection_AsTriangleTopology(IsolatedSelectionToRestoreVertices);
+	SelectionMechanic->GetSelection_AsTriangleTopology(IsolatedSelectionToRestoreEdges);
+	SelectionMechanic->GetSelection_AsTriangleTopology(IsolatedSelectionToRestoreFaces);
+
+	// store copy of original FDynamicMesh to restore
+	auto GetIsolatedMesh = [this, EditedDynaMesh](const TArray<int32>& ToIsolate) -> const FDynamicMesh3*
+	{
+		using namespace UE::Geometry;
+
+		// create a sub-mesh from the triangles to isolate
+		PartialSubMesh = FDynamicSubmesh3(EditedDynaMesh, ToIsolate);
+		
+		if (ToIsolate.IsEmpty())
+		{
+			return EditedDynaMesh;
+		}
+
+		FDynamicMesh3& IsolatedMesh = PartialSubMesh.GetSubmesh();
+
+		// remap the non-manifold mapping from full mesh to partial mesh if needed
+		const FNonManifoldMappingSupport OriginalNonManifoldMapping(*EditedDynaMesh);
+		if (OriginalNonManifoldMapping.IsNonManifoldVertexInSource())
+		{
+			TArray<int32> IsolatedMeshVertexToNonManifoldVertexID;
+			IsolatedMeshVertexToNonManifoldVertexID.Reserve(IsolatedMesh.VertexCount());
+			for (int32 IsolatedVertexID = 0; IsolatedVertexID < IsolatedMesh.VertexCount(); ++IsolatedVertexID)
+			{
+				const int32 OrigMeshVertexID = PartialSubMesh.MapVertexToBaseMesh(IsolatedVertexID);
+				const int32 SrcBaseMeshVertexID = OriginalNonManifoldMapping.GetOriginalNonManifoldVertexID(OrigMeshVertexID);
+				int32 SrcSubMeshVertexID = PartialSubMesh.MapVertexToSubmesh(SrcBaseMeshVertexID);
+				if (SrcSubMeshVertexID == INDEX_NONE)
+				{
+					SrcSubMeshVertexID = IsolatedVertexID;
+				}
+				IsolatedMeshVertexToNonManifoldVertexID.Add(SrcSubMeshVertexID);
+			}
+
+			// replace the non-manifold vertex map in the cleaned mesh attributes
+			FNonManifoldMappingSupport CleanedNonManifoldMapping(IsolatedMesh);
+			CleanedNonManifoldMapping.AttachNonManifoldVertexMappingData(IsolatedMeshVertexToNonManifoldVertexID, IsolatedMesh);
+		}
+
+		// copy bone attributes
+		FDynamicMeshAttributeSet* SourceAttributes = IsolatedMesh.Attributes();
+		SourceAttributes->CopyBoneAttributes(*EditedDynaMesh->Attributes());
+		
+		return &IsolatedMesh;
+	};
+	const FDynamicMesh3* IsolatedMesh = GetIsolatedMesh(CurrentlyIsolatedTriangles);
+
+	// create mesh description for sub-mesh
+	PartialMeshDescription = MakeShared<FMeshDescription>();
+	// registering skeletal mesh attributes is required to create room to copy attributes during conversion from dynamic mesh
+	FSkeletalMeshAttributes Attributes(*PartialMeshDescription);
+	Attributes.Register();
+	// convert the partial dynamic mesh to a mesh description
+	// NOTE: this copies vertex weights to partial mesh description (later used to load weights into the tool)
+	FDynamicMeshToMeshDescription DnyToDescConverter;
+	constexpr bool bCopyTangents = true;
+	DnyToDescConverter.Convert(&PartialSubMesh.GetSubmesh(), *PartialMeshDescription, bCopyTangents);
+	
+	// reinitialize all mesh data structures
+	WeightTool->UpdateCurrentlyEditedMesh(SkeletalMeshComponent, PartialSubMesh.GetSubmesh(), *PartialMeshDescription.Get());
 }
 
 FCleanedEditMesh::FCleanedEditMesh(
