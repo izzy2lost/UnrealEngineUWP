@@ -1611,8 +1611,8 @@ FCellMeshes::FCellMeshes(int32 NumUVLayersIn, const FDynamicMesh3& SingleCutter,
 		MeshTransforms::ApplyTransform(CellMeshes[0].AugMesh, FTransformSRT3d(Transform.GetValue()), true);
 	}
 
-	// Mesh should already be augmented
-	if (!ensure(AugmentedDynamicMesh::IsAugmented(CellMeshes[0].AugMesh)))
+	// Augment mesh if needed
+	if (!AugmentedDynamicMesh::IsAugmented(CellMeshes[0].AugMesh))
 	{
 		AugmentedDynamicMesh::Augment(CellMeshes[0].AugMesh, NumUVLayers);
 	}

@@ -1082,6 +1082,11 @@ bool FFractureEngineClustering::ClusterSelected(
 	FGeometryCollection& GeometryCollection,
 	TArray<int32>& Selection)
 {
+	if (GeometryCollection.NumElements(FGeometryCollection::TransformGroup) == 0)
+	{
+		return false;
+	}
+
 	GeometryCollection::Facades::FCollectionTransformSelectionFacade SelectionFacade(GeometryCollection);
 	SelectionFacade.RemoveRootNodes(Selection);
 	SelectionFacade.Sanitize(Selection);
@@ -1189,6 +1194,11 @@ bool FFractureEngineClustering::ClusterMagnet(
 )
 {
 	using namespace UE::Private::ClusterMagnet;
+
+	if (GeometryCollection.NumElements(FGeometryCollection::TransformGroup) == 0)
+	{
+		return false;
+	}
 
 	Chaos::Facades::FCollectionHierarchyFacade HierarchyFacade(GeometryCollection);
 	HierarchyFacade.GenerateLevelAttribute();

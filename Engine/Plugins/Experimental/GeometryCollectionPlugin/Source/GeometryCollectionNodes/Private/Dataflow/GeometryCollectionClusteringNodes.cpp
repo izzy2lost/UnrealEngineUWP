@@ -113,7 +113,7 @@ void FAutoClusterDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const F
 
 void FClusterFlattenDataflowNode::Evaluate(UE::Dataflow::FContext& Context, const FDataflowOutput* Out) const
 {
-	if (Out->IsA(&Collection) && IsConnected(&Collection))
+	if (Out->IsA(&Collection))
 	{
 		const FManagedArrayCollection& InCollection = GetValue(Context, &Collection);
 		if (InCollection.NumElements(FGeometryCollection::TransformAttribute) > 0)
@@ -151,6 +151,10 @@ void FClusterFlattenDataflowNode::Evaluate(UE::Dataflow::FContext& Context, cons
 				SetValue(Context, (const FManagedArrayCollection&)(*GeomCollection), &Collection);
 			}
 		}
+		else
+		{
+			SetValue(Context, InCollection, &Collection);
+		}
 	}
 }
 
@@ -160,24 +164,31 @@ void FClusterUnclusterDataflowNode::Evaluate(UE::Dataflow::FContext& Context, co
 	if (Out->IsA<FManagedArrayCollection>(&Collection))
 	{
 		const FManagedArrayCollection& InCollection = GetValue<FManagedArrayCollection>(Context, &Collection);
-		const FDataflowTransformSelection& InTransformSelection = GetValue<FDataflowTransformSelection>(Context, &TransformSelection);
-		if (TUniquePtr<FGeometryCollection> GeomCollection = TUniquePtr<FGeometryCollection>(InCollection.NewCopy<FGeometryCollection>()))
+		if (InCollection.NumElements(FGeometryCollection::TransformAttribute) > 0)
 		{
-			Chaos::Facades::FCollectionHierarchyFacade HierarchyFacade(*GeomCollection);
-			HierarchyFacade.GenerateLevelAttribute();
-
-			TArray<int32> Selection = InTransformSelection.AsArray();
-			GeometryCollection::Facades::FCollectionTransformSelectionFacade SelectionFacade(*GeomCollection);
-			SelectionFacade.ConvertSelectionToClusterNodes(Selection, false);
-			SelectionFacade.RemoveRootNodes(Selection);
-			if (!Selection.IsEmpty())
+			const FDataflowTransformSelection& InTransformSelection = GetValue<FDataflowTransformSelection>(Context, &TransformSelection);
+			if (TUniquePtr<FGeometryCollection> GeomCollection = TUniquePtr<FGeometryCollection>(InCollection.NewCopy<FGeometryCollection>()))
 			{
-				FGeometryCollectionClusteringUtility::CollapseHierarchyOneLevel(GeomCollection.Get(), Selection);
-				FGeometryCollectionClusteringUtility::RemoveDanglingClusters(GeomCollection.Get());
-
+				Chaos::Facades::FCollectionHierarchyFacade HierarchyFacade(*GeomCollection);
 				HierarchyFacade.GenerateLevelAttribute();
+
+				TArray<int32> Selection = InTransformSelection.AsArray();
+				GeometryCollection::Facades::FCollectionTransformSelectionFacade SelectionFacade(*GeomCollection);
+				SelectionFacade.ConvertSelectionToClusterNodes(Selection, false);
+				SelectionFacade.RemoveRootNodes(Selection);
+				if (!Selection.IsEmpty())
+				{
+					FGeometryCollectionClusteringUtility::CollapseHierarchyOneLevel(GeomCollection.Get(), Selection);
+					FGeometryCollectionClusteringUtility::RemoveDanglingClusters(GeomCollection.Get());
+
+					HierarchyFacade.GenerateLevelAttribute();
+				}
+				SetValue<const FManagedArrayCollection&>(Context, *GeomCollection, &Collection);
 			}
-			SetValue<const FManagedArrayCollection&>(Context, *GeomCollection, &Collection);
+		}
+		else
+		{
+			SetValue(Context, InCollection, &Collection);
 		}
 	}
 }
