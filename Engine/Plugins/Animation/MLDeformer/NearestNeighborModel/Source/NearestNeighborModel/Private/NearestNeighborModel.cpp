@@ -1773,6 +1773,11 @@ const TArray<float>& UNearestNeighborModel::GetVertexWeightSum() const
 
 void UNearestNeighborModel::NormalizeVertexWeights()
 {
+	if (GetNumBaseMeshVerts() == 0)
+	{
+		return;
+	}
+
 	VertexWeightSum.Init(0.f, GetNumBaseMeshVerts());
 	for (const FSection* Section : Sections)
 	{
