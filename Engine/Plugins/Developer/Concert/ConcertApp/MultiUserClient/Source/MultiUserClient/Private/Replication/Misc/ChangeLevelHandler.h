@@ -6,6 +6,7 @@
 #include "Templates/UnrealTemplate.h"
 #include "UObject/SoftObjectPath.h"
 
+class IConcertSyncClient;
 class UWorld;
 
 namespace UE::ConcertSharedSlate { class IEditableReplicationStreamModel; }
@@ -21,13 +22,16 @@ namespace UE::MultiUserClient::Replication
 	public:
 		
 		/**
+		 * @param Client The Concert client. Used to get the workspace for checking against hot reloading. The caller ensures that it outlives the constructed object.
 		 * @param UpdatedModel The client model to update when the local editor changes maps. The caller ensures that it outlives the constructed object.
 		 */
-		FChangeLevelHandler(ConcertSharedSlate::IEditableReplicationStreamModel& UpdatedModel UE_LIFETIMEBOUND);
+		FChangeLevelHandler(IConcertSyncClient& Client UE_LIFETIMEBOUND, ConcertSharedSlate::IEditableReplicationStreamModel& UpdatedModel UE_LIFETIMEBOUND);
 		~FChangeLevelHandler();
 
 	private:
-
+		
+		/** The Concert client. Used to get the workspace for checking against hot reloading. */
+		IConcertSyncClient& Client;
 		/** The client model to update when the local editor changes maps. */
 		ConcertSharedSlate::IEditableReplicationStreamModel& UpdatedModel;
 
@@ -36,5 +40,14 @@ namespace UE::MultiUserClient::Replication
 		
 		void OnWorldDestroyed(UWorld* World);
 		void OnWorldAdded(UWorld* World) const;
+
+		/**
+		 * Hot reload: When a remote user saves the world, Concert will reload the world's package on the other clients.
+		 * In that case, a temporary world called "Untitled" is created. During hot reload, OnWorldDestroyed and OnWorldAdded calls should be ignored.
+		 * 
+		 * @return Whether concert is hot reloading the currently open world.
+		 */
+		bool IsConcertHotReloadingWorld() const;
+		bool IsValidWorldType(UWorld* World) const;
 	};
 }
