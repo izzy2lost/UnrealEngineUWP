@@ -17,8 +17,8 @@ underlying storage system retrieving and storing individual nodes efficiently.
 The entry point to any such data structure is a user-defined name that keeps a reference to the root of the
 tree. Any nodes not directly or indirectly referenced by a ref are subject to garbage collection.
 
-This design intends to support a massive range of payload sizes by splitting larger data blocks into smaller chunks 
-and has advantages in caching and incremental client data patching. With this, it becomes as reasonable to reference 
+This design intends to support a massive range of payload sizes by splitting larger data blocks into smaller chunks
+and has advantages in caching and incremental client data patching. With this, it becomes as reasonable to reference
 a single 4kb payload as it is to point to a multi-gigabyte payload partitioned into 128kb chunks.
 
 The [Internals > Storage Architecture](../Internals/StorageArchitecture.md) page

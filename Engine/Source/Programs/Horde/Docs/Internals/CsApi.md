@@ -16,12 +16,11 @@ provides typed request and response classes, or via the native
 C# API (`IHordeClient`). The `IHordeClient` interface is the main
 entry point, but provides a method for getting a HTTP client if necessary (`IHordeClient.CreateHttpClient`).
 
-While the HTTP API is more complete, we intent to move all functionality
+While the HTTP API is more complete, we intend to move all functionality
 into the native C# API over time. Doing so allows client tooling to write
-idiomatic C# code without having to worry about marshalling and transport
-concerns, and allows clients to write code against the same public APIs
-exposed by plugins on the server without having to concern themselves
-with implementation details.
+idiomatic C# code without having to worry about marshalling and transport,
+and allows clients to write code against the same public APIs
+exposed by plugins on the server.
 
 This approach gives more flexibility for prototyping code outside
 the server then moving it into the server as it makes sense, and
@@ -47,13 +46,14 @@ On MacOS and Linux, this is stored in the following JSON file:
   ```
 
 The `HordeOptions.GetDefaultServerUrl()` method will retrieve the user's
-preferred server.
+preferred server for the current platform.
 
 ## Connecting to Horde
 
-Horde uses .NET's standard dependency injection pattern.
+Horde is typically configured using .NET's standard dependency injection
+library.
 
-AutomationTool creates a service collection including Horde by default,
+AutomationTool creates a service provider including Horde by default,
 allowing you to get a Horde client interface as follows:
 
   ```cs
@@ -82,7 +82,7 @@ standard [.NET options pattern](https://learn.microsoft.com/en-us/aspnet/core/fu
   });
   ```
 
-Or through the `AddHorde()` method:
+Or through a delegate passed to the `AddHorde()` method:
 
   ```cs
   serviceCollection.AddHorde(options => 
@@ -90,4 +90,3 @@ Or through the `AddHorde()` method:
     options.ServerUrl = new Uri("http://my-horde-server.com");
   });
   ```
-  
