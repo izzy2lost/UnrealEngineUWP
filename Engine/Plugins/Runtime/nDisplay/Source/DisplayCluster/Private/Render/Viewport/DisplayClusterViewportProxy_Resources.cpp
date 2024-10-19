@@ -5,6 +5,7 @@
 #include "Render/Viewport/DisplayClusterViewport.h"
 #include "Render/Viewport/DisplayClusterViewportManager.h"
 #include "Render/Viewport/DisplayClusterViewportManagerViewExtension.h"
+#include "Render/Viewport/DisplayClusterViewportHelpers.h"
 
 #include "Render/Viewport/Containers/DisplayClusterViewport_PostRenderSettings.h"
 #include "Render/Viewport/Containers/DisplayClusterViewportProxyData.h"
@@ -145,25 +146,33 @@ namespace UE::DisplayCluster::ViewportProxy
 		check(InputResource);
 		check(OutputResource);
 
+		// Check if resources with the specified regions can be resolved.
+		FIntRect SrcRect(InputRect);
+		FIntRect DestRect(OutputRect);
+		if(!FDisplayClusterViewportHelpers::GetValidResourceRectsForResolve(InputResource, OutputResource, SrcRect, DestRect))
+		{
+			// The SrcRect or DestRect is invalid.
+			return;
+		}
+
 		if (bOutputIsPreviewResource)
 		{
 			// The preview texture should use only RGB colors and ignore the alpha channel. The alpha channel may or may not be inverted in third-party libraries.
-			ResampleCopyTextureImpl_RenderThread<FScreenPS>(RHICmdList, InputResource, OutputResource, InputRect, OutputRect, EDisplayClusterTextureCopyMode::RGB);
+			ResampleCopyTextureImpl_RenderThread<FScreenPS>(RHICmdList, InputResource, OutputResource, SrcRect, DestRect, EDisplayClusterTextureCopyMode::RGB);
 		}
-		else if (InputRect.Size() == OutputRect.Size() && InputResource->GetFormat() == OutputResource->GetFormat())
+		else if (SrcRect.Size() == DestRect.Size() && InputResource->GetFormat() == OutputResource->GetFormat())
 		{
 			FRHICopyTextureInfo CopyInfo;
-			CopyInfo.Size = FIntVector(InputRect.Width(), InputRect.Height(), 0);
-			CopyInfo.SourcePosition.X = InputRect.Min.X;
-			CopyInfo.SourcePosition.Y = InputRect.Min.Y;
-			CopyInfo.DestPosition.X = OutputRect.Min.X;
-			CopyInfo.DestPosition.Y = OutputRect.Min.Y;
+			CopyInfo.SourcePosition = FIntVector(SrcRect.Min.X, SrcRect.Min.Y, 0);
+			CopyInfo.DestPosition = FIntVector(DestRect.Min.X, DestRect.Min.Y, 0);
+
+			CopyInfo.Size = FIntVector(DestRect.Width(), DestRect.Height(), 0);
 
 			TransitionAndCopyTexture(RHICmdList, InputResource, OutputResource, CopyInfo);
 		}
 		else
 		{
-			ResampleCopyTextureImpl_RenderThread<FScreenPS>(RHICmdList, InputResource, OutputResource, InputRect, OutputRect);
+			ResampleCopyTextureImpl_RenderThread<FScreenPS>(RHICmdList, InputResource, OutputResource, SrcRect, DestRect);
 		}
 	}
 
