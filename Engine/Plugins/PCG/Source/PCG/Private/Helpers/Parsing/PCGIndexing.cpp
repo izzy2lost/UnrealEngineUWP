@@ -96,6 +96,11 @@ namespace PCGIndexing
 
 	bool FPCGIndexCollection::ContainsIndex(const int32 Index) const
 	{
+		if (!IsValid())
+		{
+			return false;
+		}
+
 		for (const FPCGIndexRange& Range : IndexRanges)
 		{
 			if (Range.ContainsIndex(Index))
