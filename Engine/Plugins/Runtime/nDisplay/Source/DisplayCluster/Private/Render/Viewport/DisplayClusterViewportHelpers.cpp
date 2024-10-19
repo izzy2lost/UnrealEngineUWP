@@ -260,3 +260,59 @@ EPixelFormat FDisplayClusterViewportHelpers::GetDefaultPixelFormat()
 {
 	return EPixelFormat::PF_FloatRGBA;
 }
+
+bool FDisplayClusterViewportHelpers::GetValidResourceRectsForResolve(
+	const FRHITexture* InSourceTexture,
+	const FRHITexture* InDestTexture,
+	FIntRect& InOutSourceRect,
+	FIntRect& InOutDestRect)
+{
+	if (!InSourceTexture || !InDestTexture)
+	{
+		return false;
+	}
+
+	FIntRect SrcRect(InOutSourceRect);
+	FIntRect DestRect(InOutDestRect);
+
+	const FIntPoint& InputResourceSize = InSourceTexture->GetDesc().Extent;
+	const FIntPoint& OutputResourceSize = InDestTexture->GetDesc().Extent;
+
+	// If SrcRect or DestRect exceeds the texture size, RHI will crash. Let's adjust it to the texture size.
+	{
+		SrcRect.Min.X = FMath::Clamp(SrcRect.Min.X, 0, InputResourceSize.X);
+		SrcRect.Min.Y = FMath::Clamp(SrcRect.Min.Y, 0, InputResourceSize.Y);
+		SrcRect.Max.X = FMath::Clamp(SrcRect.Max.X, 0, InputResourceSize.X);
+		SrcRect.Max.Y = FMath::Clamp(SrcRect.Max.Y, 0, InputResourceSize.Y);
+
+		DestRect.Min.X = FMath::Clamp(DestRect.Min.X, 0, OutputResourceSize.X);
+		DestRect.Min.Y = FMath::Clamp(DestRect.Min.Y, 0, OutputResourceSize.Y);
+		DestRect.Max.X = FMath::Clamp(DestRect.Max.X, 0, OutputResourceSize.X);
+		DestRect.Max.Y = FMath::Clamp(DestRect.Max.Y, 0, OutputResourceSize.Y);
+	}
+
+	// if InputRect.Min<0, also adjust the DestRect.Min
+	DestRect.Min += FIntPoint(
+		FMath::Max(0, -InOutSourceRect.Min.X),
+		FMath::Max(0, -InOutSourceRect.Min.Y));
+
+	// if OutputRect.Min<0, also adjust the SrcRect.Min
+	SrcRect.Min += FIntPoint(
+		FMath::Max(0, -InOutDestRect.Min.X),
+		FMath::Max(0, -InOutDestRect.Min.Y));
+
+	// SrcRect.Min and DestRect.Min always > 0
+
+	// Check the SrcRect and DestRect
+	if (SrcRect.Size().GetMin() <= 0 || DestRect.Size().GetMin() <= 0)
+	{
+		// The SrcRect or DestRect is invalid.
+		return false;
+	}
+
+	// Can be resolved
+	InOutSourceRect = SrcRect;
+	InOutDestRect = DestRect;
+
+	return true;
+}

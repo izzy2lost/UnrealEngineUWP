@@ -3,6 +3,7 @@
 #include "Render/Viewport/DisplayClusterViewportManagerProxy.h"
 
 #include "Render/Viewport/DisplayClusterViewportManager.h"
+#include "Render/Viewport/DisplayClusterViewportHelpers.h"
 #include "Render/Viewport/Configuration/DisplayClusterViewportConfiguration.h"
 #include "Render/Viewport/Configuration/DisplayClusterViewportConfigurationProxy.h"
 
@@ -568,35 +569,32 @@ bool FDisplayClusterViewportManagerProxy::ResolveFrameTargetToBackBuffer_RenderT
 
 	TArray<FRHITexture*>   FrameResources;
 	TArray<FIntPoint>        TargetOffsets;
-	if (GetFrameTargets_RenderThread(FrameResources, TargetOffsets))
+	if (GetFrameTargets_RenderThread(FrameResources, TargetOffsets) && FrameResources.IsValidIndex(InContextNum))
 	{
 		// Use internal frame textures as source
-		int32 ContextNum = InContextNum;
-
-		FRHITexture* FrameTexture = FrameResources[ContextNum];
-		FIntPoint DstOffset = TargetOffsets[ContextNum];
-
-		if (FrameTexture)
+		if (FRHITexture* FrameTexture = FrameResources[InContextNum])
 		{
-			const FIntPoint SrcSize = FrameTexture->GetSizeXY();
-			const FIntPoint DstSize = DestTexture->GetSizeXY();;
+			FIntRect SrcRect(FIntPoint::ZeroValue, FrameTexture->GetDesc().Extent);
 
-			FIntRect DstRect(DstOffset, DstOffset + SrcSize);
+			const FIntPoint& DestOffset = TargetOffsets[InContextNum];
+			FIntRect DestRect(DestOffset, DestOffset + FrameTexture->GetDesc().Extent);
 
-			// Fit to backbuffer size
-			DstRect.Max.X = FMath::Min(DstSize.X, DstRect.Max.X);
-			DstRect.Max.Y = FMath::Min(DstSize.Y, DstRect.Max.Y);
+			// Check if resources with the specified regions can be resolved.
+			if (!FDisplayClusterViewportHelpers::GetValidResourceRectsForResolve(FrameTexture, DestTexture, SrcRect, DestRect))
+			{
+				// The SrcRect or DestRect is invalid.
+				return false;
+			}
 
 			FRHICopyTextureInfo CopyInfo;
 
 			CopyInfo.SourceSliceIndex = 0;
 			CopyInfo.DestSliceIndex = DestArrayIndex;
 
-			CopyInfo.Size.X = DstRect.Width();
-			CopyInfo.Size.Y = DstRect.Height();
+			CopyInfo.SourcePosition = FIntVector(SrcRect.Min.X, SrcRect.Min.Y, 0);
+			CopyInfo.DestPosition = FIntVector(DestRect.Min.X, DestRect.Min.Y, 0);
 
-			CopyInfo.DestPosition.X = DstRect.Min.X;
-			CopyInfo.DestPosition.Y = DstRect.Min.Y;
+			CopyInfo.Size = FIntVector(DestRect.Width(), DestRect.Height(), 0);
 
 			TransitionAndCopyTexture(RHICmdList, FrameTexture, DestTexture, CopyInfo);
 
