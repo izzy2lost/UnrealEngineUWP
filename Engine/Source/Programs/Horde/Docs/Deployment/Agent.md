@@ -25,15 +25,19 @@ page and clicking on the **Get agent software download token** link.
 
 #### Windows (PowerShell)
 
+```ps1
     Invoke-WebRequest -Uri https://[HORDE-SERVER-URL]/api/v1/agentsoftware/default/zip -OutFile C:\Horde\HordeAgent.zip -Headers @{ 'Authorization' = 'Bearer [AUTH-TOKEN]' }
     Expand-Archive -LiteralPath C:\Horde\HordeAgent.zip -DestinationPath C:\Horde -Force
+```
 
 The -Headers parameter and value are not required when using an unauthenticated server.
 
 #### Mac & Linux
 
+```sh
     curl https://[HORDE-SERVER-URL]/api/v1/agentsoftware/default/zip --output ~/Horde/HordeAgent.zip -H "Authorization: Bearer [AUTH-TOKEN]"
     unzip -o ~/Horde/HordeAgent.zip -d ~/Horde/
+```
 
 The -H parameter and value are not required when using an unauthenticated server.
 
@@ -63,7 +67,9 @@ When scripting agent deployment, you can either modify the build hosted by the s
 configuration by default, or use the agent's `SetServer` command to modify the configuration file after downloading it.
 This command can be invoked as:
 
+```bat
     dotnet HordeAgent.dll SetServer -Name=.. -Url=.. -Token=...
+```
 
 Adding the `-Default` argument will configure this server to be used by default. Run with the `-Help` argument for a
 full list of available options.
@@ -96,19 +102,24 @@ Running the MSI installer will configure the Horde Agent to run as a background 
 the agent directly from the server and configuring it manually, a service can be registered by running the following
 command:
 
+```bat
     dotnet HordeAgent.dll service install [-UserName=..] [-Password=..]
+```
 
 Where `-UserName` and `-Password` specify credentials for the account to run the service under.
 
 The service may be uninstalled using the following command:
 
+```bat
     dotnet HordeAgent.dll service uninstall
+```
 
 #### Mac
 
 Create a `/Library/LaunchAgents/epic.hordeagent.plist` file describing the daemon configuration (substituting the
 `{{ HORDE_SERVICE_ACCOUNT }}` variables as appropriate).
 
+```xml
     <?xml version="1.0" encoding="UTF-8"?>
     <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
     <plist version="1.0">
@@ -154,18 +165,25 @@ Create a `/Library/LaunchAgents/epic.hordeagent.plist` file describing the daemo
         <integer>10</integer>
     </dict>
     </plist>
+```
 
 Adjust `/etc/newsyslog.conf` Log file out size limit (optional):
 
+```sh
     append '/Library/Logs/hordeagent_error.log 700 2 1000 * J'
+```
 
 Set any Horde agent environment variables you want to be defined outside of the plist (optional):
 
+```sh
     launchctl setenv Horde:WorkingDirectory {horde_working_directory}
+```
 
 Launch the daemon:
 
+```sh
     launchctl load -w /Library/LaunchAgents/epic.hordeagent.plist
+```
 
 #### Linux
 
@@ -176,6 +194,7 @@ user must have `sudo` access to restart/shutdown/autoscale Horde agents.
 Create a service descriptor file in `/etc/systemd/system/horde-agent.service` (substitute the `{{ HORDE_PATH }}`,
 `{{ HORDE_WORKING_DIRECTORY }}` and `{{ HORDE_SERVICE_ACCOUNT }}` variables as appropriate):
 
+```ini
     [Unit]
     Description=Horde Agent
 
@@ -194,10 +213,13 @@ Create a service descriptor file in `/etc/systemd/system/horde-agent.service` (s
 
     [Install]
     WantedBy=multi-user.target
+```
 
 Launch the daemon:
 
+```sh
     systemctl daemon-reload
+```
 
 ### Working Directory
 

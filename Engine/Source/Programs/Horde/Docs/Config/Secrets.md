@@ -57,22 +57,22 @@ An example secret may be configured as follows:
             ],
 
             // Only allow Horde agents to access this
-  			"acl": {
-				"entries": [
-					{
-						"claim": {
-							"type": "http://epicgames.com/ue/horde/role",
-							"value": "agent"
-						},
-						"actions": [
-							"ViewSecret"
-						]
-					}
-				]
-			}
+            "acl": {
+                "entries": [
+                    {
+                        "claim": {
+                            "type": "http://epicgames.com/ue/horde/role",
+                            "value": "agent"
+                        },
+                        "actions": [
+                            "ViewSecret"
+                        ]
+                    }
+                ]
+            }
         }
     ]
-   ```
+ ```
 
 Secrets are queried from the external provider when requested by a user, and are not cached by Horde.
 

@@ -4,7 +4,7 @@
 
 Horde is implemented as a core host process and set of plugins. Most
 plugins correspond to a feature area can be enabled or disabled
-individually, though some plugins build on functionality providied by
+individually, though some plugins build on functionality provided by
 others. The [Storage](../Config.md#storage) and
 [Compute](../Config.md#compute) plugins are notable foundational components
 of Horde that other systems rely on.

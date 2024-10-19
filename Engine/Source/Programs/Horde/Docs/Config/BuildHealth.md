@@ -2,7 +2,7 @@
 
 # Build Health
 
-Epic has a large development team working on products that are continously shipping. We
+Epic has a large development team working on products that are continuously shipping. We
 use a trunk-based development model with branches for each release, with
 commits to release branches automatically being merged back to the mainline.
 
@@ -139,7 +139,7 @@ Post-processing is handled by the `IssueHandler` derived classes in the `EpicGam
 Handlers are enumerated by the server by searching for classes with the `[IssueHandler]` attribute. A new
 instance of each handler is created for each build step containing events to be processed.
 
-Log events are passed to `IssueHandler.HandleEvent` in decreasing order of their `IssueHandler.Priorty` value,
+Log events are passed to `IssueHandler.HandleEvent` in decreasing order of their `IssueHandler.Priority` value,
 until a handler is found which returns `true`. Once all events have been processed, `IssueHandler.GetIssues`
 returns a list of the matched log events and their fingerprints.
 
@@ -205,7 +205,7 @@ The supported set of annotations are defined in the `NodeAnnotations.cs` source 
 * `AutoAssign`: Whether to automatically assign issues that could only be caused by one user, or have a well defined
   correlation with a modified file.
 * `AutoAssignToUser`: Automatically assign any issues in this step to the Perforce user given by the supplied argument.
-* `NotifySubmitters`: Whether to notify all submitters between a build suceeding and failing, allowing them to step
+* `NotifySubmitters`: Whether to notify all submitters between a build succeeding and failing, allowing them to step
   forward and take ownership of an issue.
 * `IssueGroup`: Specifies a suffix to be appended to the `type` property of any issues created from this node,
   preventing them being merged with other issues.

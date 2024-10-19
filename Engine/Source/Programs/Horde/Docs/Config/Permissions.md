@@ -13,22 +13,31 @@ Horde offers three modes of authentication and authorization of users:
 You can configure the mode via the `AuthMethod` setting.
 
 ### Anonymous
+
 Horde ships with authorization disabled by default for demonstration purposes and to get started.
 
-> **NOTE:** For production deployments, proper authentication should be configured using either OpenID Connect or built-in user accounts.
+> **NOTE:** For production deployments, proper authentication should be
+configured using either OpenID Connect or built-in user accounts.
 
 ### OpenID Connect
-Horde can use an external OpenID Connect (OIDC) provider for authorization.
-See the [server deployment](../Deployment/Server.md) documentation for information about configuring an OIDC provider.
-OIDC is recommended for studios where a central authentication provider is already in use, such as Google Workspaces, Okta, or Azure AD/Entra ID.
 
-After an OIDC provider is configured, a user's claims may be viewed by navigating to `http://{{ server_url }}/account` page in a browser.
+Horde can use an external OpenID Connect (OIDC) provider for authorization.
+See the [server deployment](../Deployment/Server.md) documentation for
+information about configuring an OIDC provider.
+OIDC is recommended for studios where a central authentication provider is
+already in use, such as Google Workspaces, Okta, or Azure AD/Entra ID.
+
+After an OIDC provider is configured, a user's claims may be viewed by
+navigating to `http://{{ server_url }}/account` page in a browser.
 
 ### Built-in User Accounts
-If you are a smaller studio or don't see the need to use the OpenID Connect method, Horde's built-in user accounts are an option. 
-These accounts are managed by Horde itself and stored in the local database.
-With the server in anonymous mode, you can set up user accounts via the web UI (Server dropdown in the top right).
-Configure these with at least one administrator user and set `AuthMethod` to `Horde`. 
+
+If you are a smaller studio or don't see the need to use the OpenID
+Connect method, Horde's built-in user accounts are an option.
+These accounts are managed by Horde itself and stored in the local
+database. With the server in anonymous mode, you can set up user accounts
+via the web UI (Server dropdown in the top right).
+Configure these with at least one administrator user and set `AuthMethod` to `Horde`.
 
 ## Access Control Lists
 
