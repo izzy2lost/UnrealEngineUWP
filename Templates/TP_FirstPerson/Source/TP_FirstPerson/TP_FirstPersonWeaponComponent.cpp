@@ -1,7 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 
-#include "TP_WeaponComponent.h"
+#include "TP_FirstPersonWeaponComponent.h"
 #include "TP_FirstPersonCharacter.h"
 #include "TP_FirstPersonProjectile.h"
 #include "GameFramework/PlayerController.h"
@@ -14,14 +14,14 @@
 #include "Engine/World.h"
 
 // Sets default values for this component's properties
-UTP_WeaponComponent::UTP_WeaponComponent()
+UTP_FirstPersonWeaponComponent::UTP_FirstPersonWeaponComponent()
 {
 	// Default offset from the character location for projectiles to spawn
 	MuzzleOffset = FVector(100.0f, 0.0f, 10.0f);
 }
 
 
-void UTP_WeaponComponent::Fire()
+void UTP_FirstPersonWeaponComponent::Fire()
 {
 	if (Character == nullptr || Character->GetController() == nullptr)
 	{
@@ -66,12 +66,12 @@ void UTP_WeaponComponent::Fire()
 	}
 }
 
-bool UTP_WeaponComponent::AttachWeapon(ATP_FirstPersonCharacter* TargetCharacter)
+bool UTP_FirstPersonWeaponComponent::AttachWeapon(ATP_FirstPersonCharacter* TargetCharacter)
 {
 	Character = TargetCharacter;
 
 	// Check that the character is valid, and has no weapon component yet
-	if (Character == nullptr || Character->GetInstanceComponents().FindItemByClass<UTP_WeaponComponent>())
+	if (Character == nullptr || Character->GetInstanceComponents().FindItemByClass<UTP_FirstPersonWeaponComponent>())
 	{
 		return false;
 	}
@@ -92,14 +92,14 @@ bool UTP_WeaponComponent::AttachWeapon(ATP_FirstPersonCharacter* TargetCharacter
 		if (UEnhancedInputComponent* EnhancedInputComponent = Cast<UEnhancedInputComponent>(PlayerController->InputComponent))
 		{
 			// Fire
-			EnhancedInputComponent->BindAction(FireAction, ETriggerEvent::Triggered, this, &UTP_WeaponComponent::Fire);
+			EnhancedInputComponent->BindAction(FireAction, ETriggerEvent::Triggered, this, &UTP_FirstPersonWeaponComponent::Fire);
 		}
 	}
 
 	return true;
 }
 
-void UTP_WeaponComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
+void UTP_FirstPersonWeaponComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
 	// ensure we have a character owner
 	if (Character != nullptr)

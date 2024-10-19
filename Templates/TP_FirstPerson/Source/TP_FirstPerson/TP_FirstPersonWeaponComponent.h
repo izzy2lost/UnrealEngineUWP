@@ -4,12 +4,12 @@
 
 #include "CoreMinimal.h"
 #include "Components/SkeletalMeshComponent.h"
-#include "TP_WeaponComponent.generated.h"
+#include "TP_FirstPersonWeaponComponent.generated.h"
 
 class ATP_FirstPersonCharacter;
 
 UCLASS(Blueprintable, BlueprintType, ClassGroup=(Custom), meta=(BlueprintSpawnableComponent) )
-class TP_FIRSTPERSON_API UTP_WeaponComponent : public USkeletalMeshComponent
+class TP_FIRSTPERSON_API UTP_FirstPersonWeaponComponent : public USkeletalMeshComponent
 {
 	GENERATED_BODY()
 
@@ -39,7 +39,7 @@ public:
 	class UInputAction* FireAction;
 
 	/** Sets default values for this component's properties */
-	UTP_WeaponComponent();
+	UTP_FirstPersonWeaponComponent();
 
 	/** Attaches the actor to a FirstPersonCharacter */
 	UFUNCTION(BlueprintCallable, Category="Weapon")
