@@ -3,7 +3,8 @@
 
 	<Option Name="WithVisionOS" Restrict="true|false" DefaultValue="false" Description="Include the VisionOS target platform"/>
 
-	<Property Name="ExtensionPlatforms" Value="$(ExtensionPlatforms);" If="'$(ExtensionPlatforms)' != ''"/>	<Property Name="ExtensionPlatforms" Value="$(ExtensionPlatforms)VisionOS"/>
+	<Property Name="ExtensionPlatforms" Value="$(ExtensionPlatforms);" If="'$(ExtensionPlatforms)' != ''"/>
+	<Property Name="ExtensionPlatforms" Value="$(ExtensionPlatforms)VisionOS"/>
 
 	<Do If="$(WithVisionOS)">
 		<Expand Name="AddExtensionPlatform" PlatformDir="VisionOS"/>
@@ -67,7 +68,7 @@
 	</Extend>
 
 	<Extend Name="Platform_Tag_UnrealGame">
-		<Do If="$(WithVisionOS)">
+		<Do If="$(WithVisionOS) And '$(HostPlatform)' == 'Mac'">
 			<Property Name="CopyVisionOSFilter">
 				<!-- Build Files -->
 				Engine/Build/VisionOS/...
