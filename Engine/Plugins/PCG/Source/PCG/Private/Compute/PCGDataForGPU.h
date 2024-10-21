@@ -36,7 +36,7 @@ enum class EPCGKernelAttributeType : uint8
 	StringKey,
 	Name,
 
-	Invalid = std::numeric_limits<uint8>::max()
+	Invalid = std::numeric_limits<uint8>::max() UMETA(Hidden),
 };
 
 USTRUCT()
