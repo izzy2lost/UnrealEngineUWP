@@ -665,6 +665,24 @@ bool FNiagaraDataBuffer::CheckForNaNs()const
 	return bContainsNaNs;
 }
 
+void FNiagaraDataBuffer::ZeroCPUBuffers()
+{
+	if(FloatData.GetData())
+	{
+		FMemory::Memzero(FloatData.GetData(), FloatData.Num());
+	}
+
+	if (Int32Data.GetData())
+	{
+		FMemory::Memzero(Int32Data.GetData(), Int32Data.Num());
+	}
+
+	if (HalfData.GetData())
+	{
+		FMemory::Memzero(HalfData.GetData(), HalfData.Num());
+	}
+}
+
 void FNiagaraDataBuffer::Allocate(uint32 InNumInstances, bool bMaintainExisting)
 {
 	NumInstances = 0;
