@@ -51,6 +51,14 @@ static FAutoConsoleVariableRef CVarDebugDumpWriterDI(
 	ECVF_Default
 );
 
+int32 GbNDCWriteDIZeroCPUBufferMode = 1;
+static FAutoConsoleVariableRef CVarNDCWriteDIZeroCPUBufferMode(
+	TEXT("fx.Niagara.DataChannels.WriteDIZeroCPUBuffersMode"),
+	GbNDCWriteDIZeroCPUBufferMode,
+	TEXT("Controls how CPU buffers are zeroed for the NDC Write DI\n0 = Do not Zero CPU buffers.\n1 = Zero only when calling \"Write\" function.\n2 = Zero always.\n"),
+	ECVF_Default
+);
+
 namespace NDIDataChannelWriteLocal
 {
 	static const TCHAR* CommonShaderFile = TEXT("/Plugin/FX/Niagara/Private/DataChannel/NiagaraDataInterfaceDataChannelCommon.ush");	
@@ -372,6 +380,15 @@ struct FNDIDataChannelWriteInstanceData
 						if(DestinationData && Interface->AllocationMode == ENiagaraDataChannelAllocationMode::Static)
 						{
 							DestinationData->Allocate(Interface->AllocationCount);
+							
+							//We choose whether to zero the CPU buffers or not.
+							//By default we only do this when we are calling "Write" (fx.Niagara.DataChannels.WriteDIZeroCPUBuffersMode==1) as calling Append should handle uninitialized buffers fine.
+							//However we can use fx.Niagara.DataChannels.WriteDIZeroCPUBuffersMode==2 to do this always or fx.Niagara.DataChannels.WriteDIZeroCPUBuffersMode==0 to never do it.
+							bool bZeroBuffers = GbNDCWriteDIZeroCPUBufferMode == 2 || (GbNDCWriteDIZeroCPUBufferMode == 1 && CompiledData.CallsWriteFunction());							
+							if(bZeroBuffers)
+							{
+								DestinationData->ZeroCPUBuffers();
+							}
 						}
 					}
 				}

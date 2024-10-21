@@ -187,6 +187,8 @@ public:
 	FORCEINLINE void ClearGPUInstanceCount() { GPUInstanceCountBufferOffset = INDEX_NONE; }
 
 	NIAGARA_API void BuildRegisterTable();
+	
+	void ZeroCPUBuffers();
 
 private:
 	NIAGARA_API FORCEINLINE void CheckUsage(bool bReadOnly)const;

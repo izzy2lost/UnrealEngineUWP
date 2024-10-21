@@ -216,6 +216,11 @@ void FNDIDataChannelCompiledData::GatherAccessInfo(UNiagaraSystem* System, UNiag
 			bSpawnsParticles = true;			
 		}
 
+		if(BindingInfo.Name == NDIDataChannelUtilities::WriteName)
+		{
+			bCallsWrite = true;
+		}
+
 		return true;
 	};
 	FNiagaraDataInterfaceUtilities::ForEachVMFunction(Owner, System, HandleVMFunc);
@@ -293,6 +298,7 @@ namespace NDIDataChannelUtilities
 	const FName GetNDCSpawnDataName(TEXT("GetNDCSpawnData"));
 	const FName SpawnConditionalName(TEXT("SpawnConditional"));
 	const FName SpawnDirectName(TEXT("SpawnDirect"));
+	const FName WriteName(TEXT("Write"));
 	const TGlobalResource<FNDIDummyUAV> DummyUAVFloat(PF_R32_FLOAT, sizeof(float));
 	const TGlobalResource<FNDIDummyUAV> DummyUAVInt32(PF_R32_SINT, sizeof(int32));
 	const TGlobalResource<FNDIDummyUAV> DummyUAVHalf(PF_R16F, sizeof(FFloat16));
