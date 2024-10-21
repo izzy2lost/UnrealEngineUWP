@@ -60,7 +60,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Binding)
 	TObjectPtr<USkinnedMeshComponent> SkinnedMesh = nullptr;
 
-	uint64 InputMask;
+	uint64 InputMask = 0;
+
+	// Served as persistent storage for the provider proxy, should not be used by the data provider itself
+	int32 LastLodIndexCachedByRenderProxy = 0;
 
 	//~ Begin UComputeDataProvider Interface
 	FComputeDataProviderRenderProxy* GetRenderProxy() override;
@@ -78,7 +81,7 @@ private:
 class FOptimusSkinnedMeshReadDataProviderProxy : public FComputeDataProviderRenderProxy
 {
 public:
-	FOptimusSkinnedMeshReadDataProviderProxy(USkinnedMeshComponent* InSkinnedMeshComponent, uint64 InInputMask, EMeshDeformerOutputBuffer InOutputBuffersWithValidData);
+	FOptimusSkinnedMeshReadDataProviderProxy(USkinnedMeshComponent* InSkinnedMeshComponent, uint64 InInputMask, EMeshDeformerOutputBuffer InOutputBuffersWithValidData, int32* InLastLodIndexPtr);
 
 	//~ Begin FComputeDataProviderRenderProxy Interface
 	bool IsValid(FValidationData const& InValidationData) const override;
@@ -90,8 +93,9 @@ public:
 private:
 	using FParameters = FSkinnedMeshReadDataInterfaceParameters;
 
-	FSkeletalMeshObject* SkeletalMeshObject;
-	uint64 InputMask;
+	FSkeletalMeshObject* SkeletalMeshObject = nullptr;
+	uint64 InputMask = 0;
+	int32* LastLodIndexPtr = nullptr;
 	EMeshDeformerOutputBuffer OutputBuffersFromPreviousInstances;
 
 	// Using UAV here because we might be reading and writing to these buffers in the same kernel

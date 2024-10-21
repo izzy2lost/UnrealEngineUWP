@@ -167,7 +167,7 @@ UComputeDataProvider* UOptimusSkinnedMeshReadDataInterface::CreateDataProvider(T
 
 FComputeDataProviderRenderProxy* UOptimusSkinnedMeshReadDataProvider::GetRenderProxy()
 {
-	return new FOptimusSkinnedMeshReadDataProviderProxy(SkinnedMesh, InputMask, DeformerInstance->OutputBuffersFromPreviousInstances);
+	return new FOptimusSkinnedMeshReadDataProviderProxy(SkinnedMesh, InputMask, DeformerInstance->OutputBuffersFromPreviousInstances, &LastLodIndexCachedByRenderProxy);
 }
 
 void UOptimusSkinnedMeshReadDataProvider::SetDeformerInstance(UOptimusDeformerInstance* InInstance)
@@ -175,11 +175,14 @@ void UOptimusSkinnedMeshReadDataProvider::SetDeformerInstance(UOptimusDeformerIn
 	DeformerInstance = InInstance;
 }
 
-FOptimusSkinnedMeshReadDataProviderProxy::FOptimusSkinnedMeshReadDataProviderProxy(USkinnedMeshComponent* InSkinnedMeshComponent, uint64 InInputMask, EMeshDeformerOutputBuffer InOutputBuffersFromPreviousInstances)
+FOptimusSkinnedMeshReadDataProviderProxy::FOptimusSkinnedMeshReadDataProviderProxy(USkinnedMeshComponent* InSkinnedMeshComponent, uint64 InInputMask, EMeshDeformerOutputBuffer InOutputBuffersFromPreviousInstances, int32* InLastLodIndexPtr) 
 {
 	SkeletalMeshObject = InSkinnedMeshComponent != nullptr ? InSkinnedMeshComponent->MeshObject : nullptr;
 	InputMask = InInputMask;
 	OutputBuffersFromPreviousInstances = InOutputBuffersFromPreviousInstances;
+	LastLodIndexPtr = InLastLodIndexPtr;
+
+	check(LastLodIndexPtr != nullptr);
 }
 
 bool FOptimusSkinnedMeshReadDataProviderProxy::IsValid(FValidationData const& InValidationData) const
@@ -209,9 +212,16 @@ void FOptimusSkinnedMeshReadDataProviderProxy::AllocateResources(FRDGBuilder& Gr
 	// Allocate required buffers
 	const int32 LodIndex = SkeletalMeshObject->GetLOD();
 	
+	bool bLodJustChanged = false;
+	if (LodIndex != *LastLodIndexPtr)
+	{
+		bLodJustChanged = true;	
+		*LastLodIndexPtr = LodIndex;
+	}
+	
 	if (InputMask & static_cast<uint64>(ESkinnedMeshReadDataInterfaceInputSelectorMask::Position) )
 	{
-		FRDGBuffer* PositionBuffer = FSkeletalMeshDeformerHelpers::AllocateVertexFactoryPositionBuffer(GraphBuilder, SkeletalMeshObject, LodIndex, TEXT("OptimusSkinnedMeshPosition"));
+		FRDGBuffer* PositionBuffer = FSkeletalMeshDeformerHelpers::AllocateVertexFactoryPositionBuffer(GraphBuilder, SkeletalMeshObject, LodIndex, bLodJustChanged,TEXT("OptimusSkinnedMeshPosition"));
 		PositionBufferUAV = GraphBuilder.CreateUAV(PositionBuffer, PF_R32_FLOAT, ERDGUnorderedAccessViewFlags::SkipBarrier);
 	}
 	else
