@@ -81,7 +81,7 @@ FSkeletalMeshDeformerHelpers::FClothBuffers FSkeletalMeshDeformerHelpers::GetClo
 	return Ret;
 }
 
-FRDGBuffer* FSkeletalMeshDeformerHelpers::AllocateVertexFactoryPositionBuffer(FRDGBuilder& GraphBuilder, FSkeletalMeshObject* InMeshObject, int32 InLodIndex, TCHAR const* InBufferName)
+FRDGBuffer* FSkeletalMeshDeformerHelpers::AllocateVertexFactoryPositionBuffer(FRDGBuilder& GraphBuilder, FSkeletalMeshObject* InMeshObject, int32 InLodIndex, bool bInLodJustChanged, TCHAR const* InBufferName)
 {
 	if (InMeshObject->IsCPUSkinned())
 	{
@@ -112,9 +112,20 @@ FRDGBuffer* FSkeletalMeshDeformerHelpers::AllocateVertexFactoryPositionBuffer(FR
 		PositionBuffer = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateBufferDesc(PosBufferBytesPerElement, NumVertices * 3), InBufferName, ERDGBufferFlags::None);
 		DeformerGeometry.Position = GraphBuilder.ConvertToExternalBuffer(PositionBuffer);
 		DeformerGeometry.PositionSRV = DeformerGeometry.Position->GetOrCreateSRV(GraphBuilder.RHICmdList, FRHIBufferSRVCreateInfo(PF_R32_FLOAT));
+
+		// Avoid using position buffer from the last time this LOD was active to compute motion vectors,
+		// the position delta between that previous position (could be from any time ago) and the current position can be any crazy value that is not meaningful
+		// instead lets just set the motion vector to zero here
+		if (bInLodJustChanged)
+		{
+			DeformerGeometry.PrevPosition = DeformerGeometry.Position;
+			DeformerGeometry.PrevPositionSRV = DeformerGeometry.PositionSRV;
+		}
+		
 		DeformerGeometry.PositionUpdatedFrame = Frame;
 		GraphBuilder.SetBufferAccessFinal(PositionBuffer, ERHIAccess::VertexOrIndexBuffer | ERHIAccess::SRVMask);
 
+		
 #if RHI_RAYTRACING
 		// Update ray tracing geometry whenever we recreate the position buffer.
 		FSkeletalMeshRenderData& SkelMeshRenderData = MeshObjectGPU->GetSkeletalMeshRenderData();

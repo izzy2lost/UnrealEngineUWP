@@ -153,14 +153,17 @@ EMeshDeformerOutputBuffer UOptimusSkinnedMeshWriteDataInterface::GetOutputBuffer
 
 FComputeDataProviderRenderProxy* UOptimusSkinnedMeshWriteDataProvider::GetRenderProxy()
 {
-	return new FOptimusSkinnedMeshWriteDataProviderProxy(SkinnedMesh, OutputMask);
+	return new FOptimusSkinnedMeshWriteDataProviderProxy(SkinnedMesh, OutputMask, &LastLodIndexCachedByRenderProxy);
 }
 
 
-FOptimusSkinnedMeshWriteDataProviderProxy::FOptimusSkinnedMeshWriteDataProviderProxy(USkinnedMeshComponent* InSkinnedMeshComponent, uint64 InOutputMask)
+FOptimusSkinnedMeshWriteDataProviderProxy::FOptimusSkinnedMeshWriteDataProviderProxy(USkinnedMeshComponent* InSkinnedMeshComponent, uint64 InOutputMask, int32* InLastLodIndexPtr)
 {
 	SkeletalMeshObject = InSkinnedMeshComponent != nullptr ? InSkinnedMeshComponent->MeshObject : nullptr;
 	OutputMask = InOutputMask;
+	LastLodIndexPtr = InLastLodIndexPtr;
+	
+	check(LastLodIndexPtr != nullptr);
 }
 
 bool FOptimusSkinnedMeshWriteDataProviderProxy::IsValid(FValidationData const& InValidationData) const
@@ -190,9 +193,16 @@ void FOptimusSkinnedMeshWriteDataProviderProxy::AllocateResources(FRDGBuilder& G
 	// Allocate required buffers
 	const int32 LodIndex = SkeletalMeshObject->GetLOD();
 
+	bool bLodJustChanged = false;
+	if (LodIndex != *LastLodIndexPtr)
+	{
+		bLodJustChanged = true;	
+		*LastLodIndexPtr = LodIndex;
+	}
+
 	if (OutputMask & static_cast<uint64>(ESkinnedMeshWriteDataInterfaceOutputSelectorMask::Position))
 	{
-		PositionBuffer = FSkeletalMeshDeformerHelpers::AllocateVertexFactoryPositionBuffer(GraphBuilder, SkeletalMeshObject, LodIndex, TEXT("OptimusSkinnedMeshPosition"));
+		PositionBuffer = FSkeletalMeshDeformerHelpers::AllocateVertexFactoryPositionBuffer(GraphBuilder, SkeletalMeshObject, LodIndex, bLodJustChanged,TEXT("OptimusSkinnedMeshPosition"));
 		PositionBufferUAV = GraphBuilder.CreateUAV(PositionBuffer, PF_R32_FLOAT, ERDGUnorderedAccessViewFlags::SkipBarrier);
 	}
 	else

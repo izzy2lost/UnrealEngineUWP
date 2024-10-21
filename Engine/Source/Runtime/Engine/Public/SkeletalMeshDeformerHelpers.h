@@ -57,7 +57,7 @@ public:
 	 * Ownership is handled by the MeshObject.
 	 * If we call this more than once for the same MeshObject in the same frame then we return the allocation from the first call.
 	 */
-	ENGINE_API static FRDGBuffer* AllocateVertexFactoryPositionBuffer(FRDGBuilder& GraphBuilder, FSkeletalMeshObject* InMeshObject, int32 InLodIndex, TCHAR const* InBufferName);
+	ENGINE_API static FRDGBuffer* AllocateVertexFactoryPositionBuffer(FRDGBuilder& GraphBuilder, FSkeletalMeshObject* InMeshObject, int32 InLodIndex, bool bInLodJustChanged, TCHAR const* InBufferName);
 
 	/**
 	 * Allocate and bind a new tangent buffer and return it for writing.
