@@ -2,7 +2,7 @@
 
 #include "/Engine/Private/Common.ush"
 
-#define MAX_PRIMITIVES 64
+#define MAX_PRIMITIVES 256 // Should be the same as MAX_PRIMITIVE_COMPONENTS_PER_SPAWNER
 
 uint4 {DataInterfaceName}_PrimitiveParameters[MAX_PRIMITIVES]; // (NumInstancesAllocated, InstanceOffset, Unused, Unused)
 

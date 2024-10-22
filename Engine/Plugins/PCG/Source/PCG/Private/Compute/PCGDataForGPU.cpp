@@ -1264,6 +1264,12 @@ EPCGUnpackDataCollectionResult FPCGDataCollectionDesc::UnpackDataCollection(cons
 
 					ParallelFor(NumElements, [PackedData, &InStringTable, &OutPoints, Metadata, AttributeBase, &AttributeDesc, AddressUints, AttributeStrideUints](int32 ElementIndex)
 					{
+						// Points that were removed will not have their metadata set at all, and most likely not zero initialized either, so this could be garbage otherwise.
+						if (!FMath::IsFinite(OutPoints[ElementIndex].Density))
+						{
+							return;
+						}
+
 						Metadata->InitializeOnSet(OutPoints[ElementIndex].MetadataEntry);
 						ensure(PCGDataForGPUHelpers::UnpackAttributeHelper(PackedData, InStringTable, AddressUints + ElementIndex * AttributeStrideUints, AttributeBase, AttributeDesc, OutPoints[ElementIndex].MetadataEntry));
 					});
