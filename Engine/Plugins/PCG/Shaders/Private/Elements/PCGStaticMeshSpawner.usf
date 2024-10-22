@@ -74,13 +74,6 @@ void Main(uint3 GroupId : SV_GroupID, uint GroupIndex : SV_GroupIndex)
 		}
 	}
 
-	const int InstanceIndexInt = InstanceData_GetIndexToWriteTo(PrimitiveIndex);
-	if (InstanceIndexInt < 0)
-	{
-		// Saturated instances for this primitive. No-op.
-		return;
-	}
-
 	uint Out_DataIndex, Out_ElementIndex;
 	if (!Out_GetThreadData(ThreadIndex, Out_DataIndex, Out_ElementIndex))
 	{
@@ -88,37 +81,39 @@ void Main(uint3 GroupId : SV_GroupID, uint GroupIndex : SV_GroupIndex)
 		return;
 	}
 
-	const uint InstanceIndex = InstanceIndexInt;
-
 	if (In_IsPointRemoved(In_DataIndex, In_ElementIndex))
 	{
-		// Cull the instance by setting the transform to 0.
-		InstanceData_WriteInstanceLocalToWorld(InstanceIndex, (float4x4)0);
-		
 		// Propagate the 'Removed' status to the output point if input point is removed. Otherwise, this point will not be culled.
 		Out_RemovePoint(Out_DataIndex, Out_ElementIndex);
 
 		return;
 	}
 
-	// Write instance transform.
-	const float4x4 Transform = In_GetPointTransform(In_DataIndex, In_ElementIndex);
-	InstanceData_WriteInstanceLocalToWorld(InstanceIndex, transpose(Transform));
+	// Get instance index to write to. Will return a negative value if we have saturated instances for this primitive, in which case we will not push the data.
+	const int InstanceIndexInt = InstanceData_GetIndexToWriteTo(PrimitiveIndex);
 
-	// Write instance custom float data.
-	const uint NumAttributes = SMSpawner_GetNumAttributes();
-	for (uint AttributeIndex = 0; AttributeIndex < NumAttributes; ++AttributeIndex)
+	// Write instance transform, only if not culled by primitive instance index
+	if(InstanceIndexInt >= 0)
 	{
-		const uint4 AttributeIdOffsetStride = SMSpawner_GetAttributeIdOffsetStride(AttributeIndex);
-		const uint AttributeId = AttributeIdOffsetStride[0];
-		const uint AttributeOffset = AttributeIdOffsetStride[1];
-		const uint AttributeStride = AttributeIdOffsetStride[2];
+		const uint InstanceIndex = InstanceIndexInt;
+		const float4x4 Transform = In_GetPointTransform(In_DataIndex, In_ElementIndex);
+		InstanceData_WriteInstanceLocalToWorld(InstanceIndex, transpose(Transform));
 
-		for (uint FloatIndex = 0; FloatIndex < AttributeStride; ++FloatIndex)
+		// Write instance custom float data.
+		const uint NumAttributes = SMSpawner_GetNumAttributes();
+		for (uint AttributeIndex = 0; AttributeIndex < NumAttributes; ++AttributeIndex)
 		{
-			const uint AttributeValueAddress = In_GetElementAddressInternal(In_DataIndex, In_ElementIndex, AttributeId);
-			// Assumes floating point data. TODO add type information and deal with different types in different ways?
-			InstanceData_WriteCustomFloatRaw(InstanceIndex, AttributeOffset + FloatIndex, In_LoadBufferInternal(AttributeValueAddress + 4 * FloatIndex));
+			const uint4 AttributeIdOffsetStride = SMSpawner_GetAttributeIdOffsetStride(AttributeIndex);
+			const uint AttributeId = AttributeIdOffsetStride[0];
+			const uint AttributeOffset = AttributeIdOffsetStride[1];
+			const uint AttributeStride = AttributeIdOffsetStride[2];
+
+			for (uint FloatIndex = 0; FloatIndex < AttributeStride; ++FloatIndex)
+			{
+				const uint AttributeValueAddress = In_GetElementAddressInternal(In_DataIndex, In_ElementIndex, AttributeId);
+				// Assumes floating point data. TODO add type information and deal with different types in different ways?
+				InstanceData_WriteCustomFloatRaw(InstanceIndex, AttributeOffset + FloatIndex, In_LoadBufferInternal(AttributeValueAddress + 4 * FloatIndex));
+			}
 		}
 	}
 
