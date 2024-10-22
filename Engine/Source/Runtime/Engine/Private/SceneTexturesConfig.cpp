@@ -128,7 +128,7 @@ static EPixelFormat GetSceneColorFormat(bool bRequiresAlphaChannel)
 	{
 		UE_CALL_ONCE([]()
 			{
-				UE_LOG(LogSceneTextures, Warning, TEXT("Enforcing FloatRGBA scene color format due to alpha channel requirement."));
+				UE_LOG(LogSceneTextures, Display, TEXT("Enforcing FloatRGBA scene color format due to alpha channel requirement."));
 			}
 		);
 		Format = PF_FloatRGBA;
