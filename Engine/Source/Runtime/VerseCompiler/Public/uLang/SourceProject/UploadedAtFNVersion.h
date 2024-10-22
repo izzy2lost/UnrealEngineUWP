@@ -29,5 +29,6 @@ namespace VerseFN
         inline bool OptionTypeDoesntIgnoreValueHashability(const uint32_t CurrentVersion)  { return CurrentVersion >= 3100; }
         inline bool SortSourceSubmodulesLexicographically(const uint32_t CurrentVersion)   { return CurrentVersion >= 3200; }
         inline bool EnforceSnippetNameValidity(const uint32_t CurrentVersion)              { return CurrentVersion >= 3200; }
+        inline bool AttributesRequireComputes(const uint32_t CurrentVersion)               { return CurrentVersion >= 3300; }
     }
 }
