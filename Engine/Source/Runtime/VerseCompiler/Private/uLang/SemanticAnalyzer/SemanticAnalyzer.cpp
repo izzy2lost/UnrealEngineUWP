@@ -13622,25 +13622,24 @@ private:
             {
                 const TSPtr<CExprIdentifierData>& Identifier = Value.As<CExprIdentifierData>();
 
-                CClassDefinition* MessageClass = _Program->FindDefinitionByVersePath<CClassDefinition>("/Verse.org/Verse/message");
-                if (Identifier->_DataDefinition.GetType()->GetNormalType().AsNullable<CClass>() != MessageClass)
-                {
-                    break;
-                }
-
                 const CExprDataDefinition* Definition = static_cast<const CExprDataDefinition*>(Identifier->_DataDefinition.GetAstNode());
                 if (Definition == nullptr || Definition->Value()->GetNodeType() != EAstNodeType::Invoke_Type)
                 {
                     break;
                 }
+                MaybeAppendUnsupportedAttributeValueErrors(Definition->Value());
+                return;
+            }
 
-                const TSPtr<CExprInvokeType>& InvokeType = Definition->Value().As<CExprInvokeType>();
-                if (InvokeType->_Argument->GetNodeType() != EAstNodeType::Invoke_Invocation)
-                {
-                    break;
-                }
+            case EAstNodeType::Invoke_Type:
+            {
+                MaybeAppendUnsupportedAttributeValueErrors(Value.As<CExprInvokeType>()->_Argument);
+                return;
+            }
 
-                const TSPtr<CExprInvocation>& Invocation = InvokeType->_Argument.As<CExprInvocation>();
+            case EAstNodeType::Invoke_Invocation:
+            {
+                const TSPtr<CExprInvocation>& Invocation = Value.As<CExprInvocation>();
                 if (Invocation->GetCallee()->GetNodeType() != EAstNodeType::Identifier_Function)
                 {
                     break;
@@ -13869,11 +13868,22 @@ private:
                 // Check that the class and its constructor are accessible.
                 RequireConstructorAccessible(InstantiationAst->GetMappedVstNode(), *_Context._Scope, *Class->_Definition);
 
-                // Require that the class's constructor effects are allowed in the current context.
-                RequireEffects(*InstantiationAst, Class->_ConstructorEffects, ExprCtx.AllowedEffects, "archetype instantiation constructs a class that");
+                // Attributes previously allowed <transacts> and accepted some expressions which the custom attribute processor ignored.
+                if (!VerseFN::UploadedAtFNVersion::AttributesRequireComputes(_Context._Package->_UploadedAtFNVersion) &&
+                    SemanticTypeUtils::IsAttributeType(Class))
+                {
+                    SDataMemberIndex DataMemberIndex = GetArchetypeInstantiationMemberIndex(*Class);
+                    SExprCtx NewExprCtx = ExprCtx.With(EffectSets::Transacts);
+                    AnalyzeArchetypeInstantiation(*InstantiationAst, *Class, DataMemberIndex, NewExprCtx);
+                }
+                else
+                {
+                    // Require that the class's constructor effects are allowed in the current context.
+                    RequireEffects(*InstantiationAst, Class->_ConstructorEffects, ExprCtx.AllowedEffects, "archetype instantiation constructs a class that");
 
-                SDataMemberIndex DataMemberIndex = GetArchetypeInstantiationMemberIndex(*Class);
-                AnalyzeArchetypeInstantiation(*InstantiationAst, *Class, DataMemberIndex, ExprCtx);
+                    SDataMemberIndex DataMemberIndex = GetArchetypeInstantiationMemberIndex(*Class);
+                    AnalyzeArchetypeInstantiation(*InstantiationAst, *Class, DataMemberIndex, ExprCtx);
+                }
             }
         });
         
