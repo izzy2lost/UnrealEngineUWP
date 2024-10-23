@@ -49,6 +49,17 @@ template<typename EventInterface>
 struct TDataEventContainer
 {
 #if UE_MOVIESCENE_EVENTS
+	~TDataEventContainer()
+	{
+		if (IntrusiveHandlers)
+		{
+			IntrusiveHandlers->Unlink();
+		}
+		if (NonIntrusiveHandlers)
+		{
+			NonIntrusiveHandlers->Unlink();
+		}
+	}
 
 	template<typename FuncType, typename... ArgTypes>
 	void Trigger(FuncType&& Func, ArgTypes&&... Args) const
