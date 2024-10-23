@@ -47,7 +47,7 @@ namespace ScriptGeneratorUbtPlugin
 					continue;
 				}
 
-				QueueClassExports(module.Package, module.Package, classes, tasks);
+				QueueClassExports(module.ScriptPackage, module.ScriptPackage, classes, tasks);
 			}
 
 			// Wait for all the classes to export
