@@ -38,6 +38,7 @@ namespace UnrealBuildTool.Rules
 					"Sequencer",
 					"HairCardGeneratorFramework",
 					"CommonMenuExtensions",
+					"RenderCore"
 				});
 
 			PrivateIncludePathModuleNames.AddRange(
