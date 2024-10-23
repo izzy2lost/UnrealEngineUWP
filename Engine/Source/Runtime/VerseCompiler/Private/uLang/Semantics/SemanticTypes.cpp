@@ -2750,12 +2750,26 @@ const CTypeBase* SemanticTypeUtils::Join(const CTypeBase* Type1, const CTypeBase
     {
         const CTupleType* TupleType = &(NormalType1.IsA<CTupleType>() ? NormalType1 : NormalType2).AsChecked<CTupleType>();
         const CArrayType* ArrayType = &(NormalType1.IsA<CArrayType>() ? NormalType1 : NormalType2).AsChecked<CArrayType>();
-        const CTypeBase* ResultElementType = ArrayType->GetElementType();
-        for (const CTypeBase* TupleElementType : TupleType->GetElements())
+        const CTupleType::ElementArray& TupleElementTypes = TupleType->GetElements();
+        if (TupleType->NumNonNamedElements() == TupleElementTypes.Num())
         {
-            ResultElementType = Join(ResultElementType, TupleElementType);
+            // If there are no named elements of the tuple, the join is the
+            // array of joined elements.
+            const CTypeBase* ResultElementType = ArrayType->GetElementType();
+            for (auto I = TupleElementTypes.begin(), Last = TupleElementTypes.begin() + TupleType->NumNonNamedElements(); I != Last; ++I)
+            {
+                ResultElementType = Join(ResultElementType, *I);
+            }
+            return &Program.GetOrCreateArrayType(ResultElementType);
         }
-        return &Program.GetOrCreateArrayType(ResultElementType);
+        // If there are any named elements, then the join must also allow for
+        // them.  However, given one argument to the join certainly does not
+        // have them (the array type), they mustn't be required (i.e. must have
+        // defaults).  Furthermore, any number of unnamed elements must be
+        // allowed when no named elements exist.  This is impossible to
+        // represent with the current vocabulary of types.  Approximate with
+        // `any`.
+        return &Program._anyType;
     }
     // If one type is $class, and the other is $interface, the result is $interface if $class implements its, otherwise try to find a common $interface.
     else if ((NormalType1.IsA<CClass>() && NormalType2.IsA<CInterface>())
@@ -3343,6 +3357,13 @@ const CTypeBase* SemanticTypeUtils::Meet(const CTypeBase* Type1, const CTypeBase
         {
             return &Program._falseType;
         }
+        if (Elements->Num() == 1)
+        {
+            // For `TupleType1` of size != 1, this may only hold if `TupleType1`'s
+            // named elements all have values and `TupleType1` has a single unnamed
+            // element.
+            return (*Elements)[0];
+        }
         return &Program.GetOrCreateTupleType(Move(*Elements), TupleType1->GetFirstNamedIndex());
     }
     else if (const CTupleType* TupleType2 = NormalType2.AsNullable<CTupleType>())
@@ -3355,6 +3376,13 @@ const CTypeBase* SemanticTypeUtils::Meet(const CTypeBase* Type1, const CTypeBase
         if (!Elements)
         {
             return &Program._falseType;
+        }
+        if (Elements->Num() == 1)
+        {
+            // For `TupleType2` of size != 1, this may only hold if `TupleType2`'s
+            // named elements all have values and `TupleType2` has a single unnamed
+            // element.
+            return (*Elements)[0];
         }
         return &Program.GetOrCreateTupleType(Move(*Elements), TupleType2->GetFirstNamedIndex());
     }
