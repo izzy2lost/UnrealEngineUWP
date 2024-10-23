@@ -26,6 +26,7 @@
 #include "Item/AvaOutlinerActor.h"
 #include "Item/AvaOutlinerComponent.h"
 #include "Item/AvaOutlinerItemUtils.h"
+#include "Item/AvaOutlinerLevel.h"
 #include "Item/AvaOutlinerMaterial.h"
 #include "Item/AvaOutlinerTreeRoot.h"
 #include "ItemActions/AvaOutlinerAddItem.h"
@@ -396,7 +397,11 @@ void FAvaOutliner::Refresh()
 
 				ULevelInstanceSubsystem* const LevelInstanceSubsystem = InWorld->GetSubsystem<ULevelInstanceSubsystem>();
 
-				const ULevel* Level = InActor->GetLevel();
+				ULevel* const Level = InActor->GetLevel();
+
+				// Ensure that the Actor's Level is registered as an Item
+				FindOrAdd<FAvaOutlinerLevel>(Level);
+
 				AActor* Parent = InActor->GetSceneOutlinerParent();
 
 				// Try to find the Level Instance Actor to use as Parent for actors that aren't attached to anything

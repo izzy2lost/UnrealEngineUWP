@@ -88,17 +88,24 @@ void FAvaOutlinerAddItem::Execute(FAvaOutliner& InOutliner)
 		{
 			const FAvaOutlinerScopedSelection ScopedSelection(*ModeTools, EAvaOutlinerScopedSelectionPurpose::Read);
 
-			//Automatically Select Item if it's Selected in Mode Tools
-			if (AddParams.Item->IsSelected(ScopedSelection))
+			const bool bSelectedInModeTools = AddParams.Item->IsSelected(ScopedSelection);
+			const bool bSelectedInOutliner  = InOutliner.GetSelectedItems().Contains(AddParams.Item);
+
+			// Update Selection if there's a discrepancy between the Mode Tools Selection & the Outliner View Selected Items
+			if (bSelectedInModeTools != bSelectedInOutliner)
 			{
-				// Select in Outliner but don't signal selection as we already have it selected in Mode Tools
-				AddParams.Flags = EAvaOutlinerAddItemFlags::Select;
-				AddParams.SelectionFlags &= ~EAvaOutlinerItemSelectionFlags::SignalSelectionChange;
-			}
-			//Signal Selection Change when we attempt to select this item in the Outliner but it isn't selected in Mode Tools
-			else if (EnumHasAnyFlags(AddParams.Flags, EAvaOutlinerAddItemFlags::Select))
-			{
-				AddParams.SelectionFlags |= EAvaOutlinerItemSelectionFlags::SignalSelectionChange;
+				// Automatically Select Item if it's Selected in Mode Tools and not yet in the Outliner
+				if (bSelectedInModeTools)
+				{
+					// Select in Outliner but don't signal selection as we already have it selected in Mode Tools
+					AddParams.Flags |= EAvaOutlinerAddItemFlags::Select;
+					AddParams.SelectionFlags &= ~EAvaOutlinerItemSelectionFlags::SignalSelectionChange;
+				}
+				// Signal Selection Change when we attempt to select this item in the Outliner but it isn't selected in Mode Tools
+				else if (EnumHasAnyFlags(AddParams.Flags, EAvaOutlinerAddItemFlags::Select))
+				{
+					AddParams.SelectionFlags |= EAvaOutlinerItemSelectionFlags::SignalSelectionChange;
+				}
 			}
 		}
 
