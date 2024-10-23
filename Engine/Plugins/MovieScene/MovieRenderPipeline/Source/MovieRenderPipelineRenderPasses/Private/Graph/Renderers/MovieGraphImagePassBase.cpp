@@ -74,6 +74,11 @@ FSceneView* FMovieGraphImagePassBase::CreateSceneView(const FSceneViewInitOption
 
 	UE::MovieRenderPipeline::UpdateSceneViewForShowFlags(View);
 
+	for (int ViewExt = 0; ViewExt < InViewFamily->ViewExtensions.Num(); ViewExt++)
+	{
+		InViewFamily->ViewExtensions[ViewExt]->SetupView(*InViewFamily, *View);
+	}
+
 	return View;
 }
 
@@ -162,6 +167,11 @@ TSharedRef<FSceneViewFamilyContext> FMovieGraphImagePassBase::CreateSceneViewFam
 
 	// Need to add the engine-wide view extensions, as rendering code may depend on them (ie: landscapes)
 	OutViewFamily->ViewExtensions.Append(GEngine->ViewExtensions->GatherActiveExtensions(FSceneViewExtensionContext(InInitData.World->Scene)));
+
+	for (FSceneViewExtensionRef& ViewExt : OutViewFamily->ViewExtensions)
+	{
+		ViewExt->SetupViewFamily(*OutViewFamily);
+	}
 
 	return OutViewFamily;
 }
