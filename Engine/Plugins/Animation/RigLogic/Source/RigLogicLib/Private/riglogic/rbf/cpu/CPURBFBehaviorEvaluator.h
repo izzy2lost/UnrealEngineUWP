@@ -92,7 +92,7 @@ class Evaluator : public RBFBehaviorEvaluator {
                 }
 
                 for (std::uint16_t ci = 0u; ci < outputControlIndices.size(); ci++) {
-                    rawControls[outputControlIndices[ci]] = outputControlWeights[ci] * outputWeightsBuffer[i] * inputWeight;
+                    rawControls[outputControlIndices[ci]] += outputControlWeights[ci] * outputWeightsBuffer[i] * inputWeight;
                 }
             }
         }
@@ -102,10 +102,13 @@ class Evaluator : public RBFBehaviorEvaluator {
             assert(lod < lods.indicesPerLOD.size());
             const auto& solverIndices = lods.indicesPerLOD[lod];
             auto rawControls = inputs->getInputBuffer();
+            const auto offset = static_cast<std::size_t>(inputs->getRawControlCount()) +
+                static_cast<std::size_t>(inputs->getPSDControlCount()) +
+                static_cast<std::size_t>(inputs->getMLControlCount());
+            std::fill_n(rawControls.data() + offset, inputs->getRBFControlCount(), 0.0f);
             auto inputBuffer = static_cast<OutputInstance*>(intermediateOutputs)->getInputBuffer();
             auto intermediateWeightsBuffer = static_cast<OutputInstance*>(intermediateOutputs)->getIntermediateWeightsBuffer();
             auto outputWeightsBuffer = static_cast<OutputInstance*>(intermediateOutputs)->getOutputWeightsBuffer();
-
             for (const auto solverIndex : solverIndices) {
                 assert(solverIndex < solvers.size());
                 calculate(solverIndex, rawControls, inputBuffer, intermediateWeightsBuffer, outputWeightsBuffer);
@@ -122,10 +125,13 @@ class Evaluator : public RBFBehaviorEvaluator {
             assert(solverIndex < solvers.size());
 
             auto rawControls = inputs->getInputBuffer();
+            const auto offset = static_cast<std::size_t>(inputs->getRawControlCount()) +
+                static_cast<std::size_t>(inputs->getPSDControlCount()) +
+                static_cast<std::size_t>(inputs->getMLControlCount());
+            std::fill_n(rawControls.data() + offset, inputs->getRBFControlCount(), 0.0f);
             auto inputBuffer = static_cast<OutputInstance*>(intermediateOutputs)->getInputBuffer();
             auto intermediateWeightsBuffer = static_cast<OutputInstance*>(intermediateOutputs)->getIntermediateWeightsBuffer();
             auto outputWeightsBuffer = static_cast<OutputInstance*>(intermediateOutputs)->getOutputWeightsBuffer();
-
             calculate(solverIndex, rawControls, inputBuffer, intermediateWeightsBuffer, outputWeightsBuffer);
         }
 

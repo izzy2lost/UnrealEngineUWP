@@ -13,7 +13,7 @@
 #include <functional>
 #include <iterator>
 #include <memory>
-#if defined(_MSC_VER) && !defined(__clang__) && (_MSC_VER >= 1900) && (__cplusplus >= 202002L)
+#if defined(_MSC_VER) && !defined(__clang__) && (_MSC_VER < 1938) && (_MSC_VER >= 1900) && (__cplusplus >= 202002L)
     #include <span>
 #endif
 #include <type_traits>
@@ -71,7 +71,7 @@ class DynArray {
         DynArray(TIterator start, TIterator end, const allocator_type& allocator = allocator_type{}) :
             DynArray{static_cast<std::size_t>(std::distance(start, end)), allocator} {
 
-            #if defined(_MSC_VER) && !defined(__clang__)
+            #if defined(_MSC_VER) && !defined(__clang__) && (_MSC_VER < 1938)
                 if (size() != 0ul) {
                     #if (_MSC_VER >= 1900) && (__cplusplus >= 202002L)
                         std::copy(start, end, std::span{data(), size()}.begin());
@@ -212,7 +212,7 @@ class DynArray {
         template<typename TIterator>
         void assign(TIterator start, TIterator end) {
             resize_uninitialized(static_cast<std::size_t>(std::distance(start, end)));
-            #if defined(_MSC_VER) && !defined(__clang__)
+            #if defined(_MSC_VER) && !defined(__clang__) && (_MSC_VER < 1938)
                 if (size() != 0ul) {
                     #if (_MSC_VER >= 1900) && (__cplusplus >= 202002L)
                         std::copy(start, end, std::span{data(), size()}.begin());

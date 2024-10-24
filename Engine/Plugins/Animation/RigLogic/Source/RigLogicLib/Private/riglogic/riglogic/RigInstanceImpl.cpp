@@ -20,7 +20,7 @@
 #include <cassert>
 #include <cstdint>
 #include <numeric>
-#if defined(_MSC_VER) && !defined(__clang__) && (_MSC_VER >= 1900) && (__cplusplus >= 202002L)
+#if defined(_MSC_VER) && !defined(__clang__) && (_MSC_VER < 1938) && (_MSC_VER >= 1900) && (__cplusplus >= 202002L)
     #include <span>
 #endif
 #ifdef _MSC_VER
@@ -90,7 +90,7 @@ ConstArrayView<float> RigInstanceImpl::getGUIControlValues() const {
 
 void RigInstanceImpl::setGUIControlValues(const float* values) {
     auto guiControlBuffer = controlsInstance->getGUIControlBuffer();
-    #if defined(_MSC_VER) && !defined(__clang__)
+    #if defined(_MSC_VER) && !defined(__clang__) && (_MSC_VER < 1938)
         #if (_MSC_VER >= 1900) && (__cplusplus >= 202002L)
             std::copy(values,
                       values + guiControlCount,
@@ -124,7 +124,7 @@ ConstArrayView<float> RigInstanceImpl::getRawControlValues() const {
 
 void RigInstanceImpl::setRawControlValues(const float* values) {
     auto inputBuffer = controlsInstance->getInputBuffer();
-    #if defined(_MSC_VER) && !defined(__clang__)
+    #if defined(_MSC_VER) && !defined(__clang__) && (_MSC_VER < 1938)
         #if (_MSC_VER >= 1900) && (__cplusplus >= 202002L)
             std::copy(values,
                       values + rawControlCount,

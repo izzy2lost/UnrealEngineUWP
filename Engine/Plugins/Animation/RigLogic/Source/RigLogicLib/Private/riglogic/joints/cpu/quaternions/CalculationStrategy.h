@@ -103,7 +103,7 @@ namespace rl4 {
  *     LERPED_G = [LERPED_X[3], LERPED_Y[3], LERPED_Z[3], LERPED_W[3]]
  */
 template<typename TFVec>
-static FORCE_INLINE void fastlerpWithIdentity(TFVec& qxACEG, TFVec& qyACEG, TFVec& qzACEG, TFVec& qwACEG, TFVec weight) {
+static FORCE_INLINE void fastlerpWithIdentity(TFVec& qxACEG, TFVec& qyACEG, TFVec& qzACEG, TFVec& qwACEG, const TFVec& weight) {
     const TFVec negOne{-1.0f};
     const TFVec one{1.0f};
     const TFVec oneMinusWeight = one - weight;

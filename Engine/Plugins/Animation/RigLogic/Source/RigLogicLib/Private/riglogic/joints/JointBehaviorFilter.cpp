@@ -3,7 +3,7 @@
 #include "riglogic/joints/JointBehaviorFilter.h"
 
 #include <cstdint>
-#if defined(_MSC_VER) && !defined(__clang__) && (_MSC_VER >= 1900) && (__cplusplus >= 202002L)
+#if defined(_MSC_VER) && !defined(__clang__) && (_MSC_VER < 1938) && (_MSC_VER >= 1900) && (__cplusplus >= 202002L)
     #include <span>
 #endif
 
@@ -147,7 +147,7 @@ std::uint16_t JointBehaviorFilter::getJointGroupCount() const {
 
 void JointBehaviorFilter::copyInputIndices(std::uint16_t jointGroupIndex, ArrayView<std::uint16_t> dest) const {
     const auto inputIndices = reader->getJointGroupInputIndices(jointGroupIndex);
-    #if defined(_MSC_VER) && !defined(__clang__)
+    #if defined(_MSC_VER) && !defined(__clang__) && (_MSC_VER < 1938)
         #if (_MSC_VER >= 1900) && (__cplusplus >= 202002L)
             std::copy(inputIndices.begin(),
                       inputIndices.end(),
@@ -181,7 +181,7 @@ void JointBehaviorFilter::copyValues(std::uint16_t jointGroupIndex, ArrayView<fl
     for (std::size_t row = {}; row < rowCount; ++row) {
         if (isAttributeEnabled(outputIndices[row])) {
             const auto rowOfValues = values.subview(row * colCount, colCount);
-            #if defined(_MSC_VER) && !defined(__clang__)
+            #if defined(_MSC_VER) && !defined(__clang__) && (_MSC_VER < 1938)
                 #if (_MSC_VER >= 1900) && (__cplusplus >= 202002L)
                     std::copy(rowOfValues.begin(),
                               rowOfValues.end(),

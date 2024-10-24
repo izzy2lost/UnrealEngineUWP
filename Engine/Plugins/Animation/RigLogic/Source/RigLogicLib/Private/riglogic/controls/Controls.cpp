@@ -36,7 +36,7 @@ void Controls::mapRawToGUI(ControlsInputInstance* instance) const {
 }
 
 void Controls::calculate(ControlsInputInstance* instance) const {
-    psds.calculate(instance->getInputBuffer().data(), guiToRawMapping.getOutputCount());
+    psds.calculate(instance->getInputBuffer().data(), instance->getRawControlCount());
 }
 
 }  // namespace rl4
