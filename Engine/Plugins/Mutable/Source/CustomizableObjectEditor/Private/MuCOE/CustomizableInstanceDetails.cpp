@@ -2374,7 +2374,7 @@ void SProfileParametersWindow::Construct(const FArguments& InArgs)
 				[
 					SNew(STextBlock)
 					.Text(LOCTEXT("CustomizableProfileName", "Customizable Profile Name"))
-					.Font(FSlateFontInfo(FPaths::EngineContentDir() / TEXT("Slate/Fonts/Roboto-Regular.ttf"), 14))
+					.Font(FSlateFontInfo(FCoreStyle::GetDefaultFont(), 14, "Regular"))
 				]
 
 				+ SVerticalBox::Slot()
