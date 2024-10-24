@@ -1107,7 +1107,7 @@ void SSelectPopulationClassFolderDlg::Construct(const FArguments& InArgs)
 				[
 					SNew(STextBlock)
 					.Text(LOCTEXT("SelectPath", "Select Path"))
-					.Font(FSlateFontInfo(FPaths::EngineContentDir() / TEXT("Slate/Fonts/Roboto-Regular.ttf"), 14))
+					.Font(FSlateFontInfo(FCoreStyle::GetDefaultFont(), 14, "Regular"))
 				]
 
 				+ SVerticalBox::Slot()
@@ -1122,7 +1122,7 @@ void SSelectPopulationClassFolderDlg::Construct(const FArguments& InArgs)
 				[
 					SNew(STextBlock)
 					.Text(LOCTEXT("FileName", "File Name"))
-					.Font(FSlateFontInfo(FPaths::EngineContentDir() / TEXT("Slate/Fonts/Roboto-Regular.ttf"), 14))
+					.Font(FSlateFontInfo(FCoreStyle::GetDefaultFont(), 14, "Regular"))
 				]
 
 				+ SVerticalBox::Slot()

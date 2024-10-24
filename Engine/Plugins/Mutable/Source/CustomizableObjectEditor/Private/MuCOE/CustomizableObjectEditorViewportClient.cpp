@@ -2334,7 +2334,7 @@ void SMutableSelectFolderDlg::Construct(const FArguments& InArgs)
 		[
 			SNew(STextBlock)
 			.Text(LOCTEXT("SelectPath", "Select Path"))
-		.Font(FSlateFontInfo(FPaths::EngineContentDir() / TEXT("Slate/Fonts/Roboto-Regular.ttf"), 14))
+			.Font(FSlateFontInfo(FCoreStyle::GetDefaultFont(), 14, "Regular"))
 		]
 
 	+ SVerticalBox::Slot()
@@ -2349,7 +2349,7 @@ void SMutableSelectFolderDlg::Construct(const FArguments& InArgs)
 		[
 			SNew(STextBlock)
 			.Text(LOCTEXT("FileName", "File Name"))
-			.Font(FSlateFontInfo(FPaths::EngineContentDir() / TEXT("Slate/Fonts/Roboto-Regular.ttf"), 14))
+			.Font(FSlateFontInfo(FCoreStyle::GetDefaultFont(), 14, "Regular"))
 		]
 
 	+ SVerticalBox::Slot()
@@ -2374,7 +2374,7 @@ void SMutableSelectFolderDlg::Construct(const FArguments& InArgs)
 			[
 				SNew(STextBlock)
 				.Text(LOCTEXT("ExportAllUsedResources", "Export all used resources  "))
-				.Font(FSlateFontInfo(FPaths::EngineContentDir() / TEXT("Slate/Fonts/Roboto-Regular.ttf"), 12))
+				.Font(FSlateFontInfo(FCoreStyle::GetDefaultFont(), 12, "Regular"))
 				.ToolTipText(LOCTEXT("Export all used Resources", "All the resources used by the object will be baked/stored in the target folder. Otherwise, only the assets that Mutable modifies will be baked/stored."))
 			]
 			+ SHorizontalBox::Slot()
@@ -2399,7 +2399,7 @@ void SMutableSelectFolderDlg::Construct(const FArguments& InArgs)
 			[
 				SNew(STextBlock)
 				.Text(LOCTEXT("GenerateConstantMaterialInstances", "Generate Constant Material Instances  "))
-				.Font(FSlateFontInfo(FPaths::EngineContentDir() / TEXT("Slate/Fonts/Roboto-Regular.ttf"), 12))
+				.Font(FSlateFontInfo(FCoreStyle::GetDefaultFont(), 12, "Regular"))
 				.ToolTipText(LOCTEXT("Generate Constant Material Instances", "All the material instances in the baked skeletal meshes will be constant instead of dynamic. They cannot be changed at runtime but they are lighter and required for UEFN."))
 			]
 			+ SHorizontalBox::Slot()
