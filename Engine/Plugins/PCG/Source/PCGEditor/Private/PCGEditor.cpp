@@ -3113,6 +3113,11 @@ void FPCGEditor::OnComponentUnregistered(UPCGComponent* Component)
 	{
 		DebugObjectTreeWidget->RequestRefresh();
 	}
+
+	if (UPCGSubsystem* Subsystem = Component ? Component->GetSubsystem() : nullptr)
+	{
+		Subsystem->GetNodeVisualLogsMutable().ClearLogs(Component);
+	}
 }
 
 void FPCGEditor::OnComponentGenerationDone(UPCGSubsystem* Subsystem, UPCGComponent* Component, EPCGGenerationStatus Status)

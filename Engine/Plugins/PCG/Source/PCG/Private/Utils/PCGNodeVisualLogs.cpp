@@ -3,6 +3,7 @@
 #include "Utils/PCGNodeVisualLogs.h"
 
 #include "PCGComponent.h"
+#include "PCGModule.h"
 
 #include "Algo/Find.h"
 #include "GameFramework/Actor.h"
@@ -202,8 +203,16 @@ void FPCGNodeVisualLogs::ClearLogs(const FPCGStack& InPCGStack)
 		TArray<FPCGStack> StacksToRemove;
 		for (const TPair<FPCGStack, FPCGPerNodeVisualLogs>& Entry : StackToLogs)
 		{
-			if (Entry.Key.BeginsWith(InPCGStack))
+			// Always take every opportunity to flush messages logged against invalid/dead components.
+			const bool bComponentValid = IsValid(Entry.Key.GetRootComponent());
+
+			if (!bComponentValid || Entry.Key.BeginsWith(InPCGStack))
 			{
+				if (!bComponentValid)
+				{
+					UE_LOG(LogPCG, Verbose, TEXT("Cleared out logs for null component."));
+				}
+
 				StacksToRemove.Add(Entry.Key);
 
 				for (const FPCGStackFrame& Frame : Entry.Key.GetStackFrames())
