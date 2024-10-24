@@ -418,7 +418,10 @@ void SNiagaraOverviewStackNode::Tick(const FGeometry& AllottedGeometry, const do
 		// To support drag & drop indicators, we mark the prepass as dirty. This will cause the invalidation widget to render using the slow path, updating the drag & drop indicators properly
 		if(FSlateApplication::Get().IsDragDropping())
 		{
-			ContentAreaWidget->MarkPrepassAsDirty();
+			if (ContentAreaWidget)
+			{
+				ContentAreaWidget->MarkPrepassAsDirty();
+			}
 		}
 		
 		if (OverviewStackNode->IsRenamePending() && !SGraphNode::IsRenamePending())
