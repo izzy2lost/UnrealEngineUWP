@@ -1054,12 +1054,12 @@ public:
 			}
 			else
 			{
-				ExecuteOnGameThread(OpType::Name, MoveTemp(Callable));
+				Async(EAsyncExecution::TaskGraphMainThread, MoveTemp(Callable));
 			}
 			break;
 
 		case EOnlineAsyncExecutionPolicy::RunOnNextTick:
-			ExecuteOnGameThread(OpType::Name, MoveTemp(Callable));
+			Async(EAsyncExecution::TaskGraphMainThread, MoveTemp(Callable));
 			break;
 
 		case EOnlineAsyncExecutionPolicy::RunOnThreadPool:
