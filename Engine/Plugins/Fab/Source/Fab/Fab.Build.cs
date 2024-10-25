@@ -1,5 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+using System.IO;
 using UnrealBuildTool;
 
 public class Fab : ModuleRules
@@ -7,23 +8,23 @@ public class Fab : ModuleRules
 	public Fab(ReadOnlyTargetRules Target) : base(Target)
 	{
 		PCHUsage = ModuleRules.PCHUsageMode.UseExplicitOrSharedPCHs;
-		
+		IWYUSupport = IWYUSupport.None;
+
 		PublicIncludePaths.AddRange(
-			new string[] 
+			new string[]
 			{
 				// ... add public include paths required here ...
+				// Path.Combine(ModuleDirectory, "ThirdParty")
 			}
 		);
-				
-		
+
 		PrivateIncludePaths.AddRange(
-			new string[] 
+			new string[]
 			{
 				// ... add other private include paths required here ...
 			}
 		);
-			
-		
+
 		PublicDependencyModuleNames.AddRange(
 			new string[]
 			{
@@ -31,38 +32,62 @@ public class Fab : ModuleRules
 				// ... add other public dependencies that you statically link with here ...
 			}
 		);
-			
-		
+
 		PrivateDependencyModuleNames.AddRange(
 			new string[]
 			{
+				"ApplicationCore",
+				"AssetTools",
+				"BuildPatchServices",
+				"ContentBrowser",
 				"CoreUObject",
-				"Engine",
-				"Slate",
-				"SlateCore",
-				"WebBrowser",
-				"HTTP",
-				"MainFrame",
+				"DesktopWidgets",
+				"EditorScriptingUtilities",
 				"EditorStyle",
 				"EditorSubsystem",
-				"ToolMenus",
-				"LevelEditor",
-				"Projects",
-				"PlacementMode",
-				"ApplicationCore",
-				"UnrealEd",
+				"Engine",
+				"EOSSDK",
+				"EOSShared",
+				"FileUtilities",
+				"Foliage",
+				"GameProjectGeneration",
+				"HTTP",
 				"InputCore",
+				"InterchangeCore",
+				"InterchangeEngine",
+				"InterchangePipelines",
+				"Json",
+				"JsonUtilities",
+				"LevelEditor",
+				"MainFrame",
+				"PlacementMode",
+				"Projects",
 				"RenderCore",
-				// ... add private dependencies that you statically link with here ...	
+				"Slate",
+				"SlateCore",
+				"ToolMenus",
+				"ToolWidgets",
+				"UMG",
+				"UnrealEd",
+				"WebBrowser",
+				"InterchangeImport",
+				"InterchangeNodes",
+				"InterchangeFactoryNodes",
+				"DeveloperSettings"
+				// ... add private dependencies that you statically link with here ...
 			}
 		);
-		
-		
+
 		DynamicallyLoadedModuleNames.AddRange(
 			new string[]
 			{
 				// ... add any modules that your module loads dynamically here ...
 			}
 		);
+
+		string ThirdPartyPath = Path.Combine(ModuleDirectory, "ThirdParty");
+
+		// Ensure the DLL is copied to the output directory
+		RuntimeDependencies.Add(Path.Combine(ThirdPartyPath, "BuildPatchInstallerLib-Win64-Debug.dll"));
 	}
 }
