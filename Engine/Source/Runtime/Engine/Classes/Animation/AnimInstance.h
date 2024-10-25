@@ -376,6 +376,9 @@ private:
 	UPROPERTY(Transient)
 	uint8 bQueueMontageEvents : 1;
 
+	/** Flag used to query if the animation instance has been uninitialized via UninitializeAnimation() call. */
+	uint8 bUninitialized : 1;
+	
 #if DO_CHECK
 	/** Guard flag used for checking whether we are in user callbacks for initialization */
 	uint8 bInitializing : 1;
