@@ -100,6 +100,12 @@ static FAutoConsoleVariableRef CVarRK4SpringInterpolatorMaxIter(TEXT("p.RK4Sprin
 
 namespace MontageCVars
 {
+	static bool bEarlyOutMontageWhenUninitialized = true;
+	static FAutoConsoleVariableRef CVarEarlyOutMontageWhenUninitialized(
+		TEXT("a.Montage.EarlyOutMontageWhenUninitialized"),
+		bEarlyOutMontageWhenUninitialized,
+		TEXT("Exit early when playing or stopping montage(s) if the animation instance was uninitialized while we are performing the action due to triggering montage events. Use this to avoid reading from bad memory."));
+	
 	static bool bFlushCompletedMontagesOnPlay = false;
 	static FAutoConsoleVariableRef CVarFlushCompletedMontagesOnPlay(
 		TEXT("a.Montage.FlushCompletedMontagesOnPlay"),
@@ -129,6 +135,8 @@ UAnimInstance::UAnimInstance(const FObjectInitializer& ObjectInitializer)
 	bReceiveNotifiesFromLinkedInstances = false;
 	bPropagateNotifiesToLinkedInstances = false;
 	bUseMainInstanceMontageEvaluationData = false;
+	
+	bUninitialized = true;
 	
 	bUpdateAnimationEnabled = true;
 #if DO_CHECK
@@ -259,6 +267,7 @@ void UAnimInstance::InitializeAnimation(bool bInDeferRootNodeInitialization)
 	LLM_SCOPE(ELLMTag::Animation);
 
 	UninitializeAnimation();
+	bUninitialized = false;
 	
 	TRACE_OBJECT_LIFETIME_BEGIN(this);
 
@@ -318,6 +327,8 @@ void UAnimInstance::InitializeAnimation(bool bInDeferRootNodeInitialization)
 
 void UAnimInstance::UninitializeAnimation()
 {
+	bUninitialized = true;
+	
 	NativeUninitializeAnimation();
 
 	GetProxyOnGameThread<FAnimInstanceProxy>().Uninitialize(this);
@@ -2304,6 +2315,12 @@ float UAnimInstance::Montage_PlayInternal(UAnimMontage* MontageToPlay, const FMo
 				// Enforce 'a single montage at once per group' rule
 				StopAllMontagesByGroupName(NewMontageGroupName, BlendInSettings);
 
+				// Early out since we might have called UninitializeAnimation() when trigger montage blending out events above.
+				if (bUninitialized && MontageCVars::bEarlyOutMontageWhenUninitialized)
+				{
+					return 0.0f;
+				}
+
 				if (MontageCVars::bFlushCompletedMontagesOnPlay)
 				{
 					ConditionalFlushCompletedMontages();
@@ -3111,6 +3128,12 @@ void UAnimInstance::StopAllMontagesByGroupName(FName InGroupName, const FMontage
 		if (MontageInstance && MontageInstance->Montage && (MontageInstance->Montage->GetGroupName() == InGroupName))
 		{
 			MontageInstance->Stop(BlendOutSettings, true);
+
+			// UninitializeAnimation() empties the MontagesInstances array thus we need to exit early.
+			if (bUninitialized && MontageCVars::bEarlyOutMontageWhenUninitialized)
+			{
+				return;
+			}
 		}
 	}
 }
