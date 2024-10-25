@@ -1978,7 +1978,7 @@ FVulkanTexture::FVulkanTexture(FVulkanDevice& InDevice, const FRHITextureCreateD
 	ImageCreateInfo.pNext = &ExternalMemoryImageCreateInfo;
 
 	VkImage VulkanImage;
-	VERIFYVULKANRESULT(VulkanRHI::vkCreateImage(VulkanDevice, &ImageCreateInfo, nullptr, &VulkanImage));
+	VERIFYVULKANRESULT(VulkanRHI::vkCreateImage(VulkanDevice, &ImageCreateInfo, AllocationCallbacks, &VulkanImage));
 
 	VkMemoryDedicatedAllocateInfo MemoryDedicatedAllocateInfo;
 	ZeroVulkanStruct(MemoryDedicatedAllocateInfo, VK_STRUCTURE_TYPE_MEMORY_DEDICATED_ALLOCATE_INFO);
