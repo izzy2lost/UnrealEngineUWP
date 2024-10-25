@@ -46,7 +46,7 @@ enum class EMovieSceneTimeWarpType : uint8
  * By default this variant is a literal value that represents a play rate of 1.0 (ie, a 1:1 mapping), but it can be customized
  * to provide a wide range of different transformations such as looping, clamping and custom curves
  */
-USTRUCT(BlueprintType)
+USTRUCT(BlueprintType, meta=(HasNativeBreak="/Script/SequencerScripting.MovieSceneTimeWarpExtensions.BreakTimeWarp", HasNativeMake="/Script/SequencerScripting.MovieSceneTimeWarpExtensions.MakeTimeWarp"))
 struct FMovieSceneTimeWarpVariant
 {
 	GENERATED_BODY()
