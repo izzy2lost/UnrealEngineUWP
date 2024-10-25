@@ -4217,7 +4217,8 @@ bool FStateTreeExecutionContext::SelectStateInternal(
 				while (!NextLevelChildStates.IsEmpty())
 				{
 					const int32 ChildStateIndex = Exec.RandomStream.RandRange(0, NextLevelChildStates.Num() - 1);
-					if (SelectStateInternal(CurrentParentFrame, CurrentFrame, CurrentFrameInActiveFrames, { FStateTreeStateHandle(ChildStateIndex) }, OutSelectionResult))
+					if (SelectStateInternal(CurrentParentFrame, CurrentFrame, CurrentFrameInActiveFrames,
+					                        {FStateTreeStateHandle(NextLevelChildStates[ChildStateIndex])}, OutSelectionResult))
 					{
 						// Selection succeeded
 						bSucceededToSelectState = true;
