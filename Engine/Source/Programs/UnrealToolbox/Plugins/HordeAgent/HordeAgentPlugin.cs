@@ -549,9 +549,6 @@ namespace UnrealToolbox.Plugins.HordeAgent
 						}
 					}
 					
-					message.Set(AgentMessageType.SetSettingsRequest, new AgentSetSettingsRequest(_settings.Cpu.CpuCount, _settings.Cpu.CpuMultiplier));
-					await message.SendAsync(pipeClient, cancellationToken);
-
 					message.Set(AgentMessageType.GetStatusRequest);
 					await message.SendAsync(pipeClient, cancellationToken);
 
