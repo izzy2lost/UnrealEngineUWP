@@ -183,7 +183,7 @@ namespace HordeServer.Accounts
 				}
 				else
 				{
-					return PasswordSalt != null && PasswordHash != null && PasswordHasher.ValidatePassword(password, PasswordHasher.SaltFromString(PasswordSalt), PasswordHasher.HashFromString(PasswordHash));
+					return PasswordSalt != null && PasswordHasher.ValidatePassword(password, PasswordHasher.SaltFromString(PasswordSalt), PasswordHasher.HashFromString(PasswordHash));
 				}
 			}
 

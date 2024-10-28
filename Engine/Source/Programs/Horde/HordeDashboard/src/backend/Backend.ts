@@ -1662,10 +1662,10 @@ export class Backend {
         });
     }
 
-    checkPreflightConfig(shelvedChange: number): Promise<PreflightConfigResponse> {
+    checkPreflightConfig(shelvedChange: number, cluster?: string ): Promise<PreflightConfigResponse> {
 
         return new Promise<PreflightConfigResponse>((resolve, reject) => {
-            this._fetch.post(`/api/v1/server/preflightconfig`, { shelvedChange: shelvedChange }).then((value) => {
+            this._fetch.post(`/api/v1/server/preflightconfig`, { shelvedChange: shelvedChange, cluster: cluster }).then((value) => {
                 resolve(value.data as PreflightConfigResponse);
             }).catch(reason => {
                 reject(reason);

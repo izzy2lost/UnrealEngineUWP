@@ -102,7 +102,6 @@ namespace UnrealToolbox
 			}
 		}
 
-
 		public void Start()
 		{
 			if (Environment.OSVersion.Platform == PlatformID.Win32NT)

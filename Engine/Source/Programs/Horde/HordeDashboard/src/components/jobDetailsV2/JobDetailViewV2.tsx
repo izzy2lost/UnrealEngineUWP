@@ -52,12 +52,13 @@ const JobBreadCrumbs: React.FC<{ jobDetails: JobDetailsV2 }> = observer(({ jobDe
    if (!jobData) {
       if (!jobDetails.jobError) {
          return <Breadcrumbs items={[{ text: "Loading Job" }]} title={"Loading Job"} spinner={true} />
+      } else {
+         return <Breadcrumbs items={[{ text: jobDetails.jobError }]} title={jobDetails.jobError} spinner={false} />               
       }
-      else {
-         console.error(`Unable to load job ${jobDetails.jobId}: ${jobDetails.jobError}`)
-      }
+   } 
 
-      return null;
+   if (jobDetails.jobError) {
+      return <Breadcrumbs items={[{ text: jobDetails.jobError }]} title={jobDetails.jobError} spinner={false} />               
    }
 
    const crumbItems: BreadcrumbItem[] = [];

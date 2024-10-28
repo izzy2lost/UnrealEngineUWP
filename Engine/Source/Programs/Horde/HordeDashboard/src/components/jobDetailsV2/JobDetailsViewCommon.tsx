@@ -543,87 +543,98 @@ export class JobDetailsV2 extends PollBase {
 
    async poll() {
 
-      if (!this.jobId || this.jobError) {
-         return;
-      }
+      try {
 
-      let requests:any[] = [];
-
-      const initialRequest = !this.jobData;
-
-      requests.push(backend.getJob(this.jobId, undefined, true));
-
-      let results: any;
-
-      await Promise.all(requests as any).then(r => results = r).catch(reason => {
-         console.error(reason);
-         this.jobError = reason;
-      });
-
-      if (!this.jobError && !results?.length) {
-         this.jobError = "Not Found";
-      }
-
-      if (this.jobError) {
-         this.setRootUpdated();
-         return;
-      }
-
-      const lastUpdateTime = this.jobData?.updateTime;
-
-      const jobData = this.jobData = results[0] as JobData;
-
-      if (!this.stream) {
-         this.stream = projectStore.streamById(jobData.streamId);
-      }
-
-      if (!this.stream) {
-         throw new Error(`Unable to get stream for job ${this.jobId}`)
-      }
-
-      let forceUpdate = false;
-      if (initialRequest) {
-         const templates = await TemplateCache.getStreamTemplates(this.stream);
-         this.template = templates.find(t => t.id === jobData.templateId);
-         if (!this.template) {
-            throw new Error(`Unable to get stream template for job ${this.jobId}`)
+         if (!this.jobId || this.jobError) {
+            return;
          }
-      } else {
 
-         if (!this.timing && this.jobId) {
-            forceUpdate = true;
-            this.timing = await backend.getJobTiming(this.jobId);
+         let requests: any[] = [];
+
+         const initialRequest = !this.jobData;
+
+         requests.push(backend.getJob(this.jobId, undefined, true));
+
+         let results: any;
+
+         await Promise.all(requests as any).then(r => results = r).catch(reason => {
+            console.error(reason);
+            this.jobError = reason;
+         });
+
+         if (!this.jobError && !results?.length) {
+            this.jobError = "Not Found";
+         }
+
+         if (this.jobError) {
+            this.setRootUpdated();
+            return;
+         }
+
+         const lastUpdateTime = this.jobData?.updateTime;
+
+         const jobData = this.jobData = results[0] as JobData;
+
+         if (!this.stream) {
+            this.stream = projectStore.streamById(jobData.streamId);
+         }
+
+         if (!this.stream) {
+            throw new Error(`Unable to get stream for job ${this.jobId}`)
+         }
+
+         let forceUpdate = false;
+         if (initialRequest) {
+            const templates = await TemplateCache.getStreamTemplates(this.stream);
+            this.template = templates.find(t => t.id === jobData.templateId);
+            if (!this.template) {
+               throw new Error(`Error: Missing template ${this.stream?.fullname ?? jobData.streamId} - ${jobData.templateId}`)
+            }
+         } else {
+
+            if (!this.timing && this.jobId) {
+               forceUpdate = true;
+               this.timing = await backend.getJobTiming(this.jobId);
+               this.syncTiming();
+            }
+         }
+
+
+         if (jobData.updateTime !== lastUpdateTime) {
+            this.processGraph();
             this.syncTiming();
+            this.setUpdated();
          }
-      }
 
+         if (initialRequest) {
+            this.filter.updateFilterItems();
+            this.filterUpdated();
 
-      if (jobData.updateTime !== lastUpdateTime) {
-         this.processGraph();
-         this.syncTiming();
-         this.setUpdated();
-      }
+            // poll again for initial request, to save delay on 2nd pass
+            clearTimeout(this.timeoutId);
+            this.timeoutId = setTimeout(() => { this.update(); }, 500);
 
-      if (initialRequest) {
-         this.filter.updateFilterItems();
-         this.filterUpdated();
-
-         // poll again for initial request, to save delay on 2nd pass
-         clearTimeout(this.timeoutId);
-         this.timeoutId = setTimeout(() => { this.update(); }, 500);
-
-      }
-
-      this.views.forEach(v => {
-         v.tick();
-      });
-
-      this.views.forEach(v => {
-         if (forceUpdate || (v.updateTime !== jobData.updateTime)) {
-            v.updateTime = jobData.updateTime;
-            v.detailsUpdated();
          }
-      });
+
+         this.views.forEach(v => {
+            v.tick();
+         });
+
+         this.views.forEach(v => {
+            if (forceUpdate || (v.updateTime !== jobData.updateTime)) {
+               v.updateTime = jobData.updateTime;
+               v.detailsUpdated();
+            }
+         });
+         
+      } catch (reason) {
+         console.error(reason);
+         this.jobError = reason?.message ?? "Error loading job";
+         this.setRootUpdated();
+         
+      } finally {
+
+      }
 
    }
 
