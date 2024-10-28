@@ -927,7 +927,10 @@ bool FIOSPlatformMisc::GetDiskTotalAndFreeSpace(const FString& InPath, uint64& T
 void FIOSPlatformMisc::RequestStoreReview()
 {
 #if UE_WITH_STORE_KIT && !PLATFORM_TVOS
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	// Deprecated for iOS18.0 & visionOS 2.0.  To be replaced with Swift only StoreKit::RequestReviewAction call (UE-228925)
     [SKStoreReviewController requestReviewInScene:[[[[UIApplication sharedApplication] delegate] window] windowScene]];
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 #endif
 }
 
@@ -1553,6 +1556,7 @@ static inline ENetworkConnectionType CheckNetworkConnectionType()
 	ZeroAddress.sin_len = sizeof(ZeroAddress);
 	ZeroAddress.sin_family = AF_INET;
 	
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	SCNetworkReachabilityRef ReachabilityRef = SCNetworkReachabilityCreateWithAddress(kCFAllocatorDefault, (const struct sockaddr*)&ZeroAddress);
 	SCNetworkReachabilityFlags ReachabilityFlags;
 	bool bFlagsAvailable = SCNetworkReachabilityGetFlags(ReachabilityRef, &ReachabilityFlags);
@@ -1572,6 +1576,7 @@ static inline ENetworkConnectionType CheckNetworkConnectionType()
         bHasActiveCellConnection = bReachable && (ReachabilityFlags & kSCNetworkReachabilityFlagsIsWWAN) != 0;
         bInAirplaneMode = ReachabilityFlags == 0;
 	}
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	
     if (bHasActiveWiFiConnection)
     {
