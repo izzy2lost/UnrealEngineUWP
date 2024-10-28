@@ -53,7 +53,8 @@ Manages worker machines that can be leased out to perform
 workloads, including build automation and remote execution use
 cases.
 
-* [Agents](Config/Agents.md): Configure worker machines to connect
+* [Compute](Config/Compute.md): Configuring agent pools and compute clusters.
+* [Agents](Config/Agents.md): Configuring worker machines to connect
   to the Horde server for CI and remote execution workspaces.
 
 ### Secrets
