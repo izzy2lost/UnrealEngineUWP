@@ -32,9 +32,8 @@ See also: [Feature Status](Docs/Features.md)
 ## Getting Started
 
 * **[Install the Horde agent](Docs/Tutorials/InstallHorde.md)**
-* Remote compilation with Unreal Build Accelerator
-  * **[Enable remote C++ compilation](Docs/Tutorials/RemoteCompilation.md)**
-  * **[Enable remote shader compilation](Docs/Tutorials/RemoteShaderCompilation.md)**
+* **[Enable remote C++ compilation](Docs/Tutorials/RemoteCompilation.md)**
+* **[Enable remote shader compilation](Docs/Tutorials/RemoteShaderCompilation.md)**
 * **[Set up build automation](Docs/Tutorials/BuildAutomation.md)**
 * **[Enable test automation with Gauntlet](Docs/Tutorials/TestAutomation.md)**
 * **[Get telemetry and analytics for your team](Docs/Tutorials/Analytics.md)**
