@@ -203,6 +203,27 @@ public class AgentServiceTest : BuildTestSetup
 		// Once more time has passed, the ephemeral agent marked as deleted is removed from database
 		Assert.IsNull(await AgentService.GetAgentAsync(agent.Id));
 	}
+	
+	[TestMethod]
+	// 5 hour old sessions are deleted
+	[DataRow(5, null, true)]
+	[DataRow(5, AgentStatus.Stopped, true)]
+	[DataRow(5, AgentStatus.Ok, false)]
+	[DataRow(5, null, false, false)] // Non-ephemeral agent should never be deleted
+	
+	// 30 min old sessions are not deleted
+	[DataRow(0.5, null, false)]
+	[DataRow(0.5, AgentStatus.Stopped, false)]
+	[DataRow(0.5, AgentStatus.Ok, false)]
+	public async Task Ephemeral_IsDeletedInBackgroundTick_Async(double lastOnlineAgoHours, AgentStatus? status, bool isDeleted, bool isEphemeral = true)
+	{
+		TimeSpan lastOnlineAgo = TimeSpan.FromHours(lastOnlineAgoHours);
+		IAgent? agent = await CreateAgentAsync(new PoolId("pool1"), ephemeral: isEphemeral, adjustClockBy: -lastOnlineAgo, status: status);
+		agent = await AgentService.GetAgentAsync(agent.Id);
+		Assert.IsNotNull(AgentService.GetAgentAsync(agent!.Id));
+		await ServiceProvider.GetRequiredService<AgentCollection>().DeleteExpiredEphemeralAgentsAsync(CancellationToken.None);
+		Assert.AreEqual(isDeleted, await AgentService.GetAgentAsync(agent!.Id) == null);
+	}
 
 	private static ClaimsPrincipal GetUser(IAgent agent)
 	{

@@ -324,7 +324,7 @@ namespace HordeServer.Agents
 			await DeleteExpiredEphemeralAgentsAsync(stoppingToken);
 		}
 
-		private async Task TerminateExpiredSessionsAsync(CancellationToken cancellationToken)
+		internal async Task TerminateExpiredSessionsAsync(CancellationToken cancellationToken)
 		{
 			using TelemetrySpan span = _tracer.StartActiveSpan($"{nameof(AgentCollection)}.{nameof(TerminateExpiredSessionsAsync)}");
 
@@ -345,19 +345,25 @@ namespace HordeServer.Agents
 			}
 			span.SetAttribute("NumAgentsTerminated", c);
 		}
-
-		private async Task DeleteExpiredEphemeralAgentsAsync(CancellationToken cancellationToken)
+		
+		internal async Task DeleteExpiredEphemeralAgentsAsync(CancellationToken cancellationToken)
 		{
 			using TelemetrySpan span = _tracer.StartActiveSpan($"{nameof(AgentCollection)}.{nameof(DeleteExpiredEphemeralAgentsAsync)}");
 			int numDeleted = 0;
-
-			List<AgentDocument> deletedDocuments = await _agentCollection.Find(x => x.Deleted).ToListAsync(cancellationToken);
+			TimeSpan maxAge = TimeSpan.FromHours(1);
+			
+			FilterDefinition<AgentDocument> filter = Builders<AgentDocument>.Filter.Or(
+				Builders<AgentDocument>.Filter.Eq(x => x.Deleted, true),
+				Builders<AgentDocument>.Filter.Lt(x => x.LastOnlineTime, _clock.UtcNow - maxAge)
+			);
+			
+			List<AgentDocument> deletedDocuments = await _agentCollection.Find(filter).ToListAsync(cancellationToken);
 			deletedDocuments = await PostLoadAsync(deletedDocuments, cancellationToken);
 
 			foreach (AgentDocument agent in deletedDocuments)
 			{
 				cancellationToken.ThrowIfCancellationRequested();
-				if (agent.LastOnlineTime.HasValue && _clock.UtcNow > agent.LastOnlineTime.Value + TimeSpan.FromHours(1))
+				if (agent is { Ephemeral: true, LastOnlineTime: not null } && _clock.UtcNow > agent.LastOnlineTime.Value + maxAge)
 				{
 					_logger.LogDebug("Deleting ephemeral agent {Agent}", agent.Id);
 
