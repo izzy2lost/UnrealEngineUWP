@@ -1,4 +1,4 @@
-import { DefaultButton, DetailsList, DetailsListLayoutMode, Dropdown, FocusZone, FocusZoneDirection, IColumn, Icon, IconButton, IGroup, Label, Link as FluentLink, mergeStyleSets, Modal, Pivot, PivotItem, PrimaryButton, ScrollablePane, ScrollbarVisibility, SelectionMode, Spinner, SpinnerSize, Stack, Text, TextField, } from "@fluentui/react";
+import { DefaultButton, DetailsList, DetailsListLayoutMode, Dropdown, FocusZone, FocusZoneDirection, IColumn, Icon, IconButton, IGroup, Label, Link as FluentLink, mergeStyleSets, Modal, Pivot, PivotItem, PrimaryButton, ScrollablePane, ScrollbarVisibility, SelectionMode, Spinner, SpinnerSize, Stack, Text, TextField, themeRulesStandardCreator, } from "@fluentui/react";
 import { observer } from "mobx-react-lite";
 import { observable, action, makeObservable } from "mobx";
 import moment from "moment";
@@ -54,7 +54,7 @@ class LocalState {
    search: URLSearchParams = new URLSearchParams(window.location.search);
 
    updateSearch(): boolean {
-
+      
       const state = { ...this.searchState } as DevicesSearchState;
 
       state.filterPools = state.filterPools?.sort((a, b) => a.localeCompare(b));
@@ -96,11 +96,12 @@ class LocalState {
    }
 
    resetState() {
+      this.initialized = false;
+      this.search = new URLSearchParams();
       this.searchState = {};
    }
-
-   @action
-   stateFromSearch() {
+   
+   private stateFromSearch() {
 
       const state: DevicesSearchState = {};
 
@@ -152,6 +153,9 @@ class LocalState {
 
    @action
    setPivotKey(pivotKey: string) {
+      this.searchState.filterPlatforms = undefined;
+      this.searchState.filterPools = undefined;
+      this.searchState.filterString = undefined;
       this.searchState.pivotKey = pivotKey;
       this.updateSearch();
    }
@@ -181,6 +185,16 @@ class LocalState {
       this.searchState.historyItem = undefined;
       this.updateSearch();
    }
+
+   initialize() 
+   {
+      if (!this.initialized) {
+         this.initialized = true;
+         this.stateFromSearch();
+      }
+   }
+
+   private initialized = false;
 }
 
 export const StatusNames = new Map<DeviceStatus, string>([
@@ -256,19 +270,11 @@ export const SearchUpdate: React.FC = observer(() => {
 const DevicePanel: React.FC = observer(() => {
 
    const [editState, setEditState] = useState<{ shown?: boolean, infoShown?: boolean, editNote?: boolean, device?: DeviceItem | undefined }>({});
-   const [pivotState, setPivotState] = useState<{ key: string, poolFilter: Set<string> }>({ key: pivotKeyShared, poolFilter: new Set() });
-   const [platformState, setPlatformState] = useState<Set<string>>(new Set());
+   const [pivotState, setPivotState] = useState<{ key: string, poolFilter: Set<string>, platformFilter: Set<string> }>({ key: localState?.searchState?.pivotKey ?? pivotKeyShared, platformFilter: new Set(localState?.searchState?.filterPlatforms) ?? [], poolFilter: new Set(localState?.searchState?.filterPools ?? []) });
    const [checkoutState, setCheckoutState] = useState<{ checkoutId?: string, checkinId?: string, showConfirm?: "in" | "out" | "error" }>({});
    const [telemState, setTelemState] = useState(false);
-   const [initDeviceUpdater, setInitDeviceUpdater] = useState({ initPage: false, initDevices: false });
-
+   
    const navigate = useNavigate();
-
-   useEffect(() => {
-
-      localState.setPivotKey(pivotState.key);
-
-   }, [pivotState.key])
 
    useEffect(() => {
 
@@ -602,7 +608,7 @@ const DevicePanel: React.FC = observer(() => {
             return false;
          }
 
-         if (platformState.size && !platformState.has(d.platformId)) {
+         if (pivotState.platformFilter.size && !pivotState.platformFilter.has(d.platformId)) {
             return false;
          }
 
@@ -762,35 +768,6 @@ const DevicePanel: React.FC = observer(() => {
 
    const checkedOut = handler.getUserDeviceCheckouts(dashboard.userId);
 
-
-   if (handler.updated && !initDeviceUpdater.initDevices) { // Devices have been loaded, so now we can check for any history dialogs that need to be shown
-      if (localState.searchState.historyItem) {
-         let selectedDevice: GetDeviceResponse | undefined = undefined;
-         filteredDevices.every((item) => {
-            if (item.id === localState.searchState.historyItem) {
-               selectedDevice = item;
-               return false; // effectively breaks out of the 'every' function
-            }
-            return true;
-         });
-         if (selectedDevice) {
-            setEditState({ infoShown: true, device: { device: selectedDevice } });
-         }
-      }
-      setInitDeviceUpdater({ ...initDeviceUpdater, initDevices: true });
-      return null;
-   }
-
-   if (!initDeviceUpdater.initPage) {
-      if (localState.search) {
-         localState.stateFromSearch();
-         setPivotState({ key: localState.searchState.pivotKey ?? pivotState.key, poolFilter: new Set(localState.searchState.filterPools) });
-         setPlatformState(new Set(localState.searchState.filterPlatforms));
-      }
-      setInitDeviceUpdater({ ...initDeviceUpdater, initPage: true });
-      return null;
-   };
-
    const hasDevices = !!handler.getDevices().length
 
    return (<Stack>
@@ -808,7 +785,8 @@ const DevicePanel: React.FC = observer(() => {
                      linkSize="normal"
                      linkFormat="links"
                      onLinkClick={(item) => {
-                        setPivotState({ key: item!.props.itemKey!, poolFilter: new Set() })
+                        localState.setPivotKey(item!.props.itemKey!);
+                        setPivotState({ key: item!.props.itemKey!, poolFilter: new Set(), platformFilter: new Set() })
                      }}>
                      {pivotItems}
                   </Pivot>
@@ -818,6 +796,7 @@ const DevicePanel: React.FC = observer(() => {
                      placeholder="Device Search"
                      spellCheck={false}
                      autoComplete="off"
+                     validateOnLoad={false}
                      deferredValidationTime={1000}
                      defaultValue={localState.searchState.filterString}
                      styles={{
@@ -841,20 +820,20 @@ const DevicePanel: React.FC = observer(() => {
                      placeholder="Filter Platforms"
                      style={{ width: 200 }}
                      styles={dropDownStyle}
-                     selectedKeys={Array.from(platformState).map(id => `dropdown_${id}_key`)}
+                     selectedKeys={Array.from(pivotState.platformFilter).map(id => `dropdown_${id}_key`)}
                      multiSelect
                      options={platformItems}
                      onChange={(event, option, index) => {
 
                         if (option) {
                            if (option.selected) {
-                              platformState.add((option as any).platformId);
+                              pivotState.platformFilter.add((option as any).platformId);
                            } else {
-                              platformState.delete((option as any).platformId);
+                              pivotState.platformFilter.delete((option as any).platformId);
                            }
 
-                           localState.setPlatformFilters(platformState);
-                           setPlatformState(platformState);
+                           localState.setPlatformFilters(pivotState.platformFilter);
+                           setPivotState({...pivotState, platformFilter: new Set(pivotState.platformFilter)})
                         }
                      }}
                   />
@@ -1043,6 +1022,18 @@ export const DeviceView: React.FC = () => {
    const vw = Math.max(document.documentElement.clientWidth, window.innerWidth || 0);
 
    const { hordeClasses, modeColors } = getHordeStyling();
+
+   localState.initialize();
+
+   useEffect(() => {
+
+      return () => {
+         localState.resetState();
+      };
+
+   }, []);
+
+
 
    return <Stack className={hordeClasses.horde}>
       <TopNav />

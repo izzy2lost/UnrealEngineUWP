@@ -240,12 +240,12 @@ namespace UnrealToolbox.Plugins.HordeAgent
 					// Make some known error messages more friendly
 					if (message.Contains("actively refused it", StringComparison.OrdinalIgnoreCase))
 					{
-						message = $"Could not connect to Horde Server: {HordeOptions.GetDefaultServerUrl()?.ToString() ?? "Not Conigured"}";
+						message = $"Could not connect to Horde Server: {HordeOptions.GetDefaultServerUrl()?.ToString() ?? "(Not configured)"}";
 					}
 
 					if (message.Contains("enrollment key does not match", StringComparison.OrdinalIgnoreCase))
 					{
-						message = $"Agent registration revoked by Horde Server: {HordeOptions.GetDefaultServerUrl()?.ToString() ?? "Not Conigured"}";
+						message = $"Agent registration revoked by Horde Server: {HordeOptions.GetDefaultServerUrl()?.ToString() ?? "(Not configured)"}";
 					}
 
 					ToolboxNotificationManager.PostNotification("Horde Agent", message);
@@ -548,6 +548,9 @@ namespace UnrealToolbox.Plugins.HordeAgent
 							_agentSettings = message.Parse<AgentSettingsMessage>();
 						}
 					}
+					
+					message.Set(AgentMessageType.SetSettingsRequest, new AgentSetSettingsRequest(_settings.Cpu.CpuCount, _settings.Cpu.CpuMultiplier));
+					await message.SendAsync(pipeClient, cancellationToken);
 
 					message.Set(AgentMessageType.GetStatusRequest);
 					await message.SendAsync(pipeClient, cancellationToken);

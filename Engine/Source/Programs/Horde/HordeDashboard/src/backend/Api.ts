@@ -2705,6 +2705,8 @@ export type GetStreamTabResponse = {
 	type: TabType;
 
 	style: TabStyle;
+
+	showNames?: boolean;
 };
 
 /**Describes a job page */

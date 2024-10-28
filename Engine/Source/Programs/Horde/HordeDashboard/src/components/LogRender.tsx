@@ -175,7 +175,6 @@ const renderTags = (navigate: NavigateFunction, line: LogLine, lineNumber: numbe
          }
 
          if (type === "LogId") {
-            debugger;
             tagType = TagType.LogId;
          }
 
