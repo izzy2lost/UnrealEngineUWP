@@ -176,7 +176,16 @@ namespace HordeServer.Accounts
 			}
 
 			public bool ValidatePassword(string password)
-				=> PasswordSalt != null && PasswordHash != null && PasswordHasher.ValidatePassword(password, PasswordHasher.SaltFromString(PasswordSalt), PasswordHasher.HashFromString(PasswordHash));
+			{
+				if (String.IsNullOrEmpty(PasswordHash))
+				{
+					return String.IsNullOrEmpty(password);
+				}
+				else
+				{
+					return PasswordSalt != null && PasswordHash != null && PasswordHasher.ValidatePassword(password, PasswordHasher.SaltFromString(PasswordSalt), PasswordHasher.HashFromString(PasswordHash));
+				}
+			}
 
 			public async Task<IAccount?> RefreshAsync(CancellationToken cancellationToken)
 				=> await _accountCollection!.GetAsync(Id, cancellationToken);
