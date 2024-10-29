@@ -18,9 +18,6 @@ remote machine behind the scenes as necessary.
 **Unreal Build Tool** can use Unreal Build Accelerator with Horde to offload compilation tasks to connected agents,
 spreading the workload over multiple machines.
 
-> **Note:** Unreal Build Accelerator only supports Windows in Unreal Engine 5.4. Support for Mac and Linux are planned for 
-  a future release.
-
 ## Prerequisites
 
 * Horde Server and one or more Horde Agents (see [Getting Started: Install Horde](InstallHorde.md)).
@@ -105,28 +102,29 @@ an environment variable for each job step (`UE_HORDE_TOKEN`).
 
 Below is an updated global config with a `default` cluster and `AddComputeTasks` granted for letting UBT and UBA schedule remote compilation.
 To see what claims are available to your users, open `/api/v1/user/claims` as a logged in user.
-```json
-{
-  // ...
-  "plugins": {
-    // ...
-    "compute": {
+
+    ```json
+    {
       // ...
-      "clusters": [
-        {
-          "id": "default",
-          "namespaceid": "horde.compute",
-          "acl": {
-            "entries": [
-              {
-                "claim": { "type": "http://epicgames.com/ue/horde/user", "value": "jane.smith" },
-                "actions": ["AddComputeTasks"]
+      "plugins": {
+        // ...
+        "compute": {
+          // ...
+          "clusters": [
+            {
+              "id": "default",
+              "namespaceid": "horde.compute",
+              "acl": {
+                "entries": [
+                  {
+                    "claim": { "type": "http://epicgames.com/ue/horde/user", "value": "jane.smith" },
+                    "actions": ["AddComputeTasks"]
+                  }
+                ]
               }
-            ]
-          }
+            }
+          ]
         }
-      ]
+      }
     }
-  }
-}
-```
+    ```

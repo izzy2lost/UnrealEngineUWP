@@ -5,7 +5,7 @@
 | Feature | Status | Notes/Roadmap |
 | ------- | ------ | ----- |
 | Analytics | 🟧&nbsp;Experimental | - |
-| Artifact&nbsp;Distribution | 🟩&nbsp;Production Ready | - |
+| Artifact&nbsp;Distribution | 🟨&nbsp;Beta | Needs better integration with other tooling.<br>Improved chunking and upload performance. |
 | Automation Hub | 🟩&nbsp;Production Ready | - |
 | Build Automation | 🟩&nbsp;Production Ready | Migrate jobs to a more lightweight data model.<br>Programmable state machine for jobs. |
 | Build Health | 🟩&nbsp;Production Ready | - |

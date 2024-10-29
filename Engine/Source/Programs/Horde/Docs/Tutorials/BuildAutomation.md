@@ -67,7 +67,7 @@ ensuring that the state of a project is continuously being monitored and that bu
 
 ## Default Jobs
 
-The example `ue5-release-5.4.stream.json` file configures the appearance of its page in the Horde Dashboard, as
+The example `ue5-release-5.5.stream.json` file configures the appearance of its page in the Horde Dashboard, as
 well as job templates and agent types.
 
 * A **job template** defines a set of parameters that are used to construct a
