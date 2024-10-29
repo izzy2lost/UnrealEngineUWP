@@ -1136,7 +1136,10 @@ EOS_EResult FEOSSDKManager::EOSInitialize(EOS_InitializeOptions& Options)
 {
 	OnPreInitializeSDK.Broadcast(Options);
 
-	return EOS_Initialize(&Options);
+	EOS_InitializeOptions* OptionsPtr = &Options;
+	OnPreInitializeSDK2.Broadcast(OptionsPtr);
+
+	return EOS_Initialize(OptionsPtr);
 }
 
 bool FEOSSDKManager::Exec_Runtime(class UWorld* InWorld, const TCHAR* Cmd, FOutputDevice& Ar)
