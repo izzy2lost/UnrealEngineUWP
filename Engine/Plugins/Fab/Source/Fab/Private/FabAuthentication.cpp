@@ -100,7 +100,6 @@ namespace FabAuthentication
 			// Sequence of events
 			// 1. Login using persist
 			// 2. If that fails - login using the exchange code
-			// 3. If that fails - login using the account portal
 			LoginUsingPersist();
 		}
 	}
@@ -152,9 +151,6 @@ namespace FabAuthentication
 			const FString Code = EOS_EResult_ToString(Data->ResultCode);
 			FAB_LOG_ERROR("Login failed - error code: %s", *Code);
 		}
-
-		// Fallback login using account portal
-		LoginUsingAccountPortal();
 	}
 
 	void EOS_CALL PersistLoginCompleteCallbackFn(const EOS_Auth_LoginCallbackInfo* Data)
