@@ -84,10 +84,5 @@ public class Fab : ModuleRules
 				// ... add any modules that your module loads dynamically here ...
 			}
 		);
-
-		string ThirdPartyPath = Path.Combine(ModuleDirectory, "ThirdParty");
-
-		// Ensure the DLL is copied to the output directory
-		RuntimeDependencies.Add(Path.Combine(ThirdPartyPath, "BuildPatchInstallerLib-Win64-Debug.dll"));
 	}
 }
