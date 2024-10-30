@@ -250,6 +250,7 @@ FGuid UNiagaraStackEntry::GetSelectionId() const
 
 UNiagaraStackEditorData& UNiagaraStackEntry::GetStackEditorData() const
 {
+	checkf(StackEditorData, TEXT("StackEditorData is nullptr the calling code needs to check for finalized or not"));
 	return *StackEditorData;
 }
 
