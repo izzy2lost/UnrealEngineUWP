@@ -29,7 +29,7 @@ enum class EBuildHierarchyMenuFlags
 ENUM_CLASS_FLAGS(EBuildHierarchyMenuFlags);
 
 /** Interface for non-UI presentation logic for a world. */
-class FLevelCollectionModel
+class WORLDBROWSER_API FLevelCollectionModel
 	: public TSharedFromThis<FLevelCollectionModel>	
 	, public FTickableEditorObject
 {
