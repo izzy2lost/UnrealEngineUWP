@@ -342,13 +342,13 @@ FAutoConsoleVariableRef CVarRDGParallelSetup(
 	TEXT(" 1: pass setup is done asynchronously (default);"),
 	ECVF_RenderThreadSafe);
 
-int32 GRDGParallelExecute = 2;
+int32 GRDGParallelExecute = 1;
 FAutoConsoleVariableRef CVarRDGParallelExecute(
 	TEXT("r.RDG.ParallelExecute"), GRDGParallelExecute,
 	TEXT("Whether to enable parallel execution of passes when supported.")
-	TEXT(" 0: off;")
-	TEXT(" 1: parallel with all tasks awaited)")
-	TEXT(" 2: parallel with async tasks) (default)"),
+	TEXT(" 0: off")
+	TEXT(" 1: parallel with all tasks awaited (default)")
+	TEXT(" 2: parallel with async tasks"),
 	FConsoleVariableDelegate::CreateLambda([](IConsoleVariable* Variable)
 	{
 		if (Variable->GetInt())
