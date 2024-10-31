@@ -986,10 +986,18 @@ void FEOSSDKManager::OnLogVerbosityChanged(const FLogCategoryName& CategoryName,
 FString FEOSSDKManager::GetProductName() const
 {
 	FString ProductName;
-	if (!GConfig->GetString(TEXT("EOSSDK"), TEXT("ProductName"), ProductName, GEngineIni))
+	GConfig->GetString(TEXT("EOSSDK"), TEXT("ProductName"), ProductName, GEngineIni);
+
+	if (ProductName.IsEmpty())
 	{
 		ProductName = FApp::GetProjectName();
 	}
+
+	if (ProductName.IsEmpty())
+	{
+		ProductName = TEXT("UnrealEngine");
+	}
+
 	return ProductName;
 }
 
