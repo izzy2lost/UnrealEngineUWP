@@ -106,9 +106,9 @@ private:
 private:
 
 	/** Stores pointers to ColorCorrectRegion Actors that use priority for sorting. */
-	TArray<AColorCorrectRegion*> RegionsPriorityBased;
+	TArray<TWeakObjectPtr<AColorCorrectRegion>> RegionsPriorityBased;
 	/** Stores pointers to ColorCorrectRegion Actors that are based on distance from camera. */
-	TArray<AColorCorrectRegion*> RegionsDistanceBased;
+	TArray<TWeakObjectPtr<AColorCorrectRegion>> RegionsDistanceBased;
 
 
 	/** Proxies to be used exclusively on render thread. Copies of the state of CC Actors sorted by priority. */
