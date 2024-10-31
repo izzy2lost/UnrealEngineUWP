@@ -21,7 +21,9 @@ IMPLEMENT_MODULE(FEOSSharedModule, EOSShared);
 void FEOSSharedModule::StartupModule()
 {
 #if WITH_EOS_SDK
-	if (FParse::Param(FCommandLine::Get(), TEXT("NoEOS")))
+	const bool bNoEOS = FParse::Param(FCommandLine::Get(), TEXT("NoEOS"));
+	const bool bAlreadyRegistered = IModularFeatures::Get().IsModularFeatureAvailable(IEOSSDKManager::GetModularFeatureName());
+	if (bNoEOS || bAlreadyRegistered)
 	{
 		return;
 	}
