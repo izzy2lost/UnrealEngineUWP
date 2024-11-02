@@ -380,8 +380,8 @@ public:
 	APPLICATIONCORE_API virtual void SetForceFeedbackChannelValue (int32 ControllerId, FForceFeedbackChannelType ChannelType, float Value) override;
 	APPLICATIONCORE_API virtual void SetForceFeedbackChannelValues(int32 ControllerId, const FForceFeedbackValues &Values) override;
 	APPLICATIONCORE_API virtual void SetHapticFeedbackValues(int32 ControllerId, int32 Hand, const FHapticFeedbackValues& Values) override;
-	virtual void SetLightColor(int32 ControllerId, FColor Color) override { }
-	virtual void ResetLightColor(int32 ControllerId) override { }
+	virtual void SetLightColor(int32 ControllerId, FColor Color) override;
+	virtual void ResetLightColor(int32 ControllerId) override;
 	APPLICATIONCORE_API virtual void SetDeviceProperty(int32 ControllerId, const FInputDeviceProperty* Property) override;
 
 protected:

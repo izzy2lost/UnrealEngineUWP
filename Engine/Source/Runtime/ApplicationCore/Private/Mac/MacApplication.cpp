@@ -1776,6 +1776,22 @@ void FMacApplication::SetHapticFeedbackValues(int32 ControllerId, int32 Hand, co
 	}
 }
 
+void FMacApplication::SetLightColor(int32 ControllerId, FColor Color)
+{
+	for (const auto InputDevice : ExternalInputDevices)
+	{
+		InputDevice->SetLightColor(ControllerId, Color);
+	}
+}
+
+void FMacApplication::ResetLightColor(int32 ControllerId)
+{
+	for (const auto InputDevice : ExternalInputDevices)
+	{
+		InputDevice->ResetLightColor(ControllerId);
+	}
+}
+
 void FMacApplication::UpdateScreensArray()
 {
 	MainThreadCall(^{

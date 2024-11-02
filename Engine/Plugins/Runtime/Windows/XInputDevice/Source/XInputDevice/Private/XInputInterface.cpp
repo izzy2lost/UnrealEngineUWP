@@ -37,7 +37,12 @@ XInputInterface::XInputInterface(const TSharedRef<FGenericApplicationMessageHand
 		FControllerState& ControllerState = ControllerStates[ControllerIndex];
 		FMemory::Memzero( &ControllerState, sizeof(FControllerState) );
 
-		ControllerState.ControllerId = ControllerIndex;
+		//----------------------------------------------------------------------------------------------
+		// JoyShockLib hack
+		//----------------------------------------------------------------------------------------------
+		//ControllerState.ControllerId = ControllerIndex;
+		ControllerState.ControllerId = 100/*Id range of 100-103*/ + ControllerIndex;
+		//----------------------------------------------------------------------------------------------
 	}
 
 	bIsGamepadAttached = false;

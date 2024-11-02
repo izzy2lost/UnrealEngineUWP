@@ -1,0 +1,28 @@
+{
+	"FileVersion": 3,
+	"Version": 1,
+	"VersionName": "1.0",
+	"FriendlyName": "JoyShockLib",
+	"Description": "JoyShock adds native support for additional controllers - DS4, DS, Switch. Licensed under MIT and HIDAPI's permissive license (license file included in JoyShockLib plugin folder).",
+	"Category": "Input Devices",
+	"CreatedBy": "",
+	"CreatedByURL": "",
+	"EnabledByDefault": true,
+	"IsBetaVersion": false,
+	"CanContainContent": false,
+	"SupportedTargetPlatforms":
+	[
+		"Win64"
+	],
+	"Modules":
+	[
+		{
+			"Name": "JoyShockLib",
+			"Type": "Runtime",
+			"PlatformAllowList":
+			[
+				"Win64"
+			]
+		}
+	]
+}

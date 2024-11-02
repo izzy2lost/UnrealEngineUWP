@@ -1,3 +1,44 @@
+Unreal Engine with JoyShockLib Plugin
+=============
+
+This custom branch of Unreal Engine has support for DualShock 4, DualSense, Nintendo Switch Joy-Con and Nintendo Switch Pro controllers.
+
+This is based on JoyShockLibrary: https://github.com/JibbSmart/JoyShockLibrary. Special thanks to Jibb Smart and others.
+
+The plugin works much like the standard XInput plugin. There could easily be issues (no guarantees!), but it's great being able to use these controllers.
+
+### Platforms
+* Windows.
+* May work on Mac and Linux with changes.
+
+### Currently tested controllers
+* DualShock 4 on USB.
+
+### Supported features
+* Basic input.
+* Force feedback.
+* Light colour. This works from PlayerController->SetControllerLightColor().
+* The interface provides appropriate hardware device identifiers:
+  * "JoyShock-DS4"
+  * "JoyShock-DS"
+  * "JoyShock-Switch-Left"
+  * "JoyShock-Switch-Right"
+  * "JoyShock-Switch-Pro"
+
+### JoyShockLib plugin licenses
+LICENSE.md included in the plugin's directory.
+* MIT license.
+* HIDAPI has its own permissive license.
+
+### Technical notes
+
+#### JoyShockLibrary changes
+* The code has been restructured and migrated into a single UnrealEngine plugin with no third party dependencies.
+
+#### Engine changes
+* Hacked together approach for ensuring xinput and joyshock controller IDs don't overlap.
+* Fixed platform specific code to set the controller light colour for Windows, Mac and Linux.
+
 Unreal Engine
 =============
 

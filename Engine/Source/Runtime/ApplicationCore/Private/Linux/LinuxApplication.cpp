@@ -2072,6 +2072,22 @@ void FLinuxApplication::SetHapticFeedbackValues(int32 ControllerId, int32 Hand, 
 	}
 }
 
+void FLinuxApplication::SetLightColor(int32 ControllerId, FColor Color)
+{
+	for (const auto InputDevice : ExternalInputDevices)
+	{
+		InputDevice->SetLightColor(ControllerId, Color);
+	}
+}
+
+void FLinuxApplication::ResetLightColor(int32 ControllerId)
+{
+	for (const auto InputDevice : ExternalInputDevices)
+	{
+		InputDevice->ResetLightColor(ControllerId);
+	}
+}
+
 void FLinuxApplication::SDLControllerState::UpdateHapticEffect()
 {
 	if (Haptic == nullptr)

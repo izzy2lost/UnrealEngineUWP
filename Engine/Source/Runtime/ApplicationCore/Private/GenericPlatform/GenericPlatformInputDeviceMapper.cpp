@@ -98,6 +98,30 @@ bool IPlatformInputDeviceMapper::IsInputDeviceMappedToUnpairedUser(const FInputD
 
 FPlatformUserId IPlatformInputDeviceMapper::GetUserForInputDevice(FInputDeviceId DeviceId) const
 {
+	//----------------------------------------------------------------------------------------------
+	// JoyShockLib hack
+	//----------------------------------------------------------------------------------------------
+	// Check for specific cases of assigning the first controller of different input interfaces
+	if (DeviceId.GetId() == 100)
+	{
+		// Check if another interface has already mapped the first controller
+		if (MappedInputDevices.Find(FInputDeviceId::CreateFromInternalId(200)) == nullptr)
+		{
+			// This should map to the first user
+			DeviceId = FInputDeviceId::CreateFromInternalId(0);
+		}
+	}
+	else if (DeviceId.GetId() == 200)
+	{
+		// Check if another interface has already mapped the first controller
+		if (MappedInputDevices.Find(FInputDeviceId::CreateFromInternalId(100)) == nullptr)
+		{
+			// This should map to the first user
+			DeviceId = FInputDeviceId::CreateFromInternalId(0);
+		}
+	}
+	//----------------------------------------------------------------------------------------------
+	
 	if (const FPlatformInputDeviceState* FoundState = MappedInputDevices.Find(DeviceId))
 	{
 		return FoundState->OwningPlatformUser;

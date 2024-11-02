@@ -2878,6 +2878,22 @@ void FWindowsApplication::SetHapticFeedbackValues(int32 ControllerId, int32 Hand
 	}
 }
 
+void FWindowsApplication::SetLightColor(int32 ControllerId, FColor Color)
+{
+	for (const auto InputDevice : ExternalInputDevices)
+	{
+		InputDevice->SetLightColor(ControllerId, Color);
+	}
+}
+
+void FWindowsApplication::ResetLightColor(int32 ControllerId)
+{
+	for (const auto InputDevice : ExternalInputDevices)
+	{
+		InputDevice->ResetLightColor(ControllerId);
+	}
+}
+
 void FWindowsApplication::SetDeviceProperty(int32 ControllerId, const FInputDeviceProperty* Property)
 {
 	if (FApp::UseVRFocus() && !FApp::HasVRFocus())
