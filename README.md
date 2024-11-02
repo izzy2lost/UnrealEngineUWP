@@ -35,7 +35,7 @@ LICENSE.md included in the plugin's directory.
 You can find the plugin under Engine/Plugins/Runtime/JoyShockLib.
 
 #### JoyShockLibrary changes
-* The code has been restructured and migrated into a single UnrealEngine plugin with no third party dependencies.
+* The code has been restructured and migrated into a single UnrealEngine plugin. All the code is inside the plugin (no external dlls).
 
 #### Engine changes
 * Hacked together approach for ensuring xinput and joyshock controller IDs don't overlap.
