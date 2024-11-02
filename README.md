@@ -32,6 +32,8 @@ LICENSE.md included in the plugin's directory.
 
 ### Technical notes
 
+You can find the plugin under Engine/Plugins/Runtime/JoyShockLib.
+
 #### JoyShockLibrary changes
 * The code has been restructured and migrated into a single UnrealEngine plugin with no third party dependencies.
 
