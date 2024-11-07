@@ -23,8 +23,6 @@
  * Since version 0.12.0, @ref HID_API_VERSION >= HID_API_MAKE_VERSION(0, 12, 0)
  */
 
-// EmmettJnr: Updated for UE5
-
 #ifndef HIDAPI_DARWIN_H__
 #define HIDAPI_DARWIN_H__
 

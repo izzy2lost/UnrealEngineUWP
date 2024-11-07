@@ -1583,7 +1583,7 @@ HID_API_EXPORT const wchar_t * HID_API_CALL  hid_error(hid_device *dev)
 }
 
 #ifndef hidapi_winapi_EXPORTS
-#include "hidapi_descriptor_reconstruct.c"
+#include "hidapi_descriptor_reconstruct_2.h"
 #endif
 
 #ifdef __cplusplus
