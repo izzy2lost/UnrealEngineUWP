@@ -134,7 +134,7 @@ typedef struct JSL_SETTINGS {
 } JSL_SETTINGS;
 
 void JslConnectDevices();
-void JslRefreshConnectedDevices();
+bool JslConnectedDevicesChanged();
 int JslGetConnectedDeviceHandles(int* deviceHandleArray, int size);
 void JslDisconnectAndDisposeAll();
 bool JslConnected(int deviceId);

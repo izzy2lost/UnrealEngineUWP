@@ -9,10 +9,12 @@ The plugin works much like the standard XInput plugin. There could easily be iss
 
 ### Platforms
 * Windows.
-* May work on Mac and Linux with changes.
+* Mac.
+* May work on Linux with changes.
 
 ### Currently tested controllers
 * DualShock 4 on USB.
+  * On Mac the controller order can change when disconnecting/reconnecting currently.
 
 ### Supported features
 * Basic input.
@@ -36,10 +38,12 @@ You can find the plugin under Engine/Plugins/Runtime/JoyShockLib.
 
 #### JoyShockLibrary changes
 * The code has been restructured and migrated into a single UnrealEngine plugin. All the code is inside the plugin (no external dlls).
+* Added custom device detection routine for mac.
 
 #### Engine changes
-* Hacked together approach for ensuring xinput and joyshock controller IDs don't overlap.
+* Hacked together approach for ensuring xinput/applecontroller and joyshock controller IDs don't overlap.
 * Fixed platform specific code to set the controller light colour for Windows, Mac and Linux.
+* Updated apple controller interface to ignore DS4 and DS controllers.
 
 Unreal Engine
 =============

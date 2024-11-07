@@ -126,7 +126,7 @@ protected:
         GCController* Controller;
         
         ControllerType ControllerType;
-        
+
         PlayerIndex PlayerIndex;
 
         GCExtendedGamepad* PreviousExtendedGamepad;

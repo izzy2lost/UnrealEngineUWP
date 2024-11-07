@@ -135,6 +135,11 @@ EInputDeviceConnectionState GetInputDeviceConnectionState(bool bWasConnected, bo
 }
 void JoyShockInterface::SendControllerEvents()
 {
+	if (JslConnectedDevicesChanged())
+	{
+		SetNeedsControllerStateUpdate();
+	}
+	
 	bool bWereConnected[MAX_NUM_JOYSHOCK_CONTROLLERS];
 
 	bIsGamepadAttached = false;
@@ -318,7 +323,7 @@ void JoyShockInterface::SetDeviceProperty(int32 ControllerId, const FInputDevice
 	static const FName UpdateRequestedName = TEXT("Request_Device_Update");
 	if (Property && Property->Name == UpdateRequestedName)
 	{
-		JslRefreshConnectedDevices();
+		JslConnectDevices();
 		SetNeedsControllerStateUpdate();	
 	}
 }

@@ -29,6 +29,13 @@ std::mutex _pathHandleLock;
 std::unordered_map<std::string, int> _pathHandle;
 // https://stackoverflow.com/questions/41206861/atomic-increment-and-return-counter
 static std::atomic<int> _joyshockHandleCounter;
+bool _libraryInitialised = false;
+bool _libraryIsDisposing = false;
+bool _connectedDevicesChanged = false;
+
+#ifdef PLATFORM_MAC
+std::thread* _deviceDetectionThread = nullptr;
+#endif
 
 static int GetUniqueHandle(const std::string &path)
 {
@@ -40,6 +47,19 @@ static int GetUniqueHandle(const std::string &path)
 		_pathHandleLock.unlock();
 		return iter->second;
 	}
+
+#ifdef PLATFORM_MAC
+	// The path seems to change, just use the first free spot
+	for (int i = 0; i < _joyshockHandleCounter; i++)
+	{
+		if (_joyshocks.find(i) == _joyshocks.end())
+		{
+			_pathHandleLock.unlock();
+			return i;
+		}
+	}
+#endif
+	
 	const int handle = _joyshockHandleCounter++;
 	_pathHandle.emplace(path, handle);
 	_pathHandleLock.unlock();
@@ -260,78 +280,100 @@ void pollIndividualLoop(JoyShock *jc) {
 	}
 }
 
-void JslRefreshConnectedDevices() {
+#ifdef PLATFORM_MAC
+// Device detection loop to make implementation easier
+void deviceDetectionLoop() {
 
-	_connectedLock.lock();
-
-	// Look for new devices
-	bool newDeviceDetected = false;
-
-	struct hid_device_info* devs, * cur_dev;
-	std::vector<int> createdIds;
-
-	devs = hid_enumerate(0x0, 0x0);
-	cur_dev = devs;
-	while (cur_dev) {
-		bool isSupported = false;
-		bool isSwitch = false;
-		switch (cur_dev->vendor_id)
+	while (!_libraryIsDisposing)
+	{
+		if (!_libraryInitialised)
 		{
-		case JOYCON_VENDOR:
-			isSupported = cur_dev->product_id == JOYCON_L_BT ||
-				cur_dev->product_id == JOYCON_R_BT ||
-				cur_dev->product_id == PRO_CONTROLLER ||
-				cur_dev->product_id == JOYCON_CHARGING_GRIP;
-			isSwitch = true;
-			break;
-		case DS_VENDOR:
-			isSupported = cur_dev->product_id == DS4_USB ||
-				cur_dev->product_id == DS4_USB_V2 ||
-				cur_dev->product_id == DS4_USB_DONGLE ||
-				cur_dev->product_id == DS4_BT ||
-				cur_dev->product_id == DS_USB;
-			break;
-		case BROOK_DS4_VENDOR:
-			isSupported = cur_dev->product_id == BROOK_DS4_USB;
-			break;
-		default:
-			break;
-		}
-		if (!isSupported)
-		{
-			cur_dev = cur_dev->next;
+			FPlatformProcess::Sleep(2.0f);
 			continue;
 		}
 
-		// Check if the device is already connected
-		const std::string path = std::string(cur_dev->path);
-		auto iter = _byPath.find(path);
-		JoyShock* currentJc = nullptr;
-		bool isSameController = false;
-		if (iter != _byPath.end())
-		{
-			currentJc = iter->second;
-			isSameController = isSwitch == (currentJc->controller_type == ControllerType::n_switch);
-		}
+		FPlatformProcess::Sleep(2.0f);
 
-		if (!isSameController)
-		{
-			newDeviceDetected = true;
-			break;
-		}
+		// Look for new devices
+		// This is a read-only operation which takes a fair amount of milliseconds, so we only lock when looking for JoyShock objects
+		
+		bool newDeviceDetected = false;
 
-		cur_dev = cur_dev->next;
+		struct hid_device_info* devs, * cur_dev;
+		std::vector<int> createdIds;
+
+		//auto before = std::chrono::system_clock::now();
+
+		devs = hid_enumerate(0x0, 0x0);
+		cur_dev = devs;
+		while (cur_dev) {
+			bool isSupported = false;
+			bool isSwitch = false;
+			switch (cur_dev->vendor_id)
+			{
+			case JOYCON_VENDOR:
+				isSupported = cur_dev->product_id == JOYCON_L_BT ||
+					cur_dev->product_id == JOYCON_R_BT ||
+					cur_dev->product_id == PRO_CONTROLLER ||
+					cur_dev->product_id == JOYCON_CHARGING_GRIP;
+				isSwitch = true;
+				break;
+			case DS_VENDOR:
+				isSupported = cur_dev->product_id == DS4_USB ||
+					cur_dev->product_id == DS4_USB_V2 ||
+					cur_dev->product_id == DS4_USB_DONGLE ||
+					cur_dev->product_id == DS4_BT ||
+					cur_dev->product_id == DS_USB;
+				break;
+			case BROOK_DS4_VENDOR:
+				isSupported = cur_dev->product_id == BROOK_DS4_USB;
+				break;
+			default:
+				break;
+			}
+			if (!isSupported)
+			{
+				cur_dev = cur_dev->next;
+				continue;
+			}
+
+			// Check if the device is already connected
+			_connectedLock.lock();
+
+			const std::string path = std::string(cur_dev->path);
+			auto iter = _byPath.find(path);
+			JoyShock* currentJc = nullptr;
+			bool isSameController = false;
+			if (iter != _byPath.end())
+			{
+				currentJc = iter->second;
+				isSameController = isSwitch == (currentJc->controller_type == ControllerType::n_switch);
+			}
+
+			_connectedLock.unlock();
+
+			if (!isSameController)
+			{
+				newDeviceDetected = true;
+				break;
+			}
+
+			cur_dev = cur_dev->next;
+		}
+		hid_free_enumeration(devs);
+
+		//auto after = std::chrono::system_clock::now();
+		//UE_LOG(LogJoyShockLib, Display, TEXT("Device detection took %dms"), std::chrono::duration_cast<std::chrono::milliseconds>(after - before).count());
+
+		if (newDeviceDetected)
+		{
+			UE_LOG(LogJoyShockLib, Display, TEXT("New device detected"));
+			JslConnectDevices();
+			_connectedDevicesChanged = true;
+		}
 	}
-	hid_free_enumeration(devs);
-
-	_connectedLock.unlock();
-
-	if (!newDeviceDetected)
-		return;
-
-	// Reconnect all devices
-	JslConnectDevices();
 }
+#endif
 
 void JslConnectDevices()
 {
@@ -538,6 +580,15 @@ void JslConnectDevices()
 		}
 	}
 
+#ifdef PLATFORM_MAC
+	// thread for device detection
+	if (_deviceDetectionThread == nullptr)
+	{
+		UE_LOG(LogJoyShockLib, Display, TEXT("Starting device detection thread"));
+		_deviceDetectionThread = new std::thread(deviceDetectionLoop);
+	}
+#endif
+	
 	//const int totalDevices = (int)_joyshocks.size();
 
 	_connectedLock.unlock();
@@ -553,6 +604,15 @@ void JslConnectDevices()
 			}
 		}
 	}
+
+	_libraryInitialised = true;
+}
+
+bool JslConnectedDevicesChanged()
+{
+	const bool changed = _connectedDevicesChanged;
+	_connectedDevicesChanged = false;
+	return changed;
 }
 
 int JslGetConnectedDeviceHandles(int* deviceHandleArray, int size)
@@ -573,6 +633,8 @@ int JslGetConnectedDeviceHandles(int* deviceHandleArray, int size)
 
 void JslDisconnectAndDisposeAll()
 {
+	_libraryIsDisposing = true;
+	
 	// no more callback
 	JslSetCallback(nullptr);
 	JslSetTouchCallback(nullptr);
@@ -606,6 +668,12 @@ void JslDisconnectAndDisposeAll()
 		delete thread;
 	}
 
+#ifdef PLATFORM_MAC
+	std::thread* deviceDetectionThread = _deviceDetectionThread;
+	deviceDetectionThread->detach();
+	delete deviceDetectionThread;
+#endif
+	
 	_joyshocks.clear();
 	_byPath.clear();
 

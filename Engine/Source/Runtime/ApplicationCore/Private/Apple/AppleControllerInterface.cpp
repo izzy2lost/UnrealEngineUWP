@@ -174,6 +174,19 @@ void FAppleControllerInterface::HandleConnection(GCController* Controller)
 	
 	static_assert(GCControllerPlayerIndex1 == 0 && GCControllerPlayerIndex4 == 3, "Apple changed the player index enums");
 
+	//---------------------------------------------------------------------------------------------
+	// JoyShock - ignore DualShock 4 and DualSense connection events on apple controller interface
+	//---------------------------------------------------------------------------------------------
+	if ([Controller.productCategory isEqualToString:@"DualShock 4"])
+	{
+		return;
+	}
+	else if ([Controller.productCategory isEqualToString:@"DualSense"])
+	{
+		return;
+	}
+	//---------------------------------------------------------------------------------------------
+	
 	// find a good controller index to use
 	bool bFoundSlot = false;
 	for (int32 ControllerIndex = 0; ControllerIndex < UE_ARRAY_COUNT(Controllers); ControllerIndex++)
@@ -183,7 +196,6 @@ void FAppleControllerInterface::HandleConnection(GCController* Controller)
             continue;
         }
         
-        Controllers[ControllerIndex].PlayerIndex = (PlayerIndex)ControllerIndex;
         Controllers[ControllerIndex].Controller = [Controller retain];
         SetControllerType(ControllerIndex);
         
@@ -197,13 +209,21 @@ PRAGMA_DISABLE_DEPRECATION_WARNINGS
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
         
         bFoundSlot = true;
-        
+
+		//----------------------------------------------------------------------
+		// JoyShock - remap controller to user without assuming player index
+		//----------------------------------------------------------------------
         IPlatformInputDeviceMapper& DeviceMapper = IPlatformInputDeviceMapper::Get();
-        FPlatformUserId UserId = FGenericPlatformMisc::GetPlatformUserForUserIndex(Controllers[ControllerIndex].PlayerIndex);
+        //FPlatformUserId UserId = FGenericPlatformMisc::GetPlatformUserForUserIndex(Controllers[ControllerIndex].PlayerIndex);
+		FPlatformUserId UserId = PLATFORMUSERID_NONE;
         FInputDeviceId DeviceId = INPUTDEVICEID_NONE;
-        DeviceMapper.RemapControllerIdToPlatformUserAndDevice(Controllers[ControllerIndex].PlayerIndex, OUT UserId, OUT DeviceId);
+
+        DeviceMapper.RemapControllerIdToPlatformUserAndDevice(100/*JoyShock hack*/ + ControllerIndex, OUT UserId, OUT DeviceId);
         DeviceMapper.Internal_MapInputDeviceToUser(DeviceId, UserId, EInputDeviceConnectionState::Connected);
-        
+
+		Controllers[ControllerIndex].PlayerIndex = (PlayerIndex)(DeviceId.GetId() - 100);
+		//----------------------------------------------------------------------
+
         UE_LOG(LogAppleController, Log, TEXT("New %s controller inserted, assigned to playerIndex %d"),
                Controllers[ControllerIndex].ControllerType == ControllerType::ExtendedGamepad ||
                Controllers[ControllerIndex].ControllerType == ControllerType::XboxGamepad ||
@@ -230,12 +250,16 @@ void FAppleControllerInterface::HandleDisconnect(GCController* Controller)
 			// Player index of unset(-1) would indicate that it has become unset even though it is now trying to disconnect
 			// This can occur on iOS when bGameSupportsMultipleActiveControllers is false
 			UE_LOG(LogAppleController, Log, TEXT("Controller for playerIndex %d, controller Index %d removed"), UserController.PlayerIndex, ControllerIndex);
-            
+
+        	//-------------------------------------------------------------------------
+        	// JoyShock - remap controller to user without assuming player index
+        	//-------------------------------------------------------------------------
             IPlatformInputDeviceMapper& DeviceMapper = IPlatformInputDeviceMapper::Get();
-            FPlatformUserId UserId = FGenericPlatformMisc::GetPlatformUserForUserIndex(UserController.PlayerIndex);
+            FPlatformUserId UserId = PLATFORMUSERID_NONE;
             FInputDeviceId DeviceId = INPUTDEVICEID_NONE;
-            DeviceMapper.RemapControllerIdToPlatformUserAndDevice(UserController.PlayerIndex, OUT UserId, OUT DeviceId);
+            DeviceMapper.RemapControllerIdToPlatformUserAndDevice(100/*JoyShock hack*/ + ControllerIndex, OUT UserId, OUT DeviceId);
             DeviceMapper.Internal_MapInputDeviceToUser(DeviceId, UserId, EInputDeviceConnectionState::Disconnected);
+        	//-------------------------------------------------------------------------
 			
 			[UserController.Controller release];
 			[UserController.PreviousExtendedGamepad release];
@@ -264,8 +288,14 @@ void FAppleControllerInterface::SendControllerEvents()
 		GCController* ControllerImpl = Controller.Controller;
 		
 		IPlatformInputDeviceMapper& DeviceMapper = IPlatformInputDeviceMapper::Get();
-		FPlatformUserId UserId = FGenericPlatformMisc::GetPlatformUserForUserIndex(Controller.PlayerIndex);
-		FInputDeviceId DeviceId = DeviceMapper.GetPrimaryInputDeviceForUser(UserId);
+
+    	//-------------------------------------------------
+    	// JoyShock
+    	//-------------------------------------------------
+    	FPlatformUserId UserId = PLATFORMUSERID_NONE;
+    	FInputDeviceId DeviceId = INPUTDEVICEID_NONE;
+    	DeviceMapper.RemapControllerIdToPlatformUserAndDevice(100/*JoyShock hack*/ + i, OUT UserId, OUT DeviceId);
+    	//-------------------------------------------------
 		
         GCExtendedGamepad* ExtendedGamepad = [ControllerImpl capture].extendedGamepad;
 		GCMotion* Motion = ControllerImpl.motion;
@@ -377,8 +407,14 @@ void FAppleControllerInterface::HandleInputInternal(const FGamepadKeyNames::Type
     GCController* Cont = Controllers[ControllerIndex].Controller;
     
 	IPlatformInputDeviceMapper& DeviceMapper = IPlatformInputDeviceMapper::Get();
-	FPlatformUserId UserId = FGenericPlatformMisc::GetPlatformUserForUserIndex(Controllers[ControllerIndex].PlayerIndex);
-    FInputDeviceId DeviceId = DeviceMapper.GetPrimaryInputDeviceForUser(UserId);
+
+	//-------------------------------------------------
+	// JoyShock
+	//-------------------------------------------------
+	FPlatformUserId UserId = PLATFORMUSERID_NONE;
+	FInputDeviceId DeviceId = INPUTDEVICEID_NONE;
+	DeviceMapper.RemapControllerIdToPlatformUserAndDevice(100/*JoyShock hack*/ + ControllerIndex, OUT UserId, OUT DeviceId);
+	//-------------------------------------------------
 
     if (bWasPressed != bIsPressed)
     {
@@ -527,9 +563,15 @@ void FAppleControllerInterface::HandleAnalogGamepad(const FGamepadKeyNames::Type
     GCController* Cont = Controllers[ControllerIndex].Controller;
     
     IPlatformInputDeviceMapper& DeviceMapper = IPlatformInputDeviceMapper::Get();
-	FPlatformUserId UserId = FGenericPlatformMisc::GetPlatformUserForUserIndex(Controllers[ControllerIndex].PlayerIndex);
-    FInputDeviceId DeviceId = DeviceMapper.GetPrimaryInputDeviceForUser(UserId);
-    
+
+	//-------------------------------------------------
+	// JoyShock
+	//-------------------------------------------------
+	FPlatformUserId UserId = PLATFORMUSERID_NONE;
+	FInputDeviceId DeviceId = INPUTDEVICEID_NONE;
+	DeviceMapper.RemapControllerIdToPlatformUserAndDevice(100/*JoyShock hack*/ + ControllerIndex, OUT UserId, OUT DeviceId);
+	//-------------------------------------------------
+
     // Send controller events any time we are passed the given input threshold similarly to PC/Console (see: XInputInterface.cpp)
     const float RepeatDeadzone = 0.24f;
     bool bWasPositivePressed = false;
