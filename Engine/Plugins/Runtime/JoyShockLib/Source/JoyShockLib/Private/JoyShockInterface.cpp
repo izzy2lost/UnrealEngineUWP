@@ -44,8 +44,8 @@ JoyShockInterface::JoyShockInterface(const TSharedRef<FGenericApplicationMessage
 	JoyShockToXboxControllerMapping[3] = 3;		// Y
 	JoyShockToXboxControllerMapping[4] = 4;		// L1
 	JoyShockToXboxControllerMapping[5] = 5;		// R1
-	JoyShockToXboxControllerMapping[6] = 7;		// Back 
-	JoyShockToXboxControllerMapping[7] = 6;		// Start
+	JoyShockToXboxControllerMapping[6] = 6;		// Back 
+	JoyShockToXboxControllerMapping[7] = 7;		// Start
 	JoyShockToXboxControllerMapping[8] = 8;		// Left thumbstick
 	JoyShockToXboxControllerMapping[9] = 9;		// Right thumbstick
 	JoyShockToXboxControllerMapping[10] = 10;	// L2
