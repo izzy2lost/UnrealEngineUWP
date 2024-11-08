@@ -2866,13 +2866,18 @@ FGraphicsPipelineState* PipelineStateCache::FindGraphicsPipelineState(const FGra
 }
 
 bool PipelineStateCache::IsPSOPrecachingEnabled()
-{	
-#if WITH_EDITOR
-	// Disables in the editor for now by default untill more testing is done - still WIP
+{
+	//------------------------------------------------------
+	// EmmettJnr: Seems to be crashing with the below enabled
 	return false;
-#else
-	return GPSOPrecaching != 0 && GRHISupportsPSOPrecaching;
-#endif // WITH_EDITOR
+	//------------------------------------------------------
+
+// #if WITH_EDITOR
+// 	// Disables in the editor for now by default untill more testing is done - still WIP
+// 	return false;
+// #else
+// 	return GPSOPrecaching != 0 && GRHISupportsPSOPrecaching;
+// #endif // WITH_EDITOR
 }
 
 FPSOPrecacheRequestResult FPrecacheComputePipelineCache::PrecacheComputePipelineState(FRHIComputeShader* ComputeShader, bool bForcePrecache)
