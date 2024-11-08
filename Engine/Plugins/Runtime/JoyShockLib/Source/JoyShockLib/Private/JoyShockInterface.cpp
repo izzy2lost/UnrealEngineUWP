@@ -3,10 +3,10 @@
 
 // Based from XInputInterface.cpp
 
-static int32 ForceControllerStateUpdate = 0;
-FAutoConsoleVariableRef CVarForceControllerStateUpdate(
+static int32 ForceJoyshockControllerStateUpdate = 0;
+FAutoConsoleVariableRef CVarForceJoyShockControllerStateUpdate(
 	TEXT("JoyShockLib.ForceControllerStateUpdate"),
-	ForceControllerStateUpdate,
+	ForceJoyshockControllerStateUpdate,
 	TEXT("Force JoyShockLib refresh of controller state on each frame.\n")
 	TEXT("0: Not Enabled, 1: Enabled"),
 	ECVF_Default);
@@ -149,7 +149,7 @@ void JoyShockInterface::SendControllerEvents()
 
 		bWereConnected[ControllerIndex] = ControllerState.bIsConnected;
 
-		if (ControllerState.bIsConnected || bNeedsControllerStateUpdate || ForceControllerStateUpdate != 0)
+		if (ControllerState.bIsConnected || bNeedsControllerStateUpdate || ForceJoyshockControllerStateUpdate != 0)
 		{
 			ControllerState.bIsConnected = JslConnected(ControllerIndex);
 			ControllerState.ControllerType = JslGetControllerType(ControllerIndex);
